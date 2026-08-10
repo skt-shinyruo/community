@@ -4,9 +4,7 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.ops.application.ProjectionGovernanceApplicationService;
-import com.nowcoder.community.ops.application.result.ProjectionLagResult;
-import com.nowcoder.community.ops.controller.dto.ProjectionLagResponse;
+import com.nowcoder.community.ops.application.ProjectionLagQuery;
 import com.nowcoder.community.ops.security.OpsSecurityRules;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
@@ -49,7 +47,7 @@ class ProjectionOpsControllerTest {
     private ProjectionOpsController controller;
 
     @MockBean
-    private ProjectionGovernanceApplicationService projectionGovernanceApplicationService;
+    private ProjectionLagQuery projectionLagQuery;
 
     @MockBean
     private JwtDecoder jwtDecoder;
@@ -67,26 +65,27 @@ class ProjectionOpsControllerTest {
     }
 
     @Test
-    void adminShouldQueryProjectionLagUsingControllerDto() throws Exception {
-        when(projectionGovernanceApplicationService.listProjectionLag())
-                .thenReturn(List.of(new ProjectionLagResult(
+    void adminShouldQueryProjectionLagUsingApplicationReadModel() throws Exception {
+        when(projectionLagQuery.listProjectionLag())
+                .thenReturn(List.of(new ProjectionLagQuery.ProjectionLag(
                         "eventbus.content",
                         "PENDING",
                         2L,
                         Duration.ofSeconds(42)
                 )));
 
-        Result<List<ProjectionLagResponse>> result = controller.lag();
+        Result<List<ProjectionLagQuery.ProjectionLag>> result = controller.lag();
 
-        assertThat(result.getData()).singleElement().isInstanceOf(ProjectionLagResponse.class);
+        assertThat(result.getData()).singleElement().isInstanceOf(ProjectionLagQuery.ProjectionLag.class);
 
         mockMvc.perform(get("/api/ops/projections/lag")
                         .with(jwt().jwt(jwt -> jwt.subject("admin-1")).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.data[0].projection").value("eventbus.content"))
                 .andExpect(jsonPath("$.data[0].status").value("PENDING"))
-                .andExpect(jsonPath("$.data[0].count").value(2));
+                .andExpect(jsonPath("$.data[0].count").value(2))
+                .andExpect(jsonPath("$.data[0].oldestAge").value("PT42S"));
 
-        verify(projectionGovernanceApplicationService, times(2)).listProjectionLag();
+        verify(projectionLagQuery, times(2)).listProjectionLag();
     }
 }

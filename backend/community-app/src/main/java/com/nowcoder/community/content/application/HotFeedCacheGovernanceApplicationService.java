@@ -14,6 +14,7 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -31,19 +32,22 @@ public class HotFeedCacheGovernanceApplicationService
     private final PostSummaryCache postSummaryCache;
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final ContentFeedPolicyProperties policyProperties;
+    private final Clock clock;
 
     public HotFeedCacheGovernanceApplicationService(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
             PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
-            ContentFeedPolicyProperties policyProperties
+            ContentFeedPolicyProperties policyProperties,
+            Clock clock
     ) {
         this.postFeedCache = Objects.requireNonNull(postFeedCache, "postFeedCache must not be null");
         this.postContentRepository = Objects.requireNonNull(postContentRepository, "postContentRepository must not be null");
         this.postSummaryCache = Objects.requireNonNull(postSummaryCache, "postSummaryCache must not be null");
         this.postFeedSummaryLoader = Objects.requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader must not be null");
-        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
+        this.policyProperties = Objects.requireNonNull(policyProperties, "policyProperties must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -102,7 +106,7 @@ public class HotFeedCacheGovernanceApplicationService
         }
         var summaries = postFeedSummaryLoader.assembleSummaries(posts);
         postFeedSummaryLoader.cacheSummaries(posts, summaries);
-        Instant prewarmAt = Instant.now();
+        Instant prewarmAt = clock.instant();
         postFeedCache.writeLastPrewarmAt(c.scope(), c.boardId(), prewarmAt);
         HotFeedDegradationSignalResult signal = safeSignal();
         return new HotFeedCachePrewarmResultView(

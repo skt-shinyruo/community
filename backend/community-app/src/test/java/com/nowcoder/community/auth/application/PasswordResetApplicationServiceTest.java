@@ -1,10 +1,10 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.ConfirmPasswordResetCommand;
-import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.ConfirmPasswordResetCommand;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.port.PasswordResetMailDispatcher;
 import com.nowcoder.community.auth.application.port.PasswordResetTransactionCompletion;
-import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
@@ -28,6 +28,7 @@ import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.lang.reflect.RecordComponent;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.HashMap;
@@ -88,7 +89,8 @@ class PasswordResetApplicationServiceTest {
                 transactionCompletion,
                 captchaChallenge,
                 tokenDeriver,
-                new PasswordResetDomainService()
+                new PasswordResetDomainService(),
+                Clock.systemUTC()
         );
     }
 
@@ -127,7 +129,8 @@ class PasswordResetApplicationServiceTest {
         PasswordResetRequestResult result = service.requestReset(new RequestPasswordResetCommand(
                 " ALICE@example.com ",
                 "cid",
-                "1234"
+                "1234",
+                null
         ));
 
         assertThat(result.issued()).isTrue();
@@ -165,7 +168,7 @@ class PasswordResetApplicationServiceTest {
         ArgumentCaptor<String> token = ArgumentCaptor.forClass(String.class);
 
         assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
-                "alice@example.com", "cid", "1234"
+                "alice@example.com", "cid", "1234", null
         )))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("executor saturated");
@@ -231,8 +234,8 @@ class PasswordResetApplicationServiceTest {
         when(userCredentialQueryApi.findByEmailOrNull("straße@example.com")).thenReturn(user);
         when(userCredentialQueryApi.findByEmailOrNull("strasse@example.com")).thenReturn(user);
 
-        service.requestReset(new RequestPasswordResetCommand("straße@example.com", "cid", "1234"));
-        service.requestReset(new RequestPasswordResetCommand("STRASSE@example.com", "cid", "1234"));
+        service.requestReset(new RequestPasswordResetCommand("straße@example.com", "cid", "1234", null));
+        service.requestReset(new RequestPasswordResetCommand("STRASSE@example.com", "cid", "1234", null));
 
         ArgumentCaptor<String> rateKey = ArgumentCaptor.forClass(String.class);
         verify(resetRequestRateLimitRepository, org.mockito.Mockito.times(4))
@@ -259,12 +262,12 @@ class PasswordResetApplicationServiceTest {
         when(userCredentialQueryApi.findByEmailOrNull("strasse@example.com")).thenReturn(user);
 
         assertThat(service.requestReset(new RequestPasswordResetCommand(
-                "straße@example.com", "cid", "1234"
+                "straße@example.com", "cid", "1234", null
         )).issued()).isTrue();
         assertTooManyRequests("STRASSE@example.com");
 
         assertThat(service.requestReset(new RequestPasswordResetCommand(
-                "fuß@example.com", "cid", "1234"
+                "fuß@example.com", "cid", "1234", null
         )).issued()).isTrue();
         assertTooManyRequests("FUSS@example.com");
     }
@@ -285,10 +288,10 @@ class PasswordResetApplicationServiceTest {
         when(userCredentialQueryApi.findByEmailOrNull("alias-two@example.com")).thenReturn(user);
 
         assertThat(service.requestReset(new RequestPasswordResetCommand(
-                "alias-one@example.com", "cid", "1234"
+                "alias-one@example.com", "cid", "1234", null
         )).issued()).isTrue();
         assertThat(service.requestReset(new RequestPasswordResetCommand(
-                "alias-two@example.com", "cid", "1234"
+                "alias-two@example.com", "cid", "1234", null
         )).issued()).isTrue();
 
         ArgumentCaptor<String> deliveryEmail = ArgumentCaptor.forClass(String.class);
@@ -323,7 +326,8 @@ class PasswordResetApplicationServiceTest {
         assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
                 "alice@example.com",
                 "cid",
-                "1234"
+                "1234",
+                null
         )))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
@@ -497,7 +501,7 @@ class PasswordResetApplicationServiceTest {
 
     private void assertTooManyRequests(String email) {
         assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
-                email, "cid", "1234"
+                email, "cid", "1234", null
         )))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())

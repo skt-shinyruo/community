@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
+import com.nowcoder.community.content.application.PostMediaApplicationService.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
@@ -70,7 +70,7 @@ class PostMediaUploadReliabilityContractTest {
         PostMediaStoragePort storage = mock(PostMediaStoragePort.class);
         when(storage.prepareUpload(any(), anyString())).thenAnswer(invocation ->
                 uploadSession(invocation.getArgument(0, PostMediaAsset.class).id()));
-        PostMediaApplicationService service = new PostMediaApplicationService(repository, storage);
+        PostMediaApplicationService service = uploadService(repository, storage);
 
         PostMediaUploadSessionResult first = service.prepareUpload(command);
         PostMediaUploadSessionResult replay = service.prepareUpload(command);
@@ -94,7 +94,7 @@ class PostMediaUploadReliabilityContractTest {
             }
             return uploadSession(assetId);
         });
-        PostMediaApplicationService service = new PostMediaApplicationService(repository, storage);
+        PostMediaApplicationService service = uploadService(repository, storage);
 
         assertThatThrownBy(() -> service.prepareUpload(command))
                 .isInstanceOf(IllegalStateException.class)
@@ -124,7 +124,7 @@ class PostMediaUploadReliabilityContractTest {
             attemptedAssetIds.add(assetId);
             return uploadSession(assetId);
         });
-        PostMediaApplicationService service = new PostMediaApplicationService(repository, storage);
+        PostMediaApplicationService service = uploadService(repository, storage);
 
         Throwable firstFailure = catchThrowable(() -> service.prepareUpload(command));
         PostMediaUploadSessionResult replay = service.prepareUpload(command);
@@ -212,9 +212,9 @@ class PostMediaUploadReliabilityContractTest {
                 0L,
                 ""
         ));
-        PostMediaApplicationService uploadService = new PostMediaApplicationService(repository, storage);
+        PostMediaApplicationService uploadService = uploadService(repository, storage);
         PostMediaUploadRecoveryApplicationService recoveryService =
-                new PostMediaUploadRecoveryApplicationService(repository, storage);
+                recoveryService(repository, storage);
         PostMediaUploadContent content = new PostMediaUploadContent(
                 () -> new ByteArrayInputStream(new byte[]{1, 2, 3, 4}),
                 "image/png",
@@ -262,7 +262,7 @@ class PostMediaUploadReliabilityContractTest {
                 ""
         ));
         PostMediaUploadRecoveryApplicationService service =
-                new PostMediaUploadRecoveryApplicationService(repository, storage);
+                recoveryService(repository, storage);
 
         service.recoverStaleCompleting(STALE_AT, 10);
 
@@ -335,6 +335,30 @@ class PostMediaUploadReliabilityContractTest {
     void prepareAndCompleteOrchestratorMustNotContainBestEffortCleanupPaths() {
         assertThat(Arrays.stream(PostMediaApplicationService.class.getDeclaredMethods()).map(Method::getName))
                 .doesNotContain("cleanupPreparedDraft", "cleanupUploadedDraft");
+    }
+
+    private static PostMediaApplicationService uploadService(
+            PostMediaAssetRepository repository,
+            PostMediaStoragePort storage
+    ) {
+        return new PostMediaApplicationService(
+                storage,
+                new com.nowcoder.community.common.id.UuidV7Generator(),
+                new PostMediaUploadTransactionOperations(repository),
+                Clock.systemUTC()
+        );
+    }
+
+    private static PostMediaUploadRecoveryApplicationService recoveryService(
+            PostMediaAssetRepository repository,
+            PostMediaStoragePort storage
+    ) {
+        return new PostMediaUploadRecoveryApplicationService(
+                repository,
+                storage,
+                new PostMediaUploadTransactionOperations(repository),
+                Clock.systemUTC()
+        );
     }
 
     private static PreparePostMediaUploadCommand prepareCommand(UUID requestId) {
@@ -462,6 +486,9 @@ class PostMediaUploadReliabilityContractTest {
             }
             if (type == PostMediaStoragePort.class) {
                 return storage;
+            }
+            if (type == PostMediaUploadTransactionOperations.class) {
+                return new PostMediaUploadTransactionOperations(repository);
             }
             if (type == Clock.class) {
                 return Clock.fixed(Instant.parse("2026-07-15T01:00:00Z"), ZoneOffset.UTC);

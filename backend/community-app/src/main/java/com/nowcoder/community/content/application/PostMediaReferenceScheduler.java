@@ -29,7 +29,7 @@ public class PostMediaReferenceScheduler {
     ) {
         this.assetRepository = Objects.requireNonNull(assetRepository, "assetRepository must not be null");
         this.commandPublisher = Objects.requireNonNull(commandPublisher, "commandPublisher must not be null");
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional(propagation = Propagation.MANDATORY)

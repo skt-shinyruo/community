@@ -3,58 +3,48 @@ package com.nowcoder.community.ops.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.TriggerCompensationCommand;
-import com.nowcoder.community.ops.application.result.CompensationTriggerResult;
+import com.nowcoder.community.ops.application.result.OutboxLeaseRecoveryResult;
 import com.nowcoder.community.ops.domain.model.GovernanceAction;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
 import java.util.Set;
+import java.util.UUID;
 
 @Service
 public class CompensationGovernanceApplicationService {
 
+    private static final String OUTBOX_RECOVER_EXPIRED_LEASES = "outboxRecoverExpiredLeases";
     private static final Set<String> ALLOWED_JOBS = Set.of(
-            "outboxRecoverExpiredLeases",
+            OUTBOX_RECOVER_EXPIRED_LEASES,
             "searchPostProjectionRepair",
             "hotFeedProjectionRepair",
             "growthTaskProjectionRepair",
             "noticeProjectionRepair"
     );
 
-    private final CompensationTriggerPort compensationTriggerPort;
+    private final OutboxLeaseRecoveryPort outboxLeaseRecoveryPort;
     private final GovernanceMetrics governanceMetrics;
     private final GovernanceAuditPort governanceAuditPort;
 
     public CompensationGovernanceApplicationService(
-            CompensationTriggerPort compensationTriggerPort,
+            OutboxLeaseRecoveryPort outboxLeaseRecoveryPort,
             GovernanceMetrics governanceMetrics,
             GovernanceAuditPort governanceAuditPort
     ) {
-        this.compensationTriggerPort = Objects.requireNonNull(compensationTriggerPort, "compensationTriggerPort must not be null");
+        this.outboxLeaseRecoveryPort = Objects.requireNonNull(outboxLeaseRecoveryPort, "outboxLeaseRecoveryPort must not be null");
         this.governanceMetrics = Objects.requireNonNull(governanceMetrics, "governanceMetrics must not be null");
         this.governanceAuditPort = Objects.requireNonNull(governanceAuditPort, "governanceAuditPort must not be null");
     }
 
-    public CompensationTriggerResult trigger(TriggerCompensationCommand command) {
-        TriggerCompensationCommand c = validate(command);
-        CompensationTriggerResult result;
+    public TriggerResult trigger(TriggerCommand command) {
+        TriggerCommand c = validate(command);
+        TriggerResult result;
         try {
-            result = compensationTriggerPort.trigger(c);
-            if (result == null) {
-                result = new CompensationTriggerResult(
-                        c.jobName(),
-                        false,
-                        0,
-                        0,
-                        0,
-                        GovernanceResult.SKIPPED.name(),
-                        "compensation job returned no result"
-                );
-            }
+            result = run(c);
         } catch (RuntimeException ex) {
-            result = new CompensationTriggerResult(
+            result = new TriggerResult(
                     c.jobName(),
                     false,
                     0,
@@ -68,11 +58,11 @@ public class CompensationGovernanceApplicationService {
         return result;
     }
 
-    private TriggerCompensationCommand validate(TriggerCompensationCommand command) {
+    private TriggerCommand validate(TriggerCommand command) {
         if (command == null || command.actorUserId() == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "actorUserId is required");
         }
-        TriggerCompensationCommand c = command.normalized();
+        TriggerCommand c = command.normalized();
         if (!ALLOWED_JOBS.contains(c.jobName())) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "compensation job is not allow-listed");
         }
@@ -85,7 +75,33 @@ public class CompensationGovernanceApplicationService {
         return c;
     }
 
-    private void record(TriggerCompensationCommand command, CompensationTriggerResult result) {
+    private TriggerResult run(TriggerCommand command) {
+        if (!OUTBOX_RECOVER_EXPIRED_LEASES.equals(command.jobName())) {
+            return new TriggerResult(
+                    command.jobName(),
+                    false,
+                    0,
+                    0,
+                    command.limit(),
+                    GovernanceResult.SKIPPED.name(),
+                    "owner repair trigger is not configured for job=" + command.jobName()
+            );
+        }
+        OutboxLeaseRecoveryResult recovery = outboxLeaseRecoveryPort.recoverExpiredLeases(command.limit());
+        int skipped = Math.max(0, recovery.selectedCount() - recovery.recoveredCount());
+        boolean accepted = recovery.recoveredCount() > 0;
+        return new TriggerResult(
+                command.jobName(),
+                accepted,
+                recovery.selectedCount(),
+                recovery.recoveredCount(),
+                skipped,
+                accepted ? GovernanceResult.ACCEPTED.name() : GovernanceResult.SKIPPED.name(),
+                "expired outbox leases recovered"
+        );
+    }
+
+    private void record(TriggerCommand command, TriggerResult result) {
         String resultValue = result.result() == null || result.result().isBlank()
                 ? GovernanceResult.FAILED.name()
                 : result.result();
@@ -114,5 +130,27 @@ public class CompensationGovernanceApplicationService {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    public record TriggerCommand(UUID actorUserId, String jobName, int limit, String reason) {
+
+        TriggerCommand normalized() {
+            return new TriggerCommand(actorUserId, trim(jobName), limit, trim(reason));
+        }
+
+        private static String trim(String value) {
+            return value == null || value.isBlank() ? "" : value.trim();
+        }
+    }
+
+    public record TriggerResult(
+            String jobName,
+            boolean accepted,
+            int processedCount,
+            int repairedCount,
+            int skippedCount,
+            String result,
+            String message
+    ) {
     }
 }

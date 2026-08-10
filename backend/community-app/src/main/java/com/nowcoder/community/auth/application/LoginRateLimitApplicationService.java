@@ -8,9 +8,8 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
-import jakarta.annotation.PreDestroy;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.ObjectProvider;
+import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.slf4j.Logger;
@@ -20,14 +19,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.UUID;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
@@ -40,44 +37,30 @@ public class LoginRateLimitApplicationService {
     private static final String KEY_PREFIX_SUBJECT = KEY_PREFIX + "subject:";
     private static final String IN_FLIGHT_KEY_PREFIX = "auth:login:inflight:";
     private static final String METRIC = "auth_login_rate_limit_total";
-    private static final AtomicInteger RENEWER_THREAD_SEQUENCE = new AtomicInteger();
-
     private final LoginRateLimitProperties properties;
     private final LoginRateLimitRepository loginRateLimitRepository;
     private final LoginRateLimitDomainService loginRateLimitDomainService;
     private final PasswordResetTokenDeriver identifierDeriver;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final ScheduledExecutorService leaseRenewer;
-    private final boolean ownsLeaseRenewer;
 
-    @Autowired
     public LoginRateLimitApplicationService(
             LoginRateLimitProperties properties,
             LoginRateLimitRepository loginRateLimitRepository,
             LoginRateLimitDomainService loginRateLimitDomainService,
             PasswordResetTokenDeriver identifierDeriver,
-            ObjectProvider<MeterRegistry> meterRegistryProvider
-    ) {
-        this(properties, loginRateLimitRepository, loginRateLimitDomainService, identifierDeriver,
-                meterRegistryProvider, newLeaseRenewer(), true);
-    }
-
-    LoginRateLimitApplicationService(
-            LoginRateLimitProperties properties,
-            LoginRateLimitRepository loginRateLimitRepository,
-            LoginRateLimitDomainService loginRateLimitDomainService,
-            PasswordResetTokenDeriver identifierDeriver,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
-            ScheduledExecutorService leaseRenewer,
-            boolean ownsLeaseRenewer
+            @Qualifier("loginRateLimitLeaseRenewer") ScheduledExecutorService leaseRenewer
     ) {
-        this.properties = properties;
-        this.loginRateLimitRepository = loginRateLimitRepository;
-        this.loginRateLimitDomainService = loginRateLimitDomainService;
-        this.identifierDeriver = identifierDeriver;
-        this.meterRegistryProvider = meterRegistryProvider;
-        this.leaseRenewer = leaseRenewer;
-        this.ownsLeaseRenewer = ownsLeaseRenewer;
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.loginRateLimitRepository = Objects.requireNonNull(
+                loginRateLimitRepository, "loginRateLimitRepository must not be null");
+        this.loginRateLimitDomainService = Objects.requireNonNull(
+                loginRateLimitDomainService, "loginRateLimitDomainService must not be null");
+        this.identifierDeriver = Objects.requireNonNull(identifierDeriver, "identifierDeriver must not be null");
+        this.meterRegistryProvider = Objects.requireNonNull(
+                meterRegistryProvider, "meterRegistryProvider must not be null");
+        this.leaseRenewer = Objects.requireNonNull(leaseRenewer, "leaseRenewer must not be null");
     }
 
     public void recordFailure(String subject, String ip, String ipSource) {
@@ -419,29 +402,6 @@ public class LoginRateLimitApplicationService {
 
     private String redisKeyComponent(String version, String scope, String value) {
         return version + "-" + identifierDeriver.identifierId("login-" + scope, value);
-    }
-
-    @PreDestroy
-    void shutdownLeaseRenewer() {
-        if (ownsLeaseRenewer) {
-            leaseRenewer.shutdownNow();
-        }
-    }
-
-    private static ScheduledExecutorService newLeaseRenewer() {
-        ScheduledThreadPoolExecutor executor = (ScheduledThreadPoolExecutor) Executors.newScheduledThreadPool(
-                2,
-                runnable -> {
-                    Thread thread = new Thread(
-                            runnable,
-                            "auth-login-lease-renewer-" + RENEWER_THREAD_SEQUENCE.incrementAndGet()
-                    );
-                    thread.setDaemon(true);
-                    return thread;
-                }
-        );
-        executor.setRemoveOnCancelPolicy(true);
-        return executor;
     }
 
     public static final class PasswordCheckPermit {

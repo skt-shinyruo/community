@@ -23,6 +23,7 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.time.Clock;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -123,7 +124,8 @@ class MarketOrderSagaApplicationServiceTest {
         MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
                 orderRepository,
                 listingRepository,
-                inventoryRepository
+                inventoryRepository,
+                Clock.systemUTC()
         );
 
         service.completeEscrowNoop(failedOrderId);
@@ -156,7 +158,8 @@ class MarketOrderSagaApplicationServiceTest {
         MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
                 orderRepository,
                 listingRepository,
-                inventoryRepository
+                inventoryRepository,
+                Clock.systemUTC()
         );
 
         service.completeEscrowNoop(cancelledOrderId);
@@ -188,7 +191,8 @@ class MarketOrderSagaApplicationServiceTest {
         MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
                 orderRepository,
                 listingRepository,
-                inventoryRepository
+                inventoryRepository,
+                Clock.systemUTC()
         );
 
         service.completeEscrowNoop(staleOrderId);

@@ -2,6 +2,7 @@ package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
@@ -238,7 +239,8 @@ class DriveTrashApplicationServiceSpringTest {
                 entryRepository,
                 objectStoragePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                transactionOperations
+                transactionOperations,
+                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
         );
     }
 

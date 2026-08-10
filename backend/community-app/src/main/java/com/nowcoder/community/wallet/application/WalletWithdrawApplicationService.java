@@ -6,8 +6,6 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
-import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
-import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
@@ -16,7 +14,6 @@ import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WithdrawOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +23,22 @@ import java.util.UUID;
 
 @Service
 public class WalletWithdrawApplicationService {
+
+    public record CreateWithdrawCommand(UUID userId, long amount, String idempotencyKey) {
+    }
+
+    public record WithdrawOrderResult(UUID orderId, String requestId, UUID userId, long amount, String status) {
+
+        private static WithdrawOrderResult from(WithdrawOrder order) {
+            return new WithdrawOrderResult(
+                    order.getOrderId(),
+                    order.getRequestId(),
+                    order.getUserId(),
+                    order.getAmount(),
+                    order.getStatus()
+            );
+        }
+    }
 
     private static final String TEST_CREDIT_EXPENSE_ACCOUNT = "PLATFORM_TEST_CREDIT_EXPENSE";
 
@@ -38,41 +51,21 @@ public class WalletWithdrawApplicationService {
     private final WalletTestCreditPolicy testCreditPolicy;
     private final WalletTestCreditQuotaPort testCreditQuotaPort;
 
-    @Autowired
     public WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             IdempotencyGuard idempotencyGuard,
+                                            UuidV7Generator idGenerator,
                                             WalletTestCreditPolicy testCreditPolicy,
                                             WalletTestCreditQuotaPort testCreditQuotaPort) {
-        this(
-                withdrawOrderRepository,
-                accountService,
-                ledgerService,
-                idempotencyGuard,
-                new WalletOrderDomainService(),
-                new UuidV7Generator(),
-                testCreditPolicy,
-                testCreditQuotaPort
-        );
-    }
-
-    WalletWithdrawApplicationService(WithdrawOrderRepository withdrawOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService,
-                                     IdempotencyGuard idempotencyGuard,
-                                     WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator,
-                                     WalletTestCreditPolicy testCreditPolicy,
-                                     WalletTestCreditQuotaPort testCreditQuotaPort) {
-        this.withdrawOrderRepository = withdrawOrderRepository;
-        this.accountService = accountService;
-        this.ledgerService = ledgerService;
-        this.idempotencyGuard = idempotencyGuard;
-        this.orderDomainService = orderDomainService;
-        this.idGenerator = idGenerator;
-        this.testCreditPolicy = testCreditPolicy;
-        this.testCreditQuotaPort = testCreditQuotaPort;
+        this.withdrawOrderRepository = Objects.requireNonNull(withdrawOrderRepository, "withdrawOrderRepository must not be null");
+        this.accountService = Objects.requireNonNull(accountService, "accountService must not be null");
+        this.ledgerService = Objects.requireNonNull(ledgerService, "ledgerService must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
+        this.orderDomainService = new WalletOrderDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.testCreditPolicy = Objects.requireNonNull(testCreditPolicy, "testCreditPolicy must not be null");
+        this.testCreditQuotaPort = Objects.requireNonNull(testCreditQuotaPort, "testCreditQuotaPort must not be null");
     }
 
     @Transactional

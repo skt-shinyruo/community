@@ -1,7 +1,6 @@
 package com.nowcoder.community.growth.application;
 
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
@@ -9,6 +8,7 @@ import java.time.Instant;
 import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.Date;
+import java.util.Objects;
 
 @Service
 public class GrowthBusinessTimeService {
@@ -18,14 +18,12 @@ public class GrowthBusinessTimeService {
     private final Clock clock;
     private final ZoneId zoneId;
 
-    @Autowired
-    public GrowthBusinessTimeService(@Value("${growth.business-zone-id:" + DEFAULT_ZONE_ID + "}") String zoneIdValue) {
-        this(resolveZoneId(zoneIdValue));
-    }
-
-    public GrowthBusinessTimeService(Clock clock, ZoneId zoneId) {
-        this.zoneId = zoneId == null ? ZoneId.of(DEFAULT_ZONE_ID) : zoneId;
-        this.clock = clock == null ? Clock.system(this.zoneId) : clock;
+    public GrowthBusinessTimeService(
+            @Value("${growth.business-zone-id:" + DEFAULT_ZONE_ID + "}") String zoneIdValue,
+            Clock clock
+    ) {
+        this.zoneId = resolveZoneId(zoneIdValue);
+        this.clock = Objects.requireNonNull(clock, "clock must not be null").withZone(this.zoneId);
     }
 
     public LocalDate today() {
@@ -40,10 +38,6 @@ public class GrowthBusinessTimeService {
     public Date startOfDayDate(LocalDate bizDate) {
         LocalDate resolved = bizDate == null ? today() : bizDate;
         return Date.from(resolved.atStartOfDay(zoneId).toInstant());
-    }
-
-    private GrowthBusinessTimeService(ZoneId zoneId) {
-        this(Clock.system(zoneId), zoneId);
     }
 
     private static ZoneId resolveZoneId(String zoneIdValue) {

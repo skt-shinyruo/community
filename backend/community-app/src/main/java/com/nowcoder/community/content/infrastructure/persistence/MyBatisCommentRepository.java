@@ -14,7 +14,6 @@ import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.Comparator;
@@ -34,14 +33,9 @@ public class MyBatisCommentRepository implements CommentRepository {
     private final CommentMapper commentMapper;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public MyBatisCommentRepository(CommentMapper commentMapper) {
-        this(commentMapper, new UuidV7Generator());
-    }
-
-    MyBatisCommentRepository(CommentMapper commentMapper, UuidV7Generator idGenerator) {
-        this.commentMapper = commentMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisCommentRepository(CommentMapper commentMapper, UuidV7Generator idGenerator) {
+        this.commentMapper = Objects.requireNonNull(commentMapper, "commentMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override

@@ -58,7 +58,8 @@ class LoginRateLimitApplicationServiceTest {
                 loginRateLimitRepository,
                 new LoginRateLimitDomainService(),
                 new PasswordResetTokenDeriver(passwordResetProperties),
-                meterRegistryProvider
+                meterRegistryProvider,
+                mock(ScheduledExecutorService.class)
         );
         inputFailureKey = "auth:login:fail:input:v3-"
                 + identifierDeriver().identifierId("login-input", "alice");
@@ -365,8 +366,7 @@ class LoginRateLimitApplicationServiceTest {
                 new LoginRateLimitDomainService(),
                 identifierDeriver(),
                 meterRegistryProvider,
-                scheduler,
-                false
+                scheduler
         );
         String failureKey = inputFailureKey;
         String leaseKey = "auth:login:inflight:{" + failureKey + "}:" + failureKey;

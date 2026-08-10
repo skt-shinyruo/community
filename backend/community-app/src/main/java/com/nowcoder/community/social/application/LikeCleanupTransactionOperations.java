@@ -13,8 +13,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.POST;
@@ -28,17 +30,21 @@ public class LikeCleanupTransactionOperations {
     private final LikeTargetStateRepository targetStateRepository;
     private final LikeDomainService likeDomainService;
     private final SocialDomainEventPublisher eventPublisher;
+    private final Clock clock;
 
     public LikeCleanupTransactionOperations(
             LikeRepository likeRepository,
             LikeTargetStateRepository targetStateRepository,
             LikeDomainService likeDomainService,
-            SocialDomainEventPublisher eventPublisher
+            SocialDomainEventPublisher eventPublisher,
+            Clock clock
     ) {
-        this.likeRepository = likeRepository;
-        this.targetStateRepository = targetStateRepository;
-        this.likeDomainService = likeDomainService;
-        this.eventPublisher = eventPublisher;
+        this.likeRepository = Objects.requireNonNull(likeRepository, "likeRepository must not be null");
+        this.targetStateRepository = Objects.requireNonNull(
+                targetStateRepository, "targetStateRepository must not be null");
+        this.likeDomainService = Objects.requireNonNull(likeDomainService, "likeDomainService must not be null");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -107,7 +113,7 @@ public class LikeCleanupTransactionOperations {
                     new ResolvedSocialEntity(relation.entityUserId(), relation.postId()),
                     relationVersion,
                     false,
-                    Instant.now()
+                    Instant.now(clock)
             );
             eventPublisher.publishLikeChanged(event);
             removed++;

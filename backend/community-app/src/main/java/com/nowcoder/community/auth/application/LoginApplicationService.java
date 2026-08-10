@@ -1,13 +1,8 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
-import com.nowcoder.community.auth.application.command.LoginCommand;
-import com.nowcoder.community.auth.application.command.LogoutCommand;
-import com.nowcoder.community.auth.application.command.RefreshCommand;
 import com.nowcoder.community.auth.application.result.LoginResult;
-import com.nowcoder.community.auth.application.result.RefreshFailure;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
-import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
@@ -27,6 +22,40 @@ import java.util.UUID;
 
 @Service
 public class LoginApplicationService {
+
+    public static final class RefreshFailure extends BusinessException {
+
+        public RefreshFailure(com.nowcoder.community.common.exception.ErrorCode errorCode) {
+            super(errorCode);
+        }
+
+        public RefreshFailure(
+                com.nowcoder.community.common.exception.ErrorCode errorCode,
+                String message,
+                Throwable cause
+        ) {
+            super(errorCode, message, cause);
+        }
+    }
+
+    public record LoginCommand(
+            String username,
+            String password,
+            String captchaId,
+            String captchaCode,
+            String clientIp,
+            String clientIpSource
+    ) {
+    }
+
+    public record RefreshCommand(String refreshToken) {
+    }
+
+    public record LogoutCommand(String refreshToken) {
+    }
+
+    public record RefreshResult(String accessToken, RefreshCookieSpec refreshCookie) {
+    }
 
     private static final Logger log = LoggerFactory.getLogger(LoginApplicationService.class);
 

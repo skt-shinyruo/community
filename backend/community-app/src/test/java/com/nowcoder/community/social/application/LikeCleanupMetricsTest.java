@@ -4,6 +4,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -12,7 +13,7 @@ class LikeCleanupMetricsTest {
     @Test
     void cleanupReliabilityMetricsShouldExposeStableNamesAndBoundedTags() {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        LikeCleanupMetrics metrics = new LikeCleanupMetrics(registry);
+        LikeCleanupMetrics metrics = new LikeCleanupMetrics(Optional.of(registry));
 
         metrics.recordCleanup("content_event", "success");
         metrics.recordCleanup("content_event", "success");

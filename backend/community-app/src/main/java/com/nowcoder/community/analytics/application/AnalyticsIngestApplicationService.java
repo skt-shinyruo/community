@@ -1,6 +1,5 @@
 package com.nowcoder.community.analytics.application;
 
-import com.nowcoder.community.analytics.application.command.RecordLoginSuccessCommand;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.domain.model.AnalyticsRequestEvent;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
@@ -8,11 +7,11 @@ import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRe
 import com.nowcoder.community.analytics.domain.service.AnalyticsIngestDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.time.Clock;
 import java.time.LocalDate;
+import java.time.ZoneId;
 import java.util.Objects;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
@@ -29,25 +28,19 @@ public class AnalyticsIngestApplicationService {
     private final AtomicLong uvFailureCount = new AtomicLong();
     private final AtomicLong dauFailureCount = new AtomicLong();
 
-    @Autowired
     public AnalyticsIngestApplicationService(
-            AnalyticsRepository analyticsRepository,
-            AnalyticsUserOrdinalRepository ordinalRepository,
-            AnalyticsIngestDomainService analyticsIngestDomainService
-    ) {
-        this(analyticsRepository, ordinalRepository, analyticsIngestDomainService, Clock.systemDefaultZone());
-    }
-
-    AnalyticsIngestApplicationService(
             AnalyticsRepository analyticsRepository,
             AnalyticsUserOrdinalRepository ordinalRepository,
             AnalyticsIngestDomainService analyticsIngestDomainService,
             Clock clock
     ) {
-        this.analyticsRepository = analyticsRepository;
-        this.ordinalRepository = ordinalRepository;
-        this.analyticsIngestDomainService = analyticsIngestDomainService;
-        this.clock = clock;
+        this.analyticsRepository = Objects.requireNonNull(analyticsRepository, "analyticsRepository must not be null");
+        this.ordinalRepository = Objects.requireNonNull(ordinalRepository, "ordinalRepository must not be null");
+        this.analyticsIngestDomainService = Objects.requireNonNull(
+                analyticsIngestDomainService,
+                "analyticsIngestDomainService must not be null"
+        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null").withZone(ZoneId.systemDefault());
     }
 
     public void recordRequest(RecordRequestCommand command) {
@@ -67,7 +60,7 @@ public class AnalyticsIngestApplicationService {
         }
     }
 
-    public void recordLoginSuccess(RecordLoginSuccessCommand command) {
+    public void recordLoginSuccess(RecordLoginSuccess command) {
         Objects.requireNonNull(command, "command must not be null");
         if (!command.recordDau()) {
             return;
@@ -110,5 +103,8 @@ public class AnalyticsIngestApplicationService {
 
     private boolean isPowerOfTwo(long value) {
         return value > 0 && (value & (value - 1)) == 0;
+    }
+
+    public record RecordLoginSuccess(UUID userId, boolean recordDau) {
     }
 }

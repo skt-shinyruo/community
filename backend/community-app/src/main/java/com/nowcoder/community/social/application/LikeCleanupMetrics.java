@@ -3,47 +3,39 @@ package com.nowcoder.community.social.application;
 import io.micrometer.core.instrument.Gauge;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
+import java.util.Objects;
+import java.util.Optional;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Component
 public class LikeCleanupMetrics {
 
-    private final MeterRegistry meterRegistry;
+    private final Optional<MeterRegistry> meterRegistry;
     private final AtomicLong orphanTargets = new AtomicLong();
     private final AtomicLong cleanupLagSeconds = new AtomicLong();
 
-    @Autowired
-    public LikeCleanupMetrics(ObjectProvider<MeterRegistry> meterRegistryProvider) {
-        this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable());
-    }
-
-    LikeCleanupMetrics(MeterRegistry meterRegistry) {
-        this.meterRegistry = meterRegistry;
-        if (meterRegistry != null) {
+    public LikeCleanupMetrics(Optional<MeterRegistry> meterRegistry) {
+        this.meterRegistry = Objects.requireNonNull(
+                meterRegistry,
+                "meterRegistry must not be null"
+        );
+        meterRegistry.ifPresent(registry -> {
             Gauge.builder("social_like_orphan_targets", orphanTargets, AtomicLong::doubleValue)
-                    .register(meterRegistry);
+                    .register(registry);
             Gauge.builder("social_like_cleanup_lag_seconds", cleanupLagSeconds, AtomicLong::doubleValue)
-                    .register(meterRegistry);
-        }
-    }
-
-    static LikeCleanupMetrics noop() {
-        return new LikeCleanupMetrics((MeterRegistry) null);
+                    .register(registry);
+        });
     }
 
     public void recordCleanup(String source, String result) {
-        if (meterRegistry == null) {
-            return;
-        }
-        meterRegistry.counter(
-                "social_like_cleanup_total",
-                Tags.of("source", bounded(source), "result", bounded(result))
-        ).increment();
+        meterRegistry.ifPresent(registry -> registry.counter(
+                        "social_like_cleanup_total",
+                        Tags.of("source", bounded(source), "result", bounded(result))
+                )
+                .increment());
     }
 
     public void setOrphanTargets(long count) {

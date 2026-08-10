@@ -3,9 +3,6 @@ package com.nowcoder.community.ops.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.ops.application.CompensationGovernanceApplicationService;
-import com.nowcoder.community.ops.application.command.TriggerCompensationCommand;
-import com.nowcoder.community.ops.application.result.CompensationTriggerResult;
-import com.nowcoder.community.ops.controller.dto.CompensationTriggerResponse;
 import com.nowcoder.community.ops.controller.dto.TriggerCompensationRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -28,29 +25,18 @@ public class CompensationOpsController {
     }
 
     @PostMapping("/{jobName}/trigger")
-    public Result<CompensationTriggerResponse> trigger(
+    public Result<CompensationGovernanceApplicationService.TriggerResult> trigger(
             Authentication authentication,
             @PathVariable String jobName,
             @RequestBody @Valid TriggerCompensationRequest request
     ) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toResponse(compensationGovernanceApplicationService.trigger(new TriggerCompensationCommand(
+        return Result.ok(compensationGovernanceApplicationService.trigger(
+                new CompensationGovernanceApplicationService.TriggerCommand(
                 actorUserId,
                 jobName,
                 request.getLimit(),
                 request.getReason()
-        ))));
-    }
-
-    private CompensationTriggerResponse toResponse(CompensationTriggerResult result) {
-        return new CompensationTriggerResponse(
-                result.jobName(),
-                result.accepted(),
-                result.processedCount(),
-                result.repairedCount(),
-                result.skippedCount(),
-                result.result(),
-                result.message()
-        );
+                )));
     }
 }

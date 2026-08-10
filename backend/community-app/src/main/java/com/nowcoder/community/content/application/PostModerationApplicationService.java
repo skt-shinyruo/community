@@ -7,7 +7,9 @@ import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -19,6 +21,7 @@ public class PostModerationApplicationService {
     private final PostMediaReferenceScheduler mediaReferenceScheduler;
     private final PostBusinessEventLogger postBusinessEventLogger;
     private final UserModerationActionApi userModerationActionApi;
+    private final Clock clock;
 
     public PostModerationApplicationService(
             PostModerationDomainService domainService,
@@ -26,7 +29,8 @@ public class PostModerationApplicationService {
             PostIntegrationEventPublisher integrationEventPublisher,
             PostMediaReferenceScheduler mediaReferenceScheduler,
             PostBusinessEventLogger postBusinessEventLogger,
-            UserModerationActionApi userModerationActionApi
+            UserModerationActionApi userModerationActionApi,
+            Clock clock
     ) {
         this.domainService = domainService;
         this.postRepository = postRepository;
@@ -34,6 +38,7 @@ public class PostModerationApplicationService {
         this.mediaReferenceScheduler = mediaReferenceScheduler;
         this.postBusinessEventLogger = postBusinessEventLogger;
         this.userModerationActionApi = userModerationActionApi;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Transactional
@@ -41,7 +46,7 @@ public class PostModerationApplicationService {
         userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
-        postRepository.markTop(postId, new Date(), post.aggregateVersion());
+        postRepository.markTop(postId, Date.from(clock.instant()), post.aggregateVersion());
         integrationEventPublisher.postUpdated(postId);
         postBusinessEventLogger.postTop(actorUserId, postId);
     }
@@ -51,7 +56,7 @@ public class PostModerationApplicationService {
         userModerationActionApi.assertActiveModerationActor(actorUserId);
         PostSnapshot post = postRepository.getRequiredSnapshot(postId);
         domainService.assertCanModeratePost(actorUserId, post);
-        postRepository.markWonderful(postId, new Date(), post.aggregateVersion());
+        postRepository.markWonderful(postId, Date.from(clock.instant()), post.aggregateVersion());
         integrationEventPublisher.postUpdated(postId);
         postBusinessEventLogger.postWonderful(actorUserId, postId);
     }
@@ -66,7 +71,7 @@ public class PostModerationApplicationService {
         boolean changed = postRepository.markDeletedByAdmin(
                 postId,
                 actorUserId,
-                new Date(),
+                Date.from(clock.instant()),
                 post.aggregateVersion()
         );
         if (!changed) {
@@ -83,7 +88,7 @@ public class PostModerationApplicationService {
         boolean changed = postRepository.markDeletedByAdmin(
                 postId,
                 actorUserId,
-                new Date(),
+                Date.from(clock.instant()),
                 post.aggregateVersion()
         );
         if (!changed) {

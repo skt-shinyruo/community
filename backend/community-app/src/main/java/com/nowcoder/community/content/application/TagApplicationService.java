@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.domain.repository.TagContentRepository;
-import com.nowcoder.community.content.application.result.HotTagResult;
 import com.nowcoder.community.content.domain.model.HotTag;
 import org.springframework.stereotype.Service;
 
@@ -30,5 +29,8 @@ public class TagApplicationService {
 
     private HotTagResult toResult(HotTag hotTag) {
         return new HotTagResult(hotTag.getName(), hotTag.getUseCount());
+    }
+
+    public record HotTagResult(String name, long useCount) {
     }
 }

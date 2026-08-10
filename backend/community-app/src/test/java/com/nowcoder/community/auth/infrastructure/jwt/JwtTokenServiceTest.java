@@ -8,6 +8,7 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 
 import java.security.KeyPair;
 import java.security.KeyPairGenerator;
+import java.time.Clock;
 import java.util.Base64;
 import java.util.List;
 import java.util.UUID;
@@ -28,7 +29,7 @@ class JwtTokenServiceTest {
         properties.setAccessTokenTtlSeconds(900);
         JwtEncoder encoder = JwtCodecs.accessTokenEncoder(properties);
         JwtDecoder decoder = JwtCodecs.accessTokenDecoder(properties);
-        JwtTokenService service = new JwtTokenService(encoder, properties);
+        JwtTokenService service = new JwtTokenService(encoder, properties, Clock.systemUTC());
 
         String token = service.createAccessToken(
                 UUID.fromString("00000000-0000-7000-8000-000000000007"),

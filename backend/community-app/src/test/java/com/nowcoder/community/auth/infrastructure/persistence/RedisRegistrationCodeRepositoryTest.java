@@ -1,5 +1,6 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
+import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,7 +48,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq("60000"),
                 any(String.class)))
                 .thenReturn("ISSUED");
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         assertThat(repository.issue(
                 userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(70)))
@@ -99,7 +100,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(keys(userId)),
                 eq(leaseId.toString())))
                 .thenReturn(1L);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         assertThat(repository.beginReplacement(
                 userId, "333333", Duration.ofMinutes(5), Duration.ZERO, leaseExpiresAt, leaseId))
@@ -142,7 +143,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(keys(userId)),
                 eq(leaseId.toString())))
                 .thenReturn(1L, 1L);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         assertThat(repository.verifyForConsumption(userId, "222222", leaseExpiresAt, leaseId))
                 .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
@@ -161,7 +162,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq("60000"),
                 any(String.class)))
                 .thenReturn("unexpected");
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         assertThat(repository.issue(
                 userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(100)))
@@ -203,7 +204,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq("60000"),
                 any(String.class)))
                 .thenReturn("COOLDOWN_ACTIVE");
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         assertThat(repository.issue(
                 userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(120)))
@@ -247,7 +248,7 @@ class RedisRegistrationCodeRepositoryTest {
                 eq(Long.toString(issuedAtMs)),
                 eq("60000")))
                 .thenThrow(new IllegalStateException("ambiguous redis timeout"));
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         org.assertj.core.api.Assertions.assertThatThrownBy(() -> repository.issue(
                         userId, "222222", Duration.ofMinutes(5), Duration.ofMinutes(1), uuid(130)))
@@ -264,7 +265,7 @@ class RedisRegistrationCodeRepositoryTest {
     @Test
     void deleteShouldRemoveBothVersionedAndLegacyKeys() {
         UUID userId = uuid(11);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redisTemplate);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
         repository.delete(userId);
 
@@ -274,6 +275,11 @@ class RedisRegistrationCodeRepositoryTest {
 
     private static String key(UUID userId) {
         return "auth:regcode:v2:{" + userId + "}";
+    }
+
+    private static RedisRegistrationCodeRepository repository(StringRedisTemplate redisTemplate) {
+        return new RedisRegistrationCodeRepository(
+                redisTemplate, new RegistrationProperties(), java.time.Clock.systemUTC());
     }
 
     private static String legacyKey(UUID userId) {

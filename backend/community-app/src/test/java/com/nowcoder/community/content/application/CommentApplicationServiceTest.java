@@ -10,7 +10,7 @@ import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.content.application.command.CreateCommentCommand;
+import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
@@ -23,7 +23,6 @@ import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
@@ -36,7 +35,10 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
+import java.time.Clock;
 import java.time.Duration;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
@@ -65,6 +67,9 @@ import static org.mockito.Mockito.when;
 
 class CommentApplicationServiceTest {
 
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2025-01-02T03:04:05Z"), ZoneOffset.UTC);
+
     private ContentSanitizer sensitiveFilter;
     private IdempotencyGuard idempotencyGuard;
     private UserModerationGuard moderationGuard;
@@ -75,6 +80,7 @@ class CommentApplicationServiceTest {
     private PostCacheAfterCommit postCacheAfterCommit;
     private SocialInteractionActionApi interactionActionApi;
     private ContentEventPublisher eventPublisher;
+    private CommentDeletionTransactionOperations deletionOperations;
     private CommentApplicationService service;
 
     private static JsonCodec jsonCodec() {
@@ -94,6 +100,13 @@ class CommentApplicationServiceTest {
         interactionActionApi = mock(SocialInteractionActionApi.class);
         eventPublisher = mock(ContentEventPublisher.class);
         when(postContentPort.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
+        deletionOperations = new CommentDeletionTransactionOperations(
+                commentRepository,
+                postContentPort,
+                new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                eventPublisher,
+                CLOCK
+        );
         service = new CommentApplicationService(
                 sensitiveFilter,
                 idempotencyGuard,
@@ -104,7 +117,9 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 interactionActionApi,
-                eventPublisher
+                eventPublisher,
+                deletionOperations,
+                CLOCK
         );
     }
 
@@ -267,7 +282,9 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 interactionActionApi,
-                eventPublisher
+                eventPublisher,
+                deletionOperations,
+                CLOCK
         );
 
         CommentCreateResult result = service.create(
@@ -558,18 +575,16 @@ class CommentApplicationServiceTest {
                 replyComment(replyId, userId, postId, commentId, userId),
                 replyComment(nestedReplyId, userId, postId, commentId, userId)
         );
-        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
-        when(commentRepository.getActiveThreadSnapshots(commentId)).thenReturn(affected);
-        when(commentRepository.apply(any(CommentThreadDeletion.class)))
+        when(commentRepository.findSnapshot(commentId)).thenReturn(Optional.of(existing));
+        when(commentRepository.apply(any(CommentDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(affected));
 
         beginTransactionSynchronization();
         service.deleteByAuthor(userId, postId, commentId);
 
         var inOrder = inOrder(commentRepository, postContentPort);
-        inOrder.verify(commentRepository).getRequiredSnapshot(commentId);
-        inOrder.verify(commentRepository).getActiveThreadSnapshots(commentId);
-        inOrder.verify(commentRepository).apply(any(CommentThreadDeletion.class));
+        inOrder.verify(commentRepository).findSnapshot(commentId);
+        inOrder.verify(commentRepository).apply(any(CommentDeletion.class));
         inOrder.verify(postContentPort).incrementActiveCommentCount(postId, -3);
         verifyNoInteractions(postCounterCache, commentPageCache);
 
@@ -588,7 +603,7 @@ class CommentApplicationServiceTest {
         UUID replyId = uuid(201);
         UUID nestedReplyId = uuid(202);
         CommentSnapshot existing = rootComment(commentId, userId, postId);
-        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
+        when(commentRepository.findSnapshot(commentId)).thenReturn(Optional.of(existing));
         UUID replyAuthorId = uuid(2);
         UUID nestedReplyAuthorId = uuid(3);
         List<CommentSnapshot> affected = List.of(
@@ -596,8 +611,7 @@ class CommentApplicationServiceTest {
                 replyComment(replyId, replyAuthorId, postId, commentId, userId),
                 replyComment(nestedReplyId, nestedReplyAuthorId, postId, commentId, replyAuthorId)
         );
-        when(commentRepository.getActiveThreadSnapshots(commentId)).thenReturn(affected);
-        when(commentRepository.apply(any(CommentThreadDeletion.class)))
+        when(commentRepository.apply(any(CommentDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(affected));
 
         service.deleteByAuthor(userId, postId, commentId);
@@ -628,14 +642,13 @@ class CommentApplicationServiceTest {
         UUID parentCommentId = uuid(200);
         UUID replyId = uuid(201);
         CommentSnapshot reply = replyComment(replyId, userId, actualPostId, parentCommentId, uuid(2));
-        when(commentRepository.getRequiredSnapshot(replyId)).thenReturn(reply);
+        when(commentRepository.findSnapshot(replyId)).thenReturn(Optional.of(reply));
 
         assertThatThrownBy(() -> service.deleteByAuthor(userId, routePostId, replyId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
 
         verify(commentRepository, never()).apply(any(CommentDeletion.class));
-        verify(commentRepository, never()).apply(any(CommentThreadDeletion.class));
         verify(postContentPort, never()).incrementActiveCommentCount(any(UUID.class), anyInt());
     }
 
@@ -651,9 +664,8 @@ class CommentApplicationServiceTest {
                 rootComment(commentId, userId, postId),
                 replyComment(nestedReplyId, userId, postId, commentId, userId)
         );
-        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
-        when(commentRepository.getActiveThreadSnapshots(commentId)).thenReturn(activeThread);
-        when(commentRepository.apply(any(CommentThreadDeletion.class)))
+        when(commentRepository.findSnapshot(commentId)).thenReturn(Optional.of(existing));
+        when(commentRepository.apply(any(CommentDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(activeThread));
 
         service.deleteByAuthor(userId, postId, commentId);
@@ -673,9 +685,8 @@ class CommentApplicationServiceTest {
         UUID postId = uuid(100);
         UUID commentId = uuid(200);
         CommentSnapshot existing = rootComment(commentId, userId, postId);
-        when(commentRepository.getRequiredSnapshot(commentId)).thenReturn(existing);
-        when(commentRepository.getActiveThreadSnapshots(commentId)).thenReturn(List.of(existing));
-        when(commentRepository.apply(any(CommentThreadDeletion.class))).thenReturn(CommentDeletionResult.noOp());
+        when(commentRepository.findSnapshot(commentId)).thenReturn(Optional.of(existing));
+        when(commentRepository.apply(any(CommentDeletion.class))).thenReturn(CommentDeletionResult.noOp());
 
         service.deleteByAuthor(userId, postId, commentId);
 
@@ -791,7 +802,9 @@ class CommentApplicationServiceTest {
                 postContentPort,
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 interactionActionApi,
-                eventPublisher
+                eventPublisher,
+                deletionOperations,
+                CLOCK
         );
     }
 
@@ -809,7 +822,8 @@ class CommentApplicationServiceTest {
                 new CommentCacheAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
                 interactionActionApi,
                 eventPublisher,
-                deletionOperations
+                deletionOperations,
+                CLOCK
         );
         return deletionOperations;
     }

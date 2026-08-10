@@ -2,7 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.application.result.WalletSummaryResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
@@ -12,7 +11,6 @@ import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository.ApplyResult;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
@@ -21,23 +19,20 @@ import java.util.UUID;
 @Service
 public class WalletAccountApplicationService {
 
+    public record WalletSummaryResult(UUID userId, long balance, String status) {
+    }
+
     private static final UUID SYSTEM_OWNER_ID = new UUID(0L, 0L);
 
     private final WalletAccountRepository walletAccountRepository;
     private final WalletAccountDomainService domainService;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public WalletAccountApplicationService(WalletAccountRepository walletAccountRepository) {
-        this(walletAccountRepository, new WalletAccountDomainService(), new UuidV7Generator());
-    }
-
-    WalletAccountApplicationService(WalletAccountRepository walletAccountRepository,
-                                    WalletAccountDomainService domainService,
-                                    UuidV7Generator idGenerator) {
-        this.walletAccountRepository = walletAccountRepository;
-        this.domainService = domainService;
-        this.idGenerator = idGenerator;
+    public WalletAccountApplicationService(WalletAccountRepository walletAccountRepository,
+                                           UuidV7Generator idGenerator) {
+        this.walletAccountRepository = Objects.requireNonNull(walletAccountRepository, "walletAccountRepository must not be null");
+        this.domainService = new WalletAccountDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     public UUID ensureUserWallet(UUID userId) {

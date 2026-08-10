@@ -3,9 +3,9 @@ package com.nowcoder.community.drive.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.CompleteUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
-import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.domain.model.DriveUpload;
 import com.nowcoder.community.drive.domain.model.DriveUploadStatus;
@@ -84,7 +84,7 @@ class DriveUploadApplicationServiceSpringTest {
             return new DriveObjectStoragePort.PreparedObject(uuid(91), uuid(92), uuid(93), expiresAt);
         });
 
-        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+        var session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "outside-transaction.txt", "text/plain", 1L, ""));
 
         DriveUpload persisted = uploadRepository.findById(UUID.fromString(session.uploadId())).orElseThrow();
@@ -103,9 +103,9 @@ class DriveUploadApplicationServiceSpringTest {
                         expiredAt
                 ));
 
-        var session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "expired.txt", "text/plain", 1L, ""));
+        var session = service.prepareUpload(new PrepareUploadCommand(userId, null, "expired.txt", "text/plain", 1L, ""));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("x".getBytes()), "text/plain", 1L)
@@ -132,16 +132,16 @@ class DriveUploadApplicationServiceSpringTest {
             return new DriveObjectStoragePort.StoredObject(command.objectId(), command.versionId(), "");
         });
 
-        var firstSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
-        var secondSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
+        var firstSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
+        var secondSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
 
-        service.completeUpload(new CompleteDriveUploadCommand(
+        service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(firstSession.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize)
         ));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(secondSession.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize)
@@ -163,7 +163,7 @@ class DriveUploadApplicationServiceSpringTest {
                         uuid(133),
                         expiresAt
                 ));
-        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+        var session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "rollback.txt", "text/plain", 2L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         when(objectStoragePort.completeUpload(any())).thenAnswer(invocation -> {
@@ -177,7 +177,7 @@ class DriveUploadApplicationServiceSpringTest {
             return new DriveObjectStoragePort.StoredObject(command.objectId(), command.versionId(), "");
         });
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("xx".getBytes()), "text/plain", 2L)
@@ -207,7 +207,7 @@ class DriveUploadApplicationServiceSpringTest {
                         uuid(143),
                         expiresAt
                 ));
-        var session = service.prepareUpload(new PrepareDriveUploadCommand(
+        var session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "concurrent-recovery.bin", "application/octet-stream", uploadSize, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploadRepository.findById(uploadId).orElseThrow();

@@ -10,6 +10,7 @@ import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
 import com.nowcoder.community.user.controller.dto.AvatarUploadSessionResponse;
 import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
 import com.nowcoder.community.user.domain.repository.UserRepository;
+import com.nowcoder.community.user.application.UserAvatarTransactionOperations;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -42,7 +43,10 @@ class UserControllerLoggingTest {
         avatarStoragePort = mock(AvatarStoragePort.class);
         controller = new UserController(
                 mock(UserReadApplicationService.class),
-                new UserAvatarApplicationService(avatarStoragePort, userRepository)
+                new UserAvatarApplicationService(
+                        avatarStoragePort,
+                        new UserAvatarTransactionOperations(userRepository)
+                )
         );
     }
 
@@ -66,20 +70,22 @@ class UserControllerLoggingTest {
                         List.of("image/png", "image/jpeg"),
                         Instant.parse("2026-05-08T12:00:00Z")
                 ));
-        AvatarUploadSessionRequest request = new AvatarUploadSessionRequest();
-        request.setFileName("avatar.png");
-        request.setContentType("image/png");
-        request.setContentLength(16);
+        AvatarUploadSessionRequest request = new AvatarUploadSessionRequest(
+                "avatar.png",
+                "image/png",
+                16,
+                null
+        );
 
         Result<AvatarUploadSessionResponse> result = controller.createAvatarUploadSession(authentication(userId), userId, request);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getUploadId()).isEqualTo("secret-upload-session");
-        assertThat(result.getData().getObjectId()).isEqualTo(objectId.toString());
-        assertThat(result.getData().getVersionId()).isEqualTo(versionId.toString());
-        assertThat(result.getData().getUpload()).isNotNull();
-        assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/oss/objects/" + objectId + "/complete");
+        assertThat(result.getData().uploadId()).isEqualTo("secret-upload-session");
+        assertThat(result.getData().objectId()).isEqualTo(objectId.toString());
+        assertThat(result.getData().versionId()).isEqualTo(versionId.toString());
+        assertThat(result.getData().upload()).isNotNull();
+        assertThat(result.getData().upload().url()).isEqualTo("/api/oss/objects/" + objectId + "/complete");
         assertThat(output.getAll())
                 .contains("user.id=" + userId)
                 .contains("community.target_type=user")
@@ -93,8 +99,7 @@ class UserControllerLoggingTest {
     void updateAvatarShouldLogSecurityEventWithoutAvatarUrl(CapturedOutput output) {
         UUID userId = uuid(42);
         UUID objectId = uuid(50);
-        UpdateAvatarRequest request = new UpdateAvatarRequest();
-        request.setObjectId(objectId);
+        UpdateAvatarRequest request = new UpdateAvatarRequest(objectId);
         when(avatarStoragePort.resolvePublicAvatarUrl(userId, objectId))
                 .thenReturn("https://cdn.example.com/files/" + objectId + "/avatar.png");
 

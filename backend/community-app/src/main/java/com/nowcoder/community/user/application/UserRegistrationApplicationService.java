@@ -12,11 +12,11 @@ import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository.InsertResult;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService.RegistrationInput;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -34,27 +34,27 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
     private final UserRegistrationDomainService userRegistrationDomainService;
     private final UuidV7Generator idGenerator;
     private final UserPolicyEventPublisher userPolicyEventPublisher;
+    private final Clock clock;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
-    @Autowired
     public UserRegistrationApplicationService(
             UserRepository userRepository,
             UserRegistrationDomainService userRegistrationDomainService,
-            UserPolicyEventPublisher userPolicyEventPublisher
-    ) {
-        this(userRepository, userRegistrationDomainService, new UuidV7Generator(), userPolicyEventPublisher);
-    }
-
-    UserRegistrationApplicationService(
-            UserRepository userRepository,
-            UserRegistrationDomainService userRegistrationDomainService,
             UuidV7Generator idGenerator,
-            UserPolicyEventPublisher userPolicyEventPublisher
+            UserPolicyEventPublisher userPolicyEventPublisher,
+            Clock clock
     ) {
-        this.userRepository = userRepository;
-        this.userRegistrationDomainService = userRegistrationDomainService;
-        this.idGenerator = idGenerator;
-        this.userPolicyEventPublisher = userPolicyEventPublisher;
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
+        this.userRegistrationDomainService = Objects.requireNonNull(
+                userRegistrationDomainService,
+                "userRegistrationDomainService must not be null"
+        );
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.userPolicyEventPublisher = Objects.requireNonNull(
+                userPolicyEventPublisher,
+                "userPolicyEventPublisher must not be null"
+        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -185,7 +185,7 @@ public class UserRegistrationApplicationService implements UserRegistrationActio
 
     private void publishUserPolicyChanged(UUID userId, boolean userExists, long version) {
         if (userId != null) {
-            userPolicyEventPublisher.publishUserPolicyChanged(userId, userExists, Instant.now(), version);
+            userPolicyEventPublisher.publishUserPolicyChanged(userId, userExists, Instant.now(clock), version);
         }
     }
 

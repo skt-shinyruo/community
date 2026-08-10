@@ -1,9 +1,7 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.application.port.UserAuditLogPort;
-import com.nowcoder.community.user.application.result.AdminUserResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
@@ -11,7 +9,9 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.Date;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -24,15 +24,18 @@ public class AdminUserApplicationService {
     private final UserRepository userRepository;
     private final UserRoleDomainService userRoleDomainService;
     private final UserAuditLogPort userAuditLogPort;
+    private final Clock clock;
 
     public AdminUserApplicationService(
             UserRepository userRepository,
             UserRoleDomainService userRoleDomainService,
-            UserAuditLogPort userAuditLogPort
+            UserAuditLogPort userAuditLogPort,
+            Clock clock
     ) {
-        this.userRepository = userRepository;
-        this.userRoleDomainService = userRoleDomainService;
-        this.userAuditLogPort = userAuditLogPort;
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
+        this.userRoleDomainService = Objects.requireNonNull(userRoleDomainService, "userRoleDomainService must not be null");
+        this.userAuditLogPort = Objects.requireNonNull(userAuditLogPort, "userAuditLogPort must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public AdminUserResult search(UUID userId, String username, String email) {
@@ -41,7 +44,7 @@ public class AdminUserApplicationService {
     }
 
     @Transactional
-    public void updateRole(UpdateUserRoleCommand command) {
+    public void updateRole(UpdateRoleCommand command) {
         Objects.requireNonNull(command, "command must not be null");
 
         String reason = userRoleDomainService.requireValidCommand(
@@ -52,7 +55,7 @@ public class AdminUserApplicationService {
                 command.confirm()
         );
         userRepository.lockRoleManagement();
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         UserAccount actor = userRepository.findByIdForUpdate(command.actorUserId()).orElse(null);
         userRoleDomainService.requireActiveAdmin(actor, now);
         UserAccount target = command.targetUserId().equals(command.actorUserId())
@@ -104,5 +107,25 @@ public class AdminUserApplicationService {
                 user.headerUrl(),
                 user.createTime()
         );
+    }
+
+    public record UpdateRoleCommand(
+            UUID actorUserId,
+            UUID targetUserId,
+            int type,
+            String reason,
+            boolean confirm
+    ) {
+    }
+
+    public record AdminUserResult(
+            UUID id,
+            String username,
+            String email,
+            int type,
+            int status,
+            String headerUrl,
+            Date createTime
+    ) {
     }
 }

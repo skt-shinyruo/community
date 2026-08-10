@@ -16,7 +16,7 @@ class AnalyticsRequestClassifierTest {
         properties.setEnabled(true);
         properties.setIncludePaths(List.of("/api/posts/**", "/api/search/**"));
         properties.setExcludePaths(List.of("/api/analytics/**", "/api/auth/**"));
-        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties);
+        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties, defaultFeatureFlags());
 
         AnalyticsRequestClassifier.Decision decision = classifier.classify("GET", "/api/posts/123", 200);
 
@@ -30,7 +30,7 @@ class AnalyticsRequestClassifierTest {
         properties.setEnabled(true);
         properties.setIncludePaths(List.of("/api/**"));
         properties.setExcludePaths(List.of("/api/analytics/**"));
-        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties);
+        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties, defaultFeatureFlags());
 
         AnalyticsRequestClassifier.Decision decision = classifier.classify("GET", "/api/analytics/uv", 200);
 
@@ -42,7 +42,7 @@ class AnalyticsRequestClassifierTest {
     void shouldSkipWhenDisabledOrServerError() {
         AnalyticsIngestProperties properties = new AnalyticsIngestProperties();
         properties.setEnabled(false);
-        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties);
+        AnalyticsRequestClassifier classifier = new AnalyticsRequestClassifier(properties, defaultFeatureFlags());
 
         assertThat(classifier.classify("GET", "/api/posts/123", 200).capture()).isFalse();
 
@@ -67,5 +67,9 @@ class AnalyticsRequestClassifierTest {
 
         assertThat(decision.capture()).isFalse();
         assertThat(decision.reason()).isEqualTo("feature_disabled");
+    }
+
+    private static FeatureFlagDecisions defaultFeatureFlags() {
+        return new FeatureFlagDecisions(new FeatureFlagProperties());
     }
 }

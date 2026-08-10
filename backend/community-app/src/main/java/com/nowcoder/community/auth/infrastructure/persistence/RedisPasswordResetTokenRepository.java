@@ -11,9 +11,11 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -153,9 +155,11 @@ public class RedisPasswordResetTokenRepository implements PasswordResetTokenRepo
     );
 
     private final StringRedisTemplate redisTemplate;
+    private final Clock clock;
 
-    public RedisPasswordResetTokenRepository(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
+    public RedisPasswordResetTokenRepository(StringRedisTemplate redisTemplate, Clock clock) {
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -203,7 +207,7 @@ public class RedisPasswordResetTokenRepository implements PasswordResetTokenRepo
                 BEGIN_CONFIRMATION_SCRIPT,
                 List.of(tokenKey, generationKey(snapshot.userId(), snapshot.securityVersionAtIssue())),
                 Long.toString(pendingExpiresAt.toEpochMilli()),
-                Long.toString(Instant.now().toEpochMilli()),
+                Long.toString(clock.instant().toEpochMilli()),
                 confirmationLeaseId.toString()
         );
         ResetRecord pending = readRecord(updated);

@@ -4,9 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.command.CreateAvatarUploadSessionCommand;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import com.nowcoder.community.user.application.result.AvatarUploadSessionResult;
-import com.nowcoder.community.user.domain.repository.UserRepository;
 import org.springframework.stereotype.Service;
-import org.springframework.beans.factory.annotation.Autowired;
 
 import java.util.UUID;
 import java.util.Objects;
@@ -19,17 +17,15 @@ public class UserAvatarApplicationService {
     private final AvatarStoragePort avatarStoragePort;
     private final UserAvatarTransactionOperations transactionOperations;
 
-    @Autowired
     public UserAvatarApplicationService(
             AvatarStoragePort avatarStoragePort,
             UserAvatarTransactionOperations transactionOperations
     ) {
-        this.avatarStoragePort = avatarStoragePort;
-        this.transactionOperations = transactionOperations;
-    }
-
-    public UserAvatarApplicationService(AvatarStoragePort avatarStoragePort, UserRepository userRepository) {
-        this(avatarStoragePort, new UserAvatarTransactionOperations(userRepository));
+        this.avatarStoragePort = Objects.requireNonNull(avatarStoragePort, "avatarStoragePort must not be null");
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations,
+                "transactionOperations must not be null"
+        );
     }
 
     public AvatarUploadSessionResult createUploadSession(UUID actorUserId, UUID userId, CreateAvatarUploadSessionCommand command) {

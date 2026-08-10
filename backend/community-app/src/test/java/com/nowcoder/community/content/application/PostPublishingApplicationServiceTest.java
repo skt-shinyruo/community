@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
@@ -8,9 +9,9 @@ import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.command.PostContentBlockCommand;
-import com.nowcoder.community.content.application.result.PostCreateResult;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.CreatePostCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
@@ -108,7 +109,8 @@ class PostPublishingApplicationServiceTest {
                 postTagRepository,
                 integrationEventPublisher,
                 mediaReferenceScheduler,
-                Clock.systemUTC()
+                Clock.systemUTC(),
+                new UuidV7Generator(Clock.systemUTC())
         );
     }
 
@@ -323,7 +325,8 @@ class PostPublishingApplicationServiceTest {
                 postTagRepository,
                 integrationEventPublisher,
                 mediaReferenceScheduler,
-                Clock.systemUTC()
+                Clock.systemUTC(),
+                new UuidV7Generator(Clock.systemUTC())
         );
     }
 

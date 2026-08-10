@@ -11,8 +11,10 @@ import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 /**
@@ -28,17 +30,20 @@ public class CommentDeletionTransactionOperations {
     private final PostContentRepository postContentRepository;
     private final CommentCacheAfterCommit commentCacheAfterCommit;
     private final ContentEventPublisher eventPublisher;
+    private final Clock clock;
 
     public CommentDeletionTransactionOperations(
             CommentRepository commentRepository,
             PostContentRepository postContentRepository,
             CommentCacheAfterCommit commentCacheAfterCommit,
-            ContentEventPublisher eventPublisher
+            ContentEventPublisher eventPublisher,
+            Clock clock
     ) {
         this.commentRepository = commentRepository;
         this.postContentRepository = postContentRepository;
         this.commentCacheAfterCommit = commentCacheAfterCommit;
         this.eventPublisher = eventPublisher;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Transactional(propagation = Propagation.REQUIRED)
@@ -85,7 +90,7 @@ public class CommentDeletionTransactionOperations {
         if (postAggregateVersion <= 0L) {
             throw new IllegalStateException("post disappeared while deleting comments");
         }
-        Instant occurredAt = deletedTime == null ? Instant.now() : deletedTime.toInstant();
+        Instant occurredAt = deletedTime == null ? clock.instant() : deletedTime.toInstant();
         for (CommentSnapshot deleted : result.deletedComments()) {
             CommentPayload payload = new CommentPayload();
             payload.setCommentId(deleted.id());

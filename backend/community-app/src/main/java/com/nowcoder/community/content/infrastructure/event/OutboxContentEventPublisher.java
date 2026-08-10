@@ -4,6 +4,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.ContentEventPublisher;
+import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
@@ -11,28 +12,38 @@ import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
+import com.nowcoder.community.content.domain.model.ModerationActionRecord;
+import com.nowcoder.community.content.domain.model.ModerationTarget;
+import com.nowcoder.community.content.domain.model.ReportSnapshot;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
-public class OutboxContentEventPublisher implements ContentEventPublisher {
+public class OutboxContentEventPublisher implements ContentEventPublisher, ModerationNoticePublisher {
 
     private final ContentContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
-    private final UuidV7Generator idGenerator = new UuidV7Generator();
+    private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
     public OutboxContentEventPublisher(
             ContentContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
-            @Value("${content.events.outbox-topic:eventbus.content}") String topic
+            @Value("${content.events.outbox-topic:eventbus.content}") String topic,
+            UuidV7Generator idGenerator,
+            Clock clock
     ) {
-        this.contractEventCodec = contractEventCodec;
-        this.store = store;
-        this.topic = topic;
+        this.contractEventCodec = Objects.requireNonNull(contractEventCodec, "contractEventCodec must not be null");
+        this.store = Objects.requireNonNull(store, "store must not be null");
+        this.topic = Objects.requireNonNull(topic, "topic must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -78,7 +89,7 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
             return;
         }
         UUID postId = payload.postId();
-        Instant occurredAt = Instant.now();
+        Instant occurredAt = clock.instant();
         publish(new ContentTypedEvent.PostScoreUpdated(
                 "content:PostScoreUpdated:" + postId + ":" + payload.scoreVersion(),
                 postId,
@@ -158,6 +169,31 @@ public class OutboxContentEventPublisher implements ContentEventPublisher {
                 positiveVersion(occurredAt),
                 payload
         ), toUserId.toString());
+    }
+
+    @Override
+    public void publish(
+            ReportSnapshot report,
+            ModerationActionRecord action,
+            ModerationTarget target,
+            String kind,
+            UUID toUserId
+    ) {
+        if (toUserId == null) {
+            return;
+        }
+        ModerationPayload payload = new ModerationPayload();
+        payload.setReportId(report == null ? null : report.id());
+        payload.setKind(kind);
+        payload.setToUserId(toUserId);
+        payload.setActorUserId(action == null ? null : action.actorId());
+        payload.setTargetType(target == null ? null : target.targetType());
+        payload.setTargetId(target == null ? null : target.targetId());
+        payload.setAction(action == null ? null : action.action());
+        payload.setReason(action == null ? null : action.reason());
+        payload.setDurationSeconds(action == null ? null : action.durationSeconds());
+        payload.setCreateTime(clock.instant());
+        publishModerationActionApplied(payload);
     }
 
     private void publish(ContentTypedEvent event, String key) {

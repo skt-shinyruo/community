@@ -227,6 +227,7 @@ class LikeApplicationServiceTest {
         LikeRelation firstRelation = repo.findLike(uuid(1), POST, uuid(100)).orElseThrow();
         LikeChangedDomainEvent firstCreated = (LikeChangedDomainEvent) publisher.snapshot().get(0);
         assertThat(firstRelation.relationInstanceId()).isEqualTo(firstCreated.relationInstanceId());
+        assertThat(firstCreated.occurredAt()).isEqualTo(ID_TIME);
         assertThat(firstRelation.relationInstanceId().version()).isEqualTo(7);
 
         LikeResult repeatedLike = service.setLike(like);
@@ -605,14 +606,24 @@ class LikeApplicationServiceTest {
             LikeTargetStateRepository targetStateRepository,
             UuidV7Generator idGenerator
     ) {
+        LikeDomainService likeDomainService = new LikeDomainService();
         return new LikeApplicationService(
                 likeRepository,
                 blockRepository,
-                new LikeDomainService(),
+                likeDomainService,
                 new BlockDomainService(),
                 publisher,
                 targetStateRepository,
-                idGenerator
+                new LikeCleanupMetrics(Optional.empty()),
+                new LikeCleanupTransactionOperations(
+                        likeRepository,
+                        targetStateRepository,
+                        likeDomainService,
+                        publisher,
+                        Clock.fixed(ID_TIME, ZoneOffset.UTC)
+                ),
+                idGenerator,
+                Clock.fixed(ID_TIME, ZoneOffset.UTC)
         );
     }
 

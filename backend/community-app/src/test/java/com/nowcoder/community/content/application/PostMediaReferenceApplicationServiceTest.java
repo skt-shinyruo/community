@@ -150,7 +150,11 @@ class PostMediaReferenceApplicationServiceTest {
             PostMediaAssetRepository repository,
             PostMediaStoragePort storage
     ) {
-        return new PostMediaReferenceApplicationService(repository, storage, CLOCK);
+        return new PostMediaReferenceApplicationService(
+                new PostMediaReferenceTransactionOperations(repository),
+                storage,
+                CLOCK
+        );
     }
 
     private static PostMediaReferenceCommand bindCommand() {

@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.social.application.command.BlockCommand;
-import com.nowcoder.community.social.application.command.UnblockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.BlockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.UnblockCommand;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
@@ -18,6 +18,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.InOrder;
 
 import java.lang.reflect.Field;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
@@ -39,6 +42,7 @@ class BlockApplicationServiceTest {
 
     private static final UUID USER_ID_1 = uuid(1);
     private static final UUID USER_ID_2 = uuid(2);
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-15T08:30:00Z"), ZoneOffset.UTC);
 
     @Test
     void blockApplicationServiceShouldExposeOwnerDomainConstructorWithoutImTypedFields() {
@@ -47,7 +51,8 @@ class BlockApplicationServiceTest {
                         BlockRepository.class,
                         FollowRepository.class,
                         BlockDomainService.class,
-                        SocialDomainEventPublisher.class
+                        SocialDomainEventPublisher.class,
+                        Clock.class
                 ));
         assertThat(BlockApplicationService.class.getDeclaredFields())
                 .extracting(Field::getType)
@@ -61,7 +66,8 @@ class BlockApplicationServiceTest {
                 mock(BlockRepository.class),
                 mock(FollowRepository.class),
                 new BlockDomainService(),
-                mock(SocialDomainEventPublisher.class)
+                mock(SocialDomainEventPublisher.class),
+                CLOCK
         );
 
         assertThatThrownBy(() -> service.block(null))
@@ -75,7 +81,8 @@ class BlockApplicationServiceTest {
                 mock(BlockRepository.class),
                 mock(FollowRepository.class),
                 new BlockDomainService(),
-                mock(SocialDomainEventPublisher.class)
+                mock(SocialDomainEventPublisher.class),
+                CLOCK
         );
 
         assertThatThrownBy(() -> service.unblock(null))
@@ -87,7 +94,8 @@ class BlockApplicationServiceTest {
     void blockShouldRejectSelfWhenUuidValuesMatchButInstancesDiffer() {
         StatefulBlockRepository repo = new StatefulBlockRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
-        BlockApplicationService service = new BlockApplicationService(repo, new StatefulFollowRepository(), new BlockDomainService(), publisher);
+        BlockApplicationService service = new BlockApplicationService(
+                repo, new StatefulFollowRepository(), new BlockDomainService(), publisher, CLOCK);
         UUID userId = uuid(1);
         UUID targetUserId = UUID.fromString(userId.toString());
 
@@ -106,7 +114,13 @@ class BlockApplicationServiceTest {
     @Test
     void isEitherBlockedShouldIgnoreSameUserWhenUuidValuesMatchButInstancesDiffer() {
         StatefulBlockRepository repo = new StatefulBlockRepository();
-        BlockApplicationService service = new BlockApplicationService(repo, new StatefulFollowRepository(), new BlockDomainService(), new RecordingSocialDomainEventPublisher());
+        BlockApplicationService service = new BlockApplicationService(
+                repo,
+                new StatefulFollowRepository(),
+                new BlockDomainService(),
+                new RecordingSocialDomainEventPublisher(),
+                CLOCK
+        );
         UUID userId = uuid(1);
         UUID sameUserDifferentInstance = UUID.fromString(userId.toString());
 
@@ -123,7 +137,8 @@ class BlockApplicationServiceTest {
         when(repository.nextBlockProjectionVersion()).thenReturn(81L);
         when(repository.block(USER_ID_1, USER_ID_2, 81L)).thenReturn(true);
 
-        BlockApplicationService service = new BlockApplicationService(repository, followRepository, new BlockDomainService(), eventPublisher);
+        BlockApplicationService service = new BlockApplicationService(
+                repository, followRepository, new BlockDomainService(), eventPublisher, CLOCK);
 
         service.block(new BlockCommand(USER_ID_1, USER_ID_2));
 
@@ -133,6 +148,7 @@ class BlockApplicationServiceTest {
         assertThat(event.blockerUserId()).isEqualTo(USER_ID_1);
         assertThat(event.blockedUserId()).isEqualTo(USER_ID_2);
         assertThat(event.blocked()).isTrue();
+        assertThat(event.occurredAt()).isEqualTo(CLOCK.instant());
         assertThat(event.version()).isEqualTo(81L);
     }
 
@@ -146,7 +162,8 @@ class BlockApplicationServiceTest {
                 blockRepository,
                 followRepository,
                 new BlockDomainService(),
-                mock(SocialDomainEventPublisher.class)
+                mock(SocialDomainEventPublisher.class),
+                CLOCK
         );
 
         service.block(new BlockCommand(USER_ID_1, USER_ID_2));
@@ -167,7 +184,8 @@ class BlockApplicationServiceTest {
                 blockRepository,
                 mock(FollowRepository.class),
                 new BlockDomainService(),
-                mock(SocialDomainEventPublisher.class)
+                mock(SocialDomainEventPublisher.class),
+                CLOCK
         );
 
         service.unblock(new UnblockCommand(USER_ID_1, USER_ID_2));
@@ -186,7 +204,8 @@ class BlockApplicationServiceTest {
                 blockRepository,
                 followRepository,
                 new BlockDomainService(),
-                new RecordingSocialDomainEventPublisher()
+                new RecordingSocialDomainEventPublisher(),
+                CLOCK
         );
         followRepository.follow(USER_ID_1, USER, USER_ID_2, 1000L);
         followRepository.follow(USER_ID_2, USER, USER_ID_1, 1001L);
@@ -207,7 +226,8 @@ class BlockApplicationServiceTest {
                 blockRepository,
                 followRepository,
                 new BlockDomainService(),
-                new RecordingSocialDomainEventPublisher()
+                new RecordingSocialDomainEventPublisher(),
+                CLOCK
         );
         blockRepository.block(USER_ID_1, USER_ID_2, 1L);
         followRepository.follow(USER_ID_1, USER, USER_ID_2, 1000L);

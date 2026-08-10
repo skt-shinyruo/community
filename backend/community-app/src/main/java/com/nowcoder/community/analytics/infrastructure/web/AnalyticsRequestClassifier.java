@@ -1,11 +1,11 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
+
+import java.util.Objects;
 
 @Component
 public class AnalyticsRequestClassifier {
@@ -14,18 +14,13 @@ public class AnalyticsRequestClassifier {
     private final FeatureFlagDecisions featureFlags;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
-    public AnalyticsRequestClassifier(AnalyticsIngestProperties properties) {
-        this(properties, new FeatureFlagDecisions(new FeatureFlagProperties()));
-    }
-
-    @Autowired
     public AnalyticsRequestClassifier(AnalyticsIngestProperties properties, FeatureFlagDecisions featureFlags) {
-        this.properties = properties;
-        this.featureFlags = featureFlags == null ? new FeatureFlagDecisions(new FeatureFlagProperties()) : featureFlags;
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.featureFlags = Objects.requireNonNull(featureFlags, "featureFlags must not be null");
     }
 
     public Decision classify(String method, String path, int status) {
-        if (properties == null || !properties.isEnabled()) {
+        if (!properties.isEnabled()) {
             return Decision.skip("disabled");
         }
         if (!featureFlags.enabledOrDefault("analytics-ingest", true)) {

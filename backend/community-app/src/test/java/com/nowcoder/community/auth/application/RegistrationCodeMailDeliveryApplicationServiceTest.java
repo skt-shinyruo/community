@@ -12,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -40,7 +41,7 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
         RegistrationProperties properties = new RegistrationProperties();
         properties.getCode().setOperationLeaseSeconds(120);
         service = new RegistrationCodeMailDeliveryApplicationService(
-                registrationCodeRepository, mailPort, properties);
+                registrationCodeRepository, mailPort, properties, Clock.systemUTC());
     }
 
     @Test

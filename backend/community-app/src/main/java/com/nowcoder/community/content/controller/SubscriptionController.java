@@ -2,7 +2,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.application.SubscriptionApplicationService;
+import com.nowcoder.community.content.application.SubscriptionQuery;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -16,15 +16,15 @@ import java.util.UUID;
 @RequestMapping("/api")
 public class SubscriptionController {
 
-    private final SubscriptionApplicationService subscriptionApplicationService;
+    private final SubscriptionQuery subscriptionQuery;
 
-    public SubscriptionController(SubscriptionApplicationService subscriptionApplicationService) {
-        this.subscriptionApplicationService = subscriptionApplicationService;
+    public SubscriptionController(SubscriptionQuery subscriptionQuery) {
+        this.subscriptionQuery = subscriptionQuery;
     }
 
     @GetMapping("/subscriptions/categories")
     public Result<List<UUID>> myCategories(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(subscriptionApplicationService.listSubscribedCategoryIds(userId));
+        return Result.ok(subscriptionQuery.listSubscribedCategoryIds(userId));
     }
 }

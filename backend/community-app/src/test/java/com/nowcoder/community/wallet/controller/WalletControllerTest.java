@@ -12,11 +12,12 @@ import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityAppli
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
-import com.nowcoder.community.wallet.application.result.TransferOrderResult;
-import com.nowcoder.community.wallet.application.result.WalletCapabilitiesResult;
+import com.nowcoder.community.wallet.application.WalletAccountApplicationService.WalletSummaryResult;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.RechargeOrderResult;
+import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService.WalletCapabilitiesResult;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService.TransferOrderResult;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.WithdrawOrderResult;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
-import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -129,7 +130,7 @@ class WalletControllerTest {
     @Test
     void walletSummaryShouldReturnCurrentBalanceForAuthenticatedUser() throws Exception {
         UUID userId = uuid(1);
-        when(accountService.summary(userId)).thenReturn(new com.nowcoder.community.wallet.application.result.WalletSummaryResult(
+        when(accountService.summary(userId)).thenReturn(new WalletSummaryResult(
                 userId,
                 2300L,
                 "ACTIVE"

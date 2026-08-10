@@ -2,7 +2,7 @@ package com.nowcoder.community.social.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.social.application.BlockApplicationService;
-import com.nowcoder.community.social.application.command.BlockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.BlockCommand;
 import com.nowcoder.community.social.controller.dto.BlockRequest;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
@@ -25,8 +25,7 @@ class BlockControllerTest {
         BlockController controller = new BlockController(blockApplicationService);
         UUID actorId = uuid(7);
 
-        BlockRequest request = new BlockRequest();
-        request.setUserId(uuid(8));
+        BlockRequest request = new BlockRequest(uuid(8));
 
         Result<Void> result = controller.block(authentication(actorId), request);
 

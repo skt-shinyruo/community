@@ -3,17 +3,8 @@ package com.nowcoder.community.ops.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.ops.application.HotCacheGovernanceApplicationService;
-import com.nowcoder.community.ops.application.command.GetHotCacheStatusCommand;
-import com.nowcoder.community.ops.application.command.PrewarmHotCacheCommand;
-import com.nowcoder.community.ops.application.command.UpdateHotCacheDegradationCommand;
-import com.nowcoder.community.ops.application.result.HotCacheDegradationSignalResult;
-import com.nowcoder.community.ops.application.result.HotCachePrewarmResult;
-import com.nowcoder.community.ops.application.result.HotCacheStatusResult;
 import com.nowcoder.community.ops.controller.dto.HotCacheDegradationRequest;
-import com.nowcoder.community.ops.controller.dto.HotCacheDegradationResponse;
 import com.nowcoder.community.ops.controller.dto.HotCachePrewarmRequest;
-import com.nowcoder.community.ops.controller.dto.HotCachePrewarmResponse;
-import com.nowcoder.community.ops.controller.dto.HotCacheStatusResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -36,74 +27,47 @@ public class HotCacheOpsController {
     }
 
     @GetMapping("/status")
-    public Result<HotCacheStatusResponse> status(
+    public Result<HotCacheGovernanceApplicationService.StatusResult> status(
             @RequestParam(required = false, defaultValue = "global") String scope,
             @RequestParam(required = false) UUID boardId
     ) {
-        return Result.ok(toStatusResponse(hotCacheGovernanceApplicationService.getStatus(
-                new GetHotCacheStatusCommand(scope, boardId)
-        )));
+        return Result.ok(hotCacheGovernanceApplicationService.getStatus(
+                new HotCacheGovernanceApplicationService.GetStatusCommand(scope, boardId)
+        ));
     }
 
     @PostMapping("/prewarm")
-    public Result<HotCachePrewarmResponse> prewarm(
+    public Result<HotCacheGovernanceApplicationService.PrewarmResult> prewarm(
             Authentication authentication,
             @RequestBody @Valid HotCachePrewarmRequest request
     ) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toPrewarmResponse(hotCacheGovernanceApplicationService.prewarm(new PrewarmHotCacheCommand(
+        return Result.ok(hotCacheGovernanceApplicationService.prewarm(new HotCacheGovernanceApplicationService.PrewarmCommand(
                 actorUserId,
                 request.getScope(),
                 request.getBoardId(),
                 request.getLimit(),
                 request.getReason()
-        ))));
+        )));
     }
 
     @GetMapping("/degradation")
-    public Result<HotCacheDegradationResponse> degradation() {
-        return Result.ok(toDegradationResponse(hotCacheGovernanceApplicationService.getDegradationSignal()));
+    public Result<HotCacheGovernanceApplicationService.DegradationSignalResult> degradation() {
+        return Result.ok(hotCacheGovernanceApplicationService.getDegradationSignal());
     }
 
     @PostMapping("/degradation")
-    public Result<HotCacheDegradationResponse> updateDegradation(
+    public Result<HotCacheGovernanceApplicationService.DegradationSignalResult> updateDegradation(
             Authentication authentication,
             @RequestBody @Valid HotCacheDegradationRequest request
     ) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toDegradationResponse(hotCacheGovernanceApplicationService.updateDegradation(
-                new UpdateHotCacheDegradationCommand(actorUserId, request.isDegraded(), request.getReason())
-        )));
-    }
-
-    private HotCacheStatusResponse toStatusResponse(HotCacheStatusResult result) {
-        return new HotCacheStatusResponse(
-                result.scope(),
-                result.boardId(),
-                result.rankVersion(),
-                result.itemCount(),
-                result.summaryCacheAvailable(),
-                result.degraded(),
-                result.degradedReason(),
-                result.lastPrewarmAt()
-        );
-    }
-
-    private HotCachePrewarmResponse toPrewarmResponse(HotCachePrewarmResult result) {
-        return new HotCachePrewarmResponse(
-                result.scope(),
-                result.boardId(),
-                result.requestedCount(),
-                result.loadedCount(),
-                result.warmedCount(),
-                result.rankVersion(),
-                result.degraded(),
-                result.degradedReason(),
-                result.lastPrewarmAt()
-        );
-    }
-
-    private HotCacheDegradationResponse toDegradationResponse(HotCacheDegradationSignalResult result) {
-        return new HotCacheDegradationResponse(result.degraded(), result.reason(), result.updatedAt());
+        return Result.ok(hotCacheGovernanceApplicationService.updateDegradation(
+                new HotCacheGovernanceApplicationService.UpdateDegradationCommand(
+                        actorUserId,
+                        request.degraded(),
+                        request.reason()
+                )
+        ));
     }
 }

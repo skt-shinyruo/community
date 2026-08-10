@@ -13,7 +13,7 @@ import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService;
-import com.nowcoder.community.wallet.application.command.RewardProjectionCommand;
+import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

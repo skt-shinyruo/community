@@ -7,6 +7,7 @@ import com.nowcoder.community.content.application.FollowFeedCursorCodec;
 import com.nowcoder.community.content.application.FollowFeedReadApplicationService;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.application.PostContentBlockTextProjector;
+import com.nowcoder.community.content.application.PostFeedSummaryLoader;
 import com.nowcoder.community.content.application.PostSummaryAssembler;
 import com.nowcoder.community.content.application.PostSummaryCache;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
@@ -75,12 +76,15 @@ class PassthroughFollowFeedCacheTest {
                     mock(SocialFollowQueryApi.class),
                     mock(PostContentRepository.class),
                     followFeedCache,
-                    mock(CommentContentRepository.class),
-                    mock(TagContentRepository.class),
-                    mock(PostContentBlockRepository.class),
-                    mock(PostSummaryCache.class),
-                    mock(PostContentBlockTextProjector.class),
-                    new PostSummaryAssembler(textCodec()),
+                    new PostFeedSummaryLoader(
+                            mock(PostContentRepository.class),
+                            mock(CommentContentRepository.class),
+                            mock(TagContentRepository.class),
+                            mock(PostContentBlockRepository.class),
+                            mock(PostSummaryCache.class),
+                            mock(PostContentBlockTextProjector.class),
+                            new PostSummaryAssembler(textCodec())
+                    ),
                     new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()))
             );
         }

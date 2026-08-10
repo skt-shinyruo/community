@@ -1,7 +1,7 @@
 package com.nowcoder.community.wallet.application;
 
-import com.nowcoder.community.wallet.application.command.RewardProjectionCommand;
-import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
+import com.nowcoder.community.wallet.application.WalletRewardApplicationService.RewardCommand;
+import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -24,7 +24,7 @@ class WalletRewardProjectionApplicationServiceTest {
 
         service.apply(command);
 
-        verify(walletRewardApplicationService).applyDelta(new WalletRewardCommand(
+        verify(walletRewardApplicationService).applyDelta(new RewardCommand(
                 "wallet-reward:post-published:" + uuid(100), userId, 10, "PostPublished"
         ));
     }
@@ -54,10 +54,10 @@ class WalletRewardProjectionApplicationServiceTest {
         service.apply(created);
         service.apply(created);
 
-        verify(walletRewardApplicationService).applyDelta(new WalletRewardCommand(
+        verify(walletRewardApplicationService).applyDelta(new RewardCommand(
                 "wallet-reward:" + lifecycleSource + ":removed", ownerUserId, -1, "LikeRemoved"
         ));
-        verify(walletRewardApplicationService, times(2)).applyDelta(new WalletRewardCommand(
+        verify(walletRewardApplicationService, times(2)).applyDelta(new RewardCommand(
                 "wallet-reward:" + lifecycleSource + ":created", ownerUserId, 1, "LikeCreated"
         ));
     }

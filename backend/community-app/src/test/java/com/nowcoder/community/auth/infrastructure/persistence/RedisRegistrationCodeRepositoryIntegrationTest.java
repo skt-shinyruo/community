@@ -41,7 +41,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void cooldownAndAbortShouldPreserveThePreviouslyDeliveredCode() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(1);
         UUID replacementLease = uuid(11);
         UUID wrongLease = uuid(12);
@@ -91,7 +91,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void replacementPromotionAndVerificationCompletionShouldRejectStaleLeases() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(2);
         UUID replacementLease = uuid(21);
         UUID wrongLease = uuid(22);
@@ -130,7 +130,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void concurrentReplacementsShouldHaveExactlyOneLeaseOwnerAndAbortShouldRestoreActiveCode() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(3);
         UUID firstLease = uuid(31);
         UUID secondLease = uuid(32);
@@ -183,7 +183,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void expiredVerificationLeaseShouldBeReclaimableWithoutGivingTheOldOwnerWriteAuthority() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(4);
         UUID expiredLease = uuid(41);
         UUID currentLease = uuid(42);
@@ -214,7 +214,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void expiredVerificationLeaseShouldNotConsumeWithoutACompetingTakeover() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(43);
         UUID expiredLease = uuid(44);
         try {
@@ -239,7 +239,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void exhaustedCodeShouldRemainAsCooldownTombstoneAndBlockImmediateReplacement() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(46);
         try {
             assertThat(issue(repository, userId, "111111", Duration.ofMinutes(5), Duration.ofMinutes(1)))
@@ -278,7 +278,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void mailPreparationShouldFenceDeliveryIdentityAndRecoverTheExactReplacementLease() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(52);
         UUID initialDelivery = uuid(53);
         UUID replacementDelivery = uuid(54);
@@ -324,7 +324,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void initialMailDeliveryLeaseShouldBlockReplacementAndVerification() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(56);
         UUID initialDelivery = uuid(57);
         try {
@@ -362,7 +362,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void blockedInitialSmtpShouldHoldRedisOwnershipAgainstResend() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(63);
         UUID initialDelivery = uuid(64);
         CountDownLatch smtpEntered = new CountDownLatch(1);
@@ -388,7 +388,8 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             }
         };
         RegistrationCodeMailDeliveryApplicationService deliveryService =
-                new RegistrationCodeMailDeliveryApplicationService(repository, blockingMail, properties);
+                new RegistrationCodeMailDeliveryApplicationService(
+                        repository, blockingMail, properties, java.time.Clock.systemUTC());
         try {
             assertThat(repository.issue(
                     userId, "111111", Duration.ofMinutes(5), Duration.ZERO, initialDelivery))
@@ -427,7 +428,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void verificationLeaseShouldBlockResendUntilTheVerifierRestoresOwnership() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(66);
         UUID verificationLease = uuid(67);
         try {
@@ -464,7 +465,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void staleInitialMailOwnerShouldNotCompleteAfterReplacementTakesOwnership() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(60);
         UUID initialDelivery = uuid(61);
         UUID replacementDelivery = uuid(62);
@@ -506,7 +507,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void deliveryValidityMarginShouldBeEnforcedByRedisBeforeAndAfterSmtp() throws Exception {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID tooShortUser = uuid(73);
         UUID expiringUser = uuid(74);
         UUID tooShortDelivery = uuid(75);
@@ -548,7 +549,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void realLegacyStringShouldMigrateAfterOldWritersStopWithoutResettingCooldownOrTtl() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(5);
         long nowMs = System.currentTimeMillis();
         long activeExpiresAtMs = nowMs + Duration.ofMinutes(5).toMillis();
@@ -581,7 +582,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void legacyPendingStateShouldRecoverOnlyThePreviouslyActiveCode() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(6);
         long nowMs = System.currentTimeMillis();
         long activeExpiresAtMs = nowMs + Duration.ofMinutes(5).toMillis();
@@ -614,7 +615,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void malformedLegacyValueShouldFailClosedAndBeRemoved() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(7);
         try {
             redis.opsForValue().set(legacyKey(userId), "not-a-registration-code", Duration.ofMinutes(5));
@@ -634,7 +635,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
     void versionedStateShouldWinAndRemoveAStaleLegacyValue() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisRegistrationCodeRepository repository = new RedisRegistrationCodeRepository(redis);
+        RedisRegistrationCodeRepository repository = repository(redis);
         UUID userId = uuid(8);
         try {
             assertThat(issue(repository, userId, "222222", Duration.ofMinutes(5), Duration.ZERO))
@@ -721,6 +722,11 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
 
     private static String key(UUID userId) {
         return "auth:regcode:v2:{" + userId + "}";
+    }
+
+    private static RedisRegistrationCodeRepository repository(StringRedisTemplate redis) {
+        return new RedisRegistrationCodeRepository(
+                redis, new RegistrationProperties(), java.time.Clock.systemUTC());
     }
 
     private static String legacyKey(UUID userId) {

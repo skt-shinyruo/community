@@ -1,7 +1,5 @@
 package com.nowcoder.community.wallet.application;
 
-import com.nowcoder.community.wallet.application.command.RewardProjectionCommand;
-import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -11,6 +9,14 @@ import java.util.UUID;
 @Service
 public class WalletRewardProjectionApplicationService {
 
+    public record RewardProjectionCommand(
+            UUID userId,
+            int delta,
+            String sourceId,
+            String sourceType
+    ) {
+    }
+
     private static final String POST_PUBLISHED = "PostPublished";
     private static final String COMMENT_CREATED = "CommentCreated";
     private static final String LIKE_CREATED = "LikeCreated";
@@ -19,7 +25,7 @@ public class WalletRewardProjectionApplicationService {
     private final WalletRewardApplicationService walletRewardApplicationService;
 
     public WalletRewardProjectionApplicationService(WalletRewardApplicationService walletRewardApplicationService) {
-        this.walletRewardApplicationService = walletRewardApplicationService;
+        this.walletRewardApplicationService = Objects.requireNonNull(walletRewardApplicationService, "walletRewardApplicationService must not be null");
     }
 
     public RewardProjectionCommand commandForPostPublished(UUID postId, UUID userId) {
@@ -65,7 +71,7 @@ public class WalletRewardProjectionApplicationService {
                 || !StringUtils.hasText(command.sourceType())) {
             return;
         }
-        walletRewardApplicationService.applyDelta(new WalletRewardCommand(
+        walletRewardApplicationService.applyDelta(new WalletRewardApplicationService.RewardCommand(
                 "wallet-reward:" + command.sourceId().trim(),
                 command.userId(),
                 command.delta(),

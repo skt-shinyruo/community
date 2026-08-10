@@ -7,11 +7,11 @@ import com.nowcoder.community.content.domain.repository.ReportContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
 import com.nowcoder.community.content.domain.model.Report;
 import com.nowcoder.community.common.pagination.Pagination;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -24,14 +24,9 @@ public class MyBatisReportContentRepository implements ReportContentRepository {
     private final ReportMapper reportMapper;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public MyBatisReportContentRepository(ReportMapper reportMapper) {
-        this(reportMapper, new UuidV7Generator());
-    }
-
-    MyBatisReportContentRepository(ReportMapper reportMapper, UuidV7Generator idGenerator) {
-        this.reportMapper = reportMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisReportContentRepository(ReportMapper reportMapper, UuidV7Generator idGenerator) {
+        this.reportMapper = Objects.requireNonNull(reportMapper, "reportMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override

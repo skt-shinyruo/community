@@ -154,11 +154,12 @@ public class DomainServiceConfig {
 
     @Bean
     UserRegistrationDomainService userRegistrationDomainService(
+            java.time.Clock clock,
             PasswordPolicyDomainService passwordPolicyDomainService,
             UsernamePolicyDomainService usernamePolicyDomainService
     ) {
         return new UserRegistrationDomainService(
-                java.time.Clock.systemUTC(),
+                clock,
                 passwordPolicyDomainService,
                 usernamePolicyDomainService
         );

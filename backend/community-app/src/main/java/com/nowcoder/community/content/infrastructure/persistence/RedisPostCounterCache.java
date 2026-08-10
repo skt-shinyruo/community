@@ -14,6 +14,7 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -179,14 +180,17 @@ public class RedisPostCounterCache implements PostCounterCache {
 
     private final StringRedisTemplate redisTemplate;
     private final Duration viewerWindow;
+    private final Clock clock;
     private final AtomicInteger dirtyScanCursor = new AtomicInteger();
 
     public RedisPostCounterCache(
             StringRedisTemplate redisTemplate,
-            @Value("${content.counter.viewer-window-seconds:86400}") long viewerWindowSeconds
+            @Value("${content.counter.viewer-window-seconds:86400}") long viewerWindowSeconds,
+            Clock clock
     ) {
-        this.redisTemplate = redisTemplate;
+        this.redisTemplate = java.util.Objects.requireNonNull(redisTemplate, "redisTemplate must not be null");
         this.viewerWindow = Duration.ofSeconds(Math.max(60L, viewerWindowSeconds));
+        this.clock = java.util.Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -281,7 +285,7 @@ public class RedisPostCounterCache implements PostCounterCache {
             return false;
         }
         PostCounterSnapshot baseline = normalizeBaseline(postId, initializationBaseline);
-        Instant instant = viewedAt == null ? Instant.now() : viewedAt;
+        Instant instant = viewedAt == null ? clock.instant() : viewedAt;
         Long result = redisTemplate.execute(
                 RECORD_VIEW_SCRIPT,
                 List.of(counterKey(postId), viewerKey(postId, viewerKey), dirtyKey(postId), dirtySequenceKey(postId)),

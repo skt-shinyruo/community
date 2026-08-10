@@ -1,7 +1,5 @@
 package com.nowcoder.community.social.application;
 
-import com.nowcoder.community.social.application.command.BlockCommand;
-import com.nowcoder.community.social.application.command.UnblockCommand;
 import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
@@ -15,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.transaction.annotation.Propagation;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -31,17 +30,20 @@ public class BlockApplicationService implements SocialBlockQueryApi, SocialInter
     private final FollowRepository followRepository;
     private final BlockDomainService blockDomainService;
     private final SocialDomainEventPublisher eventPublisher;
+    private final Clock clock;
 
     public BlockApplicationService(
             BlockRepository blockRepository,
             FollowRepository followRepository,
             BlockDomainService blockDomainService,
-            SocialDomainEventPublisher eventPublisher
+            SocialDomainEventPublisher eventPublisher,
+            Clock clock
     ) {
-        this.blockRepository = blockRepository;
-        this.followRepository = followRepository;
-        this.blockDomainService = blockDomainService;
-        this.eventPublisher = eventPublisher;
+        this.blockRepository = Objects.requireNonNull(blockRepository, "blockRepository must not be null");
+        this.followRepository = Objects.requireNonNull(followRepository, "followRepository must not be null");
+        this.blockDomainService = Objects.requireNonNull(blockDomainService, "blockDomainService must not be null");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -56,7 +58,7 @@ public class BlockApplicationService implements SocialBlockQueryApi, SocialInter
         if (!changed) {
             return;
         }
-        Instant occurredAt = Instant.now();
+        Instant occurredAt = Instant.now(clock);
         eventPublisher.publishBlockRelationChanged(
                 new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), true, occurredAt, version)
         );
@@ -72,7 +74,7 @@ public class BlockApplicationService implements SocialBlockQueryApi, SocialInter
         if (!changed) {
             return;
         }
-        Instant occurredAt = Instant.now();
+        Instant occurredAt = Instant.now(clock);
         eventPublisher.publishBlockRelationChanged(
                 new BlockRelationChangedDomainEvent(command.actorUserId(), command.targetUserId(), false, occurredAt, version)
         );
@@ -142,6 +144,12 @@ public class BlockApplicationService implements SocialBlockQueryApi, SocialInter
 
     private SocialBlockRelationView toResult(BlockRelation relation) {
         return new SocialBlockRelationView(relation.blockerUserId(), relation.blockedUserId(), relation.version());
+    }
+
+    public record BlockCommand(UUID actorUserId, UUID targetUserId) {
+    }
+
+    public record UnblockCommand(UUID actorUserId, UUID targetUserId) {
     }
 
 }

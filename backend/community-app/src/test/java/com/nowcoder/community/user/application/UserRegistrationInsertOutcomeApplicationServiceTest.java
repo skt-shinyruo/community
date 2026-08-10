@@ -10,6 +10,7 @@ import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
+import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
 import org.junit.jupiter.api.Test;
 import org.mockito.Answers;
 
@@ -239,9 +240,14 @@ class UserRegistrationInsertOutcomeApplicationServiceTest {
         Clock clock = Clock.fixed(NOW, ZoneOffset.UTC);
         return new UserRegistrationApplicationService(
                 repository,
-                new UserRegistrationDomainService(clock, new PasswordPolicyDomainService()),
+                new UserRegistrationDomainService(
+                        clock,
+                        new PasswordPolicyDomainService(),
+                        new UsernamePolicyDomainService()
+                ),
                 new UuidV7Generator(clock),
-                eventPublisher
+                eventPublisher,
+                clock
         );
     }
 

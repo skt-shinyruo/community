@@ -2,7 +2,6 @@ package com.nowcoder.community.analytics.infrastructure.web;
 
 import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService;
-import com.nowcoder.community.analytics.application.AnalyticsRequestCapturePort;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.infrastructure.event.AnalyticsRequestEventPublisher;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
@@ -13,6 +12,7 @@ import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.mock.web.MockHttpServletResponse;
 
 import java.util.UUID;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -37,7 +37,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 properties,
-                new AnalyticsRequestCaptureApplicationService(ingestService, eventPublisher)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.of(eventPublisher))
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -69,7 +69,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 properties,
-                new AnalyticsRequestCaptureApplicationService(ingestService, eventPublisher)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.of(eventPublisher))
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -99,7 +99,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 properties,
-                new AnalyticsRequestCaptureApplicationService(ingestService, (AnalyticsRequestCapturePort) null)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.empty())
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -127,7 +127,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(ingestService, eventPublisher)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.of(eventPublisher))
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/analytics/uv");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -153,7 +153,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(ingestService, eventPublisher)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.of(eventPublisher))
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -177,7 +177,7 @@ class AnalyticsRequestCaptureFilterTest {
                 clientIpResolver,
                 principalResolver,
                 enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(ingestService, eventPublisher)
+                new AnalyticsRequestCaptureApplicationService(ingestService, Optional.of(eventPublisher))
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();

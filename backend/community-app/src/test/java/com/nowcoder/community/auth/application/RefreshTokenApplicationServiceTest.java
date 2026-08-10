@@ -1,10 +1,10 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
-import com.nowcoder.community.auth.application.command.RefreshCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshResult;
 import com.nowcoder.community.auth.application.port.AuthTokenPort;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
-import com.nowcoder.community.auth.application.result.RefreshResult;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
@@ -18,6 +18,7 @@ import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Modifier;
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Set;
@@ -281,7 +282,8 @@ class RefreshTokenApplicationServiceTest {
                 properties,
                 repository,
                 new RefreshTokenDomainService(),
-                new AuthSecretGenerator()
+                new AuthSecretGenerator(),
+                Clock.systemUTC()
         );
     }
 

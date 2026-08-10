@@ -1,7 +1,8 @@
 package com.nowcoder.community.growth.application;
 
-import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
-import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import com.nowcoder.community.growth.domain.repository.LikeTaskLifecycleStateRepository;
@@ -56,8 +57,8 @@ class TaskProgressApplicationServiceUnitTest {
     @Test
     void concurrentProgressInitShouldRecoverFromDuplicateRowAndContinueWithLockedState() {
         GrowthBusinessTimeService businessTimeService = new GrowthBusinessTimeService(
-                Clock.fixed(Instant.parse("2026-03-22T00:00:00Z"), ZoneId.of("Asia/Shanghai")),
-                ZoneId.of("Asia/Shanghai")
+                "Asia/Shanghai",
+                Clock.fixed(Instant.parse("2026-03-22T00:00:00Z"), ZoneId.of("Asia/Shanghai"))
         );
         TaskProgressApplicationService service = new TaskProgressApplicationService(
                 taskTemplateRepository,
@@ -65,7 +66,8 @@ class TaskProgressApplicationServiceUnitTest {
                 userTaskEventLogRepository,
                 likeTaskLifecycleStateRepository,
                 walletRewardService,
-                businessTimeService
+                businessTimeService,
+                new UuidV7Generator()
         );
 
         TaskTemplate template = new TaskTemplate();
@@ -106,8 +108,8 @@ class TaskProgressApplicationServiceUnitTest {
     @Test
     void duplicateProcessedEventShouldReturnWithoutTouchingProgress() {
         GrowthBusinessTimeService businessTimeService = new GrowthBusinessTimeService(
-                Clock.fixed(Instant.parse("2026-03-22T00:00:00Z"), ZoneId.of("Asia/Shanghai")),
-                ZoneId.of("Asia/Shanghai")
+                "Asia/Shanghai",
+                Clock.fixed(Instant.parse("2026-03-22T00:00:00Z"), ZoneId.of("Asia/Shanghai"))
         );
         TaskProgressApplicationService service = new TaskProgressApplicationService(
                 taskTemplateRepository,
@@ -115,7 +117,8 @@ class TaskProgressApplicationServiceUnitTest {
                 userTaskEventLogRepository,
                 likeTaskLifecycleStateRepository,
                 walletRewardService,
-                businessTimeService
+                businessTimeService,
+                new UuidV7Generator()
         );
 
         TaskTemplate template = new TaskTemplate();

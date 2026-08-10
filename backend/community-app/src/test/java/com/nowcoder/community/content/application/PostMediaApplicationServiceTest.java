@@ -2,7 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
+import com.nowcoder.community.content.application.PostMediaApplicationService.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
@@ -15,6 +15,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
 import java.io.ByteArrayInputStream;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.UUID;
@@ -47,7 +48,12 @@ class PostMediaApplicationServiceTest {
         assetRepository = mock(PostMediaAssetRepository.class);
         storagePort = mock(PostMediaStoragePort.class);
         idGenerator = new UuidV7Generator();
-        service = new PostMediaApplicationService(assetRepository, storagePort, idGenerator);
+        service = new PostMediaApplicationService(
+                storagePort,
+                idGenerator,
+                new PostMediaUploadTransactionOperations(assetRepository),
+                Clock.systemUTC()
+        );
     }
 
     @Test
@@ -75,6 +81,7 @@ class PostMediaApplicationServiceTest {
 
         PostMediaUploadSessionResult result = service.prepareUpload(new PreparePostMediaUploadCommand(
                 userId,
+                null,
                 "demo.mp4",
                 "video/mp4",
                 1234,
@@ -121,7 +128,7 @@ class PostMediaApplicationServiceTest {
         UUID userId = uuid(7);
         when(storagePort.prepareUpload(any(), any())).thenAnswer(invocation -> session(invocation.getArgument(0, PostMediaAsset.class).id()));
 
-        service.prepareUpload(new PreparePostMediaUploadCommand(userId, "cover.png", "image/png", 10, "", ""));
+        service.prepareUpload(new PreparePostMediaUploadCommand(userId, null, "cover.png", "image/png", 10, "", ""));
 
         var captor = forClass(PostMediaAsset.class);
         verify(assetRepository).createDraft(captor.capture());
@@ -131,7 +138,7 @@ class PostMediaApplicationServiceTest {
     @Test
     void prepareUploadShouldRejectInvalidActorAndFileSizeBeforeCreatingDraft() {
         Throwable thrown = catchThrowable(() -> service.prepareUpload(
-                new PreparePostMediaUploadCommand(null, "demo.mp4", "video/mp4", 100, "VIDEO", "")
+                new PreparePostMediaUploadCommand(null, null, "demo.mp4", "video/mp4", 100, "VIDEO", "")
         ));
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
@@ -228,6 +235,7 @@ class PostMediaApplicationServiceTest {
 
         Throwable thrown = catchThrowable(() -> service.prepareUpload(new PreparePostMediaUploadCommand(
                 userId,
+                null,
                 "demo.mp4",
                 "video/mp4",
                 1234,

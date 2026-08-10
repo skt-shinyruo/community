@@ -22,7 +22,8 @@ class MyBatisModerationActionRepositoryTest {
 
     private final ModerationActionMapper mapper = mock(ModerationActionMapper.class);
     private final MyBatisModerationActionRepository repository =
-            new MyBatisModerationActionRepository(mapper, new UuidV7Generator());
+            new MyBatisModerationActionRepository(
+                    mapper, new UuidV7Generator(), java.time.Clock.systemUTC());
 
     @Test
     void findByReportIdShouldReturnEmptyWhenNoActionExists() {

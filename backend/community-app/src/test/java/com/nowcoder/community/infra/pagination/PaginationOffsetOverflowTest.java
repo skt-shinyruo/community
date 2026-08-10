@@ -11,6 +11,7 @@ import com.nowcoder.community.content.infrastructure.persistence.MyBatisModerati
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisPostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisReportContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.social.application.FollowApplicationService;
@@ -23,6 +24,7 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
 import java.util.List;
 import java.util.UUID;
 
@@ -44,7 +46,8 @@ class PaginationOffsetOverflowTest {
         when(discussPostMapper.selectDiscussPosts(any(), any(), any(), any(), anyInt(), anyInt(), anyInt()))
                 .thenReturn(List.of());
 
-        MyBatisPostContentRepository service = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository service = new MyBatisPostContentRepository(
+                discussPostMapper, new com.nowcoder.community.common.id.UuidV7Generator());
         service.listPosts(Integer.MAX_VALUE, 50, MyBatisPostContentRepository.ORDER_LATEST, null, null);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -80,7 +83,8 @@ class PaginationOffsetOverflowTest {
                 new FollowDomainService(),
                 new BlockDomainService(),
                 mock(SocialDomainEventPublisher.class),
-                mock(UserLookupQueryApi.class)
+                mock(UserLookupQueryApi.class),
+                Clock.systemUTC()
         );
 
         service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);
@@ -96,7 +100,11 @@ class PaginationOffsetOverflowTest {
         when(noticeRepository.findByUserAndTopic(any(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(1);
 
-        NoticeApplicationService service = new NoticeApplicationService(noticeRepository);
+        NoticeApplicationService service = new NoticeApplicationService(
+                noticeRepository,
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        );
         service.listNotices(userId, "comment", Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -110,7 +118,8 @@ class PaginationOffsetOverflowTest {
         when(bookmarkMapper.selectBookmarkedPosts(any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(1);
 
-        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(bookmarkMapper);
+        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(
+                bookmarkMapper, java.time.Clock.systemUTC());
         service.listBookmarkedPosts(userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -123,7 +132,8 @@ class PaginationOffsetOverflowTest {
         ReportMapper reportMapper = mock(ReportMapper.class);
         when(reportMapper.selectReports(any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        MyBatisReportContentRepository service = new MyBatisReportContentRepository(reportMapper);
+        MyBatisReportContentRepository service = new MyBatisReportContentRepository(
+                reportMapper, new com.nowcoder.community.common.id.UuidV7Generator());
         service.listReports(null, null, null, Integer.MAX_VALUE, 100);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);

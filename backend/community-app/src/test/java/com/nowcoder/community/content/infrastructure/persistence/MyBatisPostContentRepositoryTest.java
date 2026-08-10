@@ -3,6 +3,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -19,7 +20,8 @@ class MyBatisPostContentRepositoryTest {
     @Test
     void listPostsWithLookaheadShouldKeepLogicalPageOffsetAndFetchOneExtraRow() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(
+                discussPostMapper, new UuidV7Generator());
 
         when(discussPostMapper.selectDiscussPosts(null, null, null, null, 100, 51, PostContentRepository.ORDER_HOT))
                 .thenReturn(List.of());
@@ -33,7 +35,8 @@ class MyBatisPostContentRepositoryTest {
     @Test
     void listHotPostsAfterShouldForwardStableSortBoundaryAndClampLookaheadLimit() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(
+                discussPostMapper, new UuidV7Generator());
         UUID boundaryPostId = UUID.randomUUID();
         UUID categoryId = UUID.randomUUID();
         Date boundaryCreateTime = new Date(4_000L);
@@ -62,7 +65,8 @@ class MyBatisPostContentRepositoryTest {
     @Test
     void updateScoreShouldReturnThePersistedScoreVersion() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(
+                discussPostMapper, new UuidV7Generator());
         UUID postId = UUID.randomUUID();
         DiscussPost updated = new DiscussPost();
         updated.setId(postId);
@@ -81,7 +85,8 @@ class MyBatisPostContentRepositoryTest {
     @Test
     void listRecentVisiblePostsByAuthorIdsShouldForwardCallerLimitAboveFiveHundred() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(
+                discussPostMapper, new UuidV7Generator());
         UUID authorA = UUID.randomUUID();
         UUID authorB = UUID.randomUUID();
 
@@ -96,7 +101,8 @@ class MyBatisPostContentRepositoryTest {
     @Test
     void listRecentVisiblePostsByAuthorIdsBeforeShouldForwardAnchorAndCallerLimit() {
         DiscussPostMapper discussPostMapper = mock(DiscussPostMapper.class);
-        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(discussPostMapper);
+        MyBatisPostContentRepository repository = new MyBatisPostContentRepository(
+                discussPostMapper, new UuidV7Generator());
         UUID authorA = UUID.randomUUID();
         UUID authorB = UUID.randomUUID();
         UUID anchorPostId = UUID.randomUUID();

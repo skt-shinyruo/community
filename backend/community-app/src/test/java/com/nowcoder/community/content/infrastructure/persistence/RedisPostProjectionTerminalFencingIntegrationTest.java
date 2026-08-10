@@ -53,7 +53,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 category(firstCategoryId),
                 category(secondCategoryId)
         ));
-        RedisPostFeedCache feedCache = new RedisPostFeedCache(
+        RedisPostFeedCache feedCache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
@@ -134,7 +134,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         UUID categoryId = UUID.randomUUID();
         CategoryContentRepository categoryRepository = mock(CategoryContentRepository.class);
         when(categoryRepository.listCategories()).thenReturn(List.of(category(categoryId)));
-        RedisPostFeedCache feedCache = new RedisPostFeedCache(
+        RedisPostFeedCache feedCache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
@@ -165,7 +165,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         UUID boardId = UUID.randomUUID();
         CategoryContentRepository categoryRepository = mock(CategoryContentRepository.class);
         when(categoryRepository.listCategories()).thenReturn(List.of(category(boardId)));
-        RedisPostFeedCache feedCache = new RedisPostFeedCache(
+        RedisPostFeedCache feedCache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
@@ -215,7 +215,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
         UUID postId = UUID.randomUUID();
-        RedisPostFeedCache feedCache = new RedisPostFeedCache(
+        RedisPostFeedCache feedCache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 mock(CategoryContentRepository.class)
@@ -516,6 +516,19 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
 
     private static String globalFeedKey() {
         return "post:feed:global:hot";
+    }
+
+    private static RedisPostFeedCache newCache(
+            StringRedisTemplate redisTemplate,
+            FeedCursorCodec feedCursorCodec,
+            CategoryContentRepository categoryContentRepository
+    ) {
+        return new RedisPostFeedCache(
+                redisTemplate,
+                feedCursorCodec,
+                categoryContentRepository,
+                java.time.Clock.systemUTC()
+        );
     }
 
     private static String boardFeedKey(UUID boardId) {

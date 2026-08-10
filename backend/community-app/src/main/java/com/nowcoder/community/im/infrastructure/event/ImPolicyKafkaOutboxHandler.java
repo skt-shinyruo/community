@@ -3,7 +3,7 @@ package com.nowcoder.community.im.infrastructure.event;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService;
-import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
+import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService.DispatchImPolicyEventCommand;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 

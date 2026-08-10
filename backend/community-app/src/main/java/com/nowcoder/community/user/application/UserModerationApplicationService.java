@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
@@ -29,15 +30,24 @@ public class UserModerationApplicationService implements UserModerationActionApi
     private final UserRepository userRepository;
     private final UserModerationDomainService userModerationDomainService;
     private final UserPolicyEventPublisher userPolicyEventPublisher;
+    private final Clock clock;
 
     public UserModerationApplicationService(
             UserRepository userRepository,
             UserModerationDomainService userModerationDomainService,
-            UserPolicyEventPublisher userPolicyEventPublisher
+            UserPolicyEventPublisher userPolicyEventPublisher,
+            Clock clock
     ) {
-        this.userRepository = userRepository;
-        this.userModerationDomainService = userModerationDomainService;
-        this.userPolicyEventPublisher = userPolicyEventPublisher;
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
+        this.userModerationDomainService = Objects.requireNonNull(
+                userModerationDomainService,
+                "userModerationDomainService must not be null"
+        );
+        this.userPolicyEventPublisher = Objects.requireNonNull(
+                userPolicyEventPublisher,
+                "userPolicyEventPublisher must not be null"
+        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -83,7 +93,7 @@ public class UserModerationApplicationService implements UserModerationActionApi
     @Override
     @Transactional(propagation = Propagation.MANDATORY)
     public void assertActiveModerationActor(UUID actorUserId) {
-        requireActiveModerationActorForUpdate(actorUserId, Instant.now());
+        requireActiveModerationActorForUpdate(actorUserId, Instant.now(clock));
     }
 
     private UserModerationStatus applyModerationInternal(UserModerationActionApi.ApplyModerationCommand command) {
@@ -96,7 +106,7 @@ public class UserModerationApplicationService implements UserModerationActionApi
         }
         String action = userModerationDomainService.requireNonBlankAction(command.action());
 
-        Instant now = Instant.now();
+        Instant now = Instant.now(clock);
         UserAccount actor = requireActiveModerationActorForUpdate(command.actorUserId(), now);
         UserAccount user = command.targetUserId().equals(command.actorUserId())
                 ? actor
@@ -130,7 +140,7 @@ public class UserModerationApplicationService implements UserModerationActionApi
                 securityVersion,
                 user.policyVersion()
         );
-        userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now());
+        userPolicyEventPublisher.publishUserPolicyChanged(versionedNext, Instant.now(clock));
         return versionedNext;
     }
 

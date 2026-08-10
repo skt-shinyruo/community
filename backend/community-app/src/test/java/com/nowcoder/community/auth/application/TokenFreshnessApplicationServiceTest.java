@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.result.TokenFreshnessResult;
+import com.nowcoder.community.auth.application.TokenFreshnessApplicationService.TokenFreshnessResult;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import org.junit.jupiter.api.Test;

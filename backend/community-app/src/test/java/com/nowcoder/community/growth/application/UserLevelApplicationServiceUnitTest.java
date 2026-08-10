@@ -1,11 +1,10 @@
 package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
-import com.nowcoder.community.growth.application.result.UserLevelConfigResult;
+import com.nowcoder.community.growth.application.UserLevelApplicationService.UserLevelConfigResult;
+import com.nowcoder.community.growth.application.UserLevelApplicationService.UpdateConfigCommand;
 import com.nowcoder.community.growth.domain.repository.UserLevelRuleConfigRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
-import com.nowcoder.community.growth.domain.service.UserLevelDomainService;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -28,11 +27,10 @@ class UserLevelApplicationServiceUnitTest {
                 mock(UserTaskProgressRepository.class),
                 mock(UserLevelRuleConfigRepository.class),
                 mock(GrowthBusinessTimeService.class),
-                new UserLevelDomainService(),
                 new UuidV7Generator()
         );
 
-        assertThatThrownBy(() -> service.updateConfig((UpdateUserLevelConfigCommand) null))
+        assertThatThrownBy(() -> service.updateConfig((UpdateConfigCommand) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
     }
@@ -43,7 +41,6 @@ class UserLevelApplicationServiceUnitTest {
                 mock(UserTaskProgressRepository.class),
                 mock(UserLevelRuleConfigRepository.class),
                 mock(GrowthBusinessTimeService.class),
-                new UserLevelDomainService(),
                 new UuidV7Generator()
         );
 
@@ -61,15 +58,10 @@ class UserLevelApplicationServiceUnitTest {
                 userTaskProgressRepository,
                 userLevelRuleConfigRepository,
                 growthBusinessTimeService,
-                new UserLevelDomainService(),
                 new UuidV7Generator()
         );
 
-        UpdateUserLevelConfigCommand request = new UpdateUserLevelConfigCommand();
-        request.setWindowDays(120);
-        request.setLv2SignInDays(20);
-        request.setLv3SignInDays(90);
-        request.setEnabled(true);
+        UpdateConfigCommand request = new UpdateConfigCommand(null, 120, 20, 90, true);
 
         when(userLevelRuleConfigRepository.updateCurrent(any())).thenReturn(0, 1);
         when(userLevelRuleConfigRepository.create(any())).thenReturn(new UserLevelRuleConfigRepository.CreateResult(

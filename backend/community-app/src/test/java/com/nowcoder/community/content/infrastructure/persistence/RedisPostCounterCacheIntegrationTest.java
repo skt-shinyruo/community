@@ -28,7 +28,7 @@ class RedisPostCounterCacheIntegrationTest {
     void corruptViewBaselineShouldPreservePendingDeltaAcrossReinitialization() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redis, 86_400L);
+        RedisPostCounterCache cache = newCache(redis, 86_400L);
         UUID postId = UUID.randomUUID();
         String key = counterKey(postId);
         try {
@@ -71,7 +71,7 @@ class RedisPostCounterCacheIntegrationTest {
     void corruptInitializationMarkerShouldPreserveBaseAndPendingDelta() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redis, 86_400L);
+        RedisPostCounterCache cache = newCache(redis, 86_400L);
         UUID postId = UUID.randomUUID();
         String key = counterKey(postId);
         try {
@@ -112,6 +112,17 @@ class RedisPostCounterCacheIntegrationTest {
         StringRedisTemplate template = new StringRedisTemplate(connectionFactory);
         template.afterPropertiesSet();
         return template;
+    }
+
+    private static RedisPostCounterCache newCache(
+            StringRedisTemplate redisTemplate,
+            long viewerWindowSeconds
+    ) {
+        return new RedisPostCounterCache(
+                redisTemplate,
+                viewerWindowSeconds,
+                java.time.Clock.systemUTC()
+        );
     }
 
     private static String counterKey(UUID postId) {

@@ -12,7 +12,6 @@ import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
 import com.nowcoder.community.user.controller.dto.AvatarUploadSessionResponse;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
 import com.nowcoder.community.user.controller.dto.UpdateAvatarRequest;
-import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
 import jakarta.validation.Valid;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,6 +24,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -38,16 +38,20 @@ public class UserController {
 
     public UserController(UserReadApplicationService userReadApplicationService,
                           UserAvatarApplicationService userAvatarApplicationService) {
-        this.userReadApplicationService = userReadApplicationService;
-        this.userAvatarApplicationService = userAvatarApplicationService;
+        this.userReadApplicationService = Objects.requireNonNull(
+                userReadApplicationService,
+                "userReadApplicationService must not be null"
+        );
+        this.userAvatarApplicationService = Objects.requireNonNull(
+                userAvatarApplicationService,
+                "userAvatarApplicationService must not be null"
+        );
     }
 
     @PostMapping("/batch-summary")
-    public Result<List<UserSummaryResponse>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
-        List<UUID> raw = request == null ? null : request.getUserIds();
-        return Result.ok(userReadApplicationService.listSummariesByIds(raw).stream()
-                .map(UserController::toUserSummaryResponse)
-                .toList());
+    public Result<List<UserSummaryView>> batchSummary(@Valid @RequestBody BatchUserSummaryRequest request) {
+        List<UUID> raw = request == null ? null : request.userIds();
+        return Result.ok(userReadApplicationService.listSummariesByIds(raw));
     }
 
     @PostMapping("/{userId}/avatar/upload-sessions")
@@ -69,7 +73,7 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_object_id", response == null ? null : response.getObjectId()
+                "community.avatar_object_id", response == null ? null : response.objectId()
         );
         return Result.ok(response);
     }
@@ -77,7 +81,7 @@ public class UserController {
     @PutMapping("/{userId}/avatar")
     public Result<Void> updateAvatar(Authentication authentication, @PathVariable UUID userId, @Valid @RequestBody UpdateAvatarRequest request) {
         UUID currentUserId = CurrentUser.requireUserUuid(authentication);
-        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.getObjectId());
+        userAvatarApplicationService.updateAvatar(currentUserId, userId, request.objectId());
         SecurityEventLogger.info(
                 log,
                 "avatar_update",
@@ -85,17 +89,17 @@ public class UserController {
                 "user.id", userId,
                 "community.target_type", "user",
                 "community.target_id", userId,
-                "community.avatar_object_id", request.getObjectId()
+                "community.avatar_object_id", request.objectId()
         );
         return Result.ok();
     }
 
     private static CreateAvatarUploadSessionCommand toCreateAvatarUploadSessionCommand(AvatarUploadSessionRequest request) {
         return new CreateAvatarUploadSessionCommand(
-                request == null ? "" : request.getFileName(),
-                request == null ? "" : request.getContentType(),
-                request == null ? 0 : request.getContentLength(),
-                request == null ? "" : request.getChecksumSha256()
+                request == null ? "" : request.fileName(),
+                request == null ? "" : request.contentType(),
+                request == null ? 0 : request.contentLength(),
+                request == null ? "" : request.checksumSha256()
         );
     }
 
@@ -103,34 +107,20 @@ public class UserController {
         if (session == null) {
             return null;
         }
-        AvatarUploadSessionResponse response = new AvatarUploadSessionResponse();
-        response.setUploadId(session.uploadId());
-        response.setObjectId(session.objectId() == null ? "" : session.objectId().toString());
-        response.setVersionId(session.versionId() == null ? "" : session.versionId().toString());
-
-        AvatarUploadSessionResponse.UploadInstruction upload = new AvatarUploadSessionResponse.UploadInstruction();
-        upload.setUrl(session.uploadUrl());
-        upload.setMethod(session.uploadMethod());
-        upload.setFileField(session.fileField());
-        upload.setFields(session.fields());
-        upload.setHeaders(session.headers());
-        response.setUpload(upload);
-
-        AvatarUploadSessionResponse.Constraints constraints = new AvatarUploadSessionResponse.Constraints();
-        constraints.setMaxBytes(session.maxBytes());
-        constraints.setMimeTypes(session.mimeTypes());
-        response.setConstraints(constraints);
-        response.setExpiresAt(session.expiresAt() == null ? "" : session.expiresAt().toString());
-        return response;
-    }
-
-    private static UserSummaryResponse toUserSummaryResponse(UserSummaryView user) {
-        UserSummaryResponse response = new UserSummaryResponse();
-        response.setId(user.id());
-        response.setUsername(user.username());
-        response.setHeaderUrl(user.headerUrl());
-        response.setType(user.type());
-        return response;
+        return new AvatarUploadSessionResponse(
+                session.uploadId(),
+                session.objectId() == null ? "" : session.objectId().toString(),
+                session.versionId() == null ? "" : session.versionId().toString(),
+                new AvatarUploadSessionResponse.UploadInstruction(
+                        session.uploadUrl(),
+                        session.uploadMethod(),
+                        session.fileField(),
+                        session.fields(),
+                        session.headers()
+                ),
+                new AvatarUploadSessionResponse.Constraints(session.maxBytes(), session.mimeTypes()),
+                session.expiresAt() == null ? "" : session.expiresAt().toString()
+        );
     }
 
 }

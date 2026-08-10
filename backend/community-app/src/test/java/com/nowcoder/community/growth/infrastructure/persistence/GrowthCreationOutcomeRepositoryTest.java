@@ -6,7 +6,6 @@ import com.nowcoder.community.growth.domain.repository.UserLevelRuleConfigReposi
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
 import com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserLevelRuleConfigDataObject;
-import com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserTaskProgressDataObject;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserLevelRuleConfigMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper;
@@ -62,7 +61,7 @@ class GrowthCreationOutcomeRepositoryTest {
     @Test
     void progressCreateShouldReloadAndValidateConcurrentRow() {
         UserTaskProgressMapper mapper = mock(UserTaskProgressMapper.class);
-        UserTaskProgressDataObject existing = progressRow(1);
+        UserTaskProgress existing = progressRow(1);
         when(mapper.insert(any(), any(), any(), any(), any(Integer.class), any(), any()))
                 .thenThrow(new DuplicateKeyException("uk_user_task_period"));
         when(mapper.selectByUserTaskAndPeriod(USER_ID, TASK_CODE, PERIOD_KEY)).thenReturn(existing);
@@ -117,8 +116,8 @@ class GrowthCreationOutcomeRepositoryTest {
         verify(mapper, never()).selectCurrent();
     }
 
-    private static UserTaskProgressDataObject progressRow(int targetValue) {
-        UserTaskProgressDataObject progress = new UserTaskProgressDataObject();
+    private static UserTaskProgress progressRow(int targetValue) {
+        UserTaskProgress progress = new UserTaskProgress();
         progress.setId(uuid(9));
         progress.setUserId(USER_ID);
         progress.setTaskCode(TASK_CODE);

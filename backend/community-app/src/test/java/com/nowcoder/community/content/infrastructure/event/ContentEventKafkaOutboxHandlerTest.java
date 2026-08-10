@@ -2,7 +2,7 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
-import com.nowcoder.community.content.application.command.DispatchContentEventCommand;
+import com.nowcoder.community.content.application.ContentEventDispatchApplicationService.DispatchContentEventCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

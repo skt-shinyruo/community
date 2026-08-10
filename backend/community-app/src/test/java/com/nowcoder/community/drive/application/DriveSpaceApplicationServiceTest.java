@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
-import com.nowcoder.community.drive.application.result.DriveSpaceResult;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.drive.application.DriveSpaceApplicationService.DriveSpaceResult;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import org.junit.jupiter.api.Test;
@@ -35,7 +36,11 @@ class DriveSpaceApplicationServiceTest {
                 persisted
         ));
 
-        DriveSpaceApplicationService service = new DriveSpaceApplicationService(spaceRepository, clock);
+        DriveSpaceApplicationService service = new DriveSpaceApplicationService(
+                spaceRepository,
+                clock,
+                new UuidV7Generator(clock)
+        );
         DriveSpaceResult result = service.getSpace(userId);
 
         assertThat(result.spaceId()).isEqualTo(spaceId);

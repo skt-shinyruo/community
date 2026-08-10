@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.application;
 
-import com.nowcoder.community.im.application.command.ProjectBlockRelationCommand;
-import com.nowcoder.community.im.application.command.ProjectUserPolicyCommand;
+import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectBlockRelationCommand;
+import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectUserPolicyCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

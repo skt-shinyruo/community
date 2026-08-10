@@ -3,12 +3,7 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.domain.repository.CommentContentRepository;
-import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
-import com.nowcoder.community.content.domain.repository.TagContentRepository;
-import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -16,6 +11,8 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+
+import static java.util.Objects.requireNonNull;
 
 @Service
 public class FeedReadApplicationService {
@@ -25,7 +22,6 @@ public class FeedReadApplicationService {
 
     private final PostFeedCache postFeedCache;
     private final PostContentRepository postContentRepository;
-    private final PostSummaryCache postSummaryCache;
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final FeedCursorCodec feedCursorCodec;
     private final ContentFeedPolicyProperties policyProperties;
@@ -33,11 +29,9 @@ public class FeedReadApplicationService {
     private final ContentHotPathProperties hotPathProperties;
     private final HotPathSingleFlight hotPathSingleFlight;
 
-    @Autowired
     public FeedReadApplicationService(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
-            PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
             FeedCursorCodec feedCursorCodec,
             ContentFeedPolicyProperties policyProperties,
@@ -45,123 +39,14 @@ public class FeedReadApplicationService {
             ContentHotPathProperties hotPathProperties,
             HotPathSingleFlight hotPathSingleFlight
     ) {
-        this.postFeedCache = postFeedCache;
-        this.postContentRepository = postContentRepository;
-        this.postSummaryCache = postSummaryCache;
-        this.postFeedSummaryLoader = postFeedSummaryLoader;
-        this.feedCursorCodec = feedCursorCodec;
-        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
-        this.hotFeedReadMetrics = hotFeedReadMetrics == null
-                ? new HotFeedReadMetrics((MeterRegistry) null)
-                : hotFeedReadMetrics;
-        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
-        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
-    }
-
-    public FeedReadApplicationService(
-            PostFeedCache postFeedCache,
-            PostContentRepository postContentRepository,
-            PostSummaryCache postSummaryCache,
-            PostFeedSummaryLoader postFeedSummaryLoader,
-            FeedCursorCodec feedCursorCodec,
-            ContentFeedPolicyProperties policyProperties,
-            HotFeedReadMetrics hotFeedReadMetrics
-    ) {
-        this(
-                postFeedCache,
-                postContentRepository,
-                postSummaryCache,
-                postFeedSummaryLoader,
-                feedCursorCodec,
-                policyProperties,
-                hotFeedReadMetrics,
-                new ContentHotPathProperties(),
-                loaderSingleFlight()
-        );
-    }
-
-    public FeedReadApplicationService(
-            PostFeedCache postFeedCache,
-            PostContentRepository postContentRepository,
-            CommentContentRepository commentContentRepository,
-            TagContentRepository tagContentRepository,
-            PostContentBlockRepository postContentBlockRepository,
-            PostSummaryCache postSummaryCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            PostSummaryAssembler postSummaryAssembler,
-            FeedCursorCodec feedCursorCodec,
-            ContentFeedPolicyProperties policyProperties,
-            HotFeedReadMetrics hotFeedReadMetrics
-    ) {
-        this(
-                postFeedCache,
-                postContentRepository,
-                postSummaryCache,
-                new PostFeedSummaryLoader(
-                        postContentRepository,
-                        commentContentRepository,
-                        tagContentRepository,
-                        postContentBlockRepository,
-                        postSummaryCache,
-                        postContentBlockTextProjector,
-                        postSummaryAssembler
-                ),
-                feedCursorCodec,
-                policyProperties,
-                hotFeedReadMetrics
-        );
-    }
-
-    public FeedReadApplicationService(
-            PostFeedCache postFeedCache,
-            PostContentRepository postContentRepository,
-            CommentContentRepository commentContentRepository,
-            TagContentRepository tagContentRepository,
-            PostContentBlockRepository postContentBlockRepository,
-            PostSummaryCache postSummaryCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            PostSummaryAssembler postSummaryAssembler,
-            FeedCursorCodec feedCursorCodec,
-            ContentFeedPolicyProperties policyProperties
-    ) {
-        this(
-                postFeedCache,
-                postContentRepository,
-                commentContentRepository,
-                tagContentRepository,
-                postContentBlockRepository,
-                postSummaryCache,
-                postContentBlockTextProjector,
-                postSummaryAssembler,
-                feedCursorCodec,
-                policyProperties,
-                new HotFeedReadMetrics((MeterRegistry) null)
-        );
-    }
-
-    public FeedReadApplicationService(
-            PostFeedCache postFeedCache,
-            PostContentRepository postContentRepository,
-            CommentContentRepository commentContentRepository,
-            TagContentRepository tagContentRepository,
-            PostContentBlockRepository postContentBlockRepository,
-            PostSummaryCache postSummaryCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            PostSummaryAssembler postSummaryAssembler,
-            FeedCursorCodec feedCursorCodec
-    ) {
-        this(
-                postFeedCache,
-                postContentRepository,
-                commentContentRepository,
-                tagContentRepository,
-                postContentBlockRepository,
-                postSummaryCache,
-                postContentBlockTextProjector,
-                postSummaryAssembler,
-                feedCursorCodec,
-                new ContentFeedPolicyProperties()
-        );
+        this.postFeedCache = requireNonNull(postFeedCache, "postFeedCache");
+        this.postContentRepository = requireNonNull(postContentRepository, "postContentRepository");
+        this.postFeedSummaryLoader = requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader");
+        this.feedCursorCodec = requireNonNull(feedCursorCodec, "feedCursorCodec");
+        this.policyProperties = requireNonNull(policyProperties, "policyProperties");
+        this.hotFeedReadMetrics = requireNonNull(hotFeedReadMetrics, "hotFeedReadMetrics");
+        this.hotPathProperties = requireNonNull(hotPathProperties, "hotPathProperties");
+        this.hotPathSingleFlight = requireNonNull(hotPathSingleFlight, "hotPathSingleFlight");
     }
 
     public FeedPageResult listGlobalHotFeed(UUID currentUserId, String cursor, int size) {
@@ -532,15 +417,6 @@ public class FeedReadApplicationService {
 
     private static int nextPage(int page) {
         return page >= Integer.MAX_VALUE ? Integer.MAX_VALUE : page + 1;
-    }
-
-    private static HotPathSingleFlight loaderSingleFlight() {
-        return new HotPathSingleFlight() {
-            @Override
-            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
-                return loader.get();
-            }
-        };
     }
 
     private record CachePageLoad(LoadedFeedPage page, boolean cacheDegraded, String result) {

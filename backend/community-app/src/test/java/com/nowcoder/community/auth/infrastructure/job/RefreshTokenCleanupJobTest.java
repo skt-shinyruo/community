@@ -4,6 +4,7 @@ import com.nowcoder.community.auth.application.RefreshTokenApplicationService;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
 
 import static org.junit.jupiter.api.Assertions.assertDoesNotThrow;
@@ -23,7 +24,8 @@ class RefreshTokenCleanupJobTest {
         RefreshTokenCleanupProperties properties = new RefreshTokenCleanupProperties();
         properties.setEnabled(false);
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenApplicationService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(
+                refreshTokenApplicationService, properties, Clock.systemUTC());
         job.cleanup();
 
         verifyNoInteractions(refreshTokenApplicationService);
@@ -36,7 +38,8 @@ class RefreshTokenCleanupJobTest {
         properties.setEnabled(true);
         when(refreshTokenApplicationService.cleanupExpiredBefore(any(Instant.class))).thenReturn(2);
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenApplicationService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(
+                refreshTokenApplicationService, properties, Clock.systemUTC());
         job.cleanup();
 
         verify(refreshTokenApplicationService, times(1)).cleanupExpiredBefore(any(Instant.class));
@@ -50,7 +53,8 @@ class RefreshTokenCleanupJobTest {
         properties.setEnabled(true);
         when(refreshTokenApplicationService.cleanupExpiredBefore(any(Instant.class))).thenThrow(new RuntimeException("boom"));
 
-        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(refreshTokenApplicationService, properties);
+        RefreshTokenCleanupJob job = new RefreshTokenCleanupJob(
+                refreshTokenApplicationService, properties, Clock.systemUTC());
 
         assertDoesNotThrow(job::cleanup);
         verify(refreshTokenApplicationService, times(1)).cleanupExpiredBefore(any(Instant.class));

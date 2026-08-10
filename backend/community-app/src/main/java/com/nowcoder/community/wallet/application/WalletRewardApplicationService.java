@@ -2,7 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
-import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
@@ -16,13 +15,16 @@ import java.util.UUID;
 @Service
 public class WalletRewardApplicationService implements WalletRewardActionApi {
 
+    public record RewardCommand(String requestId, UUID userId, long amount, String sourceType) {
+    }
+
     private static final String PLATFORM_REWARD_EXPENSE = "PLATFORM_REWARD_EXPENSE";
     private final WalletAccountApplicationService walletAccountService;
     private final WalletLedgerApplicationService walletLedgerService;
 
     public WalletRewardApplicationService(WalletAccountApplicationService walletAccountService, WalletLedgerApplicationService walletLedgerService) {
-        this.walletAccountService = walletAccountService;
-        this.walletLedgerService = walletLedgerService;
+        this.walletAccountService = Objects.requireNonNull(walletAccountService, "walletAccountService must not be null");
+        this.walletLedgerService = Objects.requireNonNull(walletLedgerService, "walletLedgerService must not be null");
     }
 
     @Override
@@ -32,13 +34,13 @@ public class WalletRewardApplicationService implements WalletRewardActionApi {
     }
 
     @Transactional
-    public void issue(WalletRewardCommand command) {
+    public void issue(RewardCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         issueInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
     }
 
     @Transactional
-    public void revoke(WalletRewardCommand command) {
+    public void revoke(RewardCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.amount() <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
@@ -53,7 +55,7 @@ public class WalletRewardApplicationService implements WalletRewardActionApi {
     }
 
     @Transactional
-    public void applyDelta(WalletRewardCommand command) {
+    public void applyDelta(RewardCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         applyDeltaInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
     }

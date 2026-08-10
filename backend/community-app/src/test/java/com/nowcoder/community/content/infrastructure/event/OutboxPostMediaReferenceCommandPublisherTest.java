@@ -11,6 +11,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.RecordComponent;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -55,7 +56,8 @@ class OutboxPostMediaReferenceCommandPublisherTest {
         OutboxPostMediaReferenceCommandPublisher publisher = new OutboxPostMediaReferenceCommandPublisher(
                 new JacksonJsonCodec(JsonMappers.standard()),
                 store,
-                TOPIC
+                TOPIC,
+                Clock.systemUTC()
         );
         PostMediaReferenceCommand command = new PostMediaReferenceCommand(
                 ASSET_ID,
@@ -120,7 +122,8 @@ class OutboxPostMediaReferenceCommandPublisherTest {
         return new OutboxPostMediaReferenceCommandPublisher(
                 new JacksonJsonCodec(JsonMappers.standard()),
                 store,
-                TOPIC
+                TOPIC,
+                Clock.systemUTC()
         );
     }
 

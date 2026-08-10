@@ -2,7 +2,7 @@ package com.nowcoder.community.im.application;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
+import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService.DispatchImPolicyEventCommand;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import org.junit.jupiter.api.Test;

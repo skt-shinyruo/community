@@ -15,7 +15,7 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.infrastructure.event.JacksonSocialContractEventCodec;
 import com.nowcoder.community.wallet.application.WalletRewardApplicationService;
 import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService;
-import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
+import com.nowcoder.community.wallet.application.WalletRewardApplicationService.RewardCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.kafka.annotation.KafkaListener;
@@ -68,7 +68,7 @@ class WalletRewardKafkaListenerTest {
                 Instant.EPOCH, 1L, jsonCodec.valueToTree(payload)
         ));
 
-        verify(walletReward).applyDelta(new WalletRewardCommand(
+        verify(walletReward).applyDelta(new RewardCommand(
                 "wallet-reward:post-published:" + uuid(100), uuid(7), 10, "PostPublished"
         ));
     }
@@ -82,7 +82,7 @@ class WalletRewardKafkaListenerTest {
         listener.onSocialEvent(event("se:like:created:1", SocialEventTypes.LIKE_CREATED, payload));
         listener.onSocialEvent(event("se:like:created:2", SocialEventTypes.LIKE_CREATED, payload));
 
-        verify(walletReward, times(2)).applyDelta(new WalletRewardCommand(
+        verify(walletReward, times(2)).applyDelta(new RewardCommand(
                 "wallet-reward:" + payload.getRelationKey() + ":v1:created", uuid(2), 1, "LikeCreated"
         ));
     }
@@ -97,18 +97,18 @@ class WalletRewardKafkaListenerTest {
         listener.onSocialEvent(event("legacy-remove-1", SocialEventTypes.LIKE_REMOVED, payload, 11L));
         listener.onSocialEvent(event("legacy-create-2", SocialEventTypes.LIKE_CREATED, payload, 12L));
 
-        ArgumentCaptor<WalletRewardCommand> commands = ArgumentCaptor.forClass(WalletRewardCommand.class);
+        ArgumentCaptor<RewardCommand> commands = ArgumentCaptor.forClass(RewardCommand.class);
         verify(walletReward, times(3)).applyDelta(commands.capture());
         assertThat(commands.getAllValues()).containsExactly(
-                new WalletRewardCommand(
+                new RewardCommand(
                         "wallet-reward:" + payload.getRelationKey() + ":v10:created",
                         uuid(2), 1, "LikeCreated"
                 ),
-                new WalletRewardCommand(
+                new RewardCommand(
                         "wallet-reward:" + payload.getRelationKey() + ":v11:removed",
                         uuid(2), -1, "LikeRemoved"
                 ),
-                new WalletRewardCommand(
+                new RewardCommand(
                         "wallet-reward:" + payload.getRelationKey() + ":v12:created",
                         uuid(2), 1, "LikeCreated"
                 )
@@ -125,10 +125,10 @@ class WalletRewardKafkaListenerTest {
         listener.onSocialEvent(event("se:like:created:new", SocialEventTypes.LIKE_CREATED, payload));
         listener.onSocialEvent(event("se:like:removed:new", SocialEventTypes.LIKE_REMOVED, payload));
 
-        verify(walletReward).applyDelta(new WalletRewardCommand(
+        verify(walletReward).applyDelta(new RewardCommand(
                 "wallet-reward:" + uuid(501) + ":created", uuid(2), 1, "LikeCreated"
         ));
-        verify(walletReward).applyDelta(new WalletRewardCommand(
+        verify(walletReward).applyDelta(new RewardCommand(
                 "wallet-reward:" + uuid(501) + ":removed", uuid(2), -1, "LikeRemoved"
         ));
     }
@@ -148,14 +148,14 @@ class WalletRewardKafkaListenerTest {
         listener.onSocialEvent(event("create-second", SocialEventTypes.LIKE_CREATED, second));
         listener.onSocialEvent(event("remove-second", SocialEventTypes.LIKE_REMOVED, second));
 
-        ArgumentCaptor<WalletRewardCommand> commandCaptor = ArgumentCaptor.forClass(WalletRewardCommand.class);
+        ArgumentCaptor<RewardCommand> commandCaptor = ArgumentCaptor.forClass(RewardCommand.class);
         verify(walletReward, times(5)).applyDelta(commandCaptor.capture());
         assertThat(commandCaptor.getAllValues()).containsExactly(
-                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":removed", uuid(2), -1, "LikeRemoved"),
-                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
-                new WalletRewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
-                new WalletRewardCommand("wallet-reward:" + uuid(512) + ":created", uuid(2), 1, "LikeCreated"),
-                new WalletRewardCommand("wallet-reward:" + uuid(512) + ":removed", uuid(2), -1, "LikeRemoved")
+                new RewardCommand("wallet-reward:" + uuid(511) + ":removed", uuid(2), -1, "LikeRemoved"),
+                new RewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
+                new RewardCommand("wallet-reward:" + uuid(511) + ":created", uuid(2), 1, "LikeCreated"),
+                new RewardCommand("wallet-reward:" + uuid(512) + ":created", uuid(2), 1, "LikeCreated"),
+                new RewardCommand("wallet-reward:" + uuid(512) + ":removed", uuid(2), -1, "LikeRemoved")
         );
     }
 
@@ -171,7 +171,7 @@ class WalletRewardKafkaListenerTest {
                 likePayload(uuid(1), uuid(100), uuid(1))
         ));
 
-        verify(walletReward).applyDelta(new WalletRewardCommand(
+        verify(walletReward).applyDelta(new RewardCommand(
                 "wallet-reward:" + payload.getRelationKey() + ":v1:removed", uuid(2), -1, "LikeRemoved"
         ));
     }

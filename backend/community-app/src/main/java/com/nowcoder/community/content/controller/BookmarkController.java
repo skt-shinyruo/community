@@ -3,7 +3,6 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.application.BookmarkApplicationService;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
@@ -43,7 +42,7 @@ public class BookmarkController {
     }
 
     @GetMapping("/bookmarks")
-    public Result<List<PostSummaryResponse>> list(
+    public Result<List<PostSummaryResult>> list(
             Authentication authentication,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
@@ -52,6 +51,6 @@ public class BookmarkController {
         int p = page == null ? 0 : Math.max(0, page);
         int s = size == null ? 10 : Math.min(50, Math.max(1, size));
         List<PostSummaryResult> posts = bookmarkApplicationService.listBookmarkedPostSummaries(userId, p, s);
-        return Result.ok(posts == null ? List.of() : posts.stream().map(PostSummaryResponse::from).toList());
+        return Result.ok(posts == null ? List.of() : posts);
     }
 }

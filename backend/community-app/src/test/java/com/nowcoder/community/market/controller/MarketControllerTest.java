@@ -5,7 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
-import com.nowcoder.community.market.application.command.CreateMarketAddressCommand;
+import com.nowcoder.community.market.application.MarketAddressApplicationService.CreateMarketAddressCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.application.result.MarketListingDetailResult;
 import com.nowcoder.community.market.application.result.MarketListingResult;
@@ -13,6 +13,7 @@ import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.application.result.MarketPageResult;
+import com.nowcoder.community.market.application.result.MarketOrderDetailResult.ShipmentResult;
 import com.nowcoder.community.market.security.MarketSecurityRules;
 import com.nowcoder.community.market.application.MarketAddressApplicationService;
 import com.nowcoder.community.market.application.MarketDisputeApplicationService;
@@ -236,7 +237,17 @@ class MarketControllerTest {
                 null,
                 null,
                 List.of("CODE-001"),
-                null,
+                new ShipmentResult(
+                        uuid(301),
+                        buyingOrderId,
+                        sellerUserId,
+                        "SF",
+                        "SF-2026-001",
+                        "fragile",
+                        now,
+                        now,
+                        now
+                ),
                 now,
                 now
         );
@@ -286,12 +297,16 @@ class MarketControllerTest {
         mockMvc.perform(get("/api/market/orders/" + buyingOrderId)
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.deliveryContents[0]").value("CODE-001"));
+                .andExpect(jsonPath("$.data.deliveryContents[0]").value("CODE-001"))
+                .andExpect(jsonPath("$.data.shipment.trackingNo").value("SF-2026-001"))
+                .andExpect(jsonPath("$.data.shipment.shippingRemark").value("fragile"));
 
         mockMvc.perform(get("/api/market/addresses")
                         .with(jwt().jwt(jwt -> jwt.subject(buyerUserId.toString()).claim("username", "buyer9"))))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].receiverName").value("张三"));
+                .andExpect(jsonPath("$.data[0].receiverName").value("张三"))
+                .andExpect(jsonPath("$.data[0].defaultAddress").value(true))
+                .andExpect(jsonPath("$.data[0].isDefault").doesNotExist());
     }
 
     @Test

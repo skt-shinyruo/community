@@ -7,7 +7,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.common.outbox.OutboxWorkerScheduler;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
+import com.nowcoder.community.content.application.ModerationApplicationService.TakeModerationActionCommand;
 import com.nowcoder.community.content.domain.model.ReportStatuses;
 import com.nowcoder.community.content.domain.repository.ReportRepository;
 import com.nowcoder.community.content.exception.ContentErrorCode;

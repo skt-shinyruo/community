@@ -7,7 +7,7 @@ import com.nowcoder.community.content.contracts.event.ContentTypedEvent;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
-import com.nowcoder.community.search.application.command.ProjectPostCommand;
+import com.nowcoder.community.search.application.SearchPostProjectionApplicationService.ProjectPostCommand;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;

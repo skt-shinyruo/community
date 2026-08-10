@@ -2,8 +2,6 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort.RemoteReferenceStatus;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
-import com.nowcoder.community.content.application.command.ReconcilePostMediaReferencesCommand;
-import com.nowcoder.community.content.application.result.PostMediaReferenceReconciliationResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
@@ -41,7 +39,7 @@ public class PostMediaReferenceReconciliationApplicationService {
         this.queryPort = Objects.requireNonNull(queryPort, "queryPort must not be null");
         this.commandPublisher = Objects.requireNonNull(commandPublisher, "commandPublisher must not be null");
         this.metrics = Objects.requireNonNull(metrics, "metrics must not be null");
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public PostMediaReferenceReconciliationResult reconcile(ReconcilePostMediaReferencesCommand command) {
@@ -154,6 +152,30 @@ public class PostMediaReferenceReconciliationApplicationService {
 
     private Date now() {
         return Date.from(clock.instant());
+    }
+
+    public record ReconcilePostMediaReferencesCommand(UUID afterAssetId, int batchSize) {
+
+        private static final UUID ZERO_UUID = new UUID(0L, 0L);
+
+        public ReconcilePostMediaReferencesCommand {
+            afterAssetId = afterAssetId == null ? ZERO_UUID : afterAssetId;
+            if (batchSize <= 0) {
+                throw new IllegalArgumentException("batchSize must be positive");
+            }
+            batchSize = Math.min(500, batchSize);
+        }
+    }
+
+    public record PostMediaReferenceReconciliationResult(
+            UUID nextAfterAssetId,
+            boolean hasMore,
+            int scanned,
+            int pending,
+            int drifted,
+            int scheduled,
+            int failed
+    ) {
     }
 
     private record ReconciliationOutcome(int drifted, int scheduled) {

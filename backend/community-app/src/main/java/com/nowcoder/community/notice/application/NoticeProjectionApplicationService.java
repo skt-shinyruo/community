@@ -2,7 +2,7 @@ package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
+import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.LikeNoticeProjectionState;
 import com.nowcoder.community.notice.domain.model.NoticeProjection;
@@ -10,14 +10,13 @@ import com.nowcoder.community.notice.domain.model.NoticeProjectionContent;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
 import com.nowcoder.community.notice.domain.repository.LikeNoticeProjectionStateRepository;
 import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Map;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -27,81 +26,35 @@ public class NoticeProjectionApplicationService {
 
     private final JsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
-    private final NoticeProjectionDomainService noticeProjectionDomainService;
+    private final NoticeProjectionDomainService noticeProjectionDomainService = new NoticeProjectionDomainService();
     private final NoticePolicyProperties noticePolicyProperties;
-    private final NoticeProjectionEventRecorder noticeProjectionEventRecorder;
-    private final LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository;
+    private final Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder;
+    private final Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository;
 
-    @Autowired
     public NoticeProjectionApplicationService(
             JsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties,
-            ObjectProvider<NoticeProjectionEventRecorder> noticeProjectionEventRecorderProvider,
-            LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository
+            Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder,
+            Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository
     ) {
-        this(
-                jsonCodec,
+        this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec must not be null");
+        this.noticeApplicationService = Objects.requireNonNull(
                 noticeApplicationService,
-                new NoticeProjectionDomainService(),
-                noticePolicyProperties,
-                noticeProjectionEventRecorderProvider == null ? null : noticeProjectionEventRecorderProvider.getIfAvailable(),
-                likeNoticeProjectionStateRepository
+                "noticeApplicationService must not be null"
         );
-    }
-
-    public NoticeProjectionApplicationService(
-            JsonCodec jsonCodec,
-            NoticeApplicationService noticeApplicationService,
-            NoticePolicyProperties noticePolicyProperties
-    ) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), noticePolicyProperties, null, null);
-    }
-
-    public NoticeProjectionApplicationService(JsonCodec jsonCodec, NoticeApplicationService noticeApplicationService) {
-        this(jsonCodec, noticeApplicationService, new NoticeProjectionDomainService(), new NoticePolicyProperties(), null, null);
-    }
-
-    NoticeProjectionApplicationService(
-            JsonCodec jsonCodec,
-            NoticeApplicationService noticeApplicationService,
-            NoticeProjectionDomainService noticeProjectionDomainService,
-            NoticePolicyProperties noticePolicyProperties
-    ) {
-        this(jsonCodec, noticeApplicationService, noticeProjectionDomainService, noticePolicyProperties, null, null);
-    }
-
-    NoticeProjectionApplicationService(
-            JsonCodec jsonCodec,
-            NoticeApplicationService noticeApplicationService,
-            NoticeProjectionDomainService noticeProjectionDomainService,
-            NoticePolicyProperties noticePolicyProperties,
-            NoticeProjectionEventRecorder noticeProjectionEventRecorder
-    ) {
-        this(
-                jsonCodec,
-                noticeApplicationService,
-                noticeProjectionDomainService,
+        this.noticePolicyProperties = Objects.requireNonNull(
                 noticePolicyProperties,
+                "noticePolicyProperties must not be null"
+        );
+        this.noticeProjectionEventRecorder = Objects.requireNonNull(
                 noticeProjectionEventRecorder,
-                null
+                "noticeProjectionEventRecorder must not be null"
         );
-    }
-
-    NoticeProjectionApplicationService(
-            JsonCodec jsonCodec,
-            NoticeApplicationService noticeApplicationService,
-            NoticeProjectionDomainService noticeProjectionDomainService,
-            NoticePolicyProperties noticePolicyProperties,
-            NoticeProjectionEventRecorder noticeProjectionEventRecorder,
-            LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository
-    ) {
-        this.jsonCodec = jsonCodec;
-        this.noticeApplicationService = noticeApplicationService;
-        this.noticeProjectionDomainService = noticeProjectionDomainService;
-        this.noticePolicyProperties = noticePolicyProperties == null ? new NoticePolicyProperties() : noticePolicyProperties;
-        this.noticeProjectionEventRecorder = noticeProjectionEventRecorder;
-        this.likeNoticeProjectionStateRepository = likeNoticeProjectionStateRepository;
+        this.likeNoticeProjectionStateRepository = Objects.requireNonNull(
+                likeNoticeProjectionStateRepository,
+                "likeNoticeProjectionStateRepository must not be null"
+        );
     }
 
     @Transactional
@@ -204,7 +157,8 @@ public class NoticeProjectionApplicationService {
         if (!shouldProject(projection)) {
             return;
         }
-        if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(projection.sourceEventId())) {
+        NoticeProjectionEventRecorder eventRecorder = noticeProjectionEventRecorder.orElse(null);
+        if (eventRecorder != null && !eventRecorder.tryRecord(projection.sourceEventId())) {
             return;
         }
         createProjectedNotice(projection);
@@ -216,13 +170,15 @@ public class NoticeProjectionApplicationService {
             return;
         }
         LikeNoticeProjectionState incoming = likeState(command, active);
-        if (likeNoticeProjectionStateRepository == null) {
+        LikeNoticeProjectionStateRepository stateRepository = likeNoticeProjectionStateRepository.orElse(null);
+        if (stateRepository == null) {
             throw new IllegalStateException("like notice projection state repository is required");
         }
-        if (noticeProjectionEventRecorder != null && !noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
+        NoticeProjectionEventRecorder eventRecorder = noticeProjectionEventRecorder.orElse(null);
+        if (eventRecorder != null && !eventRecorder.tryRecord(command.sourceEventId())) {
             return;
         }
-        LikeNoticeProjectionState.Transition transition = likeNoticeProjectionStateRepository.advance(incoming);
+        LikeNoticeProjectionState.Transition transition = stateRepository.advance(incoming);
         if (transition == LikeNoticeProjectionState.Transition.ACTIVATED) {
             noticeApplicationService.revokeLikeNotice(incoming.recipientUserId(), incoming.sourceRelationKey());
             createProjectedNotice(projection);

@@ -1,7 +1,5 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
-import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
 import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
@@ -27,6 +25,12 @@ import java.util.regex.Pattern;
 
 @Service
 public class CaptchaApplicationService {
+
+    public record IssueCaptchaCommand(String clientIp) {
+    }
+
+    public record CaptchaIssueResult(String captchaId, String imageBase64, int ttlSeconds) {
+    }
 
     private static final SecureRandom random = new SecureRandom();
     private static final String RATE_LIMIT_IP_KEY_PREFIX = "auth:captcha:issue:ip:";

@@ -1,13 +1,14 @@
 package com.nowcoder.community.drive.application;
 
-import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.CompleteUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
-import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.port.DrivePasswordHasher;
 import com.nowcoder.community.drive.application.port.DriveShareTicketCodec;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.UploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveEntryType;
@@ -50,6 +51,7 @@ final class TestDriveFixture {
     private final FakeStoragePort storage = new FakeStoragePort();
     private final FakePasswordHasher passwordHasher = new FakePasswordHasher();
     private final FakeTicketCodec ticketCodec = new FakeTicketCodec();
+    private final UuidV7Generator idGenerator = new UuidV7Generator(CLOCK);
 
     private TestDriveFixture() {
     }
@@ -59,28 +61,33 @@ final class TestDriveFixture {
     }
 
     DriveSpaceApplicationService spaceService() {
-        return new DriveSpaceApplicationService(spaces, CLOCK);
+        return new DriveSpaceApplicationService(spaces, CLOCK, idGenerator);
     }
 
     DriveEntryApplicationService entryService() {
-        return new DriveEntryApplicationService(spaces, entries, storage, CLOCK);
+        return new DriveEntryApplicationService(
+                spaces, entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     DriveUploadApplicationService uploadService() {
-        return new DriveUploadApplicationService(spaces, entries, uploads, storage, CLOCK);
+        return new DriveUploadApplicationService(
+                spaces, entries, uploads, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     DriveTrashApplicationService trashService() {
-        return new DriveTrashApplicationService(spaces, entries, storage, CLOCK);
+        return new DriveTrashApplicationService(
+                spaces, entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     DriveShareApplicationService shareService() {
-        return new DriveShareApplicationService(spaces, entries, shares, shareAccesses, storage, passwordHasher, ticketCodec, CLOCK);
+        return new DriveShareApplicationService(
+                spaces, entries, shares, shareAccesses, storage, passwordHasher, ticketCodec,
+                CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     UUID createFile(UUID userId, String name, long sizeBytes) {
-        DriveUploadSessionResult session = uploadService().prepareUpload(new PrepareDriveUploadCommand(userId, null, name, "text/plain", sizeBytes, ""));
-        DriveEntryResult entry = uploadService().completeUpload(new CompleteDriveUploadCommand(
+        UploadSessionResult session = uploadService().prepareUpload(new PrepareUploadCommand(userId, null, name, "text/plain", sizeBytes, ""));
+        DriveEntryResult entry = uploadService().completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 content("content", sizeBytes)
@@ -89,8 +96,8 @@ final class TestDriveFixture {
     }
 
     UUID createFile(UUID userId, UUID parentId, String name, long sizeBytes) {
-        DriveUploadSessionResult session = uploadService().prepareUpload(new PrepareDriveUploadCommand(userId, parentId, name, "text/plain", sizeBytes, ""));
-        DriveEntryResult entry = uploadService().completeUpload(new CompleteDriveUploadCommand(
+        UploadSessionResult session = uploadService().prepareUpload(new PrepareUploadCommand(userId, parentId, name, "text/plain", sizeBytes, ""));
+        DriveEntryResult entry = uploadService().completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 content("content", sizeBytes)

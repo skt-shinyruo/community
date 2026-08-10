@@ -1,6 +1,5 @@
 package com.nowcoder.community.analytics.application;
 
-import com.nowcoder.community.analytics.application.command.RecordLoginSuccessCommand;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRepository;
@@ -93,7 +92,7 @@ class AnalyticsIngestApplicationServiceTest {
                 false,
                 false
         ));
-        service.recordLoginSuccess(new RecordLoginSuccessCommand(
+        service.recordLoginSuccess(new AnalyticsIngestApplicationService.RecordLoginSuccess(
                 UUID.fromString("11111111-1111-1111-1111-111111111111"),
                 false
         ));

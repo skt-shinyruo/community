@@ -9,8 +9,9 @@ import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
 import org.springframework.stereotype.Repository;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -18,9 +19,11 @@ import java.util.UUID;
 public class JdbcOutboxGovernanceAdapter implements OutboxGovernancePort {
 
     private final JdbcOutboxEventStore store;
+    private final Clock clock;
 
-    public JdbcOutboxGovernanceAdapter(JdbcOutboxEventStore store) {
-        this.store = store;
+    public JdbcOutboxGovernanceAdapter(JdbcOutboxEventStore store, Clock clock) {
+        this.store = Objects.requireNonNull(store, "store must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -54,7 +57,7 @@ public class JdbcOutboxGovernanceAdapter implements OutboxGovernancePort {
 
     @Override
     public boolean requeueDead(UUID id, String reason) {
-        return store.requeueDeadForReplay(id, Instant.now(), reason);
+        return store.requeueDeadForReplay(id, clock.instant(), reason);
     }
 
     private OutboxEventResult toResult(OutboxEventView row) {

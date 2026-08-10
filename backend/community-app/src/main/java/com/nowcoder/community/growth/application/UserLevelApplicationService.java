@@ -2,8 +2,6 @@ package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
-import com.nowcoder.community.growth.application.result.UserLevelConfigResult;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.api.query.UserLevelQueryApi;
 import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
@@ -24,6 +22,39 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_E
 @Service
 public class UserLevelApplicationService implements UserLevelQueryApi {
 
+    public record UpdateConfigCommand(
+            UUID actorUserId,
+            int windowDays,
+            int lv2SignInDays,
+            int lv3SignInDays,
+            Boolean enabled
+    ) {
+    }
+
+    public record UserLevelConfigResult(
+            int windowDays,
+            int lv2SignInDays,
+            int lv3SignInDays,
+            boolean enabled
+    ) {
+        // Keep the existing bean-style accessors for callers that consume the application result directly.
+        public int getWindowDays() {
+            return windowDays;
+        }
+
+        public int getLv2SignInDays() {
+            return lv2SignInDays;
+        }
+
+        public int getLv3SignInDays() {
+            return lv3SignInDays;
+        }
+
+        public boolean isEnabled() {
+            return enabled;
+        }
+    }
+
     private static final String DAILY_CHECK_IN_TASK_CODE = "DAILY_CHECK_IN";
     public static final int DEFAULT_WINDOW_DAYS = 100;
     public static final int DEFAULT_LV2_SIGN_IN_DAYS = 12;
@@ -32,30 +63,20 @@ public class UserLevelApplicationService implements UserLevelQueryApi {
     private final UserTaskProgressRepository userTaskProgressRepository;
     private final UserLevelRuleConfigRepository userLevelRuleConfigRepository;
     private final GrowthBusinessTimeService growthBusinessTimeService;
-    private final UserLevelDomainService userLevelDomainService;
+    private final UserLevelDomainService userLevelDomainService = new UserLevelDomainService();
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public UserLevelApplicationService(
             UserTaskProgressRepository userTaskProgressRepository,
             UserLevelRuleConfigRepository userLevelRuleConfigRepository,
-            GrowthBusinessTimeService growthBusinessTimeService
-    ) {
-        this(userTaskProgressRepository, userLevelRuleConfigRepository, growthBusinessTimeService, new UserLevelDomainService(), new UuidV7Generator());
-    }
-
-    UserLevelApplicationService(
-            UserTaskProgressRepository userTaskProgressRepository,
-            UserLevelRuleConfigRepository userLevelRuleConfigRepository,
             GrowthBusinessTimeService growthBusinessTimeService,
-            UserLevelDomainService userLevelDomainService,
             UuidV7Generator idGenerator
     ) {
-        this.userTaskProgressRepository = userTaskProgressRepository;
-        this.userLevelRuleConfigRepository = userLevelRuleConfigRepository;
-        this.growthBusinessTimeService = growthBusinessTimeService;
-        this.userLevelDomainService = userLevelDomainService;
-        this.idGenerator = idGenerator;
+        this.userTaskProgressRepository = Objects.requireNonNull(userTaskProgressRepository, "userTaskProgressRepository must not be null");
+        this.userLevelRuleConfigRepository = Objects.requireNonNull(userLevelRuleConfigRepository, "userLevelRuleConfigRepository must not be null");
+        this.growthBusinessTimeService = Objects.requireNonNull(growthBusinessTimeService, "growthBusinessTimeService must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override
@@ -108,27 +129,32 @@ public class UserLevelApplicationService implements UserLevelQueryApi {
     }
 
     @Transactional
-    public UserLevelConfigResult updateConfig(UpdateUserLevelConfigCommand command) {
+    public UserLevelConfigResult updateConfig(UpdateConfigCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         return updateConfigInternal(command);
     }
 
     @Transactional
-    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateUserLevelConfigCommand command) {
+    public UserLevelConfigResult updateConfig(UUID actorUserId, UpdateConfigCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        command.setActorUserId(actorUserId);
-        return updateConfigInternal(command);
+        return updateConfigInternal(new UpdateConfigCommand(
+                actorUserId,
+                command.windowDays(),
+                command.lv2SignInDays(),
+                command.lv3SignInDays(),
+                command.enabled()
+        ));
     }
 
-    private UserLevelConfigResult updateConfigInternal(UpdateUserLevelConfigCommand command) {
+    private UserLevelConfigResult updateConfigInternal(UpdateConfigCommand command) {
         validateUpdateRequest(command);
 
         UserLevelRuleConfig config = new UserLevelRuleConfig();
-        config.setWindowDays(command.getWindowDays());
-        config.setLv2SignInDays(command.getLv2SignInDays());
-        config.setLv3SignInDays(command.getLv3SignInDays());
-        config.setEnabled(Boolean.TRUE.equals(command.getEnabled()));
-        config.setUpdatedBy(command.getActorUserId());
+        config.setWindowDays(command.windowDays());
+        config.setLv2SignInDays(command.lv2SignInDays());
+        config.setLv3SignInDays(command.lv3SignInDays());
+        config.setEnabled(Boolean.TRUE.equals(command.enabled()));
+        config.setUpdatedBy(command.actorUserId());
 
         int updated = userLevelRuleConfigRepository.updateCurrent(config);
         if (updated <= 0) {
@@ -165,16 +191,16 @@ public class UserLevelApplicationService implements UserLevelQueryApi {
         return config;
     }
 
-    private void validateUpdateRequest(UpdateUserLevelConfigCommand command) {
-        if (command.getEnabled() == null) {
+    private void validateUpdateRequest(UpdateConfigCommand command) {
+        if (command.enabled() == null) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "enabled required");
         }
 
         try {
             userLevelDomainService.validateLevelConfig(
-                    command.getWindowDays(),
-                    command.getLv2SignInDays(),
-                    command.getLv3SignInDays()
+                    command.windowDays(),
+                    command.lv2SignInDays(),
+                    command.lv3SignInDays()
             );
         } catch (IllegalArgumentException ex) {
             throw new BusinessException(GrowthErrorCode.INVALID_REQUEST, "invalid user level thresholds");
@@ -182,12 +208,12 @@ public class UserLevelApplicationService implements UserLevelQueryApi {
     }
 
     private UserLevelConfigResult toConfigResponse(UserLevelRuleConfig config) {
-        UserLevelConfigResult response = new UserLevelConfigResult();
-        response.setWindowDays(config.getWindowDays());
-        response.setLv2SignInDays(config.getLv2SignInDays());
-        response.setLv3SignInDays(config.getLv3SignInDays());
-        response.setEnabled(config.isEnabled());
-        return response;
+        return new UserLevelConfigResult(
+                config.getWindowDays(),
+                config.getLv2SignInDays(),
+                config.getLv3SignInDays(),
+                config.isEnabled()
+        );
     }
 
 }

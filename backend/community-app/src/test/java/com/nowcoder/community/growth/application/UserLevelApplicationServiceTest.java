@@ -3,8 +3,8 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
-import com.nowcoder.community.growth.application.result.UserLevelConfigResult;
+import com.nowcoder.community.growth.application.UserLevelApplicationService.UserLevelConfigResult;
+import com.nowcoder.community.growth.application.UserLevelApplicationService.UpdateConfigCommand;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
 import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -237,12 +237,7 @@ class UserLevelApplicationServiceTest {
                 .hasMessageContaining("invalid user level rule config");
     }
 
-    private UpdateUserLevelConfigCommand configRequest(int windowDays, int lv2SignInDays, int lv3SignInDays, boolean enabled) {
-        UpdateUserLevelConfigCommand request = new UpdateUserLevelConfigCommand();
-        request.setWindowDays(windowDays);
-        request.setLv2SignInDays(lv2SignInDays);
-        request.setLv3SignInDays(lv3SignInDays);
-        request.setEnabled(enabled);
-        return request;
+    private UpdateConfigCommand configRequest(int windowDays, int lv2SignInDays, int lv3SignInDays, boolean enabled) {
+        return new UpdateConfigCommand(null, windowDays, lv2SignInDays, lv3SignInDays, enabled);
     }
 }

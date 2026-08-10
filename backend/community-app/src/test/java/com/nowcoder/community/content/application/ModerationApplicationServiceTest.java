@@ -3,7 +3,7 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
+import com.nowcoder.community.content.application.ModerationApplicationService.TakeModerationActionCommand;
 import com.nowcoder.community.content.application.ModerationNoticePublisher;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationTarget;

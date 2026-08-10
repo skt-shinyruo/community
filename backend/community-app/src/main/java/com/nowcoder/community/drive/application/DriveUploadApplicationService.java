@@ -2,13 +2,9 @@ package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
-import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DriveUploadRecoveryResult;
-import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
@@ -19,7 +15,6 @@ import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -59,7 +54,6 @@ public class DriveUploadApplicationService {
     private final UuidV7Generator idGenerator;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
-    @Autowired
     public DriveUploadApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
@@ -69,11 +63,11 @@ public class DriveUploadApplicationService {
             DriveTransactionOperations transactionOperations,
             UuidV7Generator idGenerator
     ) {
-        this.spaceRepository = spaceRepository;
-        this.entryRepository = entryRepository;
-        this.uploadRepository = uploadRepository;
-        this.objectStoragePort = objectStoragePort;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
+        this.uploadRepository = Objects.requireNonNull(uploadRepository, "uploadRepository must not be null");
+        this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.transactionOperations = Objects.requireNonNull(
                 transactionOperations,
                 "transactionOperations must not be null"
@@ -81,25 +75,7 @@ public class DriveUploadApplicationService {
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
-    DriveUploadApplicationService(
-            DriveSpaceRepository spaceRepository,
-            DriveEntryRepository entryRepository,
-            DriveUploadRepository uploadRepository,
-            DriveObjectStoragePort objectStoragePort,
-            Clock clock
-    ) {
-        this(
-                spaceRepository,
-                entryRepository,
-                uploadRepository,
-                objectStoragePort,
-                clock,
-                DirectDriveTransactionOperations.INSTANCE,
-                new UuidV7Generator(clock == null ? Clock.systemUTC() : clock)
-        );
-    }
-
-    public DriveUploadSessionResult prepareUpload(PrepareDriveUploadCommand command) {
+    public UploadSessionResult prepareUpload(PrepareUploadCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         requirePrepareCommand(command);
         DriveUpload preparing = transactionOperations.requiresNew(() -> createPreparingUpload(command));
@@ -114,7 +90,7 @@ public class DriveUploadApplicationService {
         return toUploadSession(upload, space);
     }
 
-    private DriveUpload createPreparingUpload(PrepareDriveUploadCommand command) {
+    private DriveUpload createPreparingUpload(PrepareUploadCommand command) {
         UUID actorUserId = command.actorUserId();
         Instant now = clock.instant();
         DriveSpace space = loadOrCreateSpace(actorUserId, now);
@@ -207,7 +183,7 @@ public class DriveUploadApplicationService {
         throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
-    public DriveEntryResult completeUpload(CompleteDriveUploadCommand command) {
+    public DriveEntryResult completeUpload(CompleteUploadCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         requireCompleteCommand(command);
         UUID actorUserId = requireUser(command.actorUserId());
@@ -259,9 +235,9 @@ public class DriveUploadApplicationService {
         return finalizeObjectCompletedUpload(objectCompleted.uploadId(), actorUserId);
     }
 
-    public DriveUploadRecoveryResult recoverStaleUploads(Instant updatedBefore, int limit) {
+    public RecoveryResult recoverStaleUploads(Instant updatedBefore, int limit) {
         if (updatedBefore == null || limit <= 0) {
-            return new DriveUploadRecoveryResult(0, 0, 0, 0);
+            return new RecoveryResult(0, 0, 0, 0);
         }
         Instant now = clock.instant();
         int prepared = 0;
@@ -345,7 +321,7 @@ public class DriveUploadApplicationService {
             }
             skipped++;
         }
-        return new DriveUploadRecoveryResult(prepared, finalized, markedObjectCompleted, failed, skipped);
+        return new RecoveryResult(prepared, finalized, markedObjectCompleted, failed, skipped);
     }
 
     private void expirePreparingUpload(UUID uploadId) {
@@ -372,7 +348,7 @@ public class DriveUploadApplicationService {
                 return new CompletionClaim(upload, false);
             }
             if (upload.expiredAt(now)) {
-                DriveUpload expired = upload.complete(UUID.randomUUID(), now);
+                DriveUpload expired = upload.complete(idGenerator.next(), now);
                 uploadRepository.save(expired);
                 return new CompletionClaim(expired, false);
             }
@@ -393,7 +369,7 @@ public class DriveUploadApplicationService {
                 throw new BusinessException(DriveErrorCode.DRIVE_QUOTA_EXCEEDED, "网盘容量不足");
             }
 
-            DriveUpload completing = upload.startCompleting(UUID.randomUUID(), now);
+            DriveUpload completing = upload.startCompleting(idGenerator.next(), now);
             if (uploadRepository.transitionStatus(completing, DriveUploadStatus.PREPARED)) {
                 return new CompletionClaim(completing, true);
             }
@@ -677,19 +653,19 @@ public class DriveUploadApplicationService {
         }
     }
 
-    private DriveUploadSessionResult toUploadSession(DriveUpload upload, DriveSpace space) {
+    private UploadSessionResult toUploadSession(DriveUpload upload, DriveSpace space) {
         String fileKey = fileKey(upload.uploadId(), upload.name());
-        return new DriveUploadSessionResult(
+        return new UploadSessionResult(
                 upload.uploadId().toString(),
                 fileKey,
-                new DriveUploadSessionResult.UploadInstruction(
+                new UploadSessionResult.UploadInstruction(
                         "/api/drive/uploads/" + upload.uploadId() + "/complete",
                         UPLOAD_METHOD,
                         FILE_FIELD,
                         Map.of("fileKey", fileKey),
                         Map.of()
                 ),
-                new DriveUploadSessionResult.UploadConstraints(space.quotaBytes(), List.of()),
+                new UploadSessionResult.UploadConstraints(space.quotaBytes(), List.of()),
                 upload.expiresAt()
         );
     }
@@ -719,11 +695,11 @@ public class DriveUploadApplicationService {
         return "drive/" + uploadId + "/" + name;
     }
 
-    private static void requirePrepareCommand(PrepareDriveUploadCommand command) {
+    private static void requirePrepareCommand(PrepareUploadCommand command) {
         requireUser(command.actorUserId());
     }
 
-    private static void requireCompleteCommand(CompleteDriveUploadCommand command) {
+    private static void requireCompleteCommand(CompleteUploadCommand command) {
         if (command.uploadId() == null || command.content() == null || command.content().uploadStream() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "上传参数非法");
         }
@@ -756,6 +732,58 @@ public class DriveUploadApplicationService {
         if (prepared == null || prepared.sessionId() == null || prepared.objectId() == null
                 || prepared.versionId() == null || prepared.expiresAt() == null) {
             throw new BusinessException(INTERNAL_ERROR, "签发网盘上传参数失败");
+        }
+    }
+
+    public record PrepareUploadCommand(
+            UUID actorUserId,
+            UUID parentId,
+            String fileName,
+            String contentType,
+            long contentLength,
+            String checksumSha256
+    ) {
+    }
+
+    public record CompleteUploadCommand(UUID actorUserId, UUID uploadId, DriveUploadContent content) {
+    }
+
+    public record RecoveryResult(
+            int prepared,
+            int finalized,
+            int markedObjectCompleted,
+            int failed,
+            int skipped
+    ) {
+        public RecoveryResult(int finalized, int markedObjectCompleted, int failed, int skipped) {
+            this(0, finalized, markedObjectCompleted, failed, skipped);
+        }
+    }
+
+    public record UploadSessionResult(
+            String uploadId,
+            String fileKey,
+            UploadInstruction upload,
+            UploadConstraints constraints,
+            Instant expiresAt
+    ) {
+        public record UploadInstruction(
+                String url,
+                String method,
+                String fileField,
+                Map<String, String> fields,
+                Map<String, String> headers
+        ) {
+            public UploadInstruction {
+                fields = fields == null ? Map.of() : Map.copyOf(fields);
+                headers = headers == null ? Map.of() : Map.copyOf(headers);
+            }
+        }
+
+        public record UploadConstraints(long maxBytes, List<String> mimeTypes) {
+            public UploadConstraints {
+                mimeTypes = mimeTypes == null ? List.of() : List.copyOf(mimeTypes);
+            }
         }
     }
 }

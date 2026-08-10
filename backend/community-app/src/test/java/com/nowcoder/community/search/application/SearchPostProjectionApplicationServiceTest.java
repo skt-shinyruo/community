@@ -2,8 +2,8 @@ package com.nowcoder.community.search.application;
 
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
-import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
-import com.nowcoder.community.search.application.command.ProjectPostCommand;
+import com.nowcoder.community.search.application.SearchApplicationService.DeleteIndexedPostCommand;
+import com.nowcoder.community.search.application.SearchPostProjectionApplicationService.ProjectPostCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -28,7 +28,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         assertThatThrownBy(() -> service.projectPost(null))
                 .isInstanceOf(NullPointerException.class)
@@ -40,7 +40,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         service.projectPost(new ProjectPostCommand(null, "src", 1L));
 
@@ -52,7 +52,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         assertThatThrownBy(() -> service.projectPost(new ProjectPostCommand(uuid(101), " ", 1L)))
                 .isInstanceOf(IllegalArgumentException.class)
@@ -82,7 +82,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(101))).thenReturn(null);
 
@@ -97,7 +97,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         PostScanView.PostProjectionView doc = new PostScanView.PostProjectionView(
                 uuid(101),
@@ -135,7 +135,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(201)))
                 .thenReturn(postProjection(uuid(201), "old title", "old content", 1L, 1.0))
@@ -162,7 +162,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(202))).thenReturn(null);
 
@@ -185,7 +185,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(203)))
                 .thenReturn(postProjection(uuid(203), "visible title", "visible content", 1L, 1.0))
@@ -214,7 +214,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(uuid(204)))
                 .thenReturn(null)
@@ -242,7 +242,7 @@ class SearchPostProjectionApplicationServiceTest {
         PostScanQueryApi postScanQueryApi = mock(PostScanQueryApi.class);
         SearchApplicationService searchApplicationService = mock(SearchApplicationService.class);
         SearchPostProjectionApplicationService service =
-                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService);
+                new SearchPostProjectionApplicationService(postScanQueryApi, searchApplicationService, new SearchPolicyProperties());
         java.util.UUID postId = uuid(205);
 
         when(postScanQueryApi.getPostProjectionAllowDeleted(postId))

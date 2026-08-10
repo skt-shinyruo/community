@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
+import com.nowcoder.community.content.application.PostMediaApplicationService.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import org.junit.jupiter.api.BeforeEach;
@@ -102,6 +102,7 @@ class PostMediaUploadTransactionBoundaryTest {
     private static PreparePostMediaUploadCommand command() {
         return new PreparePostMediaUploadCommand(
                 ACTOR_ID,
+                null,
                 "post.png",
                 "image/png",
                 4L,

@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.ReportApplicationService;
 import com.nowcoder.community.content.controller.dto.CreateReportRequest;
@@ -24,6 +26,8 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class ReportControllerTest {
 
+    private final ObjectMapper objectMapper = JsonMappers.standard();
+
     @Mock
     private ReportApplicationService reportApplicationService;
 
@@ -39,11 +43,7 @@ class ReportControllerTest {
         UUID reporterId = uuid(7);
         UUID targetId = uuid(21);
         UUID reportId = uuid(31);
-        CreateReportRequest request = new CreateReportRequest();
-        request.setTargetType("post");
-        request.setTargetId(targetId);
-        request.setReason("spam");
-        request.setDetail("burst");
+        CreateReportRequest request = new CreateReportRequest("post", targetId, "spam", "burst");
         when(reportApplicationService.create(reporterId, "post", targetId, "spam", "burst"))
                 .thenReturn(reportId);
 
@@ -52,6 +52,8 @@ class ReportControllerTest {
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
         assertThat(result.getData().getReportId()).isEqualTo(reportId);
+        assertThat(objectMapper.valueToTree(result.getData()).fieldNames()).toIterable()
+                .containsExactly("reportId");
         verify(reportApplicationService).create(reporterId, "post", targetId, "spam", "burst");
     }
 

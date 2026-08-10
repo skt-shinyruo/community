@@ -3,9 +3,6 @@ package com.nowcoder.community.user.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.user.application.AdminUserApplicationService;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
-import com.nowcoder.community.user.application.result.AdminUserResult;
-import com.nowcoder.community.user.controller.dto.AdminUserResponse;
 import com.nowcoder.community.user.controller.dto.UpdateUserRoleRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -16,6 +13,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.Objects;
 import java.util.UUID;
 
 @RestController
@@ -25,16 +23,19 @@ public class AdminUserController {
     private final AdminUserApplicationService adminUserApplicationService;
 
     public AdminUserController(AdminUserApplicationService adminUserApplicationService) {
-        this.adminUserApplicationService = adminUserApplicationService;
+        this.adminUserApplicationService = Objects.requireNonNull(
+                adminUserApplicationService,
+                "adminUserApplicationService must not be null"
+        );
     }
 
     @GetMapping("/search")
-    public Result<AdminUserResponse> search(
+    public Result<AdminUserApplicationService.AdminUserResult> search(
             @RequestParam(required = false) UUID userId,
             @RequestParam(required = false) String username,
             @RequestParam(required = false) String email
     ) {
-        return Result.ok(toAdminUserResponse(adminUserApplicationService.search(userId, username, email)));
+        return Result.ok(adminUserApplicationService.search(userId, username, email));
     }
 
     @PostMapping("/role")
@@ -44,31 +45,19 @@ public class AdminUserController {
         return Result.ok();
     }
 
-    private static UpdateUserRoleCommand toCommand(UUID actorUserId, UpdateUserRoleRequest request) {
+    private static AdminUserApplicationService.UpdateRoleCommand toCommand(
+            UUID actorUserId,
+            UpdateUserRoleRequest request
+    ) {
         if (request == null) {
             return null;
         }
-        return new UpdateUserRoleCommand(
+        return new AdminUserApplicationService.UpdateRoleCommand(
                 actorUserId,
-                request.getTargetUserId(),
-                request.getType(),
-                request.getReason(),
-                request.isConfirm()
+                request.targetUserId(),
+                request.type(),
+                request.reason(),
+                request.confirm()
         );
-    }
-
-    private static AdminUserResponse toAdminUserResponse(AdminUserResult user) {
-        if (user == null) {
-            return null;
-        }
-        AdminUserResponse response = new AdminUserResponse();
-        response.setId(user.id());
-        response.setUsername(user.username());
-        response.setEmail(user.email());
-        response.setType(user.type());
-        response.setStatus(user.status());
-        response.setHeaderUrl(user.headerUrl());
-        response.setCreateTime(user.createTime());
-        return response;
     }
 }

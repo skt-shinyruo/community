@@ -18,6 +18,9 @@ import org.springframework.data.elasticsearch.core.index.AliasAction;
 import org.springframework.data.elasticsearch.core.index.AliasActions;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -34,6 +37,11 @@ import static org.mockito.Mockito.verifyNoMoreInteractions;
 import static org.mockito.Mockito.when;
 
 class PostIndexManagerTest {
+
+    private static final Clock TEST_CLOCK = Clock.fixed(
+            Instant.parse("2026-08-10T12:34:56Z"),
+            ZoneOffset.UTC
+    );
 
     @Test
     void documentMappingShouldDeclareSearchAndSortFields() throws NoSuchFieldException {
@@ -62,7 +70,7 @@ class PostIndexManagerTest {
                 "scoreVersion", "score", "createTime"
         ));
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        manager(operations, "community_posts_v", 2).ensureAliasReady();
 
         verify(operations).indexOps(EsPostDocument.class);
         verify(aliasOps).exists();
@@ -83,7 +91,7 @@ class PostIndexManagerTest {
         when(aliasOps.createMapping()).thenReturn(expectedMapping);
         when(aliasOps.putMapping(expectedMapping)).thenReturn(true);
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        manager(operations, "community_posts_v", 2).ensureAliasReady();
 
         verify(aliasOps).putMapping(expectedMapping);
     }
@@ -98,7 +106,7 @@ class PostIndexManagerTest {
                 "postId", "title", "content", "categoryId", "tags", "createTime"
         ));
 
-        assertThatThrownBy(() -> new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady())
+        assertThatThrownBy(() -> manager(operations, "community_posts_v", 2).ensureAliasReady())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("community_posts_alias")
                 .hasMessageContaining("score");
@@ -133,7 +141,7 @@ class PostIndexManagerTest {
         when(targetOps.alias(any(AliasActions.class))).thenReturn(true);
         when(aliasOps.getAliases(EsPostDocument.INDEX_ALIAS)).thenThrow(new ResourceNotFoundException("alias missing"));
 
-        new PostIndexManager(operations, "community_posts_v", 2).ensureAliasReady();
+        manager(operations, "community_posts_v", 2).ensureAliasReady();
 
         verify(directIndexOps, never()).alias(any(AliasActions.class));
         verify(targetOps).create();
@@ -157,7 +165,7 @@ class PostIndexManagerTest {
         when(aliasOps.getAliases(EsPostDocument.INDEX_ALIAS)).thenReturn(Map.of());
         when(targetOps.alias(any(AliasActions.class))).thenReturn(false);
 
-        assertThatThrownBy(() -> new PostIndexManager(operations, "community_posts_v", 2).switchAliasTo(target))
+        assertThatThrownBy(() -> manager(operations, "community_posts_v", 2).switchAliasTo(target))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("not acknowledged");
     }
@@ -177,7 +185,7 @@ class PostIndexManagerTest {
         when(targetOps.putMapping(mapping)).thenReturn(false);
         when(targetOps.delete()).thenReturn(true);
 
-        assertThatThrownBy(() -> new PostIndexManager(operations, "community_posts_v", 2).createNewIndex())
+        assertThatThrownBy(() -> manager(operations, "community_posts_v", 2).createNewIndex())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("mapping was not acknowledged");
 
@@ -206,9 +214,9 @@ class PostIndexManagerTest {
         when(aliasOps.createMapping()).thenReturn(mapping);
         when(suffixedOps.putMapping(mapping)).thenReturn(true);
 
-        String indexName = new PostIndexManager(operations, "community_posts_v", 2).createNewIndex();
+        String indexName = manager(operations, "community_posts_v", 2).createNewIndex();
 
-        assertThat(indexName).matches("community_posts_v\\d{14}_1");
+        assertThat(indexName).isEqualTo("community_posts_v20260810123456_1");
         verify(baseOps).create();
         verify(suffixedOps).create();
         verify(suffixedOps).putMapping(mapping);
@@ -235,7 +243,7 @@ class PostIndexManagerTest {
         when(aliasOps.createMapping()).thenReturn(mapping);
         when(suffixedOps.putMapping(mapping)).thenReturn(true);
 
-        String indexName = new PostIndexManager(operations, "community_posts_v", 2).createNewIndex();
+        String indexName = manager(operations, "community_posts_v", 2).createNewIndex();
 
         assertThat(indexName).matches("community_posts_v\\d{14}_1");
         verify(baseOps, times(2)).exists();
@@ -256,7 +264,7 @@ class PostIndexManagerTest {
         when(baseOps.exists()).thenReturn(false);
         when(baseOps.create()).thenReturn(false);
 
-        assertThatThrownBy(() -> new PostIndexManager(operations, "community_posts_v", 2).createNewIndex())
+        assertThatThrownBy(() -> manager(operations, "community_posts_v", 2).createNewIndex())
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("creation was not acknowledged");
 
@@ -292,7 +300,7 @@ class PostIndexManagerTest {
         when(oldestOps.exists()).thenReturn(true);
         when(oldestOps.delete()).thenReturn(true);
 
-        new PostIndexManager(operations, "community_posts_v", 1).cleanupOldIndices();
+        manager(operations, "community_posts_v", 1).cleanupOldIndices();
 
         verify(oldestOps).delete();
         verify(operations, never()).indexOps(argThat(
@@ -330,7 +338,7 @@ class PostIndexManagerTest {
         when(suffixTenOps.exists()).thenReturn(true);
         when(suffixTenOps.delete()).thenReturn(true);
 
-        new PostIndexManager(operations, "community_posts_v", 1).cleanupOldIndices();
+        manager(operations, "community_posts_v", 1).cleanupOldIndices();
 
         verify(suffixNineOps).delete();
         verify(suffixTenOps, never()).delete();
@@ -342,6 +350,14 @@ class PostIndexManagerTest {
             properties.put(field, Document.create());
         }
         return Map.of("properties", properties);
+    }
+
+    private static PostIndexManager manager(
+            ElasticsearchOperations operations,
+            String indexPrefix,
+            int keepHistory
+    ) {
+        return new PostIndexManager(operations, indexPrefix, keepHistory, TEST_CLOCK);
     }
 
     private static boolean hasIndexName(IndexCoordinates coordinates, String indexName) {

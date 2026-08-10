@@ -13,9 +13,8 @@ class BatchPostSummaryRequestTest {
     @Test
     void shouldStoreSubmittedPostIds() {
         List<UUID> postIds = List.of(uuid(3), uuid(5), uuid(8));
-        BatchPostSummaryRequest request = new BatchPostSummaryRequest();
-        request.setPostIds(postIds);
+        BatchPostSummaryRequest request = new BatchPostSummaryRequest(postIds);
 
-        assertThat(request.getPostIds()).containsExactlyElementsOf(postIds);
+        assertThat(request.postIds()).containsExactlyElementsOf(postIds);
     }
 }

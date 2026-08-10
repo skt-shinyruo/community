@@ -4,8 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
-import com.nowcoder.community.user.application.result.UserAuthenticationResult;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
@@ -59,13 +58,13 @@ class UserCredentialApiAdapterTest {
                 0, 1, "h8", Date.from(Instant.EPOCH), null, null, 0L, 7L
         );
         UserCredentialApplicationService.PreparedAuthentication preparation =
-                new UserCredentialApplicationService.PreparedAuthentication(account, "bcrypt");
-        UserCredentialResult credential = new UserCredentialResult(
+                new UserCredentialApplicationService.PreparedAuthentication(account, "bcrypt", true);
+        UserCredentialView credential = new UserCredentialView(
                 userId, "coeur", "coeur@example.com", 1, 0, "h8", 7L, true, true
         );
         when(applicationService.prepareAuthentication("cœur")).thenReturn(preparation);
         when(applicationService.authenticate(preparation, "secret"))
-                .thenReturn(UserAuthenticationResult.authenticated(credential));
+                .thenReturn(UserAuthenticationResultView.authenticated(credential));
         UserCredentialApiAdapter adapter = new UserCredentialApiAdapter(applicationService);
 
         UserCredentialQueryApi.AuthenticationChallenge challenge = adapter.prepareAuthentication("cœur");

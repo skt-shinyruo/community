@@ -48,7 +48,7 @@ class FollowFeedReadApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         FollowFeedCursorCodec followFeedCursorCodec = new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
-        FollowFeedReadApplicationService service = new FollowFeedReadApplicationService(
+        FollowFeedReadApplicationService service = service(
                 followQueryApi,
                 postContentRepository,
                 followFeedCache,
@@ -102,7 +102,7 @@ class FollowFeedReadApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         FollowFeedCursorCodec followFeedCursorCodec = new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
-        FollowFeedReadApplicationService service = new FollowFeedReadApplicationService(
+        FollowFeedReadApplicationService service = service(
                 followQueryApi,
                 postContentRepository,
                 followFeedCache,
@@ -162,7 +162,7 @@ class FollowFeedReadApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         FollowFeedCursorCodec followFeedCursorCodec = new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
-        FollowFeedReadApplicationService service = new FollowFeedReadApplicationService(
+        FollowFeedReadApplicationService service = service(
                 followQueryApi,
                 postContentRepository,
                 followFeedCache,
@@ -217,7 +217,7 @@ class FollowFeedReadApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         FollowFeedCursorCodec followFeedCursorCodec = new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
-        FollowFeedReadApplicationService service = new FollowFeedReadApplicationService(
+        FollowFeedReadApplicationService service = service(
                 followQueryApi,
                 postContentRepository,
                 followFeedCache,
@@ -290,7 +290,7 @@ class FollowFeedReadApplicationServiceTest {
                 .thenAnswer(invocation -> invocation.getArgument(0));
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         FollowFeedCursorCodec followFeedCursorCodec = new FollowFeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
-        FollowFeedReadApplicationService service = new FollowFeedReadApplicationService(
+        FollowFeedReadApplicationService service = service(
                 followQueryApi,
                 postContentRepository,
                 followFeedCache,
@@ -325,6 +325,35 @@ class FollowFeedReadApplicationServiceTest {
         assertThat(page.items()).extracting(PostSummaryResult::id).containsExactly(first.getId(), second.getId());
         assertThat(decodeCursorJson(page.nextCursor()))
                 .contains("\"anchorPostId\":\"" + second.getId() + "\"");
+    }
+
+    private static FollowFeedReadApplicationService service(
+            SocialFollowQueryApi followQueryApi,
+            PostContentRepository postContentRepository,
+            FollowFeedCache followFeedCache,
+            CommentContentRepository commentContentRepository,
+            TagContentRepository tagContentRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            PostSummaryAssembler postSummaryAssembler,
+            FollowFeedCursorCodec followFeedCursorCodec
+    ) {
+        return new FollowFeedReadApplicationService(
+                followQueryApi,
+                postContentRepository,
+                followFeedCache,
+                new PostFeedSummaryLoader(
+                        postContentRepository,
+                        commentContentRepository,
+                        tagContentRepository,
+                        postContentBlockRepository,
+                        postSummaryCache,
+                        postContentBlockTextProjector,
+                        postSummaryAssembler
+                ),
+                followFeedCursorCodec
+        );
     }
 
     private static DiscussPost post(UUID postId, UUID authorId, Instant createTime) {

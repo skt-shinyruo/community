@@ -16,6 +16,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Arrays;
 import java.util.Date;
@@ -306,7 +307,8 @@ class UserModerationApplicationServiceTest {
         return new UserModerationApplicationService(
                 userRepository,
                 new UserModerationDomainService(),
-                userPolicyEventPublisher
+                userPolicyEventPublisher,
+                Clock.systemUTC()
         );
     }
 

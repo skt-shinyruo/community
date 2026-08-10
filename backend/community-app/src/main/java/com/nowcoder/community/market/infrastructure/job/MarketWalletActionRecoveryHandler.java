@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.job;
 
 import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
-import com.nowcoder.community.market.application.result.MarketWalletActionRecoveryResult;
+import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService.MarketWalletActionRecoveryResult;
 import com.xxl.job.core.context.XxlJobHelper;
 import com.xxl.job.core.handler.annotation.XxlJob;
 import org.slf4j.Logger;

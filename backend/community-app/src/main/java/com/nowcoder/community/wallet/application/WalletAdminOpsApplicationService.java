@@ -14,7 +14,6 @@ import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletAdminDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -43,37 +42,19 @@ public class WalletAdminOpsApplicationService {
     private final UuidV7Generator idGenerator;
     private final UserLookupQueryApi userLookupQueryApi;
 
-    @Autowired
     public WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             WalletLedgerRepository walletLedgerRepository,
                                             WalletAdminActionRepository walletAdminActionRepository,
+                                            UuidV7Generator idGenerator,
                                             UserLookupQueryApi userLookupQueryApi) {
-        this(
-                accountService,
-                ledgerService,
-                walletLedgerRepository,
-                walletAdminActionRepository,
-                new WalletAdminDomainService(),
-                new UuidV7Generator(),
-                userLookupQueryApi
-        );
-    }
-
-    WalletAdminOpsApplicationService(WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService,
-                                     WalletLedgerRepository walletLedgerRepository,
-                                     WalletAdminActionRepository walletAdminActionRepository,
-                                     WalletAdminDomainService adminDomainService,
-                                     UuidV7Generator idGenerator,
-                                     UserLookupQueryApi userLookupQueryApi) {
-        this.accountService = accountService;
-        this.ledgerService = ledgerService;
-        this.walletLedgerRepository = walletLedgerRepository;
-        this.walletAdminActionRepository = walletAdminActionRepository;
-        this.adminDomainService = adminDomainService;
-        this.idGenerator = idGenerator;
-        this.userLookupQueryApi = userLookupQueryApi;
+        this.accountService = Objects.requireNonNull(accountService, "accountService must not be null");
+        this.ledgerService = Objects.requireNonNull(ledgerService, "ledgerService must not be null");
+        this.walletLedgerRepository = Objects.requireNonNull(walletLedgerRepository, "walletLedgerRepository must not be null");
+        this.walletAdminActionRepository = Objects.requireNonNull(walletAdminActionRepository, "walletAdminActionRepository must not be null");
+        this.adminDomainService = new WalletAdminDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.userLookupQueryApi = Objects.requireNonNull(userLookupQueryApi, "userLookupQueryApi must not be null");
     }
 
     @Transactional

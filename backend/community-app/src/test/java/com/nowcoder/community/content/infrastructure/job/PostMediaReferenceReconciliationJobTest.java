@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.infrastructure.job;
 
 import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService;
-import com.nowcoder.community.content.application.command.ReconcilePostMediaReferencesCommand;
-import com.nowcoder.community.content.application.result.PostMediaReferenceReconciliationResult;
+import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService.ReconcilePostMediaReferencesCommand;
+import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService.PostMediaReferenceReconciliationResult;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

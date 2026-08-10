@@ -1,11 +1,11 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.RegisterCodeResendResult;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.ResendRegisterCodeCommand;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
-import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
@@ -31,6 +31,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Optional;
 import java.util.UUID;
@@ -92,7 +93,8 @@ class RegistrationVerificationApplicationServiceTest {
                 loginTokenIssuer,
                 new AuthSecretGenerator(),
                 new RegistrationDomainService(),
-                registrationRequestRateLimiter
+                registrationRequestRateLimiter,
+                Clock.systemUTC()
         );
     }
 
@@ -183,7 +185,7 @@ class RegistrationVerificationApplicationServiceTest {
                 eq(userId), matches("\\d{6}"), any(Duration.class), eq(Duration.ofSeconds(60)),
                 any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.ISSUED);
-        service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd"));
+        service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null));
 
         ArgumentCaptor<Duration> ttlCaptor = ArgumentCaptor.forClass(Duration.class);
         verify(registrationCodeStore).beginReplacement(
@@ -230,7 +232,7 @@ class RegistrationVerificationApplicationServiceTest {
                 any(Instant.class), any(UUID.class)))
                 .thenReturn(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
 
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
@@ -251,7 +253,7 @@ class RegistrationVerificationApplicationServiceTest {
         doThrow(new IllegalStateException("mail down"))
                 .when(mailDispatcher).dispatch(any(RegistrationCodeMailDispatcher.Delivery.class));
 
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("mail down");
 
@@ -478,7 +480,7 @@ class RegistrationVerificationApplicationServiceTest {
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
@@ -489,7 +491,7 @@ class RegistrationVerificationApplicationServiceTest {
         doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
@@ -510,7 +512,7 @@ class RegistrationVerificationApplicationServiceTest {
                 Instant.now().plus(Duration.ofMinutes(30))
         )));
 
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd")))
+        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);

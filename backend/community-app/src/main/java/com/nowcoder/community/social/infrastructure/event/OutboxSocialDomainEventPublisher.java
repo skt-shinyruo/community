@@ -13,7 +13,6 @@ import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEven
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
@@ -25,17 +24,18 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
     private final SocialContractEventCodec contractEventCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
-    private final UuidV7Generator idGenerator = new UuidV7Generator();
+    private final UuidV7Generator idGenerator;
 
-    @Autowired
     public OutboxSocialDomainEventPublisher(
             SocialContractEventCodec contractEventCodec,
             JdbcOutboxEventStore store,
-            @Value("${social.events.outbox-topic:eventbus.social}") String topic
+            @Value("${social.events.outbox-topic:eventbus.social}") String topic,
+            UuidV7Generator idGenerator
     ) {
         this.contractEventCodec = contractEventCodec;
         this.store = store;
         this.topic = topic;
+        this.idGenerator = idGenerator;
     }
 
     @Override

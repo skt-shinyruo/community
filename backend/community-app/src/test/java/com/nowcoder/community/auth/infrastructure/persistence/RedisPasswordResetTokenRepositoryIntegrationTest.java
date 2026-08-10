@@ -9,6 +9,7 @@ import org.testcontainers.junit.jupiter.Container;
 import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.utility.DockerImageName;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Set;
@@ -30,7 +31,7 @@ class RedisPasswordResetTokenRepositoryIntegrationTest {
     void leasesShouldFenceCompetingConfirmationsAndGenerationMarkerShouldSpareNewTokens() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
         UUID firstLease = UUID.randomUUID();
         UUID wrongLease = UUID.randomUUID();
         try {
@@ -85,7 +86,7 @@ class RedisPasswordResetTokenRepositoryIntegrationTest {
     void expiredLeaseShouldBeRecoverableWithoutAllowingTheOldOwnerToRollback() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
         UUID expiredLease = UUID.randomUUID();
         UUID currentLease = UUID.randomUUID();
         try {

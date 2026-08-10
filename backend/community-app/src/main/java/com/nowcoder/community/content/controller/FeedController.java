@@ -4,7 +4,6 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
 import com.nowcoder.community.content.application.FollowFeedReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
-import com.nowcoder.community.content.controller.dto.FeedPageResponse;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,36 +30,40 @@ public class FeedController {
     }
 
     @GetMapping("/feed/global")
-    public Result<FeedPageResponse> global(
+    public Result<FeedPageResult> global(
             Authentication authentication,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        FeedPageResult page = feedReadApplicationService.listGlobalHotFeed(currentUserId, cursor, size == null ? 20 : size);
-        return Result.ok(FeedPageResponse.from(page));
+        return Result.ok(normalizePage(feedReadApplicationService.listGlobalHotFeed(
+                currentUserId, cursor, size == null ? 20 : size)));
     }
 
     @GetMapping("/boards/{boardId}/feed")
-    public Result<FeedPageResponse> board(
+    public Result<FeedPageResult> board(
             Authentication authentication,
             @PathVariable UUID boardId,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        FeedPageResult page = feedReadApplicationService.listBoardHotFeed(currentUserId, boardId, cursor, size == null ? 20 : size);
-        return Result.ok(FeedPageResponse.from(page));
+        return Result.ok(normalizePage(feedReadApplicationService.listBoardHotFeed(
+                currentUserId, boardId, cursor, size == null ? 20 : size)));
     }
 
     @GetMapping("/feed/follow")
-    public Result<FeedPageResponse> follow(
+    public Result<FeedPageResult> follow(
             Authentication authentication,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
         UUID currentUserId = CurrentUser.tryUserUuid(authentication);
-        FeedPageResult page = followFeedReadApplicationService.listFollowFeed(currentUserId, cursor, size == null ? 20 : size);
-        return Result.ok(FeedPageResponse.from(page));
+        return Result.ok(normalizePage(followFeedReadApplicationService.listFollowFeed(
+                currentUserId, cursor, size == null ? 20 : size)));
+    }
+
+    private static FeedPageResult normalizePage(FeedPageResult page) {
+        return page == null ? new FeedPageResult(null, null, null) : page;
     }
 }

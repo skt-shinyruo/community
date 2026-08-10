@@ -8,7 +8,9 @@ import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -18,17 +20,22 @@ public class RefreshTokenApplicationService {
     private final RefreshTokenRepository refreshTokenStore;
     private final RefreshTokenDomainService refreshTokenDomainService;
     private final AuthSecretGenerator authSecretGenerator;
+    private final Clock clock;
 
     public RefreshTokenApplicationService(
             JwtProperties jwtProperties,
             RefreshTokenRepository refreshTokenStore,
             RefreshTokenDomainService refreshTokenDomainService,
-            AuthSecretGenerator authSecretGenerator
+            AuthSecretGenerator authSecretGenerator,
+            Clock clock
     ) {
-        this.jwtProperties = jwtProperties;
-        this.refreshTokenStore = refreshTokenStore;
-        this.refreshTokenDomainService = refreshTokenDomainService;
-        this.authSecretGenerator = authSecretGenerator;
+        this.jwtProperties = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
+        this.refreshTokenStore = Objects.requireNonNull(refreshTokenStore, "refreshTokenStore must not be null");
+        this.refreshTokenDomainService = Objects.requireNonNull(
+                refreshTokenDomainService, "refreshTokenDomainService must not be null");
+        this.authSecretGenerator = Objects.requireNonNull(
+                authSecretGenerator, "authSecretGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -39,7 +46,7 @@ public class RefreshTokenApplicationService {
 
     @Transactional
     public RefreshTokenRepository.StoredRefreshToken beginRotation(String refreshToken) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         UUID rotationLeaseId = UUID.randomUUID();
         RefreshTokenRepository.StoredRefreshToken pending = refreshTokenStore.beginRotation(
                 refreshToken,
@@ -71,7 +78,7 @@ public class RefreshTokenApplicationService {
             long securityVersionAtIssue,
             UUID rotationLeaseId
     ) {
-        Instant replacementExpiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
+        Instant replacementExpiresAt = clock.instant().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
         if (rotationLeaseId == null) {
             return false;
         }
@@ -96,7 +103,7 @@ public class RefreshTokenApplicationService {
         if (token == null) {
             return null;
         }
-        if (refreshTokenDomainService.isExpired(token.expiresAt(), Instant.now())) {
+        if (refreshTokenDomainService.isExpired(token.expiresAt(), clock.instant())) {
             refreshTokenStore.revoke(refreshToken);
             return null;
         }
@@ -160,7 +167,7 @@ public class RefreshTokenApplicationService {
 
     private IssuedRefreshToken issue(UUID userId, String familyId, long securityVersionAtIssue) {
         String tokenValue = secureTokenValue();
-        Instant expiresAt = Instant.now().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
+        Instant expiresAt = clock.instant().plusSeconds(jwtProperties.getRefreshTokenTtlSeconds());
         refreshTokenStore.store(tokenValue, userId, familyId, securityVersionAtIssue, expiresAt);
         return new IssuedRefreshToken(tokenValue, buildCookie(tokenValue));
     }
@@ -174,7 +181,7 @@ public class RefreshTokenApplicationService {
         if (revoked == null) {
             return;
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (refreshTokenDomainService.shouldRevokeFamilyOnReuse(
                 revoked.revokedAt(),
                 revoked.expiresAt(),

@@ -13,6 +13,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -25,8 +26,8 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
 
     public WalletMarketApplicationService(WalletAccountApplicationService walletAccountService,
                                           WalletLedgerApplicationService walletLedgerService) {
-        this.walletAccountService = walletAccountService;
-        this.walletLedgerService = walletLedgerService;
+        this.walletAccountService = Objects.requireNonNull(walletAccountService, "walletAccountService must not be null");
+        this.walletLedgerService = Objects.requireNonNull(walletLedgerService, "walletLedgerService must not be null");
     }
 
     @Override

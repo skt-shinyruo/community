@@ -22,6 +22,7 @@ import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -48,90 +49,13 @@ public class MarketWalletActionProcessorApplicationService {
     public MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
                                        WalletMarketActionApi walletApi,
                                        MarketWalletActionProcessorTransactionOperations transactionOperations,
+                                       Clock clock,
                                        @Value("${market.wallet-action.processing-lease:60s}") Duration processingLease,
                                        @Value("${market.wallet-action.max-retry-attempts:8}") int maxRetryAttempts) {
-        this(
-                walletActionRepository,
-                walletApi,
-                transactionOperations,
-                Clock.systemUTC(),
-                processingLease,
-                maxRetryAttempts
-        );
-    }
-
-    MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
-                                WalletMarketActionApi walletApi,
-                                MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionCoordinator actionCoordinator,
-                                Clock clock) {
-        this(
-                walletActionRepository,
-                walletApi,
-                new MarketWalletActionProcessorTransactionOperations(
-                        walletActionRepository,
-                        sagaService,
-                        actionCoordinator
-                ),
-                clock,
-                DEFAULT_PROCESSING_LEASE,
-                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
-        );
-    }
-
-    MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
-                                WalletMarketActionApi walletApi,
-                                MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionCoordinator actionCoordinator,
-                                Clock clock,
-                                Duration processingLease) {
-        this(
-                walletActionRepository,
-                walletApi,
-                new MarketWalletActionProcessorTransactionOperations(
-                        walletActionRepository,
-                        sagaService,
-                        actionCoordinator
-                ),
-                clock,
-                processingLease,
-                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
-        );
-    }
-
-    MarketWalletActionProcessorApplicationService(MarketWalletActionRepository walletActionRepository,
-                                WalletMarketActionApi walletApi,
-                                MarketOrderSagaApplicationService sagaService,
-                                MarketWalletActionCoordinator actionCoordinator,
-                                Clock clock,
-                                Duration processingLease,
-                                int maxRetryAttempts) {
-        this(
-                walletActionRepository,
-                walletApi,
-                new MarketWalletActionProcessorTransactionOperations(
-                        walletActionRepository,
-                        sagaService,
-                        actionCoordinator
-                ),
-                clock,
-                processingLease,
-                maxRetryAttempts
-        );
-    }
-
-    private MarketWalletActionProcessorApplicationService(
-            MarketWalletActionRepository walletActionRepository,
-            WalletMarketActionApi walletApi,
-            MarketWalletActionProcessorTransactionOperations transactionOperations,
-            Clock clock,
-            Duration processingLease,
-            int maxRetryAttempts
-    ) {
-        this.walletActionRepository = walletActionRepository;
-        this.walletApi = walletApi;
-        this.transactionOperations = transactionOperations;
-        this.clock = clock;
+        this.walletActionRepository = Objects.requireNonNull(walletActionRepository, "walletActionRepository must not be null");
+        this.walletApi = Objects.requireNonNull(walletApi, "walletApi must not be null");
+        this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.processingLease = normalizeProcessingLease(processingLease);
         this.maxRetryAttempts = MarketWalletActionRetryPolicy.normalizeMaxRetryAttempts(maxRetryAttempts);
     }

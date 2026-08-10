@@ -832,6 +832,13 @@ class PostReadApplicationServiceTest {
                 new PostSummaryAssembler(textCodec()),
                 new PostDetailAssembler(textCodec()),
                 new RecentUserCommentAssembler(textCodec()),
+                new PostReadTransactionOperations(
+                        postService,
+                        commentService,
+                        tagService,
+                        blockRepository,
+                        mediaAssetRepository
+                ),
                 new ContentHotPathProperties(),
                 hotPathSingleFlight
         );

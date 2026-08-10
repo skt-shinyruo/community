@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
-import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.drive.application.DriveEntryApplicationService.CreateFolderCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
@@ -68,8 +69,8 @@ class DriveTrashApplicationServiceTest {
         DriveEntryApplicationService entryService = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
-        DriveEntryResult childFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, folder.entryId(), "Child"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
+        DriveEntryResult childFolder = entryService.createFolder(new CreateFolderCommand(userId, folder.entryId(), "Child"));
         UUID rootFileId = fixture.createFile(userId, folder.entryId(), "root.txt", 8);
         UUID childFileId = fixture.createFile(userId, childFolder.entryId(), "child.txt", 12);
 
@@ -99,8 +100,8 @@ class DriveTrashApplicationServiceTest {
         DriveEntryApplicationService entryService = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
-        DriveEntryResult childFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, folder.entryId(), "Child"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
+        DriveEntryResult childFolder = entryService.createFolder(new CreateFolderCommand(userId, folder.entryId(), "Child"));
         UUID childFileId = fixture.createFile(userId, childFolder.entryId(), "child.txt", 12);
 
         trashService.trash(userId, folder.entryId());
@@ -117,7 +118,7 @@ class DriveTrashApplicationServiceTest {
         DriveEntryApplicationService entryService = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
         UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 12);
 
         trashService.trash(userId, childFileId);
@@ -134,7 +135,7 @@ class DriveTrashApplicationServiceTest {
         DriveEntryApplicationService entryService = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
         UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 12);
 
         trashService.trash(userId, folder.entryId());
@@ -152,7 +153,7 @@ class DriveTrashApplicationServiceTest {
         DriveEntryApplicationService entryService = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
         UUID childFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 8);
 
         trashService.trash(userId, childFileId);
@@ -248,7 +249,8 @@ class DriveTrashApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                operations
+                operations,
+                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
         );
 
         service.deletePermanently(userId, folderId);
@@ -293,7 +295,8 @@ class DriveTrashApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
         );
 
         service.deletePermanently(userId, fileId);
@@ -346,7 +349,8 @@ class DriveTrashApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
         );
 
         service.deletePermanently(userId, folderId);

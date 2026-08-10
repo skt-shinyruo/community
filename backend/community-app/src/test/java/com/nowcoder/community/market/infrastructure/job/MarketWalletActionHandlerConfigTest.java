@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.job;
 
 import com.nowcoder.community.market.application.MarketWalletActionProcessorApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
-import com.nowcoder.community.market.application.result.MarketWalletActionRecoveryResult;
+import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService.MarketWalletActionRecoveryResult;
 import com.xxl.job.core.context.XxlJobContext;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;

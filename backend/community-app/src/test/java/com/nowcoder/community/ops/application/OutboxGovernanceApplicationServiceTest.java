@@ -2,10 +2,10 @@ package com.nowcoder.community.ops.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
+import com.nowcoder.community.ops.application.OutboxGovernanceApplicationService.ReplayBatchCommand;
+import com.nowcoder.community.ops.application.OutboxGovernanceApplicationService.ReplayCommand;
 import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.ReplayOutboxBatchCommand;
-import com.nowcoder.community.ops.application.command.ReplayOutboxEventCommand;
 import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
@@ -78,7 +78,7 @@ class OutboxGovernanceApplicationServiceTest {
         UUID outboxId = uuid(1);
         when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.PENDING, "{}")));
 
-        assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
+        assertThatThrownBy(() -> service.replay(new ReplayCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("only DEAD outbox events can be replayed");
         verify(replayMetrics).recordReplay("eventbus.content", "MANUAL_REPAIR_REQUIRED");
@@ -90,7 +90,7 @@ class OutboxGovernanceApplicationServiceTest {
         when(port.findById(outboxId)).thenReturn(Optional.of(event(outboxId, OutboxEventStatus.DEAD, "{}")));
         when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(false);
 
-        assertThatThrownBy(() -> service.replay(new ReplayOutboxEventCommand(uuid(99), outboxId, "retry after fix")))
+        assertThatThrownBy(() -> service.replay(new ReplayCommand(uuid(99), outboxId, "retry after fix")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("no outbox handler registered");
         verify(replayMetrics).recordReplay("eventbus.content", "MANUAL_REPAIR_REQUIRED");
@@ -104,7 +104,7 @@ class OutboxGovernanceApplicationServiceTest {
         when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(true);
         when(port.requeueDead(outboxId, "retry after fix")).thenReturn(true);
 
-        var result = service.replay(new ReplayOutboxEventCommand(actorId, outboxId, "retry after fix"));
+        var result = service.replay(new ReplayCommand(actorId, outboxId, "retry after fix"));
 
         assertThat(result.replayed()).isTrue();
         assertThat(result.beforeStatus()).isEqualTo(OutboxEventStatus.DEAD);
@@ -122,7 +122,7 @@ class OutboxGovernanceApplicationServiceTest {
         when(handlerCatalog.hasHandler("eventbus.content")).thenReturn(true);
         when(port.requeueDead(outboxId, "retry after fix")).thenReturn(false);
 
-        var result = service.replay(new ReplayOutboxEventCommand(actorId, outboxId, "retry after fix"));
+        var result = service.replay(new ReplayCommand(actorId, outboxId, "retry after fix"));
 
         assertThat(result.replayed()).isFalse();
         assertThat(result.result()).isEqualTo("NOT_REQUEUED");
@@ -135,27 +135,27 @@ class OutboxGovernanceApplicationServiceTest {
         Instant from = Instant.parse("2026-07-07T00:00:00Z");
         Instant to = Instant.parse("2026-07-08T00:00:00Z");
 
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "", OutboxEventStatus.DEAD, from, to, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("topic is required");
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "eventbus.content", OutboxEventStatus.PENDING, from, to, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("only DEAD outbox events can be batch replayed");
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "eventbus.content", OutboxEventStatus.DEAD, null, to, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("createdFrom and createdTo are required");
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "eventbus.content", OutboxEventStatus.DEAD, to, from, 10, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("createdFrom must be before createdTo");
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "eventbus.content", OutboxEventStatus.DEAD, from, to, 501, "retry")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("limit must be between 1 and 500");
-        assertThatThrownBy(() -> service.replayBatch(new ReplayOutboxBatchCommand(
+        assertThatThrownBy(() -> service.replayBatch(new ReplayBatchCommand(
                 actorId, "eventbus.content", OutboxEventStatus.DEAD, from, to, 10, " ")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("replay reason is required");
@@ -184,7 +184,7 @@ class OutboxGovernanceApplicationServiceTest {
         ));
         when(port.requeueDead(replayedId, "retry after fixing handler")).thenReturn(true);
 
-        var result = service.replayBatch(new ReplayOutboxBatchCommand(
+        var result = service.replayBatch(new ReplayBatchCommand(
                 actorId,
                 " eventbus.content ",
                 OutboxEventStatus.DEAD,

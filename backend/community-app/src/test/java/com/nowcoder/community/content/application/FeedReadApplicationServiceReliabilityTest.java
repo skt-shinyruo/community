@@ -56,7 +56,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         UUID postId = uuid(1);
@@ -70,7 +69,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 new ContentFeedPolicyProperties()
@@ -88,7 +86,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         DiscussPost fallbackPost = post(uuid(11), "<fallback>");
         fallbackPost.setScore(91.0);
@@ -102,7 +99,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 new ContentFeedPolicyProperties()
@@ -120,7 +116,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         HotPathSingleFlight singleFlight = busySingleFlight();
 
@@ -130,7 +125,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 new ContentFeedPolicyProperties(),
@@ -150,7 +144,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         DiscussPost fallbackPost = post(uuid(21), "<fallback>");
         fallbackPost.setScore(88.0);
@@ -166,7 +159,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 new ContentFeedPolicyProperties()
@@ -185,7 +177,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setLatestFallbackEnabled(false);
@@ -196,7 +187,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties
@@ -215,7 +205,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setLatestFallbackEnabled(false);
@@ -227,7 +216,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties
@@ -246,7 +234,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         DiscussPost fallbackPost = post(uuid(25), "<fallback>");
         fallbackPost.setScore(77.0);
@@ -260,7 +247,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 new ContentFeedPolicyProperties()
@@ -279,7 +265,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setHotRankVersion("hot-v2");
@@ -297,7 +282,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties
@@ -316,7 +300,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setHotRankVersion("hot-v2");
@@ -329,12 +312,11 @@ class FeedReadApplicationServiceReliabilityTest {
                 .thenReturn(List.of(fallbackPost));
         when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost))).thenReturn(summaries);
         org.mockito.Mockito.doThrow(new IllegalStateException("summary cache backfill failed"))
-                .when(postSummaryCache).putAll(summaries);
+                .when(postFeedSummaryLoader).cacheSummaries(List.of(fallbackPost), summaries);
 
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties
@@ -353,7 +335,6 @@ class FeedReadApplicationServiceReliabilityTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
@@ -369,7 +350,6 @@ class FeedReadApplicationServiceReliabilityTest {
         FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties
@@ -386,7 +366,6 @@ class FeedReadApplicationServiceReliabilityTest {
     private static FeedReadApplicationService service(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
-            PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
             SimpleMeterRegistry registry,
             ContentFeedPolicyProperties policyProperties
@@ -394,7 +373,6 @@ class FeedReadApplicationServiceReliabilityTest {
         return service(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 registry,
                 policyProperties,
@@ -406,7 +384,6 @@ class FeedReadApplicationServiceReliabilityTest {
     private static FeedReadApplicationService service(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
-            PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
             SimpleMeterRegistry registry,
             ContentFeedPolicyProperties policyProperties,
@@ -416,7 +393,6 @@ class FeedReadApplicationServiceReliabilityTest {
         return new FeedReadApplicationService(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 policyProperties,

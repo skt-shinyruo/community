@@ -2,7 +2,7 @@ package com.nowcoder.community.user.infrastructure.event;
 
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService;
-import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
+import com.nowcoder.community.user.application.UserEventDispatchApplicationService.DispatchUserEventCommand;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;

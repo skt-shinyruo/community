@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.RegisterCommand;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterCommand;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterResult;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
-import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
@@ -23,6 +23,7 @@ import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
 import java.time.Duration;
+import java.time.Clock;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -79,7 +80,8 @@ class RegistrationApplicationServiceTest {
                 registrationDraftRepository,
                 new AuthSecretGenerator(),
                 new RegistrationDomainService(),
-                registrationRequestRateLimiter
+                registrationRequestRateLimiter,
+                Clock.systemUTC()
         );
     }
 

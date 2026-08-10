@@ -9,6 +9,7 @@ import org.springframework.data.redis.core.ValueOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
@@ -32,7 +33,7 @@ class RedisPasswordResetTokenRepositoryTest {
     void storeShouldPersistVersionedActiveRecordWithoutRawBearerToken() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         when(redis.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(1L);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
 
         repository.store("raw-reset-token", USER_ID, 17L, Duration.ofMinutes(10));
 
@@ -57,7 +58,7 @@ class RedisPasswordResetTokenRepositoryTest {
         when(values.get(anyString())).thenReturn(USER_ID + "|17|ACTIVE||");
         when(redis.execute(any(RedisScript.class), anyList(), anyString(), anyString(), anyString()))
                 .thenReturn(USER_ID + "|17|PENDING|123456|" + LEASE_ID);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
 
         PasswordResetTokenRepository.PendingPasswordResetToken pending = repository.beginConfirmation(
                 "raw-reset-token",
@@ -95,7 +96,7 @@ class RedisPasswordResetTokenRepositoryTest {
                 anyString(),
                 anyString()
         )).thenReturn(1L);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
 
         assertThat(repository.finishConfirmation("raw-reset-token", USER_ID, 17L, LEASE_ID)).isTrue();
         assertThat(repository.rollbackConfirmation("raw-reset-token", USER_ID, 17L, LEASE_ID)).isTrue();
@@ -125,7 +126,7 @@ class RedisPasswordResetTokenRepositoryTest {
         when(redis.opsForValue()).thenReturn(values);
         when(values.get(anyString())).thenReturn(USER_ID + "|17|ACTIVE||");
         when(redis.execute(any(RedisScript.class), anyList(), anyString(), anyString())).thenReturn(1L);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
 
         repository.delete("raw-reset-token");
 
@@ -144,7 +145,7 @@ class RedisPasswordResetTokenRepositoryTest {
     void revokeGenerationShouldUseOneExplicitClusterSafeMarkerKey() {
         StringRedisTemplate redis = mock(StringRedisTemplate.class);
         when(redis.execute(any(RedisScript.class), anyList(), anyString())).thenReturn(1L);
-        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis);
+        RedisPasswordResetTokenRepository repository = new RedisPasswordResetTokenRepository(redis, Clock.systemUTC());
 
         repository.revokeGeneration(USER_ID, 17L, Duration.ofMinutes(10));
 

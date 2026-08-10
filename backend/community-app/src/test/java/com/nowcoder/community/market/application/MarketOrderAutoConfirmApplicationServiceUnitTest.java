@@ -9,6 +9,9 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -24,6 +27,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class MarketOrderAutoConfirmApplicationServiceUnitTest {
+
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-05-18T00:00:00Z"), ZoneOffset.UTC);
 
     @Mock
     private MarketOrderRepository marketOrderRepository;
@@ -47,6 +52,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
                 marketOrderRepository,
                 autoConfirmer,
                 retryScheduler,
+                CLOCK,
                 100
         ).autoConfirmDueOrders();
 
@@ -56,6 +62,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
         ArgumentCaptor<Date> now = ArgumentCaptor.forClass(Date.class);
         verify(autoConfirmer).confirmOneDueOrder(eq(completedOrderId), now.capture());
         verify(autoConfirmer).confirmOneDueOrder(eq(skippedOrderId), eq(now.getValue()));
+        assertThat(now.getValue()).isEqualTo(Date.from(CLOCK.instant()));
         ArgumentCaptor<Date> nextAttemptAt = ArgumentCaptor.forClass(Date.class);
         verify(retryScheduler).defer(eq(skippedOrderId), eq(now.getValue()), nextAttemptAt.capture());
         assertThat(nextAttemptAt.getValue().getTime() - now.getValue().getTime()).isEqualTo(60_000L);
@@ -71,6 +78,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
                 marketOrderRepository,
                 autoConfirmer,
                 retryScheduler,
+                CLOCK,
                 1
         ).autoConfirmDueOrders();
 
@@ -90,6 +98,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
                 marketOrderRepository,
                 autoConfirmer,
                 retryScheduler,
+                CLOCK,
                 100
         ).autoConfirmDueOrders();
 
@@ -114,6 +123,7 @@ class MarketOrderAutoConfirmApplicationServiceUnitTest {
                 marketOrderRepository,
                 autoConfirmer,
                 retryScheduler,
+                CLOCK,
                 100
         ).autoConfirmDueOrders();
 

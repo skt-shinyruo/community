@@ -2,7 +2,7 @@ package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
+import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
@@ -20,6 +20,7 @@ import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.jdbc.core.JdbcTemplate;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -56,13 +57,23 @@ class NoticeApplicationServiceTest {
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from notice_record");
-        noticeService = new NoticeApplicationService(new MyBatisNoticeRepository(noticeMapper));
+        noticeService = new NoticeApplicationService(
+                new MyBatisNoticeRepository(noticeMapper),
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        );
     }
 
     @Test
     void createNoticeShouldPersistExplicitSystemSenderSentinelZero() {
         UUID recipientUserId = uuid(9);
-        noticeService.createNotice(new CreateNoticeCommand(recipientUserId, "comment", "{\"eventId\":\"evt-1\"}"));
+        noticeService.createNotice(new CreateNoticeCommand(
+                recipientUserId,
+                "comment",
+                "{\"eventId\":\"evt-1\"}",
+                null,
+                null
+        ));
 
         byte[] fromId = jdbcTemplate.queryForObject(
                 "select sender_user_id from notice_record where recipient_user_id = ? and topic = ?",
@@ -154,7 +165,7 @@ class NoticeApplicationServiceTest {
     void markReadShouldDeduplicateAndCapIdsAtApplicationBoundary() {
         NoticeRepository repository = mock(NoticeRepository.class);
         NoticeApplicationService service = new NoticeApplicationService(
-                repository, new NoticeDomainService(), new UuidV7Generator());
+                repository, new UuidV7Generator(), Clock.systemUTC());
         List<UUID> ids = new ArrayList<>();
         for (int index = 1; index <= 120; index++) {
             ids.add(uuid(index));

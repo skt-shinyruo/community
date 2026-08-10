@@ -32,7 +32,7 @@ public class MyBatisUserRepository implements UserRepository {
     private final UserMapper userMapper;
 
     public MyBatisUserRepository(UserMapper userMapper) {
-        this.userMapper = userMapper;
+        this.userMapper = Objects.requireNonNull(userMapper, "userMapper must not be null");
     }
 
     @Override

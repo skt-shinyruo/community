@@ -1,23 +1,30 @@
 package com.nowcoder.community.content.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
 import com.nowcoder.community.content.application.FollowFeedReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
-import com.nowcoder.community.content.controller.dto.FeedPageResponse;
+import com.nowcoder.community.content.application.result.PostSummaryResult;
 import org.junit.jupiter.api.Test;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
-import java.util.Arrays;
-import java.util.List;
 import java.time.Instant;
+import java.util.Arrays;
+import java.util.Date;
+import java.util.LinkedHashSet;
+import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.isNull;
@@ -29,6 +36,55 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
 class FeedControllerTest {
+
+    @Test
+    void directFeedResultShouldPreserveResponseJsonFields() {
+        UUID postId = uuid(1);
+        UUID authorId = uuid(2);
+        UUID categoryId = uuid(3);
+        Date createTime = new Date(1_700_000_000_000L);
+        FeedPageResult page = new FeedPageResult(List.of(new PostSummaryResult(
+                postId,
+                authorId,
+                "title",
+                "preview",
+                0,
+                0,
+                createTime,
+                2,
+                9.5,
+                categoryId,
+                List.of("java"),
+                uuid(4),
+                createTime,
+                createTime,
+                "last reply"
+        )), "cursor-2", "rank-v1");
+        ObjectMapper objectMapper = JsonMappers.standard();
+
+        JsonNode json = objectMapper.valueToTree(page);
+
+        assertThat(fieldNames(json)).containsExactlyInAnyOrder("items", "nextCursor", "rankVersion");
+        assertThat(fieldNames(json.path("items").get(0))).containsExactlyInAnyOrder(
+                "id", "userId", "title", "preview", "type", "status", "createTime",
+                "commentCount", "score", "categoryId", "tags", "lastReplyUserId",
+                "lastReplyTime", "lastActivityTime", "lastReplyPreview"
+        );
+    }
+
+    @Test
+    void nullApplicationPageShouldKeepEmptyResponseShape() {
+        FeedReadApplicationService feedReadApplicationService = mock(FeedReadApplicationService.class);
+        when(feedReadApplicationService.listGlobalHotFeed(null, null, 20)).thenReturn(null);
+        FeedController controller = new FeedController(
+                feedReadApplicationService, mock(FollowFeedReadApplicationService.class));
+
+        Result<FeedPageResult> result = controller.global(null, null, null);
+
+        assertThat(result.getData().items()).isEmpty();
+        assertThat(result.getData().nextCursor()).isEmpty();
+        assertThat(result.getData().rankVersion()).isEmpty();
+    }
 
     @Test
     void legacyPostsListRouteShouldNoLongerBeHandledByPostController() {
@@ -109,5 +165,11 @@ class FeedControllerTest {
         Authentication authentication = mock(Authentication.class);
         when(authentication.getPrincipal()).thenReturn(jwt);
         return authentication;
+    }
+
+    private static Set<String> fieldNames(JsonNode node) {
+        Set<String> names = new LinkedHashSet<>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
     }
 }

@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
@@ -28,8 +29,11 @@ public class UserReadApplicationService implements UserLookupQueryApi, UserProfi
             UserRepository userRepository,
             UserReadDomainService userReadDomainService
     ) {
-        this.userRepository = userRepository;
-        this.userReadDomainService = userReadDomainService;
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
+        this.userReadDomainService = Objects.requireNonNull(
+                userReadDomainService,
+                "userReadDomainService must not be null"
+        );
     }
 
     @Override

@@ -2,7 +2,6 @@ package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.application.BookmarkApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -36,7 +35,7 @@ class BookmarkControllerTest {
     }
 
     @Test
-    void listShouldDelegateToBookmarkApplicationServiceAndReturnHttpDtos() {
+    void listShouldDelegateToBookmarkApplicationServiceAndReturnReadModels() {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID categoryId = uuid(2);
@@ -62,15 +61,15 @@ class BookmarkControllerTest {
         );
         when(bookmarkApplicationService.listBookmarkedPostSummaries(userId, 0, 10)).thenReturn(List.of(view));
 
-        Result<List<PostSummaryResponse>> result = controller.list(authentication(userId), null, null);
+        Result<List<PostSummaryResult>> result = controller.list(authentication(userId), null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).singleElement().satisfies(response -> {
-            assertThat(response.getId()).isEqualTo(postId);
-            assertThat(response.getTitle()).isEqualTo("decoded title");
-            assertThat(response.getPreview()).isEqualTo("post preview");
-            assertThat(response.getTags()).containsExactly("spring");
-            assertThat(response.getLastReplyPreview()).isEqualTo("latest reply");
+            assertThat(response.id()).isEqualTo(postId);
+            assertThat(response.title()).isEqualTo("decoded title");
+            assertThat(response.preview()).isEqualTo("post preview");
+            assertThat(response.tags()).containsExactly("spring");
+            assertThat(response.lastReplyPreview()).isEqualTo("latest reply");
         });
         verify(bookmarkApplicationService).listBookmarkedPostSummaries(userId, 0, 10);
     }
@@ -87,6 +86,16 @@ class BookmarkControllerTest {
         assertThat(unbookmarkResult.getCode()).isEqualTo(0);
         verify(bookmarkApplicationService).add(userId, postId);
         verify(bookmarkApplicationService).remove(userId, postId);
+    }
+
+    @Test
+    void listShouldKeepNullApplicationResultAsEmptyList() {
+        UUID userId = uuid(7);
+        when(bookmarkApplicationService.listBookmarkedPostSummaries(userId, 0, 10)).thenReturn(null);
+
+        Result<List<PostSummaryResult>> result = controller.list(authentication(userId), null, null);
+
+        assertThat(result.getData()).isEmpty();
     }
 
     private Authentication authentication(UUID userId) {

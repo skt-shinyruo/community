@@ -1,11 +1,11 @@
 package com.nowcoder.community.search.application;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
@@ -31,33 +31,35 @@ public class SearchReindexApplicationService {
     private final SearchIndexRebuildPort indexRebuildPort;
     private final SearchReindexLeasePort reindexLeasePort;
     private final SearchPolicyProperties searchPolicyProperties;
+    private final UuidV7Generator idGenerator;
     private final int pageSize;
     private final Duration leaseTtl;
 
-    @Autowired
     public SearchReindexApplicationService(
             PostScanQueryApi postScanQueryApi,
             SearchIndexRebuildPort indexRebuildPort,
             SearchReindexLeasePort reindexLeasePort,
             @Value("${search.reindex.page-size:500}") int pageSize,
             @Value("${search.reindex.lock-ttl:30m}") Duration leaseTtl,
-            SearchPolicyProperties searchPolicyProperties
+            SearchPolicyProperties searchPolicyProperties,
+            UuidV7Generator idGenerator
     ) {
-        this.postScanQueryApi = postScanQueryApi;
-        this.indexRebuildPort = indexRebuildPort;
-        this.reindexLeasePort = reindexLeasePort;
+        this.postScanQueryApi = Objects.requireNonNull(postScanQueryApi, "postScanQueryApi must not be null");
+        this.indexRebuildPort = Objects.requireNonNull(indexRebuildPort, "indexRebuildPort must not be null");
+        this.reindexLeasePort = Objects.requireNonNull(reindexLeasePort, "reindexLeasePort must not be null");
         this.searchPolicyProperties = Objects.requireNonNull(
                 searchPolicyProperties, "searchPolicyProperties must not be null"
         );
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
         this.pageSize = Math.min(MAX_PAGE_SIZE, Math.max(1, pageSize <= 0 ? DEFAULT_PAGE_SIZE : pageSize));
-        this.leaseTtl = normalizeLeaseTtl(leaseTtl);
+        this.leaseTtl = normalizeLeaseTtl(Objects.requireNonNull(leaseTtl, "leaseTtl must not be null"));
     }
 
     public ReindexResult reindex() {
         if (!searchPolicyProperties.isProjectionEnabled()) {
             throw new IllegalStateException("online search projection must be enabled during a full reindex");
         }
-        String executionId = UUID.randomUUID().toString();
+        String executionId = idGenerator.next().toString();
         Optional<SearchReindexLeasePort.Lease> acquired = reindexLeasePort.tryAcquire(leaseTtl);
         if (acquired.isEmpty()) {
             log.info("[search-reindex] skipped executionId={} reason=already-running-or-lock-unavailable", executionId);
@@ -159,7 +161,7 @@ public class SearchReindexApplicationService {
     }
 
     private Duration normalizeLeaseTtl(Duration ttl) {
-        if (ttl == null || ttl.isZero() || ttl.isNegative()) {
+        if (ttl.isZero() || ttl.isNegative()) {
             return DEFAULT_LEASE_TTL;
         }
         return ttl.compareTo(MIN_LEASE_TTL) < 0 ? MIN_LEASE_TTL : ttl;

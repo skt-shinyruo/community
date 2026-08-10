@@ -1,8 +1,6 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.application.result.HotTagResult;
-import com.nowcoder.community.content.controller.dto.HotTagResponse;
 import com.nowcoder.community.content.application.TagApplicationService;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,26 +20,15 @@ public class TagController {
     }
 
     @GetMapping("/hot")
-    public Result<List<HotTagResponse>> hot(@RequestParam(required = false) Integer limit) {
-        return Result.ok(tagApplicationService.listHotTags(limit).stream()
-                .map(this::toHotTagResponse)
-                .toList());
+    public Result<List<TagApplicationService.HotTagResult>> hot(@RequestParam(required = false) Integer limit) {
+        return Result.ok(tagApplicationService.listHotTags(limit));
     }
 
     @GetMapping("/suggest")
-    public Result<List<HotTagResponse>> suggest(
+    public Result<List<TagApplicationService.HotTagResult>> suggest(
             @RequestParam(required = false) String q,
             @RequestParam(required = false) Integer limit
     ) {
-        return Result.ok(tagApplicationService.suggestTags(q, limit).stream()
-                .map(this::toHotTagResponse)
-                .toList());
-    }
-
-    private HotTagResponse toHotTagResponse(HotTagResult hotTag) {
-        HotTagResponse response = new HotTagResponse();
-        response.setName(hotTag.name());
-        response.setUseCount(hotTag.useCount());
-        return response;
+        return Result.ok(tagApplicationService.suggestTags(q, limit));
     }
 }

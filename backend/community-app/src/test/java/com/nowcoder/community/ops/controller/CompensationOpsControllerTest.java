@@ -1,11 +1,10 @@
 package com.nowcoder.community.ops.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.ops.application.CompensationGovernanceApplicationService;
-import com.nowcoder.community.ops.application.command.TriggerCompensationCommand;
-import com.nowcoder.community.ops.application.result.CompensationTriggerResult;
 import com.nowcoder.community.ops.security.OpsSecurityRules;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
@@ -21,6 +20,7 @@ import org.springframework.test.web.servlet.MockMvc;
 
 import java.util.UUID;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.junit.jupiter.api.Assertions.assertAll;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.mockito.ArgumentMatchers.any;
@@ -44,6 +44,9 @@ class CompensationOpsControllerTest {
 
     @Autowired
     private MockMvc mockMvc;
+
+    @Autowired
+    private ObjectMapper objectMapper;
 
     @MockBean
     private CompensationGovernanceApplicationService compensationGovernanceApplicationService;
@@ -69,7 +72,7 @@ class CompensationOpsControllerTest {
     void adminShouldTriggerCompensationJobWithActorFromJwt() throws Exception {
         UUID adminUserId = uuid(99);
         when(compensationGovernanceApplicationService.trigger(any()))
-                .thenReturn(new CompensationTriggerResult(
+                .thenReturn(new CompensationGovernanceApplicationService.TriggerResult(
                         "outboxRecoverExpiredLeases",
                         true,
                         10,
@@ -91,10 +94,10 @@ class CompensationOpsControllerTest {
                 .andExpect(jsonPath("$.data.skippedCount").value(3))
                 .andExpect(jsonPath("$.data.result").value("ACCEPTED"));
 
-        ArgumentCaptor<TriggerCompensationCommand> commandCaptor =
-                ArgumentCaptor.forClass(TriggerCompensationCommand.class);
+        ArgumentCaptor<CompensationGovernanceApplicationService.TriggerCommand> commandCaptor =
+                ArgumentCaptor.forClass(CompensationGovernanceApplicationService.TriggerCommand.class);
         verify(compensationGovernanceApplicationService).trigger(commandCaptor.capture());
-        TriggerCompensationCommand command = commandCaptor.getValue();
+        CompensationGovernanceApplicationService.TriggerCommand command = commandCaptor.getValue();
         assertAll(
                 () -> assertEquals(adminUserId, command.actorUserId()),
                 () -> assertEquals("outboxRecoverExpiredLeases", command.jobName()),
@@ -104,12 +107,43 @@ class CompensationOpsControllerTest {
     }
 
     @Test
+    void triggerShouldKeepDefaultLimit() throws Exception {
+        UUID adminUserId = uuid(99);
+        when(compensationGovernanceApplicationService.trigger(any()))
+                .thenReturn(new CompensationGovernanceApplicationService.TriggerResult(
+                        "outboxRecoverExpiredLeases", false, 0, 0, 0, "SKIPPED", "nothing to recover"
+                ));
+
+        mockMvc.perform(post("/api/ops/compensations/outboxRecoverExpiredLeases/trigger")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("{\"reason\":\"recover expired workers\"}"))
+                .andExpect(status().isOk());
+
+        ArgumentCaptor<CompensationGovernanceApplicationService.TriggerCommand> commandCaptor =
+                ArgumentCaptor.forClass(CompensationGovernanceApplicationService.TriggerCommand.class);
+        verify(compensationGovernanceApplicationService).trigger(commandCaptor.capture());
+        assertEquals(50, commandCaptor.getValue().limit());
+    }
+
+    @Test
     void triggerShouldRejectInvalidRequestBody() throws Exception {
         mockMvc.perform(post("/api/ops/compensations/outboxRecoverExpiredLeases/trigger")
                         .with(jwt().jwt(jwt -> jwt.subject(uuid(99).toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
                         .content("{\"limit\":0,\"reason\":\"\"}"))
                 .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void applicationResultShouldPreserveCompensationJsonFields() {
+        var json = objectMapper.valueToTree(new CompensationGovernanceApplicationService.TriggerResult(
+                "outboxRecoverExpiredLeases", true, 10, 7, 3, "ACCEPTED", "recovered"
+        ));
+
+        assertThat(json.fieldNames()).toIterable().containsExactly(
+                "jobName", "accepted", "processedCount", "repairedCount", "skippedCount", "result", "message"
+        );
     }
 
     private static UUID uuid(long suffix) {

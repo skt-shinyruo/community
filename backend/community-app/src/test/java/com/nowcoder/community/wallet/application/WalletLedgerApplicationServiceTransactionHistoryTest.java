@@ -2,7 +2,7 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
+import com.nowcoder.community.wallet.application.WalletLedgerApplicationService.ListWalletTransactionsCommand;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;

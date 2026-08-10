@@ -3,7 +3,6 @@ package com.nowcoder.community.content.infrastructure.event;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.PostProjectionVersionLane;
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
@@ -52,7 +51,7 @@ public class PostHotFeedProjectionKafkaListener {
         }
         requireSourceMetadata(event.eventId(), event.occurredAt(), event.version(), event.type());
         ContentTypedEvent typedEvent = decodeContent(event);
-        ProjectPostHotFeedCommand command = switch (event.type()) {
+        PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand command = switch (event.type()) {
             case ContentEventTypes.POST_PUBLISHED, ContentEventTypes.POST_UPDATED, ContentEventTypes.POST_DELETED ->
                     commandForPostEvent(event, postPayload(typedEvent));
             case ContentEventTypes.COMMENT_CREATED, ContentEventTypes.COMMENT_DELETED ->
@@ -93,7 +92,7 @@ public class PostHotFeedProjectionKafkaListener {
         if (postId == null) {
             throw malformed(event.type(), event.eventId());
         }
-        applicationService.project(new ProjectPostHotFeedCommand(
+        applicationService.project(new PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand(
                 postId,
                 null,
                 event.eventId(),
@@ -122,7 +121,10 @@ public class PostHotFeedProjectionKafkaListener {
                 "invalid recognized event: type=" + eventType + ", eventId=" + eventId);
     }
 
-    private ProjectPostHotFeedCommand commandForPostEvent(ContentContractEvent event, PostPayload payload) {
+    private PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand commandForPostEvent(
+            ContentContractEvent event,
+            PostPayload payload
+    ) {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -131,7 +133,7 @@ public class PostHotFeedProjectionKafkaListener {
         }
         boolean terminalDeletion = ContentEventTypes.POST_DELETED.equals(event.type());
         PostVersionSource versionSource = postVersionSource(event, payload);
-        return new ProjectPostHotFeedCommand(
+        return new PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand(
                 payload.getPostId(),
                 payload.getCategoryId(),
                 event.eventId(),
@@ -141,12 +143,15 @@ public class PostHotFeedProjectionKafkaListener {
         );
     }
 
-    private ProjectPostHotFeedCommand commandForCommentEvent(ContentContractEvent event, CommentPayload payload) {
+    private PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand commandForCommentEvent(
+            ContentContractEvent event,
+            CommentPayload payload
+    ) {
         if (payload == null || payload.getPostId() == null) {
             throw malformed(event.type(), event.eventId());
         }
         long postAggregateVersion = payload.getPostAggregateVersion();
-        return new ProjectPostHotFeedCommand(
+        return new PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand(
                 payload.getPostId(),
                 null,
                 event.eventId(),

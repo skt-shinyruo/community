@@ -1,14 +1,14 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
-import com.nowcoder.community.drive.application.command.CreateDriveShareCommand;
-import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
+import com.nowcoder.community.drive.application.DriveEntryApplicationService.CreateFolderCommand;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.CreateShareCommand;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.VerifyShareCommand;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
-import com.nowcoder.community.drive.application.result.DriveShareResult;
-import com.nowcoder.community.drive.application.result.DriveSharePageResult;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.PublicShareGateResult;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.ShareResult;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.SharePageResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.infrastructure.security.BCryptDrivePasswordHasher;
@@ -52,14 +52,14 @@ class DriveShareApplicationServiceTest {
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
 
-        assertThatThrownBy(() -> service.createShare(new CreateDriveShareCommand(
+        assertThatThrownBy(() -> service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "",
                 Instant.parse("2026-05-10T00:00:00Z")
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("提取码错误");
-        assertThatThrownBy(() -> service.createShare(new CreateDriveShareCommand(
+        assertThatThrownBy(() -> service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "1234",
@@ -77,24 +77,24 @@ class DriveShareApplicationServiceTest {
         UUID firstEntryId = fixture.createFile(userId, "first.txt", 8);
         UUID secondEntryId = fixture.createFile(userId, "second.txt", 8);
         UUID otherEntryId = fixture.createFile(otherUserId, "other.txt", 8);
-        DriveShareResult first = service.createShare(new CreateDriveShareCommand(
+        ShareResult first = service.createShare(new CreateShareCommand(
                 userId, firstEntryId, "1234", Instant.parse("2026-05-10T00:00:00Z")
         ));
-        DriveShareResult second = service.createShare(new CreateDriveShareCommand(
+        ShareResult second = service.createShare(new CreateShareCommand(
                 userId, secondEntryId, "1234", Instant.parse("2026-05-11T00:00:00Z")
         ));
-        service.createShare(new CreateDriveShareCommand(
+        service.createShare(new CreateShareCommand(
                 otherUserId, otherEntryId, "1234", Instant.parse("2026-05-11T00:00:00Z")
         ));
         service.revokeShare(userId, first.shareId());
 
-        DriveSharePageResult firstPage = service.listOwnShares(userId, 0, 1);
-        DriveSharePageResult secondPage = service.listOwnShares(userId, 1, 1);
+        SharePageResult firstPage = service.listOwnShares(userId, 0, 1);
+        SharePageResult secondPage = service.listOwnShares(userId, 1, 1);
 
         assertThat(firstPage.hasNext()).isTrue();
         assertThat(secondPage.hasNext()).isFalse();
-        List<DriveShareResult> listed = List.of(firstPage.items().get(0), secondPage.items().get(0));
-        assertThat(listed).extracting(DriveShareResult::shareId)
+        List<ShareResult> listed = List.of(firstPage.items().get(0), secondPage.items().get(0));
+        assertThat(listed).extracting(ShareResult::shareId)
                 .containsExactlyInAnyOrder(first.shareId(), second.shareId());
         assertThat(listed).filteredOn(item -> item.shareId().equals(first.shareId()))
                 .singleElement()
@@ -110,17 +110,17 @@ class DriveShareApplicationServiceTest {
         DriveShareApplicationService service = fixture.shareService();
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "1234",
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
 
-        assertThatThrownBy(() -> service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "bad", "ip:1")))
+        assertThatThrownBy(() -> service.verifyShare(new VerifyShareCommand(share.shareToken(), "bad", "ip:1")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("提取码错误");
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
 
         assertThat(verified.ticket()).isNotBlank();
         assertThat(verified.ticketExpiresAt()).isEqualTo(TestDriveFixture.NOW.plusSeconds(600));
@@ -137,7 +137,7 @@ class DriveShareApplicationServiceTest {
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "1234",
@@ -146,7 +146,7 @@ class DriveShareApplicationServiceTest {
 
         trashService.trash(userId, entryId);
 
-        assertThatThrownBy(() -> service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1")))
+        assertThatThrownBy(() -> service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");
         assertThat(fixture.shareAccesses().records()).hasSize(1);
@@ -160,17 +160,17 @@ class DriveShareApplicationServiceTest {
         DriveShareApplicationService service = fixture.shareService();
         DriveEntryApplicationService entryService = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
         UUID nestedFileId = fixture.createFile(userId, folder.entryId(), "child.txt", 8);
         UUID otherFileId = fixture.createFile(userId, null, "outside.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 folder.entryId(),
                 "1234",
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
 
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
         DriveDownloadUrlResult download = service.createShareDownloadUrl(share.shareToken(), verified.ticket(), nestedFileId);
 
         assertThat(download.url()).contains("https://cdn.example.test/");
@@ -186,17 +186,17 @@ class DriveShareApplicationServiceTest {
         DriveShareApplicationService service = fixture.shareService();
         DriveEntryApplicationService entryService = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
-        DriveEntryResult nestedFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, folder.entryId(), "Nested"));
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Folder"));
+        DriveEntryResult nestedFolder = entryService.createFolder(new CreateFolderCommand(userId, folder.entryId(), "Nested"));
         fixture.createFile(userId, folder.entryId(), "root-file.txt", 8);
         fixture.createFile(userId, nestedFolder.entryId(), "nested-file.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 folder.entryId(),
                 "1234",
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
 
         List<DriveEntryResult> rootChildren = service.listShareEntries(share.shareToken(), verified.ticket(), null);
         List<DriveEntryResult> nestedChildren = service.listShareEntries(share.shareToken(), verified.ticket(), nestedFolder.entryId());
@@ -213,15 +213,15 @@ class DriveShareApplicationServiceTest {
         DriveShareApplicationService service = fixture.shareService();
         DriveEntryApplicationService entryService = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Empty"));
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        DriveEntryResult folder = entryService.createFolder(new CreateFolderCommand(userId, null, "Empty"));
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 folder.entryId(),
                 "1234",
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
 
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
         List<DriveEntryResult> entries = service.listShareEntries(share.shareToken(), verified.ticket(), null);
 
         assertThat(entries).isEmpty();
@@ -234,15 +234,15 @@ class DriveShareApplicationServiceTest {
         DriveShareApplicationService service = fixture.shareService();
         DriveEntryApplicationService entryService = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult sharedFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Shared"));
-        DriveEntryResult outsideFolder = entryService.createFolder(new CreateDriveFolderCommand(userId, null, "Outside"));
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        DriveEntryResult sharedFolder = entryService.createFolder(new CreateFolderCommand(userId, null, "Shared"));
+        DriveEntryResult outsideFolder = entryService.createFolder(new CreateFolderCommand(userId, null, "Outside"));
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 sharedFolder.entryId(),
                 "1234",
                 Instant.parse("2026-05-10T00:00:00Z")
         ));
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
 
         assertThatThrownBy(() -> service.listShareEntries(share.shareToken(), "bad-ticket", null))
                 .isInstanceOf(BusinessException.class)
@@ -259,7 +259,7 @@ class DriveShareApplicationServiceTest {
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "1234",
@@ -268,7 +268,7 @@ class DriveShareApplicationServiceTest {
 
         trashService.trash(userId, entryId);
 
-        DrivePublicShareGateResult loaded = service.loadPublicShareGate(share.shareToken());
+        PublicShareGateResult loaded = service.loadPublicShareGate(share.shareToken());
         service.revokeShare(userId, share.shareId());
 
         assertThat(loaded.shareToken()).isEqualTo(share.shareToken());
@@ -286,7 +286,7 @@ class DriveShareApplicationServiceTest {
         UUID userId = uuid(7);
         UUID entryId = fixture.createFile(userId, "a.txt", 8);
         UUID otherEntryId = fixture.createFile(userId, "b.txt", 8);
-        DriveShareResult share = service.createShare(new CreateDriveShareCommand(
+        ShareResult share = service.createShare(new CreateShareCommand(
                 userId,
                 entryId,
                 "1234",
@@ -296,7 +296,7 @@ class DriveShareApplicationServiceTest {
         assertThatThrownBy(() -> service.createShareDownloadUrl(share.shareToken(), "bad-ticket", entryId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");
-        DriveShareResult verified = service.verifyShare(new VerifyDriveShareCommand(share.shareToken(), "1234", "ip:1"));
+        ShareResult verified = service.verifyShare(new VerifyShareCommand(share.shareToken(), "1234", "ip:1"));
         assertThatThrownBy(() -> service.createShareDownloadUrl(share.shareToken(), verified.ticket(), otherEntryId))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("分享链接不可用");

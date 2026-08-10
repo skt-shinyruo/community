@@ -1,41 +1,35 @@
 package com.nowcoder.community.analytics.application;
 
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Objects;
+import java.util.Optional;
 
 @Service
 public class AnalyticsRequestCaptureApplicationService {
 
     private final AnalyticsIngestApplicationService analyticsIngestApplicationService;
-    private final AnalyticsRequestCapturePort analyticsRequestCapturePort;
+    private final Optional<AnalyticsRequestCapturePort> analyticsRequestCapturePort;
 
-    @Autowired
     public AnalyticsRequestCaptureApplicationService(
             AnalyticsIngestApplicationService analyticsIngestApplicationService,
-            ObjectProvider<AnalyticsRequestCapturePort> analyticsRequestCapturePortProvider
+            Optional<AnalyticsRequestCapturePort> analyticsRequestCapturePort
     ) {
-        this(
+        this.analyticsIngestApplicationService = Objects.requireNonNull(
                 analyticsIngestApplicationService,
-                analyticsRequestCapturePortProvider == null ? null : analyticsRequestCapturePortProvider.getIfAvailable()
+                "analyticsIngestApplicationService must not be null"
         );
-    }
-
-    public AnalyticsRequestCaptureApplicationService(
-            AnalyticsIngestApplicationService analyticsIngestApplicationService,
-            AnalyticsRequestCapturePort analyticsRequestCapturePort
-    ) {
-        this.analyticsIngestApplicationService = analyticsIngestApplicationService;
-        this.analyticsRequestCapturePort = analyticsRequestCapturePort;
+        this.analyticsRequestCapturePort = Objects.requireNonNull(
+                analyticsRequestCapturePort,
+                "analyticsRequestCapturePort must not be null"
+        );
     }
 
     public void capture(RecordRequestCommand command, boolean asyncEnabled) {
         Objects.requireNonNull(command, "command must not be null");
-        if (asyncEnabled && analyticsRequestCapturePort != null) {
-            analyticsRequestCapturePort.publish(command);
+        if (asyncEnabled && analyticsRequestCapturePort.isPresent()) {
+            analyticsRequestCapturePort.orElseThrow().publish(command);
             return;
         }
         analyticsIngestApplicationService.recordRequest(command);

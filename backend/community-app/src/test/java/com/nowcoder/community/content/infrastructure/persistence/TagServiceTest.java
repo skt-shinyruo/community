@@ -23,7 +23,12 @@ class TagServiceTest {
         hotTag.setUseCount(42);
         when(tagMapper.selectHotTags(8)).thenReturn(List.of(hotTag));
 
-        MyBatisTagContentRepository service = new MyBatisTagContentRepository(tagMapper, postTagMapper);
+        MyBatisTagContentRepository service = new MyBatisTagContentRepository(
+                tagMapper,
+                postTagMapper,
+                new com.nowcoder.community.common.id.UuidV7Generator(),
+                java.time.Clock.systemUTC()
+        );
 
         List<HotTag> responses = service.listHotTags(null);
 
@@ -43,7 +48,12 @@ class TagServiceTest {
         hotTag.setUseCount(15);
         when(tagMapper.selectSuggestTags("spring", 5)).thenReturn(List.of(hotTag));
 
-        MyBatisTagContentRepository service = new MyBatisTagContentRepository(tagMapper, postTagMapper);
+        MyBatisTagContentRepository service = new MyBatisTagContentRepository(
+                tagMapper,
+                postTagMapper,
+                new com.nowcoder.community.common.id.UuidV7Generator(),
+                java.time.Clock.systemUTC()
+        );
 
         List<HotTag> responses = service.suggestTags("spring", 5);
 

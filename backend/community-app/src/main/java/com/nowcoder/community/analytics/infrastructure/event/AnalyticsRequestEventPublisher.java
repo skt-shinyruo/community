@@ -23,7 +23,7 @@ public class AnalyticsRequestEventPublisher implements AnalyticsRequestCapturePo
         this.topic = topic;
     }
 
-    public void publish(AnalyticsRequestEvent event) {
+    private void publish(AnalyticsRequestEvent event) {
         if (event == null) {
             return;
         }

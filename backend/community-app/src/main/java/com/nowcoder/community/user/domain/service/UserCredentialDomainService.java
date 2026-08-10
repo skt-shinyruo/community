@@ -4,6 +4,7 @@ import com.nowcoder.community.user.domain.model.UserRole;
 
 import java.util.List;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 public class UserCredentialDomainService {
@@ -14,12 +15,11 @@ public class UserCredentialDomainService {
 
     private final UsernamePolicyDomainService usernamePolicyDomainService;
 
-    public UserCredentialDomainService() {
-        this(new UsernamePolicyDomainService());
-    }
-
     public UserCredentialDomainService(UsernamePolicyDomainService usernamePolicyDomainService) {
-        this.usernamePolicyDomainService = usernamePolicyDomainService;
+        this.usernamePolicyDomainService = Objects.requireNonNull(
+                usernamePolicyDomainService,
+                "usernamePolicyDomainService must not be null"
+        );
     }
 
     public String trim(String value) {

@@ -8,6 +8,7 @@ import com.nowcoder.community.social.infrastructure.persistence.mapper.FollowMap
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.HashMap;
@@ -23,14 +24,16 @@ import java.util.UUID;
 public class MyBatisFollowRepository implements FollowRepository {
 
     private final FollowMapper mapper;
+    private final Clock clock;
 
-    public MyBatisFollowRepository(FollowMapper mapper) {
-        this.mapper = mapper;
+    public MyBatisFollowRepository(FollowMapper mapper, Clock clock) {
+        this.mapper = Objects.requireNonNull(mapper, "mapper");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Override
     public boolean follow(UUID userId, int entityType, UUID entityId, long followTimeMillis) {
-        Date createdAt = followTimeMillis > 0 ? new Date(followTimeMillis) : new Date();
+        Date createdAt = followTimeMillis > 0 ? new Date(followTimeMillis) : Date.from(clock.instant());
         try {
             return mapper.insertFollow(userId, entityType, entityId, createdAt) > 0;
         } catch (DuplicateKeyException ignored) {

@@ -3,7 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,7 +22,6 @@ public class PostMediaUploadRecoveryApplicationService {
     private final PostMediaUploadTransactionOperations transactionOperations;
     private final Clock clock;
 
-    @Autowired
     public PostMediaUploadRecoveryApplicationService(
             PostMediaAssetRepository assetRepository,
             PostMediaStoragePort storagePort,
@@ -34,19 +32,7 @@ public class PostMediaUploadRecoveryApplicationService {
         this.storagePort = Objects.requireNonNull(storagePort, "storagePort must not be null");
         this.transactionOperations = Objects.requireNonNull(
                 transactionOperations, "transactionOperations must not be null");
-        this.clock = clock == null ? Clock.systemUTC() : clock;
-    }
-
-    public PostMediaUploadRecoveryApplicationService(
-            PostMediaAssetRepository assetRepository,
-            PostMediaStoragePort storagePort
-    ) {
-        this(
-                assetRepository,
-                storagePort,
-                new PostMediaUploadTransactionOperations(assetRepository),
-                Clock.systemUTC()
-        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public void recoverStaleCompleting(Date updatedBefore, int limit) {

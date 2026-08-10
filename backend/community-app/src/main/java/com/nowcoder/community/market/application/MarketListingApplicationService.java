@@ -3,8 +3,6 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
-import com.nowcoder.community.market.application.command.CreateMarketListingCommand;
-import com.nowcoder.community.market.application.command.UpdateMarketListingCommand;
 import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
 import com.nowcoder.community.market.domain.model.MarketGoodsType;
@@ -29,6 +27,32 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketListingApplicationService {
 
+    public record CreateMarketListingCommand(
+            UUID sellerUserId,
+            String goodsType,
+            String title,
+            String description,
+            Long unitPrice,
+            String deliveryMode,
+            String stockMode,
+            Integer stockTotal,
+            Integer minPurchaseQuantity,
+            Integer maxPurchaseQuantity,
+            AddMarketInventoryBatchCommand inventory
+    ) {
+    }
+
+    public record UpdateMarketListingCommand(
+            UUID sellerUserId,
+            UUID listingId,
+            String title,
+            String description,
+            Long unitPrice,
+            Integer minPurchaseQuantity,
+            Integer maxPurchaseQuantity
+    ) {
+    }
+
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryApplicationService marketInventoryService;
     private final UuidV7Generator idGenerator;
@@ -36,16 +60,11 @@ public class MarketListingApplicationService {
 
     @Autowired
     public MarketListingApplicationService(MarketListingRepository marketListingRepository,
-                                MarketInventoryApplicationService marketInventoryService) {
-        this(marketListingRepository, marketInventoryService, new UuidV7Generator());
-    }
-
-    MarketListingApplicationService(MarketListingRepository marketListingRepository,
-                         MarketInventoryApplicationService marketInventoryService,
-                         UuidV7Generator idGenerator) {
-        this.marketListingRepository = marketListingRepository;
-        this.marketInventoryService = marketInventoryService;
-        this.idGenerator = idGenerator;
+                                           MarketInventoryApplicationService marketInventoryService,
+                                           UuidV7Generator idGenerator) {
+        this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
+        this.marketInventoryService = Objects.requireNonNull(marketInventoryService, "marketInventoryService must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional

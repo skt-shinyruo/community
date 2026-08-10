@@ -111,25 +111,12 @@ class MarketDisputeApplicationServiceTest {
     }
 
     private UUID seedShippedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
-        request.setStockTotal(1);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", 12_900L, null, null, 1, 1, 1, null);
         UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
 
-        CreateMarketAddressRequest addressRequest = new CreateMarketAddressRequest();
-        addressRequest.setReceiverName("张三");
-        addressRequest.setReceiverPhone("13800000000");
-        addressRequest.setProvince("上海市");
-        addressRequest.setCity("上海市");
-        addressRequest.setDistrict("浦东新区");
-        addressRequest.setDetailAddress("世纪大道 100 号");
-        addressRequest.setPostalCode("200120");
-        addressRequest.setDefaultAddress(true);
+        CreateMarketAddressRequest addressRequest = new CreateMarketAddressRequest(
+                "张三", "13800000000", "上海市", "上海市", "浦东新区", "世纪大道 100 号", "200120", true);
         UUID addressId = marketAddressService.createAddress(MarketTestCommands.addressCommand(buyerUserId, addressRequest)).addressId();
 
         UUID orderId = marketOrderService.createOrder("dispute:physical:req-1", buyerUserId, listingId, 1, addressId).orderId();

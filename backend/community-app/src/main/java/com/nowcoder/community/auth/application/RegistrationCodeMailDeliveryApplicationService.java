@@ -9,6 +9,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -20,15 +21,19 @@ public class RegistrationCodeMailDeliveryApplicationService {
     private final RegistrationCodeRepository registrationCodeRepository;
     private final MailPort mailPort;
     private final RegistrationProperties properties;
+    private final Clock clock;
 
     public RegistrationCodeMailDeliveryApplicationService(
             RegistrationCodeRepository registrationCodeRepository,
             MailPort mailPort,
-            RegistrationProperties properties
+            RegistrationProperties properties,
+            Clock clock
     ) {
-        this.registrationCodeRepository = registrationCodeRepository;
-        this.mailPort = mailPort;
-        this.properties = properties;
+        this.registrationCodeRepository = Objects.requireNonNull(
+                registrationCodeRepository, "registrationCodeRepository must not be null");
+        this.mailPort = Objects.requireNonNull(mailPort, "mailPort must not be null");
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public DeliveryOutcome deliver(RegistrationCodeMailDispatcher.Delivery command) {
@@ -36,7 +41,7 @@ public class RegistrationCodeMailDeliveryApplicationService {
         if (!valid(command)) {
             return DeliveryOutcome.INVALID;
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Duration validityMargin = operationLeaseTtl();
         if (!command.expiresAt().isAfter(now.plus(validityMargin))) {
             return DeliveryOutcome.EXPIRED;
@@ -71,7 +76,7 @@ public class RegistrationCodeMailDeliveryApplicationService {
                     command.deliveryId(),
                     command.code(),
                     null,
-                    Instant.now().plus(operationLeaseTtl()),
+                    clock.instant().plus(operationLeaseTtl()),
                     validityMargin
             ) && registrationCodeRepository.completeInitialDelivery(
                     command.registrationId(),
@@ -90,7 +95,7 @@ public class RegistrationCodeMailDeliveryApplicationService {
             return DeliveryOutcome.DELIVERED;
         }
 
-        Instant recoveryLeaseExpiresAt = Instant.now().plus(operationLeaseTtl());
+        Instant recoveryLeaseExpiresAt = clock.instant().plus(operationLeaseTtl());
         boolean recovered = registrationCodeRepository.prepareMailDelivery(
                 command.registrationId(),
                 command.deliveryId(),

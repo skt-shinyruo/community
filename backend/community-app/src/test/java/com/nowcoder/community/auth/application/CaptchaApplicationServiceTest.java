@@ -102,7 +102,7 @@ class CaptchaApplicationServiceTest {
     void issueShouldRateLimitByClientIp() {
         when(captchaStore.incrementFailures("auth:captcha:issue:ip:127.0.0.1", Duration.ofSeconds(60))).thenReturn(2);
 
-        assertThatThrownBy(() -> service.issue(new com.nowcoder.community.auth.application.command.IssueCaptchaCommand("127.0.0.1")))
+        assertThatThrownBy(() -> service.issue(new CaptchaApplicationService.IssueCaptchaCommand("127.0.0.1")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.TOO_MANY_REQUESTS);

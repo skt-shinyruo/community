@@ -5,16 +5,16 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
+import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.LikeNoticeProjectionState;
 import com.nowcoder.community.notice.domain.repository.LikeNoticeProjectionStateRepository;
-import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -265,7 +265,7 @@ class NoticeProjectionApplicationServiceTest {
         NoticePolicyProperties properties = new NoticePolicyProperties();
         properties.setProjectionEnabled(false);
         NoticeProjectionApplicationService service = new NoticeProjectionApplicationService(
-                jsonCodec(), noticeService, new NoticeProjectionDomainService(), properties, eventRecorder);
+                jsonCodec(), noticeService, properties, Optional.of(eventRecorder), Optional.empty());
 
         assertThatThrownBy(() -> service.projectReliably(commentCommand("evt-disabled", uuid(100), uuid(9))))
                 .isInstanceOf(IllegalStateException.class)
@@ -302,8 +302,12 @@ class NoticeProjectionApplicationServiceTest {
             LikeNoticeProjectionStateRepository stateRepository
     ) {
         return new NoticeProjectionApplicationService(
-                jsonCodec(), noticeService, new NoticeProjectionDomainService(), new NoticePolicyProperties(),
-                eventRecorder, stateRepository);
+                jsonCodec(),
+                noticeService,
+                new NoticePolicyProperties(),
+                Optional.ofNullable(eventRecorder),
+                Optional.ofNullable(stateRepository)
+        );
     }
 
     private static ProjectNoticeCommand commentCommand(String eventId, java.util.UUID postId, java.util.UUID targetUserId) {

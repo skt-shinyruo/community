@@ -3,6 +3,7 @@ package com.nowcoder.community.social.infrastructure.event;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
@@ -10,7 +11,7 @@ import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService;
 import com.nowcoder.community.social.application.SocialIntegrationEventDispatcher;
-import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
+import com.nowcoder.community.social.application.SocialEventDispatchApplicationService.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
@@ -25,7 +26,9 @@ import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -58,7 +61,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
@@ -98,7 +102,7 @@ class OutboxSocialDomainEventPublisherTest {
         UUID actorUserId = uuid(11);
         UUID entityId = uuid(12);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(jsonCodec), store, "eventbus.social");
+                new JacksonSocialContractEventCodec(jsonCodec), store, "eventbus.social", idGenerator());
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
                 actorUserId, EntityTypes.POST, entityId, uuid(13), entityId,
@@ -124,7 +128,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         publisher.publishLikeChanged(new LikeChangedDomainEvent(
@@ -157,7 +162,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 contractEventCodec,
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
         UUID actorUserId = uuid(31);
         UUID entityId = uuid(32);
@@ -198,7 +204,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         publisher.publishFollowCreated(new FollowCreatedDomainEvent(
@@ -229,7 +236,7 @@ class OutboxSocialDomainEventPublisherTest {
         SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
         SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
         OutboxSocialDomainEventPublisher publisher =
-                new OutboxSocialDomainEventPublisher(contractEventCodec, store, TOPIC);
+                new OutboxSocialDomainEventPublisher(contractEventCodec, store, TOPIC, idGenerator());
         SocialEventDispatchApplicationService dispatchService =
                 new SocialEventDispatchApplicationService(contractEventCodec, dispatcher);
         UUID likedPostId = uuid(101);
@@ -312,7 +319,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(
@@ -356,7 +364,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         assertThatThrownBy(() -> publisher.publishLikeChanged(new LikeChangedDomainEvent(
@@ -376,7 +385,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         assertThatThrownBy(() -> publisher.publishLikeChanged(new LikeChangedDomainEvent(
@@ -397,7 +407,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
         LikeChangedDomainEvent event = new LikeChangedDomainEvent(
                 actorUserId, EntityTypes.POST, entityId, uuid(2), entityId,
@@ -429,7 +440,8 @@ class OutboxSocialDomainEventPublisherTest {
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
                 new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
                 store,
-                TOPIC
+                TOPIC,
+                idGenerator()
         );
 
         publisher.publishLikeChanged(null);
@@ -450,7 +462,7 @@ class OutboxSocialDomainEventPublisherTest {
         org.mockito.Mockito.when(failingContractEventCodec.serialize(org.mockito.ArgumentMatchers.any()))
                 .thenThrow(new JsonCodecException("boom", new RuntimeException("boom")));
         OutboxSocialDomainEventPublisher publisher =
-                new OutboxSocialDomainEventPublisher(failingContractEventCodec, store, TOPIC);
+                new OutboxSocialDomainEventPublisher(failingContractEventCodec, store, TOPIC, idGenerator());
 
         assertThatThrownBy(() -> publisher.publishBlockRelationChanged(new BlockRelationChangedDomainEvent(
                 uuid(1),
@@ -462,5 +474,9 @@ class OutboxSocialDomainEventPublisherTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event outbox payload serialization failed");
         verifyNoInteractions(store);
+    }
+
+    private UuidV7Generator idGenerator() {
+        return new UuidV7Generator(Clock.fixed(Instant.parse("2026-07-06T10:00:00Z"), ZoneOffset.UTC));
     }
 }

@@ -3,7 +3,6 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
-import com.nowcoder.community.market.application.result.MarketInventoryUnitResult;
 import com.nowcoder.community.market.application.result.MarketPageResult;
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.model.MarketListing;
@@ -16,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.List;
+import java.util.Date;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -26,6 +26,33 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketInventoryApplicationService {
 
+    public record MarketInventoryUnitResult(
+            UUID inventoryUnitId,
+            UUID listingId,
+            UUID sellerUserId,
+            String payloadType,
+            String payloadContent,
+            String status,
+            UUID reservedOrderId,
+            Date deliveredAt,
+            Date createTime
+    ) {
+
+        public static MarketInventoryUnitResult from(MarketInventoryUnit unit) {
+            return new MarketInventoryUnitResult(
+                    unit.getInventoryUnitId(),
+                    unit.getListingId(),
+                    unit.getSellerUserId(),
+                    unit.getPayloadType(),
+                    unit.getPayloadContent(),
+                    unit.getStatus(),
+                    unit.getReservedOrderId(),
+                    unit.getDeliveredAt(),
+                    unit.getCreateTime()
+            );
+        }
+    }
+
     private static final String INVENTORY_STATUS_AVAILABLE = "AVAILABLE";
     private static final String INVENTORY_STATUS_INVALID = "INVALID";
 
@@ -35,16 +62,11 @@ public class MarketInventoryApplicationService {
 
     @Autowired
     public MarketInventoryApplicationService(MarketListingRepository marketListingRepository,
-                                  MarketInventoryRepository marketInventoryRepository) {
-        this(marketListingRepository, marketInventoryRepository, new UuidV7Generator());
-    }
-
-    MarketInventoryApplicationService(MarketListingRepository marketListingRepository,
-                           MarketInventoryRepository marketInventoryRepository,
-                           UuidV7Generator idGenerator) {
-        this.marketListingRepository = marketListingRepository;
-        this.marketInventoryRepository = marketInventoryRepository;
-        this.idGenerator = idGenerator;
+                                              MarketInventoryRepository marketInventoryRepository,
+                                              UuidV7Generator idGenerator) {
+        this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
+        this.marketInventoryRepository = Objects.requireNonNull(marketInventoryRepository, "marketInventoryRepository must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional

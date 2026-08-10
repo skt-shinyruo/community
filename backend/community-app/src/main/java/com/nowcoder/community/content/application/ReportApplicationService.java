@@ -11,7 +11,9 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -29,15 +31,18 @@ public class ReportApplicationService {
     private final PostContentRepository postContentRepository;
     private final CommentRepository commentRepository;
     private final UserLookupQueryApi userLookupQueryApi;
+    private final Clock clock;
 
     public ReportApplicationService(ReportContentRepository reportContentPort,
                                     PostContentRepository postContentRepository,
                                     CommentRepository commentRepository,
-                                    UserLookupQueryApi userLookupQueryApi) {
+                                    UserLookupQueryApi userLookupQueryApi,
+                                    Clock clock) {
         this.reportContentPort = reportContentPort;
         this.postContentRepository = postContentRepository;
         this.commentRepository = commentRepository;
         this.userLookupQueryApi = userLookupQueryApi;
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Transactional
@@ -62,7 +67,7 @@ public class ReportApplicationService {
         report.setReason(normalizedReason);
         report.setDetail(normalizedDetail);
         report.setStatus(ReportContentRepository.STATUS_PENDING);
-        report.setCreateTime(new Date());
+        report.setCreateTime(Date.from(clock.instant()));
         try {
             return reportContentPort.createReport(report);
         } catch (BusinessException ex) {

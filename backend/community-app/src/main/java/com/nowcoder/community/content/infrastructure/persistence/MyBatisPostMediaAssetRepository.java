@@ -11,11 +11,11 @@ import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostMediaAssetDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.PostMediaAssetMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
@@ -27,14 +27,9 @@ public class MyBatisPostMediaAssetRepository implements PostMediaAssetRepository
     private final PostMediaAssetMapper mapper;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public MyBatisPostMediaAssetRepository(PostMediaAssetMapper mapper) {
-        this(mapper, new UuidV7Generator());
-    }
-
-    MyBatisPostMediaAssetRepository(PostMediaAssetMapper mapper, UuidV7Generator idGenerator) {
-        this.mapper = mapper;
-        this.idGenerator = idGenerator;
+    public MyBatisPostMediaAssetRepository(PostMediaAssetMapper mapper, UuidV7Generator idGenerator) {
+        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override

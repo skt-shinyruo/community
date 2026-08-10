@@ -3,11 +3,8 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.application.ContentSanitizer;
-import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
-import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
@@ -15,20 +12,19 @@ import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
+import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
-import com.nowcoder.community.common.idempotency.RequestFingerprint;
+import com.nowcoder.community.content.exception.ContentErrorCode;
 import com.nowcoder.community.social.api.action.SocialInteractionActionApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.util.Date;
-import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -51,8 +47,8 @@ public class CommentApplicationService {
     private final SocialInteractionActionApi interactionActionApi;
     private final ContentEventPublisher eventPublisher;
     private final CommentDeletionTransactionOperations deletionOperations;
+    private final Clock clock;
 
-    @Autowired
     public CommentApplicationService(
             ContentSanitizer sensitiveFilter,
             IdempotencyGuard idempotencyGuard,
@@ -64,50 +60,21 @@ public class CommentApplicationService {
             CommentCacheAfterCommit commentCacheAfterCommit,
             SocialInteractionActionApi interactionActionApi,
             ContentEventPublisher eventPublisher,
-            CommentDeletionTransactionOperations deletionOperations
+            CommentDeletionTransactionOperations deletionOperations,
+            Clock clock
     ) {
-        this.sensitiveFilter = sensitiveFilter;
-        this.idempotencyGuard = idempotencyGuard;
-        this.textCodec = textCodec;
-        this.moderationGuard = moderationGuard;
-        this.domainService = domainService;
-        this.commentRepository = commentRepository;
-        this.postContentPort = postContentPort;
-        this.commentCacheAfterCommit = commentCacheAfterCommit;
-        this.interactionActionApi = interactionActionApi;
-        this.eventPublisher = eventPublisher;
-        this.deletionOperations = deletionOperations;
-    }
-
-    /**
-     * Test/compatibility constructor for callers that exercise the legacy
-     * in-memory thread transition directly. Spring uses the full constructor.
-     */
-    public CommentApplicationService(
-            ContentSanitizer sensitiveFilter,
-            IdempotencyGuard idempotencyGuard,
-            ContentTextCodec textCodec,
-            UserModerationGuard moderationGuard,
-            CommentDomainService domainService,
-            CommentRepository commentRepository,
-            PostContentRepository postContentPort,
-            CommentCacheAfterCommit commentCacheAfterCommit,
-            SocialInteractionActionApi interactionActionApi,
-            ContentEventPublisher eventPublisher
-    ) {
-        this(
-                sensitiveFilter,
-                idempotencyGuard,
-                textCodec,
-                moderationGuard,
-                domainService,
-                commentRepository,
-                postContentPort,
-                commentCacheAfterCommit,
-                interactionActionApi,
-                eventPublisher,
-                null
-        );
+        this.sensitiveFilter = Objects.requireNonNull(sensitiveFilter, "sensitiveFilter");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard");
+        this.textCodec = Objects.requireNonNull(textCodec, "textCodec");
+        this.moderationGuard = Objects.requireNonNull(moderationGuard, "moderationGuard");
+        this.domainService = Objects.requireNonNull(domainService, "domainService");
+        this.commentRepository = Objects.requireNonNull(commentRepository, "commentRepository");
+        this.postContentPort = Objects.requireNonNull(postContentPort, "postContentPort");
+        this.commentCacheAfterCommit = Objects.requireNonNull(commentCacheAfterCommit, "commentCacheAfterCommit");
+        this.interactionActionApi = Objects.requireNonNull(interactionActionApi, "interactionActionApi");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
+        this.deletionOperations = Objects.requireNonNull(deletionOperations, "deletionOperations");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @Transactional
@@ -154,7 +121,7 @@ public class CommentApplicationService {
         moderationGuard.assertCanSpeak(userId);
         postContentPort.getById(postId);
         CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         CommentEdit edit = Comment.reconstitute(existing)
                 .editByAuthor(userId, postId, sanitize(content), now);
         CommentTransitionStatus status = commentRepository.apply(edit);
@@ -170,31 +137,11 @@ public class CommentApplicationService {
     }
 
     public void deleteByAuthor(UUID userId, UUID postId, UUID commentId) {
-        if (deletionOperations != null) {
-            deleteWithBoundedOperations(userId, postId, commentId, false, "author_delete");
-            return;
-        }
-        CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
-        UUID actualPostId = resolvePostId(existing);
-        Comment aggregate = Comment.reconstitute(existing);
-        CommentDeletion deletion = aggregate.deleteByAuthor(
-                userId,
-                postId,
-                "author_delete",
-                new Date()
-        );
-        deleteActiveThread(aggregate, deletion, actualPostId);
+        deleteWithBoundedOperations(userId, postId, commentId, false, "author_delete");
     }
 
     public void deleteByModeration(UUID actorUserId, UUID commentId, String deletedReason) {
-        if (deletionOperations != null) {
-            deleteWithBoundedOperations(actorUserId, null, commentId, true, deletedReason);
-            return;
-        }
-        CommentSnapshot existing = commentRepository.getRequiredSnapshot(commentId);
-        Comment aggregate = Comment.reconstitute(existing);
-        CommentDeletion deletion = aggregate.deleteByModerator(actorUserId, deletedReason, new Date());
-        deleteActiveThread(aggregate, deletion, resolvePostId(existing));
+        deleteWithBoundedOperations(actorUserId, null, commentId, true, deletedReason);
     }
 
     private void deleteWithBoundedOperations(
@@ -213,8 +160,8 @@ public class CommentApplicationService {
         if (existing.status() == 0) {
             Comment aggregate = Comment.reconstitute(existing);
             CommentDeletion deletion = moderator
-                    ? aggregate.deleteByModerator(actorUserId, deletedReason, new Date())
-                    : aggregate.deleteByAuthor(actorUserId, postId, deletedReason, new Date());
+                    ? aggregate.deleteByModerator(actorUserId, deletedReason, Date.from(clock.instant()))
+                    : aggregate.deleteByAuthor(actorUserId, postId, deletedReason, Date.from(clock.instant()));
             CommentDeletionResult rootResult = existing.rootComment()
                     ? deletionOperations.deleteRoot(deletion, postId)
                     : deletionOperations.deleteSingle(deletion, postId);
@@ -242,7 +189,7 @@ public class CommentApplicationService {
                     existing.deletedBy() == null ? actorUserId : existing.deletedBy(),
                     StringUtils.hasText(existing.deletedReason())
                             ? existing.deletedReason() : deletedReason,
-                    existing.deletedTime() == null ? new Date() : existing.deletedTime());
+                    existing.deletedTime() == null ? Date.from(clock.instant()) : existing.deletedTime());
         }
     }
 
@@ -288,7 +235,7 @@ public class CommentApplicationService {
         }
 
         String safeContent = sanitize(command.content());
-        Date createTime = new Date();
+        Date createTime = Date.from(clock.instant());
         CommentDraft draft = domainService.createDraft(
                 userId,
                 target.postId(),
@@ -329,45 +276,6 @@ public class CommentApplicationService {
         return value == null ? "<null>" : String.valueOf(value);
     }
 
-    private void deleteActiveThread(Comment aggregate, CommentDeletion transition, UUID postId) {
-        CommentDeletionResult result;
-        if (aggregate.isRootComment()) {
-            List<CommentSnapshot> activeThread = commentRepository.getActiveThreadSnapshots(transition.commentId());
-            if (activeThread.isEmpty()) {
-                return;
-            }
-            result = commentRepository.apply(CommentThreadDeletion.from(transition, activeThread));
-        } else {
-            result = commentRepository.apply(transition);
-        }
-
-        switch (result.status()) {
-            case NO_OP -> {
-                return;
-            }
-            case STALE -> throw staleTransition();
-            case NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
-            case APPLIED -> {
-            }
-        }
-
-        long postAggregateVersion = mutateActivePost(postId, -result.deletedCount());
-        for (CommentSnapshot deletedComment : result.deletedComments()) {
-            CommentPayload payload = new CommentPayload();
-            payload.setCommentId(deletedComment.id());
-            payload.setPostId(postId);
-            payload.setUserId(deletedComment.userId());
-            payload.setEntityType(deletedComment.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT);
-            payload.setEntityId(deletedComment.rootComment() ? postId : deletedComment.parentCommentId());
-            payload.setCreateTime(transition.deletedTime().toInstant());
-            payload.setPostAggregateVersion(postAggregateVersion);
-            eventPublisher.publishCommentDeleted(payload);
-        }
-        commentCacheAfterCommit.incrementCommentCount(postId, -result.deletedCount());
-        commentCacheAfterCommit.evictCommentPages(postId);
-        commentCacheAfterCommit.evictPostReadModels(postId, postAggregateVersion);
-    }
-
     private long mutateActivePost(UUID postId, int commentCountDelta) {
         long aggregateVersion = postContentPort.incrementActiveCommentCount(postId, commentCountDelta);
         if (aggregateVersion <= 0L) {
@@ -393,6 +301,14 @@ public class CommentApplicationService {
     }
 
     public record CommentCreateResult(UUID commentId) {
+    }
+
+    public record CreateCommentCommand(
+            UUID userId,
+            UUID postId,
+            UUID parentCommentId,
+            String content
+    ) {
     }
 
     private record CommentMutationResult(UUID commentId, long postAggregateVersion) {

@@ -5,7 +5,6 @@ import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.controller.dto.BatchUserSummaryRequest;
-import com.nowcoder.community.user.controller.dto.UserSummaryResponse;
 import org.junit.jupiter.api.Test;
 
 import java.util.Arrays;
@@ -28,17 +27,18 @@ class UserControllerUnitTest {
         );
         UUID aliceId = uuid(7);
         UUID bobId = uuid(9);
-        BatchUserSummaryRequest request = new BatchUserSummaryRequest();
-        request.setUserIds(Arrays.asList(aliceId, bobId, aliceId, null));
+        BatchUserSummaryRequest request = new BatchUserSummaryRequest(
+                Arrays.asList(aliceId, bobId, aliceId, null)
+        );
         when(userReadApplicationService.listSummariesByIds(Arrays.asList(aliceId, bobId, aliceId, null)))
                 .thenReturn(List.of(
                         new UserSummaryView(aliceId, "alice", "h7", 1),
                         new UserSummaryView(bobId, "bob", "h9", 2)
                 ));
 
-        Result<List<UserSummaryResponse>> result = controller.batchSummary(request);
+        Result<List<UserSummaryView>> result = controller.batchSummary(request);
 
-        assertThat(result.getData()).extracting(UserSummaryResponse::getId).containsExactly(aliceId, bobId);
+        assertThat(result.getData()).extracting(UserSummaryView::id).containsExactly(aliceId, bobId);
         verify(userReadApplicationService).listSummariesByIds(Arrays.asList(aliceId, bobId, aliceId, null));
     }
 

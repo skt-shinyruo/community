@@ -13,7 +13,9 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 @Repository
@@ -24,9 +26,11 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
     private static final int MAX_CLEANUP_BATCHES = 200;
 
     private final RefreshTokenSessionMapper mapper;
+    private final Clock clock;
 
-    public MyBatisRefreshTokenRepository(RefreshTokenSessionMapper mapper) {
-        this.mapper = mapper;
+    public MyBatisRefreshTokenRepository(RefreshTokenSessionMapper mapper, Clock clock) {
+        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -64,7 +68,7 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
         if (session == null || session.state() != RefreshTokenSessionState.ACTIVE || session.revokedAt() != null) {
             return null;
         }
-        if (mapper.consumeActive(tokenHash, Instant.now()) <= 0) {
+        if (mapper.consumeActive(tokenHash, clock.instant()) <= 0) {
             return null;
         }
         return toStoredRefreshToken(refreshToken, session, false);
@@ -90,7 +94,7 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
         if (locked == null || !family.equals(locked.familyId())) {
             return null;
         }
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         mapper.recoverExpiredPending(tokenHash, now);
         if (mapper.beginRotation(tokenHash, pendingExpiresAt, now, rotationLeaseId) <= 0) {
             return null;
@@ -125,7 +129,7 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
         }
         lockFamily(family, replacementExpiresAt);
         RefreshTokenSession ownedPending = findSessionByHashForUpdate(pendingHash);
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         if (ownedPending == null
                 || !family.equals(ownedPending.familyId())
                 || ownedPending.state() != RefreshTokenSessionState.PENDING_ROTATION
@@ -193,7 +197,7 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
             return;
         }
         String family = familyId.trim();
-        lockFamily(family, Instant.now().plusSeconds(1));
+        lockFamily(family, clock.instant().plusSeconds(1));
         revokeFamilyWhileLocked(family);
     }
 
@@ -251,7 +255,7 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     private void lockFamily(String familyId, Instant retainUntil) {
-        Instant minimumRetention = Instant.now().plusSeconds(1);
+        Instant minimumRetention = clock.instant().plusSeconds(1);
         Instant retention = retainUntil != null && retainUntil.isAfter(minimumRetention)
                 ? retainUntil
                 : minimumRetention;

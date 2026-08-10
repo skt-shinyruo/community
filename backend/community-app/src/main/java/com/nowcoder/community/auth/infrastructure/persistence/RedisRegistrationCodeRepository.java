@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -10,9 +9,11 @@ import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -607,20 +608,23 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
     private final StringRedisTemplate redisTemplate;
     private final int maxFailures;
     private final long resendCooldownMillis;
+    private final Clock clock;
 
-    public RedisRegistrationCodeRepository(StringRedisTemplate redisTemplate) {
-        this.redisTemplate = redisTemplate;
-        this.maxFailures = 3;
-        this.resendCooldownMillis = Duration.ofSeconds(60).toMillis();
-    }
-
-    @Autowired
-    public RedisRegistrationCodeRepository(StringRedisTemplate redisTemplate, RegistrationProperties properties) {
-        this.redisTemplate = redisTemplate;
-        int configured = properties == null ? 3 : properties.getCode().getMaxFailures();
+    public RedisRegistrationCodeRepository(
+            StringRedisTemplate redisTemplate,
+            RegistrationProperties properties,
+            Clock clock
+    ) {
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate must not be null");
+        RegistrationProperties.Code code = Objects.requireNonNull(
+                Objects.requireNonNull(properties, "properties must not be null").getCode(),
+                "properties.code must not be null"
+        );
+        int configured = code.getMaxFailures();
         this.maxFailures = Math.max(1, configured);
-        int cooldownSeconds = properties == null ? 60 : properties.getCode().getResendCooldownSeconds();
+        int cooldownSeconds = code.getResendCooldownSeconds();
         this.resendCooldownMillis = Duration.ofSeconds(Math.max(0, cooldownSeconds)).toMillis();
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -844,7 +848,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (leaseExpiresAt == null) {
             return 0L;
         }
-        return Math.max(0L, Duration.between(Instant.now(), leaseExpiresAt).toMillis());
+        return Math.max(0L, Duration.between(clock.instant(), leaseExpiresAt).toMillis());
     }
 
     private IssueResult issueResult(String result) {

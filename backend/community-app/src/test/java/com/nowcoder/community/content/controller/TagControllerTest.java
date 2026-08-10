@@ -1,8 +1,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.application.result.HotTagResult;
-import com.nowcoder.community.content.controller.dto.HotTagResponse;
+import com.nowcoder.community.content.application.TagApplicationService.HotTagResult;
 import com.nowcoder.community.content.application.TagApplicationService;
 import org.junit.jupiter.api.Test;
 
@@ -22,13 +21,10 @@ class TagControllerTest {
 
         TagController controller = new TagController(tagApplicationService);
 
-        Result<List<HotTagResponse>> result = controller.hot(8);
+        Result<List<HotTagResult>> result = controller.hot(8);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).singleElement().satisfies(response -> {
-            assertThat(response.getName()).isEqualTo(tag.name());
-            assertThat(response.getUseCount()).isEqualTo(tag.useCount());
-        });
+        assertThat(result.getData()).containsExactly(tag);
     }
 
     @Test
@@ -39,12 +35,9 @@ class TagControllerTest {
 
         TagController controller = new TagController(tagApplicationService);
 
-        Result<List<HotTagResponse>> result = controller.suggest("spring", 5);
+        Result<List<HotTagResult>> result = controller.suggest("spring", 5);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).singleElement().satisfies(response -> {
-            assertThat(response.getName()).isEqualTo(tag.name());
-            assertThat(response.getUseCount()).isEqualTo(tag.useCount());
-        });
+        assertThat(result.getData()).containsExactly(tag);
     }
 }

@@ -2,7 +2,7 @@ package com.nowcoder.community.content.domain.service;
 
 import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.command.PostContentBlockCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
 import com.nowcoder.community.content.application.result.PostContentBlockResult;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import org.junit.jupiter.api.Test;

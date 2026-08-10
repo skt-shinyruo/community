@@ -7,7 +7,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.Date;
+import java.util.Objects;
 
 @Service
 public class MarketOrderAutoConfirmApplicationService {
@@ -18,17 +20,20 @@ public class MarketOrderAutoConfirmApplicationService {
     private final MarketOrderRepository marketOrderRepository;
     private final MarketOrderAutoConfirmer autoConfirmer;
     private final MarketOrderAutoConfirmRetryScheduler retryScheduler;
+    private final Clock clock;
     private final int batchSize;
 
     public MarketOrderAutoConfirmApplicationService(
             MarketOrderRepository marketOrderRepository,
             MarketOrderAutoConfirmer autoConfirmer,
             MarketOrderAutoConfirmRetryScheduler retryScheduler,
+            Clock clock,
             @Value("${market.order.auto-confirm-batch-size:100}") int batchSize
     ) {
-        this.marketOrderRepository = marketOrderRepository;
-        this.autoConfirmer = autoConfirmer;
-        this.retryScheduler = retryScheduler;
+        this.marketOrderRepository = Objects.requireNonNull(marketOrderRepository, "marketOrderRepository must not be null");
+        this.autoConfirmer = Objects.requireNonNull(autoConfirmer, "autoConfirmer must not be null");
+        this.retryScheduler = Objects.requireNonNull(retryScheduler, "retryScheduler must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.batchSize = Math.min(1_000, Math.max(1, batchSize));
     }
 
@@ -36,7 +41,7 @@ public class MarketOrderAutoConfirmApplicationService {
         int completed = 0;
         int skipped = 0;
         int failed = 0;
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         for (MarketOrder dueOrder : marketOrderRepository.findDueForAutoConfirm(now, batchSize)) {
             boolean confirmed = false;
             boolean rowFailed = false;

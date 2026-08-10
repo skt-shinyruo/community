@@ -5,7 +5,7 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.social.application.BlockApplicationService;
-import com.nowcoder.community.social.application.command.BlockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.BlockCommand;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.domain.repository.UserRepository;

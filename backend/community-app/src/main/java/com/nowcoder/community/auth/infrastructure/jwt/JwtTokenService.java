@@ -10,8 +10,10 @@ import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -19,15 +21,17 @@ public class JwtTokenService implements AuthTokenPort {
 
     private final JwtEncoder jwtEncoder;
     private final JwtProperties jwtProperties;
+    private final Clock clock;
 
-    public JwtTokenService(JwtEncoder jwtEncoder, JwtProperties jwtProperties) {
-        this.jwtEncoder = jwtEncoder;
-        this.jwtProperties = jwtProperties;
+    public JwtTokenService(JwtEncoder jwtEncoder, JwtProperties jwtProperties, Clock clock) {
+        this.jwtEncoder = Objects.requireNonNull(jwtEncoder, "jwtEncoder must not be null");
+        this.jwtProperties = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
     public String createAccessToken(UUID userId, String username, List<String> authorities, long securityVersion) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         Instant exp = now.plusSeconds(jwtProperties.getAccessTokenTtlSeconds());
 
         JwtClaimsSet claims = JwtClaimsSet.builder()

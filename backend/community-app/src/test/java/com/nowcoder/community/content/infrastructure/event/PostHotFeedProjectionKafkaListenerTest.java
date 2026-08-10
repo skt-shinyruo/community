@@ -6,7 +6,7 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.PostProjectionVersionLane;
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
+import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;

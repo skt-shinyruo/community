@@ -3,6 +3,7 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorKind;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
 import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.domain.model.MarketGoodsType;
@@ -21,6 +22,7 @@ import org.mockito.invocation.InvocationOnMock;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
+import java.time.Clock;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.Set;
@@ -87,7 +89,8 @@ class MarketOrderTransitionApplicationServiceTest {
                 disputeRepository,
                 orderRepository,
                 walletActionCoordinator,
-                new UuidV7Generator()
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
 
         Throwable failure = catchThrowable(() -> service.adminResolveRelease(
@@ -133,7 +136,8 @@ class MarketOrderTransitionApplicationServiceTest {
         MarketOrderSagaApplicationService service = new MarketOrderSagaApplicationService(
                 orderRepository,
                 mock(MarketListingRepository.class),
-                mock(MarketInventoryRepository.class)
+                mock(MarketInventoryRepository.class),
+                Clock.systemUTC()
         );
 
         boolean advanced = service.markEscrowSucceeded(ORDER_ID, uuid(601));
@@ -159,7 +163,9 @@ class MarketOrderTransitionApplicationServiceTest {
                 mock(MarketShipmentRepository.class),
                 walletActionCoordinator,
                 mock(MarketOrderSagaApplicationService.class),
-                new UuidV7Generator()
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
     }
 

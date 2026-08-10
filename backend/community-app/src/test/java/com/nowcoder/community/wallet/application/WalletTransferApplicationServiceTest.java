@@ -4,6 +4,8 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
@@ -12,7 +14,8 @@ import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
-import com.nowcoder.community.wallet.application.result.TransferOrderResult;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService.TransferOrderResult;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService.CreateTransferCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -57,6 +60,7 @@ class WalletTransferApplicationServiceTest {
 
     @BeforeEach
     void setUp() {
+        jdbcTemplate.update("delete from http_idempotency");
         jdbcTemplate.update("delete from wallet_entry");
         jdbcTemplate.update("delete from wallet_txn");
         jdbcTemplate.update("delete from recharge_order");
@@ -107,6 +111,25 @@ class WalletTransferApplicationServiceTest {
         assertThatThrownBy(() -> transferService.transfer(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void idempotentTransferReplayShouldDeserializeTheNestedResultAndAvoidSecondPosting() {
+        UUID fromUserId = uuid(101);
+        UUID toUserId = uuid(202);
+        seedUserBalance(fromUserId, 900);
+
+        TransferOrderResult first = transferService.transfer(
+                new CreateTransferCommand(fromUserId, toUserId, 300, "transfer:replay-key")
+        );
+        TransferOrderResult replay = transferService.transfer(
+                new CreateTransferCommand(fromUserId, toUserId, 300, "transfer:replay-key")
+        );
+
+        assertThat(replay).isEqualTo(first);
+        assertThat(countRows("transfer_order")).isEqualTo(1);
+        assertThat(countRows("wallet_txn")).isEqualTo(1);
+        assertThat(countRows("wallet_entry")).isEqualTo(2);
     }
 
     @Test
@@ -209,6 +232,8 @@ class WalletTransferApplicationServiceTest {
                 repository,
                 mockedAccountService,
                 mockedLedgerService,
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
                 mockedUserLookupQueryApi
         );
 

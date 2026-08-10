@@ -9,53 +9,10 @@ import com.nowcoder.community.common.constants.ValidationLimits;
 import java.util.List;
 import java.util.UUID;
 
-public class CreatePostRequest {
-
-    @NotBlank
-    @Size(max = ValidationLimits.POST_TITLE_MAX)
-    private String title;
-
-    @Valid
-    @NotEmpty
-    @Size(max = ValidationLimits.POST_CONTENT_BLOCKS_MAX)
-    private List<PostContentBlockRequest> blocks;
-
-    // 可选：分类（Discourse-like taxonomy）。
-    private UUID categoryId;
-
-    // 可选：标签（由服务端做归一化与数量限制）。
-    @Size(max = ValidationLimits.TAGS_MAX)
-    private List<@Size(max = ValidationLimits.TAG_MAX) String> tags;
-
-    public String getTitle() {
-        return title;
-    }
-
-    public void setTitle(String title) {
-        this.title = title;
-    }
-
-    public List<PostContentBlockRequest> getBlocks() {
-        return blocks;
-    }
-
-    public void setBlocks(List<PostContentBlockRequest> blocks) {
-        this.blocks = blocks;
-    }
-
-    public UUID getCategoryId() {
-        return categoryId;
-    }
-
-    public void setCategoryId(UUID categoryId) {
-        this.categoryId = categoryId;
-    }
-
-    public List<String> getTags() {
-        return tags;
-    }
-
-    public void setTags(List<String> tags) {
-        this.tags = tags;
-    }
+public record CreatePostRequest(
+        @NotBlank @Size(max = ValidationLimits.POST_TITLE_MAX) String title,
+        @Valid @NotEmpty @Size(max = ValidationLimits.POST_CONTENT_BLOCKS_MAX) List<PostContentBlockRequest> blocks,
+        UUID categoryId,
+        @Size(max = ValidationLimits.TAGS_MAX) List<@Size(max = ValidationLimits.TAG_MAX) String> tags
+) {
 }

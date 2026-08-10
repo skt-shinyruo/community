@@ -1,8 +1,6 @@
 package com.nowcoder.community.content.infrastructure.job;
 
 import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService;
-import com.nowcoder.community.content.application.command.ReconcilePostMediaReferencesCommand;
-import com.nowcoder.community.content.application.result.PostMediaReferenceReconciliationResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -38,8 +36,12 @@ public class PostMediaReferenceReconciliationJob {
             return;
         }
         try {
-            PostMediaReferenceReconciliationResult result = applicationService.reconcile(
-                    new ReconcilePostMediaReferencesCommand(cursor, batchSize)
+            PostMediaReferenceReconciliationApplicationService.PostMediaReferenceReconciliationResult result =
+                    applicationService.reconcile(
+                            new PostMediaReferenceReconciliationApplicationService.ReconcilePostMediaReferencesCommand(
+                                    cursor,
+                                    batchSize
+                            )
             );
             cursor = result.hasMore() ? result.nextAfterAssetId() : ZERO_UUID;
         } catch (RuntimeException exception) {

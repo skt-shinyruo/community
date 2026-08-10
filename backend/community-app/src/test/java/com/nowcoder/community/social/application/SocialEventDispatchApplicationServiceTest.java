@@ -4,7 +4,7 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.social.application.command.DispatchSocialEventCommand;
+import com.nowcoder.community.social.application.SocialEventDispatchApplicationService.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;

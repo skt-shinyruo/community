@@ -11,6 +11,9 @@ import org.mockito.InOrder;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Date;
 import java.util.UUID;
 
@@ -30,6 +33,9 @@ import static org.mockito.Mockito.when;
 class PostModerationApplicationServiceTest {
 
     private static final long POST_VERSION = 7L;
+    private static final Instant NOW = Instant.parse("2025-01-02T03:04:05Z");
+    private static final Date NOW_DATE = Date.from(NOW);
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private PostModerationDomainService domainService;
     private PostRepository postRepository;
@@ -51,7 +57,8 @@ class PostModerationApplicationServiceTest {
                 integrationEventPublisher,
                 mediaReferenceScheduler,
                 new PostBusinessEventLogger(),
-                userModerationActionApi
+                userModerationActionApi,
+                CLOCK
         );
     }
 
@@ -63,7 +70,7 @@ class PostModerationApplicationServiceTest {
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(domainService.shouldAdminDelete(actorUserId, post)).thenReturn(true);
         when(postRepository.markDeletedByAdmin(
-                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+                eq(postId), eq(actorUserId), eq(NOW_DATE), eq(POST_VERSION)
         )).thenReturn(true);
 
         service.top(actorUserId, postId);
@@ -78,16 +85,16 @@ class PostModerationApplicationServiceTest {
         );
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
-        inOrder.verify(postRepository).markTop(eq(postId), any(Date.class), eq(POST_VERSION));
+        inOrder.verify(postRepository).markTop(postId, NOW_DATE, POST_VERSION);
         inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).assertCanModeratePost(actorUserId, post);
-        inOrder.verify(postRepository).markWonderful(eq(postId), any(Date.class), eq(POST_VERSION));
+        inOrder.verify(postRepository).markWonderful(postId, NOW_DATE, POST_VERSION);
         inOrder.verify(integrationEventPublisher).postUpdated(postId);
         inOrder.verify(postRepository).getRequiredSnapshot(postId);
         inOrder.verify(domainService).shouldAdminDelete(actorUserId, post);
         inOrder.verify(postRepository).markDeletedByAdmin(
-                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+                postId, actorUserId, NOW_DATE, POST_VERSION
         );
         inOrder.verify(mediaReferenceScheduler).scheduleReleaseForDeletedPost(postId);
         inOrder.verify(integrationEventPublisher).postDeleted(postId);
@@ -124,7 +131,7 @@ class PostModerationApplicationServiceTest {
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(post);
         when(domainService.shouldAdminDelete(actorUserId, post)).thenReturn(true);
         when(postRepository.markDeletedByAdmin(
-                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+                eq(postId), eq(actorUserId), eq(NOW_DATE), eq(POST_VERSION)
         )).thenReturn(false);
 
         service.delete(actorUserId, postId);
@@ -140,7 +147,7 @@ class PostModerationApplicationServiceTest {
         UUID postId = uuid(101);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(postSnapshot(postId, 0));
         when(postRepository.markDeletedByAdmin(
-                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+                eq(postId), eq(actorUserId), eq(NOW_DATE), eq(POST_VERSION)
         )).thenReturn(false);
 
         service.deleteByModeration(actorUserId, postId);
@@ -156,7 +163,7 @@ class PostModerationApplicationServiceTest {
         UUID postId = uuid(101);
         when(postRepository.getRequiredSnapshot(postId)).thenReturn(postSnapshot(postId, 0));
         when(postRepository.markDeletedByAdmin(
-                eq(postId), eq(actorUserId), any(Date.class), eq(POST_VERSION)
+                eq(postId), eq(actorUserId), eq(NOW_DATE), eq(POST_VERSION)
         ))
                 .thenReturn(true, false);
 

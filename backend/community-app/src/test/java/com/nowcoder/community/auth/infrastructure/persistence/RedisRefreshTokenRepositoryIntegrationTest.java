@@ -382,7 +382,8 @@ class RedisRefreshTokenRepositoryIntegrationTest {
             return new RedisRefreshTokenRepository(
                     template,
                     new JacksonJsonCodec(JsonMappers.standard()),
-                    properties
+                    properties,
+                    java.time.Clock.systemUTC()
             );
         }
 

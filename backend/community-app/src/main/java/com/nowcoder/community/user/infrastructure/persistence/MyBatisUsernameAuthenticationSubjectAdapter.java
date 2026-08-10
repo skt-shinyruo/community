@@ -5,6 +5,8 @@ import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.util.Objects;
+
 @Repository
 public class MyBatisUsernameAuthenticationSubjectAdapter implements UsernameAuthenticationSubjectPort {
 
@@ -13,7 +15,7 @@ public class MyBatisUsernameAuthenticationSubjectAdapter implements UsernameAuth
     private final UserMapper userMapper;
 
     public MyBatisUsernameAuthenticationSubjectAdapter(UserMapper userMapper) {
-        this.userMapper = userMapper;
+        this.userMapper = Objects.requireNonNull(userMapper, "userMapper must not be null");
     }
 
     @Override

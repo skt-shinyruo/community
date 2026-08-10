@@ -4,7 +4,6 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.runtime.application.RuntimeConfigApplicationService;
-import com.nowcoder.community.runtime.application.result.RuntimeConfigResult;
 import com.nowcoder.community.runtime.security.RuntimeSecurityRules;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
@@ -56,7 +55,7 @@ class RuntimeConfigControllerTest {
 
     @Test
     void runtimeConfigShouldBeAvailableBeforeAuthentication() throws Exception {
-        when(applicationService.current()).thenReturn(new RuntimeConfigResult(
+        when(applicationService.current()).thenReturn(new RuntimeConfigApplicationService.RuntimeConfig(
                 "/api",
                 "http://localhost:12880",
                 "ws://localhost:12880/ws/im",
@@ -64,7 +63,7 @@ class RuntimeConfigControllerTest {
                 0.0,
                 "local",
                 Map.of("file-upload", true),
-                new RuntimeConfigResult.UploadPolicy(
+                new RuntimeConfigApplicationService.RuntimeConfig.UploadPolicy(
                         "10GB",
                         "10GB",
                         java.util.List.of("image/png"),

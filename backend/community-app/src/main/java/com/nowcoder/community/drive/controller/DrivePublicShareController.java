@@ -3,11 +3,8 @@ package com.nowcoder.community.drive.controller;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.drive.application.DriveShareApplicationService;
-import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
-import com.nowcoder.community.drive.controller.dto.DriveDownloadUrlResponse;
-import com.nowcoder.community.drive.controller.dto.DriveEntryResponse;
-import com.nowcoder.community.drive.controller.dto.DrivePublicShareGateResponse;
-import com.nowcoder.community.drive.controller.dto.DriveShareResponse;
+import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
+import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.controller.dto.VerifyDriveShareRequest;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -42,28 +39,32 @@ public class DrivePublicShareController {
     }
 
     @GetMapping("/{shareToken}")
-    public Result<DrivePublicShareGateResponse> loadPublicShare(@PathVariable String shareToken) {
-        return Result.ok(DrivePublicShareGateResponse.from(shareApplicationService.loadPublicShareGate(shareToken)));
+    public Result<DriveShareApplicationService.PublicShareGateResult> loadPublicShare(@PathVariable String shareToken) {
+        return Result.ok(shareApplicationService.loadPublicShareGate(shareToken));
     }
 
     @PostMapping("/{shareToken}/verify")
-    public Result<DriveShareResponse> verifyShare(
+    public Result<DriveShareApplicationService.ShareResult> verifyShare(
             @PathVariable String shareToken,
             @Valid @RequestBody VerifyDriveShareRequest request,
             HttpServletRequest httpRequest
     ) {
-        return Result.ok(DriveShareResponse.from(shareApplicationService.verifyShare(
-                new VerifyDriveShareCommand(shareToken, request.getPassword(), visitorFingerprint(httpRequest))
-        )));
+        return Result.ok(shareApplicationService.verifyShare(
+                new DriveShareApplicationService.VerifyShareCommand(
+                        shareToken,
+                        request.password(),
+                        visitorFingerprint(httpRequest)
+                )
+        ));
     }
 
     @GetMapping("/{shareToken}/entries")
-    public Result<List<DriveEntryResponse>> listShareEntries(
+    public Result<List<DriveEntryResult>> listShareEntries(
             @PathVariable String shareToken,
             @RequestParam(value = "ticket", required = false) String ticket,
             @RequestParam(value = "parentId", required = false) String parentId
     ) {
-        return Result.ok(DriveEntryResponse.from(shareApplicationService.listShareEntries(
+        return Result.ok(entriesOrEmpty(shareApplicationService.listShareEntries(
                 shareToken,
                 ticket,
                 parseUuidOrNull(parentId, "parentId")
@@ -71,16 +72,20 @@ public class DrivePublicShareController {
     }
 
     @GetMapping("/{shareToken}/download-url")
-    public Result<DriveDownloadUrlResponse> getDownloadUrl(
+    public Result<DriveDownloadUrlResult> getDownloadUrl(
             @PathVariable String shareToken,
             @RequestParam(value = "ticket", required = false) String ticket,
             @RequestParam(value = "entryId", required = false) String entryId
     ) {
-        return Result.ok(DriveDownloadUrlResponse.from(shareApplicationService.createShareDownloadUrl(
+        return Result.ok(shareApplicationService.createShareDownloadUrl(
                 shareToken,
                 ticket,
                 parseUuidOrNull(entryId, "entryId")
-        )));
+        ));
+    }
+
+    private static List<DriveEntryResult> entriesOrEmpty(List<DriveEntryResult> entries) {
+        return entries == null || entries.isEmpty() ? List.of() : entries.stream().toList();
     }
 
     private static String visitorFingerprint(HttpServletRequest request) {

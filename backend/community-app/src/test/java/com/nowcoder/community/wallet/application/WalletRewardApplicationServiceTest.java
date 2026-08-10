@@ -5,7 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.application.UserReadApplicationService;
-import com.nowcoder.community.wallet.application.command.WalletRewardCommand;
+import com.nowcoder.community.wallet.application.WalletRewardApplicationService.RewardCommand;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -85,10 +85,10 @@ class WalletRewardApplicationServiceTest {
         UUID userId = uuid(101);
         UUID recipientUserId = uuid(202);
 
-        service.revoke(new WalletRewardCommand("reward:revoke:debt", userId, 5L, "TEST"));
+        service.revoke(new RewardCommand("reward:revoke:debt", userId, 5L, "TEST"));
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(-5L);
 
-        service.issue(new WalletRewardCommand("reward:issue:repay", userId, 3L, "TEST"));
+        service.issue(new RewardCommand("reward:issue:repay", userId, 3L, "TEST"));
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(-2L);
         assertThat(countRows("wallet_txn")).isEqualTo(2);
         assertThat(countRows("wallet_entry")).isEqualTo(4);
@@ -115,7 +115,7 @@ class WalletRewardApplicationServiceTest {
     void negativeDeltaShouldUsePrivilegedCorrection() {
         UUID userId = uuid(101);
 
-        service.applyDelta(new WalletRewardCommand("reward:delta:negative", userId, -2L, "TEST"));
+        service.applyDelta(new RewardCommand("reward:delta:negative", userId, -2L, "TEST"));
 
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(-2L);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
@@ -125,7 +125,7 @@ class WalletRewardApplicationServiceTest {
 
     @Test
     void rewardCommandShouldNotExposePostingPolicy() {
-        assertThat(Arrays.stream(WalletRewardCommand.class.getRecordComponents())
+        assertThat(Arrays.stream(RewardCommand.class.getRecordComponents())
                 .map(component -> component.getName()))
                 .containsExactly("requestId", "userId", "amount", "sourceType");
     }

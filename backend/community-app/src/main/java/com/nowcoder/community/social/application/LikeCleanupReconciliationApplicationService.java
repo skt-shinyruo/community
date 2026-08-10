@@ -2,8 +2,6 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
-import com.nowcoder.community.social.application.command.ReconcileLikeCleanupCommand;
-import com.nowcoder.community.social.application.result.LikeCleanupReconciliationResult;
 import com.nowcoder.community.social.domain.model.LikeTargetState;
 import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository;
 import org.springframework.stereotype.Service;
@@ -101,5 +99,18 @@ public class LikeCleanupReconciliationApplicationService {
                 || command.batchSize() > MAX_BATCH_SIZE) {
             throw new BusinessException(INVALID_ARGUMENT, "invalid like cleanup reconciliation command");
         }
+    }
+
+    public record ReconcileLikeCleanupCommand(int entityType, UUID afterEntityId, int batchSize) {
+    }
+
+    public record LikeCleanupReconciliationResult(
+            UUID nextAfterEntityId,
+            boolean hasMore,
+            int scanned,
+            int orphanTargets,
+            int cleaned,
+            int failed
+    ) {
     }
 }

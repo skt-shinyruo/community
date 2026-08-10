@@ -2,12 +2,13 @@ package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
-import com.nowcoder.community.user.application.result.UserAuthenticationResult;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
+import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -17,6 +18,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 
 import java.time.Instant;
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
 import java.util.Optional;
@@ -75,9 +77,9 @@ class UserCredentialApplicationServiceTest {
     void authenticateShouldRejectBlankCredentials() {
         UserCredentialApplicationService service = service();
 
-        UserAuthenticationResult result = service.authenticate("  ", "secret");
+        UserAuthenticationResultView result = service.authenticate("  ", "secret");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
         verifyNoInteractions(userRepository);
     }
@@ -88,9 +90,9 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice"))
                 .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "pw")));
 
-        UserAuthenticationResult result = service.authenticate("alice", "pw");
+        UserAuthenticationResultView result = service.authenticate("alice", "pw");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.USER_DISABLED);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.USER_DISABLED);
         assertThat(result.user()).isNotNull();
         assertThat(result.user().username()).isEqualTo("alice");
     }
@@ -101,9 +103,9 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice"))
                 .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "correct-password")));
 
-        UserAuthenticationResult result = service.authenticate("alice", "wrong-password");
+        UserAuthenticationResultView result = service.authenticate("alice", "wrong-password");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
     }
 
@@ -112,9 +114,9 @@ class UserCredentialApplicationServiceTest {
         UserCredentialApplicationService service = service();
         when(userRepository.findByUsername("missing")).thenReturn(Optional.empty());
 
-        UserAuthenticationResult result = service.authenticate("missing", "wrong-password");
+        UserAuthenticationResultView result = service.authenticate("missing", "wrong-password");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
     }
 
@@ -138,9 +140,9 @@ class UserCredentialApplicationServiceTest {
         );
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResult result = service.authenticate("alice", "secret12");
+        UserAuthenticationResultView result = service.authenticate("alice", "secret12");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.USER_DISABLED);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.USER_DISABLED);
         assertThat(result.user().securityVersion()).isEqualTo(99L);
         assertThat(result.user().loginAllowed()).isFalse();
         assertThat(result.user().refreshAllowed()).isFalse();
@@ -153,9 +155,9 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(userId, "alice", "plain-hash", "abc");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResult authenticationResult = service.authenticate("alice", "secret");
+        UserAuthenticationResultView authenticationResult = service.authenticate("alice", "secret");
 
-        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(authenticationResult.user()).isNull();
         verify(userRepository, never()).updatePassword(any(), any(), anyLong());
     }
@@ -166,9 +168,9 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(uuid(7), "alice", "$2a$10$malformed", "");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResult result = service.authenticate("alice", "secret12");
+        UserAuthenticationResultView result = service.authenticate("alice", "secret12");
 
-        assertThat(result.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
     }
 
@@ -183,7 +185,7 @@ class UserCredentialApplicationServiceTest {
 
         assertThat(preparation.storedHashUsable()).isFalse();
         assertThat(service.authenticate(preparation, "any-password").failure())
-                .isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+                .isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
     }
 
     @Test
@@ -215,7 +217,7 @@ class UserCredentialApplicationServiceTest {
         assertThat(preparation.user()).isNull();
         assertThat(preparation.storedHashUsable()).isFalse();
         assertThat(service.authenticate(preparation, "secret12").failure())
-                .isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+                .isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
     }
 
     @Test
@@ -226,9 +228,9 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(userId, "alice", encoded, "");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResult authenticationResult = service.authenticate("alice", " secret12 ");
+        UserAuthenticationResultView authenticationResult = service.authenticate("alice", " secret12 ");
 
-        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+        assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(authenticationResult.user()).isNull();
     }
 
@@ -238,15 +240,15 @@ class UserCredentialApplicationServiceTest {
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
 
-        UserCredentialResult credential = service.getByUserId(userId);
+        UserCredentialView credential = service.getByUserId(userId);
 
         assertThat(credential).extracting(
-                UserCredentialResult::userId,
-                UserCredentialResult::username,
-                UserCredentialResult::status,
-                UserCredentialResult::type,
-                UserCredentialResult::headerUrl,
-                UserCredentialResult::securityVersion
+                UserCredentialView::userId,
+                UserCredentialView::username,
+                UserCredentialView::status,
+                UserCredentialView::type,
+                UserCredentialView::headerUrl,
+                UserCredentialView::securityVersion
         ).containsExactly(userId, "alice", 1, 0, "h7", 0L);
     }
 
@@ -256,7 +258,7 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(uuid(7), "alice", "encoded", "");
         when(userRepository.findByEmail("alice@example.com")).thenReturn(Optional.of(user));
 
-        UserCredentialResult credential = service.findByEmailOrNull("  Alice@Example.COM  ");
+        UserCredentialView credential = service.findByEmailOrNull("  Alice@Example.COM  ");
 
         assertThat(credential.email()).isEqualTo("alice@example.com");
         verify(userRepository).findByEmail("alice@example.com");
@@ -344,9 +346,9 @@ class UserCredentialApplicationServiceTest {
     @Test
     void authoritiesOfShouldMapUserTypesToExpectedRoles() {
         UserCredentialApplicationService service = service();
-        UserCredentialResult admin = new UserCredentialResult(uuid(1), "admin", 1, 1, "h1", 0L, true, true);
-        UserCredentialResult moderator = new UserCredentialResult(uuid(2), "mod", 1, 2, "h2", 0L, true, true);
-        UserCredentialResult regular = new UserCredentialResult(uuid(3), "user", 1, 0, "h3", 0L, true, true);
+        UserCredentialView admin = new UserCredentialView(uuid(1), "admin", 1, 1, "h1", 0L, true, true);
+        UserCredentialView moderator = new UserCredentialView(uuid(2), "mod", 1, 2, "h2", 0L, true, true);
+        UserCredentialView regular = new UserCredentialView(uuid(3), "user", 1, 0, "h3", 0L, true, true);
 
         assertThat(service.authoritiesOf(null)).isEmpty();
         assertThat(service.authoritiesOf(admin)).isEqualTo(List.of("ROLE_ADMIN"));
@@ -403,9 +405,10 @@ class UserCredentialApplicationServiceTest {
     private UserCredentialApplicationService service() {
         return new UserCredentialApplicationService(
                 userRepository,
-                new UserCredentialDomainService(),
+                new UserCredentialDomainService(new UsernamePolicyDomainService()),
                 new PasswordPolicyDomainService(),
-                usernameAuthenticationSubjectPort
+                usernameAuthenticationSubjectPort,
+                Clock.systemUTC()
         );
     }
 

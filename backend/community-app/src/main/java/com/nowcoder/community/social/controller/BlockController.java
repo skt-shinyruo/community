@@ -4,8 +4,8 @@ package com.nowcoder.community.social.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.application.BlockApplicationService;
-import com.nowcoder.community.social.application.command.BlockCommand;
-import com.nowcoder.community.social.application.command.UnblockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.BlockCommand;
+import com.nowcoder.community.social.application.BlockApplicationService.UnblockCommand;
 import com.nowcoder.community.social.controller.dto.BlockRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -33,7 +33,7 @@ public class BlockController {
     @PostMapping
     public Result<Void> block(Authentication authentication, @Valid @RequestBody BlockRequest request) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        blockApplicationService.block(new BlockCommand(userId, request.getUserId()));
+        blockApplicationService.block(new BlockCommand(userId, request.userId()));
         return Result.ok();
     }
 

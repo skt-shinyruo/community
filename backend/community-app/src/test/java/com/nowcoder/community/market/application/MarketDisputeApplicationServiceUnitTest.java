@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.application;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.domain.model.MarketOrder;
@@ -11,6 +12,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.UUID;
 
@@ -49,7 +51,9 @@ class MarketDisputeApplicationServiceUnitTest {
         MarketDisputeResult result = new MarketDisputeApplicationService(
                 marketDisputeRepository,
                 marketOrderRepository,
-                marketWalletActionCoordinator
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
         ).sellerRejectRefund(disputeId, sellerUserId, "不同意退款");
 
         assertThat(result.status()).isEqualTo("SELLER_REJECTED");
@@ -81,7 +85,9 @@ class MarketDisputeApplicationServiceUnitTest {
         MarketDisputeResult result = new MarketDisputeApplicationService(
                 marketDisputeRepository,
                 marketOrderRepository,
-                marketWalletActionCoordinator
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
         ).adminResolveRelease(disputeId, adminUserId, "证据支持卖家");
 
         assertThat(result.status()).isEqualTo("ADMIN_RESOLVED");

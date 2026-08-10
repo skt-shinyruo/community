@@ -7,4 +7,9 @@ public record FeedPageResult(
         String nextCursor,
         String rankVersion
 ) {
+    public FeedPageResult {
+        items = items == null ? List.of() : items.stream().toList();
+        nextCursor = nextCursor == null ? "" : nextCursor;
+        rankVersion = rankVersion == null ? "" : rankVersion;
+    }
 }

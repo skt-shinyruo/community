@@ -13,6 +13,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
@@ -39,7 +40,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void consumeWhenActiveTokenExistsShouldReturnStoredTokenWithSecurityVersion() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant expiresAt = Instant.now().plusSeconds(300);
         String tokenHash = sha256Hex("rt1");
         when(mapper.selectByTokenHash(tokenHash)).thenReturn(row(
@@ -64,7 +65,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void findRevokedShouldReturnRevokedMetadataWithoutRevokingFamily() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant now = Instant.now();
         String tokenHash = sha256Hex("rt1");
         when(mapper.selectByTokenHash(tokenHash)).thenReturn(row(
@@ -89,7 +90,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void consumeWhenTokenWasAlreadyRevokedShouldNotDecideReuseOrRevokeFamily() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         when(mapper.selectByTokenHash(anyString())).thenReturn(null);
 
         assertThat(repository.consume("rt1")).isNull();
@@ -100,7 +101,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void findRevokedWhenTokenIsActiveShouldReturnNull() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String tokenHash = sha256Hex("rt1");
         when(mapper.selectByTokenHash(tokenHash)).thenReturn(row(
                 tokenHash,
@@ -115,7 +116,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void storeBeginFinishAndRollbackShouldPreserveSecurityVersionAndHashPresentedTokens() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant pendingExpiresAt = Instant.now().plusSeconds(30);
         Instant replacementExpiresAt = Instant.now().plusSeconds(3600);
         UUID rotationLeaseId = UUID.fromString("00000000-0000-7000-8000-000000000099");
@@ -195,7 +196,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void storeShouldLockFamilyBeforeWritingTokenRow() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant expiresAt = Instant.now().plusSeconds(3600);
         String tokenHash = sha256Hex("new-token");
         when(mapper.selectFamilyLockForUpdate("family-store")).thenReturn("family-store");
@@ -218,7 +219,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void beginRotationShouldLockFamilyBeforeLockingAndUpdatingTokenRow() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String tokenHash = sha256Hex("begin-token");
         Instant expiresAt = Instant.now().plusSeconds(3600);
         Instant pendingExpiresAt = Instant.now().plusSeconds(30);
@@ -257,7 +258,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void finishRotationShouldLockFamilyBeforePendingAndReplacementTokenRows() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String pendingHash = sha256Hex("pending-token");
         String replacementHash = sha256Hex("replacement-token");
         Instant replacementExpiresAt = Instant.now().plusSeconds(3600);
@@ -323,7 +324,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void finishRotationShouldRejectAnExpiredOriginalTokenBeforeStoringReplacement() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String pendingHash = sha256Hex("expired-pending-token");
         UUID leaseId = UUID.fromString("00000000-0000-7000-8000-000000000203");
         RefreshTokenSessionDataObject expiredPending = row(
@@ -367,7 +368,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void finishRotationShouldCaptureCasTimeAfterPendingRowLockReturns() throws InterruptedException {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String pendingHash = sha256Hex("time-ordered-pending-token");
         Instant replacementExpiresAt = Instant.now().plusSeconds(3600);
         UUID leaseId = UUID.fromString("00000000-0000-7000-8000-000000000204");
@@ -427,7 +428,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void revokeFamilyShouldLockFamilyBeforeRevocationMarkerAndTokenRows() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         when(mapper.selectFamilyLockForUpdate("family-revoke")).thenReturn("family-revoke");
 
         repository.revokeFamily("family-revoke");
@@ -441,7 +442,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void revokeByPresentedTokenShouldLockFamilyBeforeTokenAndRevocationRows() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         String tokenHash = sha256Hex("rt-lock-order");
         Instant expiresAt = Instant.now().plusSeconds(300);
         RefreshTokenSessionDataObject token = row(
@@ -468,7 +469,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void cleanupShouldDrainEveryTableInBatchesAndStopAfterShortBatch() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant cutoff = Instant.now();
         when(mapper.deleteExpiredBefore(cutoff)).thenReturn(500, 500, 17);
         when(mapper.deleteExpiredFamilyRevocationsBefore(cutoff)).thenReturn(500, 3);
@@ -483,7 +484,7 @@ class MyBatisRefreshTokenRepositoryTest {
 
     @Test
     void cleanupShouldHaveAHardProgressBoundWhenEveryBatchStaysFull() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper);
+        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant cutoff = Instant.now();
         when(mapper.deleteExpiredBefore(cutoff)).thenReturn(500);
         when(mapper.deleteExpiredFamilyRevocationsBefore(cutoff)).thenReturn(0);

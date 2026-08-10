@@ -2,7 +2,6 @@ package com.nowcoder.community.drive.infrastructure.job;
 
 import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService;
-import com.nowcoder.community.drive.application.result.DriveUploadRecoveryResult;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -12,6 +11,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.Objects;
 
 @Component
 public class DriveUploadRecoveryJob {
@@ -32,8 +32,11 @@ public class DriveUploadRecoveryJob {
             @Value("${drive.upload.recovery.batch-size:100}") int batchSize,
             @Value("${drive.upload.recovery.stale-seconds:300}") long staleSeconds
     ) {
-        this.uploadApplicationService = uploadApplicationService;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.uploadApplicationService = Objects.requireNonNull(
+                uploadApplicationService,
+                "uploadApplicationService must not be null"
+        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(1000, batchSize));
         this.staleAge = Duration.ofSeconds(Math.max(30L, staleSeconds));
@@ -47,7 +50,8 @@ public class DriveUploadRecoveryJob {
             }
             try {
                 Instant updatedBefore = clock.instant().minus(staleAge);
-                DriveUploadRecoveryResult result = uploadApplicationService.recoverStaleUploads(updatedBefore, batchSize);
+                DriveUploadApplicationService.RecoveryResult result =
+                        uploadApplicationService.recoverStaleUploads(updatedBefore, batchSize);
                 if (result.prepared() > 0 || result.finalized() > 0 || result.markedObjectCompleted() > 0
                         || result.failed() > 0 || result.skipped() > 0) {
                     log.info(

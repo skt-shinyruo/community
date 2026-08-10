@@ -1,6 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.command.RecordPostViewCommand;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
@@ -8,7 +7,6 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.repository.PostCounterSnapshotRepository;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -28,37 +26,6 @@ public class PostCounterApplicationService {
     private final BookmarkRepository bookmarkRepository;
     private final BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort;
 
-    PostCounterApplicationService(PostCounterCache postCounterCache) {
-        this(postCounterCache, null, null, null, null, null);
-    }
-
-    PostCounterApplicationService(
-            PostCounterCache postCounterCache,
-            PostCounterSnapshotRepository postCounterSnapshotRepository,
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort
-    ) {
-        this(postCounterCache, postCounterSnapshotRepository, postContentRepository, likeQueryPort, null, null);
-    }
-
-    PostCounterApplicationService(
-            PostCounterCache postCounterCache,
-            PostCounterSnapshotRepository postCounterSnapshotRepository,
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
-            BookmarkRepository bookmarkRepository
-    ) {
-        this(
-                postCounterCache,
-                postCounterSnapshotRepository,
-                postContentRepository,
-                likeQueryPort,
-                bookmarkRepository,
-                null
-        );
-    }
-
-    @Autowired
     public PostCounterApplicationService(
             PostCounterCache postCounterCache,
             PostCounterSnapshotRepository postCounterSnapshotRepository,
@@ -67,12 +34,15 @@ public class PostCounterApplicationService {
             BookmarkRepository bookmarkRepository,
             BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort
     ) {
-        this.postCounterCache = postCounterCache;
-        this.postCounterSnapshotRepository = postCounterSnapshotRepository;
-        this.postContentRepository = postContentRepository;
-        this.likeQueryPort = likeQueryPort;
-        this.bookmarkRepository = bookmarkRepository;
-        this.bookmarkCounterReconciliationPort = bookmarkCounterReconciliationPort;
+        this.postCounterCache = Objects.requireNonNull(postCounterCache, "postCounterCache must not be null");
+        this.postCounterSnapshotRepository = Objects.requireNonNull(
+                postCounterSnapshotRepository, "postCounterSnapshotRepository must not be null");
+        this.postContentRepository = Objects.requireNonNull(
+                postContentRepository, "postContentRepository must not be null");
+        this.likeQueryPort = Objects.requireNonNull(likeQueryPort, "likeQueryPort must not be null");
+        this.bookmarkRepository = Objects.requireNonNull(bookmarkRepository, "bookmarkRepository must not be null");
+        this.bookmarkCounterReconciliationPort = Objects.requireNonNull(
+                bookmarkCounterReconciliationPort, "bookmarkCounterReconciliationPort must not be null");
     }
 
     public void recordView(RecordPostViewCommand command) {
@@ -90,6 +60,9 @@ public class PostCounterApplicationService {
         } catch (RuntimeException exception) {
             log.warn("[post-counter] view recording degraded postId={}", command.postId());
         }
+    }
+
+    public record RecordPostViewCommand(UUID postId, String viewerKey, java.time.Instant viewedAt) {
     }
 
     public void markDirty(UUID postId) {

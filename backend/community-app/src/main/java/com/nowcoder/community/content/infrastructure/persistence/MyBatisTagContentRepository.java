@@ -9,9 +9,9 @@ import com.nowcoder.community.content.domain.model.Tag;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.PostTagMapper;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.TagMapper;
 import org.springframework.dao.DuplicateKeyException;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HashMap;
@@ -19,6 +19,7 @@ import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 import java.util.regex.Pattern;
@@ -38,16 +39,18 @@ public class MyBatisTagContentRepository implements TagContentRepository {
     private final TagMapper tagMapper;
     private final PostTagMapper postTagMapper;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
-    public MyBatisTagContentRepository(TagMapper tagMapper, PostTagMapper postTagMapper) {
-        this(tagMapper, postTagMapper, new UuidV7Generator());
-    }
-
-    MyBatisTagContentRepository(TagMapper tagMapper, PostTagMapper postTagMapper, UuidV7Generator idGenerator) {
-        this.tagMapper = tagMapper;
-        this.postTagMapper = postTagMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisTagContentRepository(
+            TagMapper tagMapper,
+            PostTagMapper postTagMapper,
+            UuidV7Generator idGenerator,
+            Clock clock
+    ) {
+        this.tagMapper = Objects.requireNonNull(tagMapper, "tagMapper must not be null");
+        this.postTagMapper = Objects.requireNonNull(postTagMapper, "postTagMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -121,7 +124,7 @@ public class MyBatisTagContentRepository implements TagContentRepository {
             return List.of();
         }
 
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         for (String name : tags) {
             UUID tagId = ensureTagId(name, now);
             try {

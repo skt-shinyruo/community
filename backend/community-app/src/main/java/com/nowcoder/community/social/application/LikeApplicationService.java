@@ -15,10 +15,10 @@ import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository;
 import com.nowcoder.community.social.domain.service.BlockDomainService;
 import com.nowcoder.community.social.domain.service.LikeDomainService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
@@ -51,8 +51,8 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
     private final LikeCleanupMetrics cleanupMetrics;
     private final LikeCleanupTransactionOperations cleanupTransactionOperations;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
     public LikeApplicationService(
             LikeRepository likeRepository,
             BlockRepository blockRepository,
@@ -62,44 +62,21 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
             LikeTargetStateRepository targetStateRepository,
             LikeCleanupMetrics cleanupMetrics,
             LikeCleanupTransactionOperations cleanupTransactionOperations,
-            UuidV7Generator idGenerator
+            UuidV7Generator idGenerator,
+            Clock clock
     ) {
-        this.likeRepository = likeRepository;
-        this.blockRepository = blockRepository;
-        this.likeDomainService = likeDomainService;
-        this.blockDomainService = blockDomainService;
-        this.eventPublisher = eventPublisher;
-        this.targetStateRepository = targetStateRepository;
-        this.cleanupMetrics = cleanupMetrics;
-        this.cleanupTransactionOperations = cleanupTransactionOperations;
-        this.idGenerator = idGenerator;
-    }
-
-    public LikeApplicationService(
-            LikeRepository likeRepository,
-            BlockRepository blockRepository,
-            LikeDomainService likeDomainService,
-            BlockDomainService blockDomainService,
-            SocialDomainEventPublisher eventPublisher,
-            LikeTargetStateRepository targetStateRepository,
-            UuidV7Generator idGenerator
-    ) {
-        this(
-                likeRepository,
-                blockRepository,
-                likeDomainService,
-                blockDomainService,
-                eventPublisher,
-                targetStateRepository,
-                LikeCleanupMetrics.noop(),
-                new LikeCleanupTransactionOperations(
-                        likeRepository,
-                        targetStateRepository,
-                        likeDomainService,
-                        eventPublisher
-                ),
-                idGenerator
-        );
+        this.likeRepository = Objects.requireNonNull(likeRepository, "likeRepository must not be null");
+        this.blockRepository = Objects.requireNonNull(blockRepository, "blockRepository must not be null");
+        this.likeDomainService = Objects.requireNonNull(likeDomainService, "likeDomainService must not be null");
+        this.blockDomainService = Objects.requireNonNull(blockDomainService, "blockDomainService must not be null");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
+        this.targetStateRepository = Objects.requireNonNull(
+                targetStateRepository, "targetStateRepository must not be null");
+        this.cleanupMetrics = Objects.requireNonNull(cleanupMetrics, "cleanupMetrics must not be null");
+        this.cleanupTransactionOperations = Objects.requireNonNull(
+                cleanupTransactionOperations, "cleanupTransactionOperations must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -166,7 +143,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         }
 
         long relationVersion = likeRepository.nextRelationEventVersion(actorUserId, entityType, entityId);
-        Instant occurredAt = Instant.now();
+        Instant occurredAt = Instant.now(clock);
         LikeChangedDomainEvent event = likeDomainService.likeChangedEvent(
                 changedRelation,
                 resolved,
@@ -211,7 +188,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
                 removed += cleanupDeletedPostCommentLikesInBatches(command.entityId());
             }
             cleanupMetrics.recordCleanup(source, "success");
-            cleanupMetrics.recordCleanupLag(Duration.between(command.deletedAt(), Instant.now()));
+            cleanupMetrics.recordCleanupLag(Duration.between(command.deletedAt(), Instant.now(clock)));
             return removed;
         } catch (RuntimeException exception) {
             cleanupMetrics.recordCleanup(source, "failed");

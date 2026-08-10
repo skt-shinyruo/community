@@ -5,7 +5,7 @@
 
 <mapper namespace="com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper">
 
-    <select id="selectByUserTaskAndPeriod" resultType="com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserTaskProgressDataObject">
+    <select id="selectByUserTaskAndPeriod" resultType="com.nowcoder.community.growth.domain.model.UserTaskProgress">
         select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
                reward_grant_id, last_source_event_id, update_time
         from user_task_progress
@@ -14,7 +14,7 @@
           and period_key = #{periodKey}
     </select>
 
-    <select id="selectByUserTaskAndPeriodForUpdate" resultType="com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserTaskProgressDataObject">
+    <select id="selectByUserTaskAndPeriodForUpdate" resultType="com.nowcoder.community.growth.domain.model.UserTaskProgress">
         select id, user_id, task_code, period_key, current_value, target_value, status, reached_at, claimed_at,
                reward_grant_id, last_source_event_id, update_time
         from user_task_progress

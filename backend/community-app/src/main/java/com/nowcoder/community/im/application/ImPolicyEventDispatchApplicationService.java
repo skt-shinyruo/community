@@ -3,7 +3,6 @@ package com.nowcoder.community.im.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.im.application.command.DispatchImPolicyEventCommand;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import org.springframework.stereotype.Service;
@@ -14,6 +13,13 @@ import java.util.UUID;
 
 @Service
 public class ImPolicyEventDispatchApplicationService {
+
+    public record DispatchImPolicyEventCommand(
+            String outboxEventId,
+            String outboxKey,
+            String payloadJson
+    ) {
+    }
 
     private final JsonCodec jsonCodec;
     private final ImPolicyIntegrationEventDispatcher dispatcher;

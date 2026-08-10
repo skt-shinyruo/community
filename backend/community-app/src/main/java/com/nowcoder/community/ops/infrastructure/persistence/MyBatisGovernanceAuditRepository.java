@@ -6,10 +6,10 @@ import com.nowcoder.community.ops.application.command.RecordGovernanceAuditComma
 import com.nowcoder.community.ops.application.result.GovernanceAuditResult;
 import com.nowcoder.community.ops.infrastructure.persistence.dataobject.GovernanceAuditDataObject;
 import com.nowcoder.community.ops.infrastructure.persistence.mapper.GovernanceAuditMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
@@ -19,15 +19,16 @@ public class MyBatisGovernanceAuditRepository implements GovernanceAuditPort {
 
     private final GovernanceAuditMapper mapper;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
-    public MyBatisGovernanceAuditRepository(GovernanceAuditMapper mapper) {
-        this(mapper, new UuidV7Generator());
-    }
-
-    MyBatisGovernanceAuditRepository(GovernanceAuditMapper mapper, UuidV7Generator idGenerator) {
+    public MyBatisGovernanceAuditRepository(
+            GovernanceAuditMapper mapper,
+            UuidV7Generator idGenerator,
+            Clock clock
+    ) {
         this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -38,7 +39,7 @@ public class MyBatisGovernanceAuditRepository implements GovernanceAuditPort {
             throw new IllegalArgumentException("action, actorUserId, targetType and result are required");
         }
         UUID id = idGenerator.next();
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         GovernanceAuditDataObject row = new GovernanceAuditDataObject();
         row.setId(id);
         row.setAction(c.action());

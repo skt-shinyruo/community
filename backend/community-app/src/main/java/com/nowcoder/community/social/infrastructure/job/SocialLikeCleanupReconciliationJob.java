@@ -2,8 +2,8 @@ package com.nowcoder.community.social.infrastructure.job;
 
 import com.nowcoder.community.common.trace.TraceJobRunner;
 import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService;
-import com.nowcoder.community.social.application.command.ReconcileLikeCleanupCommand;
-import com.nowcoder.community.social.application.result.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.ReconcileLikeCleanupCommand;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,13 +1,14 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
-import com.nowcoder.community.drive.application.command.MoveDriveEntryCommand;
-import com.nowcoder.community.drive.application.command.RenameDriveEntryCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.drive.application.DriveEntryApplicationService.CreateFolderCommand;
+import com.nowcoder.community.drive.application.DriveEntryApplicationService.MoveCommand;
+import com.nowcoder.community.drive.application.DriveEntryApplicationService.RenameCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DriveSpaceResult;
+import com.nowcoder.community.drive.application.DriveSpaceApplicationService.DriveSpaceResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
@@ -70,13 +71,13 @@ class DriveEntryApplicationServiceTest {
         DriveEntryApplicationService service = fixture.entryService();
         UUID userId = uuid(7);
 
-        DriveEntryResult docs = service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs"));
+        DriveEntryResult docs = service.createFolder(new CreateFolderCommand(userId, null, "Docs"));
         DriveSpaceResult space = fixture.spaceService().getSpace(userId);
 
         assertThat(docs.name()).isEqualTo("Docs");
         assertThat(space.quotaBytes()).isEqualTo(10_737_418_240L);
         assertThat(space.usedBytes()).isZero();
-        assertThatThrownBy(() -> service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs")))
+        assertThatThrownBy(() -> service.createFolder(new CreateFolderCommand(userId, null, "Docs")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
     }
@@ -104,8 +105,15 @@ class DriveEntryApplicationServiceTest {
             return new DriveEntryRepository.CreateResult(DriveEntryRepository.CreateStatus.CREATED, entry);
         });
 
-        DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);
-        DriveEntryResult result = service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs"));
+        DriveEntryApplicationService service = new DriveEntryApplicationService(
+                spaceRepository,
+                entryRepository,
+                storagePort,
+                clock,
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(clock)
+        );
+        DriveEntryResult result = service.createFolder(new CreateFolderCommand(userId, null, "Docs"));
 
         assertThat(result.name()).isEqualTo("Docs");
         verify(spaceRepository).findByUserId(userId);
@@ -120,13 +128,13 @@ class DriveEntryApplicationServiceTest {
         DriveEntryApplicationService service = fixture.entryService();
         UUID ownerId = uuid(7);
         UUID otherId = uuid(8);
-        DriveEntryResult docs = service.createFolder(new CreateDriveFolderCommand(ownerId, null, "Docs"));
-        DriveEntryResult work = service.createFolder(new CreateDriveFolderCommand(ownerId, null, "Work"));
+        DriveEntryResult docs = service.createFolder(new CreateFolderCommand(ownerId, null, "Docs"));
+        DriveEntryResult work = service.createFolder(new CreateFolderCommand(ownerId, null, "Work"));
         UUID fileId = fixture.createFile(ownerId, docs.entryId(), "a.txt", 8);
         fixture.createFile(otherId, null, "a.txt", 8);
 
-        DriveEntryResult renamed = service.rename(new RenameDriveEntryCommand(ownerId, fileId, "b.txt"));
-        DriveEntryResult moved = service.move(new MoveDriveEntryCommand(ownerId, fileId, work.entryId()));
+        DriveEntryResult renamed = service.rename(new RenameCommand(ownerId, fileId, "b.txt"));
+        DriveEntryResult moved = service.move(new MoveCommand(ownerId, fileId, work.entryId()));
         List<DriveEntryResult> workEntries = service.listEntries(ownerId, work.entryId());
         List<DriveEntryResult> searchResults = service.search(ownerId, "b.");
         DriveDownloadUrlResult download = service.createDownloadUrl(ownerId, fileId);
@@ -144,16 +152,16 @@ class DriveEntryApplicationServiceTest {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveEntryApplicationService service = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult docs = service.createFolder(new CreateDriveFolderCommand(userId, null, "Docs"));
-        DriveEntryResult work = service.createFolder(new CreateDriveFolderCommand(userId, null, "Work"));
+        DriveEntryResult docs = service.createFolder(new CreateFolderCommand(userId, null, "Docs"));
+        DriveEntryResult work = service.createFolder(new CreateFolderCommand(userId, null, "Work"));
         UUID sourceFile = fixture.createFile(userId, docs.entryId(), "a.txt", 8);
         fixture.createFile(userId, docs.entryId(), "b.txt", 8);
         fixture.createFile(userId, work.entryId(), "a.txt", 8);
 
-        assertThatThrownBy(() -> service.rename(new RenameDriveEntryCommand(userId, sourceFile, "b.txt")))
+        assertThatThrownBy(() -> service.rename(new RenameCommand(userId, sourceFile, "b.txt")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
-        assertThatThrownBy(() -> service.move(new MoveDriveEntryCommand(userId, sourceFile, work.entryId())))
+        assertThatThrownBy(() -> service.move(new MoveCommand(userId, sourceFile, work.entryId())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("同名文件或文件夹已存在");
     }
@@ -163,13 +171,13 @@ class DriveEntryApplicationServiceTest {
         TestDriveFixture fixture = TestDriveFixture.create();
         DriveEntryApplicationService service = fixture.entryService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = service.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
-        DriveEntryResult child = service.createFolder(new CreateDriveFolderCommand(userId, folder.entryId(), "Child"));
+        DriveEntryResult folder = service.createFolder(new CreateFolderCommand(userId, null, "Folder"));
+        DriveEntryResult child = service.createFolder(new CreateFolderCommand(userId, folder.entryId(), "Child"));
 
-        assertThatThrownBy(() -> service.move(new MoveDriveEntryCommand(userId, folder.entryId(), folder.entryId())))
+        assertThatThrownBy(() -> service.move(new MoveCommand(userId, folder.entryId(), folder.entryId())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不能移动到自身或子目录");
-        assertThatThrownBy(() -> service.move(new MoveDriveEntryCommand(userId, folder.entryId(), child.entryId())))
+        assertThatThrownBy(() -> service.move(new MoveCommand(userId, folder.entryId(), child.entryId())))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("不能移动到自身或子目录");
     }
@@ -291,9 +299,16 @@ class DriveEntryApplicationServiceTest {
             }
         };
 
-        DriveEntryApplicationService service = new DriveEntryApplicationService(spaceRepository, entryRepository, storagePort, clock);
+        DriveEntryApplicationService service = new DriveEntryApplicationService(
+                spaceRepository,
+                entryRepository,
+                storagePort,
+                clock,
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(clock)
+        );
 
-        service.move(new MoveDriveEntryCommand(userId, source.entryId(), target.entryId()));
+        service.move(new MoveCommand(userId, source.entryId(), target.entryId()));
 
         assertThat(locked.get()).isTrue();
     }
@@ -337,7 +352,7 @@ class DriveEntryApplicationServiceTest {
         DriveEntryApplicationService service = fixture.entryService();
         DriveTrashApplicationService trashService = fixture.trashService();
         UUID userId = uuid(7);
-        DriveEntryResult folder = service.createFolder(new CreateDriveFolderCommand(userId, null, "Folder"));
+        DriveEntryResult folder = service.createFolder(new CreateFolderCommand(userId, null, "Folder"));
         UUID fileId = fixture.createFile(userId, null, "a.txt", 8);
 
         assertThatThrownBy(() -> service.createDownloadUrl(userId, folder.entryId()))

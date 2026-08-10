@@ -1,40 +1,41 @@
 package com.nowcoder.community.auth.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.application.CaptchaApplicationService;
+import com.nowcoder.community.auth.application.CaptchaApplicationService.CaptchaIssueResult;
+import com.nowcoder.community.auth.application.CaptchaApplicationService.IssueCaptchaCommand;
 import com.nowcoder.community.auth.application.LoginApplicationService;
+import com.nowcoder.community.auth.application.LoginApplicationService.LoginCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.LogoutCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshResult;
 import com.nowcoder.community.auth.application.PasswordResetApplicationService;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.RegistrationApplicationService;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterCommand;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterResult;
 import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService;
-import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
-import com.nowcoder.community.auth.application.command.LoginCommand;
-import com.nowcoder.community.auth.application.command.LogoutCommand;
-import com.nowcoder.community.auth.application.command.RefreshCommand;
-import com.nowcoder.community.auth.application.command.RegisterCommand;
-import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
-import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.RegisterCodeResendResult;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.ResendRegisterCodeCommand;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.LoginResult;
-import com.nowcoder.community.auth.application.result.RefreshFailure;
-import com.nowcoder.community.auth.application.result.RefreshResult;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshFailure;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
-import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
-import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.controller.dto.LoginRequest;
 import com.nowcoder.community.auth.controller.dto.LoginResponse;
 import com.nowcoder.community.auth.controller.dto.MeResponse;
-import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
 import com.nowcoder.community.auth.controller.dto.PasswordResetConfirmRequest;
 import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
-import com.nowcoder.community.auth.controller.dto.PasswordResetRequestResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendRequest;
-import com.nowcoder.community.auth.controller.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterRequest;
-import com.nowcoder.community.auth.controller.dto.RegisterResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
@@ -54,8 +55,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.lang.reflect.Field;
 import java.time.Instant;
-import java.util.Arrays;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -70,6 +72,8 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class AuthControllerUnitTest {
+
+    private static final ObjectMapper OBJECT_MAPPER = JsonMappers.standard();
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
@@ -108,17 +112,59 @@ class AuthControllerUnitTest {
     }
 
     @Test
-    void passwordResetRequestResponseShouldExposeOnlyIssued() {
-        assertThat(Arrays.stream(PasswordResetRequestResponse.class.getDeclaredFields())
-                .map(Field::getName))
-                .containsExactly("issued");
+    void authResponsesShouldKeepTheirWireFieldSets() {
+        when(loginApplicationService.login(any(LoginCommand.class)))
+                .thenReturn(new LoginResult("access-token", issuedCookie("refresh-token")));
+        LoginRequest loginRequest = new LoginRequest("alice", "secret", null, null);
+        assertDataFields(
+                controller.login(loginRequest, new MockHttpServletRequest(), new MockHttpServletResponse()),
+                "accessToken"
+        );
+
+        when(captchaApplicationService.issue(any(IssueCaptchaCommand.class)))
+                .thenReturn(new CaptchaIssueResult("captcha-id", "image", 60));
+        assertDataFields(
+                controller.captcha(new MockHttpServletRequest(), new MockHttpServletResponse()),
+                "captchaId", "imageBase64", "ttlSeconds"
+        );
+
+        when(registrationApplicationService.register(any(RegisterCommand.class)))
+                .thenReturn(new RegisterResult(
+                        UUID.fromString("00000000-0000-7000-8000-000000000007"),
+                        "registration-token",
+                        true,
+                        "a***@example.com",
+                        "123456"
+                ));
+        RegisterRequest registerRequest = new RegisterRequest(
+                "alice", "secret", "alice@example.com", null, null);
+        assertDataFields(
+                controller.register(registerRequest, new MockHttpServletRequest()),
+                "userId", "registrationToken", "emailCodeIssued", "maskedEmail", "debugEmailCode"
+        );
+
+        when(registrationVerificationApplicationService.resendCode(any(ResendRegisterCodeCommand.class)))
+                .thenReturn(new RegisterCodeResendResult(true, "a***@example.com", "123456"));
+        RegisterCodeResendRequest resendRequest = new RegisterCodeResendRequest(
+                "registration-token", null, null);
+        assertDataFields(
+                controller.resendRegisterCode(resendRequest, new MockHttpServletRequest()),
+                "issued", "maskedEmail", "debugEmailCode"
+        );
+
+        when(passwordResetApplicationService.requestReset(any(RequestPasswordResetCommand.class)))
+                .thenReturn(new PasswordResetRequestResult(true));
+        PasswordResetRequestRequest resetRequest = new PasswordResetRequestRequest(
+                "alice@example.com", null, null);
+        assertDataFields(
+                controller.requestPasswordReset(resetRequest, new MockHttpServletRequest()),
+                "issued"
+        );
     }
 
     @Test
     void loginShouldSetRefreshCookieAndReturnAccessToken() {
-        LoginRequest req = new LoginRequest();
-        req.setUsername("u");
-        req.setPassword("p");
+        LoginRequest req = new LoginRequest("u", "p", null, null);
 
         RefreshCookieSpec refreshCookie = issuedCookie("rt", true);
 
@@ -285,13 +331,13 @@ class AuthControllerUnitTest {
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
         MockHttpServletResponse httpResponse = new MockHttpServletResponse();
-        Result<CaptchaIssueResponse> resp = controller.captcha(httpRequest, httpResponse);
+        Result<CaptchaIssueResult> resp = controller.captcha(httpRequest, httpResponse);
 
         assertThat(httpResponse.getHeader(HttpHeaders.CACHE_CONTROL)).contains("no-store");
         assertThat(httpResponse.getHeader(HttpHeaders.PRAGMA)).contains("no-cache");
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
-        assertThat(resp.getData().getCaptchaId()).isEqualTo("cid");
+        assertThat(resp.getData().captchaId()).isEqualTo("cid");
     }
 
     @Test
@@ -308,12 +354,8 @@ class AuthControllerUnitTest {
     @Test
     void registerShouldReturnNewRegisterResponseContract() {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000007");
-        RegisterRequest request = new RegisterRequest();
-        request.setUsername("alice");
-        request.setPassword("secret");
-        request.setEmail("alice@example.com");
-        request.setCaptchaId("cid");
-        request.setCaptchaCode("abcd");
+        RegisterRequest request = new RegisterRequest(
+                "alice", "secret", "alice@example.com", "cid", "abcd");
 
         when(registrationApplicationService.register(any(RegisterCommand.class))).thenReturn(new RegisterResult(
                 userId,
@@ -324,14 +366,14 @@ class AuthControllerUnitTest {
         ));
 
         MockHttpServletRequest httpRequest = new MockHttpServletRequest();
-        Result<RegisterResponse> response = controller.register(request, httpRequest);
+        Result<RegisterResult> response = controller.register(request, httpRequest);
 
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().getRegistrationToken()).isEqualTo("0123456789abcdef0123456789abcdef");
-        assertThat(response.getData().isEmailCodeIssued()).isTrue();
-        assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
-        assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+        assertThat(response.getData().registrationToken()).isEqualTo("0123456789abcdef0123456789abcdef");
+        assertThat(response.getData().emailCodeIssued()).isTrue();
+        assertThat(response.getData().maskedEmail()).isEqualTo("a***@example.com");
+        assertThat(response.getData().debugEmailCode()).isEqualTo("123456");
         verify(registrationApplicationService).register(new RegisterCommand(
                 "alice", "secret", "alice@example.com", "cid", "abcd", "127.0.0.1"));
     }
@@ -354,9 +396,8 @@ class AuthControllerUnitTest {
 
     @Test
     void registerCodeVerifyRequestShouldRejectOversizedRegistrationToken() {
-        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest();
-        request.setRegistrationToken("x".repeat(ValidationLimits.REGISTRATION_TOKEN_MAX + 1));
-        request.setCode("123456");
+        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest(
+                "x".repeat(ValidationLimits.REGISTRATION_TOKEN_MAX + 1), "123456");
 
         assertThat(validator.validate(request))
                 .anySatisfy(violation -> assertThat(violation.getPropertyPath().toString()).isEqualTo("registrationToken"));
@@ -364,10 +405,10 @@ class AuthControllerUnitTest {
 
     @Test
     void registerCodeResendRequestShouldRejectOversizedCaptchaFields() {
-        RegisterCodeResendRequest request = new RegisterCodeResendRequest();
-        request.setRegistrationToken("token");
-        request.setCaptchaId("c".repeat(ValidationLimits.CAPTCHA_ID_MAX + 1));
-        request.setCaptchaCode("9".repeat(ValidationLimits.CAPTCHA_CODE_MAX + 1));
+        RegisterCodeResendRequest request = new RegisterCodeResendRequest(
+                "token",
+                "c".repeat(ValidationLimits.CAPTCHA_ID_MAX + 1),
+                "9".repeat(ValidationLimits.CAPTCHA_CODE_MAX + 1));
 
         assertThat(validator.validate(request))
                 .extracting(violation -> violation.getPropertyPath().toString())
@@ -376,31 +417,26 @@ class AuthControllerUnitTest {
 
     @Test
     void resendRegisterCodeShouldReturnResponse() {
-        RegisterCodeResendRequest request = new RegisterCodeResendRequest();
-        request.setRegistrationToken("token");
-        request.setCaptchaId("cid");
-        request.setCaptchaCode("abcd");
+        RegisterCodeResendRequest request = new RegisterCodeResendRequest("token", "cid", "abcd");
 
         when(registrationVerificationApplicationService.resendCode(any(ResendRegisterCodeCommand.class)))
                 .thenReturn(new RegisterCodeResendResult(true, "a***@example.com", "123456"));
 
-        Result<RegisterCodeResendResponse> response = controller.resendRegisterCode(
+        Result<RegisterCodeResendResult> response = controller.resendRegisterCode(
                 request, new MockHttpServletRequest());
 
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().isIssued()).isTrue();
-        assertThat(response.getData().getMaskedEmail()).isEqualTo("a***@example.com");
-        assertThat(response.getData().getDebugEmailCode()).isEqualTo("123456");
+        assertThat(response.getData().issued()).isTrue();
+        assertThat(response.getData().maskedEmail()).isEqualTo("a***@example.com");
+        assertThat(response.getData().debugEmailCode()).isEqualTo("123456");
         verify(registrationVerificationApplicationService).resendCode(
                 new ResendRegisterCodeCommand("token", "cid", "abcd", "127.0.0.1"));
     }
 
     @Test
     void verifyRegisterCodeShouldSetRefreshCookieAndReturnAccessToken() {
-        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest();
-        request.setRegistrationToken("token");
-        request.setCode("123456");
+        RegisterCodeVerifyRequest request = new RegisterCodeVerifyRequest("token", "123456");
 
         RefreshCookieSpec refreshCookie = issuedCookie("rt3");
 
@@ -477,5 +513,12 @@ class AuthControllerUnitTest {
         Size size = field.getAnnotation(Size.class);
         assertThat(size).isNotNull();
         assertThat(size.max()).isEqualTo(expected);
+    }
+
+    private static void assertDataFields(Result<?> result, String... expectedFields) {
+        JsonNode data = OBJECT_MAPPER.valueToTree(result).path("data");
+        Set<String> actualFields = new LinkedHashSet<>();
+        data.fieldNames().forEachRemaining(actualFields::add);
+        assertThat(actualFields).containsExactlyInAnyOrder(expectedFields);
     }
 }

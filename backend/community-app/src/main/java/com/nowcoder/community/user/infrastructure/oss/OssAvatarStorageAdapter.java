@@ -14,6 +14,7 @@ import org.springframework.util.StringUtils;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -42,7 +43,7 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
     private final CommunityOssClient ossClient;
 
     public OssAvatarStorageAdapter(CommunityOssClient ossClient) {
-        this.ossClient = ossClient;
+        this.ossClient = Objects.requireNonNull(ossClient, "ossClient must not be null");
     }
 
     @Override

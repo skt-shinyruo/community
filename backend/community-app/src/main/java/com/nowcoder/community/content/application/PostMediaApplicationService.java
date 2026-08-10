@@ -2,17 +2,15 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostVideoState;
-import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.Locale;
 import java.util.Objects;
@@ -39,35 +37,19 @@ public class PostMediaApplicationService {
     private final PostMediaStoragePort storagePort;
     private final UuidV7Generator idGenerator;
     private final PostMediaUploadTransactionOperations transactionOperations;
+    private final Clock clock;
 
-    @Autowired
     public PostMediaApplicationService(
-            PostMediaAssetRepository assetRepository,
-            PostMediaStoragePort storagePort,
-            PostMediaUploadTransactionOperations transactionOperations
-    ) {
-        this(assetRepository, storagePort, new UuidV7Generator(), transactionOperations);
-    }
-
-    public PostMediaApplicationService(PostMediaAssetRepository assetRepository, PostMediaStoragePort storagePort) {
-        this(assetRepository, storagePort, new UuidV7Generator(), new PostMediaUploadTransactionOperations(assetRepository));
-    }
-
-    PostMediaApplicationService(PostMediaAssetRepository assetRepository,
-                                PostMediaStoragePort storagePort,
-                                UuidV7Generator idGenerator) {
-        this(assetRepository, storagePort, idGenerator, new PostMediaUploadTransactionOperations(assetRepository));
-    }
-
-    PostMediaApplicationService(
-            PostMediaAssetRepository assetRepository,
             PostMediaStoragePort storagePort,
             UuidV7Generator idGenerator,
-            PostMediaUploadTransactionOperations transactionOperations
+            PostMediaUploadTransactionOperations transactionOperations,
+            Clock clock
     ) {
-        this.storagePort = storagePort;
-        this.idGenerator = idGenerator;
-        this.transactionOperations = transactionOperations;
+        this.storagePort = Objects.requireNonNull(storagePort, "storagePort must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations, "transactionOperations must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public PostMediaUploadSessionResult prepareUpload(PreparePostMediaUploadCommand command) {
@@ -81,7 +63,7 @@ public class PostMediaApplicationService {
         validateContentLength(command.contentLength(), mediaKind);
 
         UUID assetId = command.requestId() == null ? idGenerator.next() : command.requestId();
-        Date now = new Date();
+        Date now = now();
         PostMediaAsset draft = new PostMediaAsset(
                 assetId,
                 command.actorUserId(),
@@ -132,7 +114,7 @@ public class PostMediaApplicationService {
         }
         if (asset.uploadStatus() == PostMediaUploadStatus.OBJECT_COMPLETED) {
             if (!transactionOperations.markCompleted(
-                    asset.id(), asset.uploadOperationVersion(), new Date())) {
+                    asset.id(), asset.uploadOperationVersion(), now())) {
                 throw new BusinessException(INTERNAL_ERROR, "媒体上传完成状态冲突");
             }
             return;
@@ -146,7 +128,7 @@ public class PostMediaApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "上传内容与媒体资源不匹配");
         }
 
-        Date claimedAt = new Date();
+        Date claimedAt = now();
         if (!transactionOperations.claimCompletion(
                 assetId, actorUserId, asset.uploadOperationVersion(), claimedAt)) {
             PostMediaAsset current = transactionOperations.load(assetId);
@@ -161,7 +143,7 @@ public class PostMediaApplicationService {
         if (uploaded == null || uploaded.versionId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "上传结果非法");
         }
-        Date objectCompletedAt = new Date();
+        Date objectCompletedAt = now();
         if (!transactionOperations.markObjectCompleted(
                 assetId,
                 claimedVersion,
@@ -172,9 +154,24 @@ public class PostMediaApplicationService {
                 objectCompletedAt)) {
             throw new BusinessException(INTERNAL_ERROR, "媒体上传对象状态冲突");
         }
-        if (!transactionOperations.markCompleted(assetId, claimedVersion, new Date())) {
+        if (!transactionOperations.markCompleted(assetId, claimedVersion, now())) {
             throw new BusinessException(INTERNAL_ERROR, "媒体上传完成状态冲突");
         }
+    }
+
+    private Date now() {
+        return Date.from(clock.instant());
+    }
+
+    public record PreparePostMediaUploadCommand(
+            UUID actorUserId,
+            UUID requestId,
+            String fileName,
+            String contentType,
+            long contentLength,
+            String mediaKind,
+            String checksumSha256
+    ) {
     }
 
     private PostMediaAsset loadReplay(UUID assetId) {

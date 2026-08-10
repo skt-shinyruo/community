@@ -8,10 +8,10 @@ import com.nowcoder.community.content.api.model.HotFeedCacheStatusView;
 import com.nowcoder.community.content.api.model.HotFeedDegradationSignalView;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.api.query.HotFeedCacheGovernanceQueryApi;
-import com.nowcoder.community.ops.application.command.GetHotCacheStatusCommand;
-import com.nowcoder.community.ops.application.command.PrewarmHotCacheCommand;
+import com.nowcoder.community.ops.application.HotCacheGovernanceApplicationService.GetStatusCommand;
+import com.nowcoder.community.ops.application.HotCacheGovernanceApplicationService.PrewarmCommand;
+import com.nowcoder.community.ops.application.HotCacheGovernanceApplicationService.UpdateDegradationCommand;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.UpdateHotCacheDegradationCommand;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -60,7 +60,7 @@ class HotCacheGovernanceApplicationServiceTest {
                 prewarmAt
         ));
 
-        var result = service.getStatus(new GetHotCacheStatusCommand("global", null));
+        var result = service.getStatus(new GetStatusCommand("global", null));
 
         assertThat(result.scope()).isEqualTo("global");
         assertThat(result.itemCount()).isEqualTo(20);
@@ -86,7 +86,7 @@ class HotCacheGovernanceApplicationServiceTest {
                 prewarmAt
         ));
 
-        var result = service.prewarm(new PrewarmHotCacheCommand(actorId, "board", boardId, 20, "warm board"));
+        var result = service.prewarm(new PrewarmCommand(actorId, "board", boardId, 20, "warm board"));
 
         assertThat(result.boardId()).isEqualTo(boardId);
         assertThat(result.warmedCount()).isEqualTo(18);
@@ -115,7 +115,7 @@ class HotCacheGovernanceApplicationServiceTest {
                 updatedAt
         ));
 
-        var result = service.updateDegradation(new UpdateHotCacheDegradationCommand(actorId, true, "redis maintenance"));
+        var result = service.updateDegradation(new UpdateDegradationCommand(actorId, true, "redis maintenance"));
 
         assertThat(result.degraded()).isTrue();
         assertThat(result.reason()).isEqualTo("redis maintenance");
@@ -131,20 +131,20 @@ class HotCacheGovernanceApplicationServiceTest {
 
     @Test
     void boardScopeShouldRequireBoardId() {
-        assertThatThrownBy(() -> service.getStatus(new GetHotCacheStatusCommand("board", null)))
+        assertThatThrownBy(() -> service.getStatus(new GetStatusCommand("board", null)))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("boardId is required for board scope");
-        assertThatThrownBy(() -> service.prewarm(new PrewarmHotCacheCommand(uuid(99), "board", null, 10, "warm")))
+        assertThatThrownBy(() -> service.prewarm(new PrewarmCommand(uuid(99), "board", null, 10, "warm")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("boardId is required for board scope");
     }
 
     @Test
     void mutatingRequestsShouldRequireReason() {
-        assertThatThrownBy(() -> service.prewarm(new PrewarmHotCacheCommand(uuid(99), "global", null, 10, " ")))
+        assertThatThrownBy(() -> service.prewarm(new PrewarmCommand(uuid(99), "global", null, 10, " ")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("prewarm reason is required");
-        assertThatThrownBy(() -> service.updateDegradation(new UpdateHotCacheDegradationCommand(uuid(99), true, " ")))
+        assertThatThrownBy(() -> service.updateDegradation(new UpdateDegradationCommand(uuid(99), true, " ")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("degradation reason is required");
     }

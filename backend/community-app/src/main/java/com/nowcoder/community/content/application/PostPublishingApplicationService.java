@@ -3,12 +3,10 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.command.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
-import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
+import com.nowcoder.community.content.domain.model.PostContentBlockCommandSpec;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
@@ -29,8 +27,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -83,25 +83,28 @@ public class PostPublishingApplicationService {
             PostTagRepository postTagRepository,
             PostIntegrationEventPublisher integrationEventPublisher,
             PostMediaReferenceScheduler mediaReferenceScheduler,
-            Clock clock
+            Clock clock,
+            UuidV7Generator idGenerator
     ) {
-        this.sensitiveFilter = sensitiveFilter;
-        this.idempotencyGuard = idempotencyGuard;
-        this.textCodec = textCodec;
-        this.postBusinessEventLogger = postBusinessEventLogger;
-        this.moderationGuard = moderationGuard;
-        this.domainService = domainService;
-        this.blockPolicy = blockPolicy;
-        this.postRepository = postRepository;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postMediaAssetRepository = postMediaAssetRepository;
-        this.mediaReferenceCommandPublisher = mediaReferenceCommandPublisher;
-        this.categoryRepository = categoryRepository;
-        this.postTagRepository = postTagRepository;
-        this.integrationEventPublisher = integrationEventPublisher;
-        this.mediaReferenceScheduler = mediaReferenceScheduler;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
-        this.idGenerator = new UuidV7Generator(this.clock);
+        this.sensitiveFilter = Objects.requireNonNull(sensitiveFilter, "sensitiveFilter");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard");
+        this.textCodec = Objects.requireNonNull(textCodec, "textCodec");
+        this.postBusinessEventLogger = Objects.requireNonNull(postBusinessEventLogger, "postBusinessEventLogger");
+        this.moderationGuard = Objects.requireNonNull(moderationGuard, "moderationGuard");
+        this.domainService = Objects.requireNonNull(domainService, "domainService");
+        this.blockPolicy = Objects.requireNonNull(blockPolicy, "blockPolicy");
+        this.postRepository = Objects.requireNonNull(postRepository, "postRepository");
+        this.postContentBlockRepository = Objects.requireNonNull(
+                postContentBlockRepository, "postContentBlockRepository");
+        this.postMediaAssetRepository = Objects.requireNonNull(postMediaAssetRepository, "postMediaAssetRepository");
+        this.mediaReferenceCommandPublisher = Objects.requireNonNull(
+                mediaReferenceCommandPublisher, "mediaReferenceCommandPublisher");
+        this.categoryRepository = Objects.requireNonNull(categoryRepository, "categoryRepository");
+        this.postTagRepository = Objects.requireNonNull(postTagRepository, "postTagRepository");
+        this.integrationEventPublisher = Objects.requireNonNull(integrationEventPublisher, "integrationEventPublisher");
+        this.mediaReferenceScheduler = Objects.requireNonNull(mediaReferenceScheduler, "mediaReferenceScheduler");
+        this.clock = Objects.requireNonNull(clock, "clock");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator");
     }
 
     @Transactional
@@ -335,5 +338,51 @@ public class PostPublishingApplicationService {
 
     private Date now() {
         return Date.from(clock.instant());
+    }
+
+    public record CreatePostCommand(
+            UUID userId,
+            String title,
+            UUID categoryId,
+            List<String> tags,
+            List<PostContentBlockCommand> blocks
+    ) {
+        public CreatePostCommand {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+            blocks = blocks == null ? List.of() : List.copyOf(blocks);
+        }
+    }
+
+    public record PostContentBlockCommand(
+            String type,
+            String text,
+            UUID assetId,
+            String language,
+            String caption,
+            String displayName,
+            Map<String, Object> metadata
+    ) implements PostContentBlockCommandSpec<PostContentBlockCommand> {
+
+        public PostContentBlockCommand {
+            metadata = metadata == null
+                    ? Map.of()
+                    : Collections.unmodifiableMap(new LinkedHashMap<>(metadata));
+        }
+
+        @Override
+        public PostContentBlockCommand normalized(
+                String type,
+                String text,
+                UUID assetId,
+                String language,
+                String caption,
+                String displayName,
+                Map<String, Object> metadata
+        ) {
+            return new PostContentBlockCommand(type, text, assetId, language, caption, displayName, metadata);
+        }
+    }
+
+    public record PostCreateResult(UUID postId) {
     }
 }

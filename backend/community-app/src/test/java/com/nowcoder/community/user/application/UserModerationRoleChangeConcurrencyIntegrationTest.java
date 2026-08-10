@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
 import org.junit.jupiter.api.BeforeEach;
@@ -96,7 +95,7 @@ class UserModerationRoleChangeConcurrencyIntegrationTest {
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
             Future<Throwable> roleChange = executor.submit(() -> attempt(() ->
-                    adminUserApplicationService.updateRole(new UpdateUserRoleCommand(
+                    adminUserApplicationService.updateRole(new AdminUserApplicationService.UpdateRoleCommand(
                             ADMIN_ID,
                             MODERATOR_ID,
                             0,

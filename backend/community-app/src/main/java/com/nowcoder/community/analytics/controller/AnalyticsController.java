@@ -1,7 +1,6 @@
 package com.nowcoder.community.analytics.controller;
 
 import com.nowcoder.community.analytics.application.AnalyticsApplicationService;
-import com.nowcoder.community.analytics.application.command.AnalyticsRangeQuery;
 import com.nowcoder.community.common.web.Result;
 import jakarta.validation.constraints.NotNull;
 import org.springframework.format.annotation.DateTimeFormat;
@@ -27,7 +26,7 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsApplicationService.calculateUv(new AnalyticsRangeQuery(start, end)));
+        return Result.ok(analyticsApplicationService.calculateUv(new AnalyticsApplicationService.DateRange(start, end)));
     }
 
     @GetMapping("/dau")
@@ -35,6 +34,6 @@ public class AnalyticsController {
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate start,
             @RequestParam @NotNull @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate end
     ) {
-        return Result.ok(analyticsApplicationService.calculateDau(new AnalyticsRangeQuery(start, end)));
+        return Result.ok(analyticsApplicationService.calculateDau(new AnalyticsApplicationService.DateRange(start, end)));
     }
 }

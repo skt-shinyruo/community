@@ -1,9 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.drive.application.command.CreateDriveFolderCommand;
-import com.nowcoder.community.drive.application.command.MoveDriveEntryCommand;
-import com.nowcoder.community.drive.application.command.RenameDriveEntryCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
@@ -14,7 +12,6 @@ import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -38,41 +35,34 @@ public class DriveEntryApplicationService {
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
+    private final UuidV7Generator idGenerator;
     private final DriveEntryDomainService entryDomainService = new DriveEntryDomainService();
 
-    @Autowired
     public DriveEntryApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            DriveTransactionOperations transactionOperations
+            DriveTransactionOperations transactionOperations,
+            UuidV7Generator idGenerator
     ) {
-        this.spaceRepository = spaceRepository;
-        this.entryRepository = entryRepository;
-        this.objectStoragePort = objectStoragePort;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
+        this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
-    }
-
-    DriveEntryApplicationService(
-            DriveSpaceRepository spaceRepository,
-            DriveEntryRepository entryRepository,
-            DriveObjectStoragePort objectStoragePort,
-            Clock clock
-    ) {
-        this(spaceRepository, entryRepository, objectStoragePort, clock, DirectDriveTransactionOperations.INSTANCE);
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional
-    public DriveEntryResult createFolder(CreateDriveFolderCommand command) {
+    public DriveEntryResult createFolder(CreateFolderCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         DriveSpace space = loadOrCreateSpace(command.actorUserId());
         lockSpace(space.spaceId());
         validateParent(command.parentId(), space.spaceId());
         String name = normalizeName(command.name());
         rejectDuplicate(space.spaceId(), command.parentId(), name, null);
-        DriveEntry folder = DriveEntry.folder(UUID.randomUUID(), space.spaceId(), command.parentId(), name, clock.instant());
+        DriveEntry folder = DriveEntry.folder(idGenerator.next(), space.spaceId(), command.parentId(), name, clock.instant());
         return toEntryResult(createEntry(folder));
     }
 
@@ -98,7 +88,7 @@ public class DriveEntryApplicationService {
     }
 
     @Transactional
-    public DriveEntryResult rename(RenameDriveEntryCommand command) {
+    public DriveEntryResult rename(RenameCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "重命名参数非法");
@@ -114,7 +104,7 @@ public class DriveEntryApplicationService {
     }
 
     @Transactional
-    public DriveEntryResult move(MoveDriveEntryCommand command) {
+    public DriveEntryResult move(MoveCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "移动参数非法");
@@ -166,7 +156,7 @@ public class DriveEntryApplicationService {
     }
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
         DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
         if (result != null
                 && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
@@ -256,5 +246,14 @@ public class DriveEntryApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         return actorUserId;
+    }
+
+    public record CreateFolderCommand(UUID actorUserId, UUID parentId, String name) {
+    }
+
+    public record RenameCommand(UUID actorUserId, UUID entryId, String newName) {
+    }
+
+    public record MoveCommand(UUID actorUserId, UUID entryId, UUID targetParentId) {
     }
 }

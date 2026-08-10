@@ -2,8 +2,7 @@ package com.nowcoder.community.ops.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.TriggerCompensationCommand;
-import com.nowcoder.community.ops.application.result.CompensationTriggerResult;
+import com.nowcoder.community.ops.application.result.OutboxLeaseRecoveryResult;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -13,28 +12,30 @@ import java.util.UUID;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class CompensationGovernanceApplicationServiceTest {
 
-    private CompensationTriggerPort triggerPort;
+    private OutboxLeaseRecoveryPort outboxLeaseRecoveryPort;
     private GovernanceMetrics governanceMetrics;
     private GovernanceAuditPort auditPort;
     private CompensationGovernanceApplicationService service;
 
     @BeforeEach
     void setUp() {
-        triggerPort = mock(CompensationTriggerPort.class);
+        outboxLeaseRecoveryPort = mock(OutboxLeaseRecoveryPort.class);
         governanceMetrics = mock(GovernanceMetrics.class);
         auditPort = mock(GovernanceAuditPort.class);
-        service = new CompensationGovernanceApplicationService(triggerPort, governanceMetrics, auditPort);
+        service = new CompensationGovernanceApplicationService(outboxLeaseRecoveryPort, governanceMetrics, auditPort);
     }
 
     @Test
     void triggerShouldRejectUnknownJob() {
-        assertThatThrownBy(() -> service.trigger(new TriggerCompensationCommand(
+        assertThatThrownBy(() -> service.trigger(new CompensationGovernanceApplicationService.TriggerCommand(
                 uuid(99),
                 "arbitrarySpringBean",
                 10,
@@ -46,7 +47,7 @@ class CompensationGovernanceApplicationServiceTest {
 
     @Test
     void triggerShouldRequireReasonAndBoundedLimit() {
-        assertThatThrownBy(() -> service.trigger(new TriggerCompensationCommand(
+        assertThatThrownBy(() -> service.trigger(new CompensationGovernanceApplicationService.TriggerCommand(
                 uuid(99),
                 "outboxRecoverExpiredLeases",
                 10,
@@ -54,7 +55,7 @@ class CompensationGovernanceApplicationServiceTest {
         )))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("compensation reason is required");
-        assertThatThrownBy(() -> service.trigger(new TriggerCompensationCommand(
+        assertThatThrownBy(() -> service.trigger(new CompensationGovernanceApplicationService.TriggerCommand(
                 uuid(99),
                 "outboxRecoverExpiredLeases",
                 0,
@@ -62,7 +63,7 @@ class CompensationGovernanceApplicationServiceTest {
         )))
                 .isInstanceOf(BusinessException.class)
                 .hasMessageContaining("limit must be between 1 and 500");
-        assertThatThrownBy(() -> service.trigger(new TriggerCompensationCommand(
+        assertThatThrownBy(() -> service.trigger(new CompensationGovernanceApplicationService.TriggerCommand(
                 uuid(99),
                 "outboxRecoverExpiredLeases",
                 501,
@@ -73,24 +74,10 @@ class CompensationGovernanceApplicationServiceTest {
     }
 
     @Test
-    void triggerShouldDelegateKnownJobToPort() {
+    void triggerShouldSkipKnownProjectionRepairWhenOwnerTriggerIsUnavailable() {
         UUID actorId = uuid(99);
-        when(triggerPort.trigger(new TriggerCompensationCommand(
-                actorId,
-                "searchPostProjectionRepair",
-                20,
-                "repair stale projection"
-        ))).thenReturn(new CompensationTriggerResult(
-                "searchPostProjectionRepair",
-                true,
-                20,
-                18,
-                2,
-                GovernanceResult.ACCEPTED.name(),
-                "accepted"
-        ));
-
-        CompensationTriggerResult result = service.trigger(new TriggerCompensationCommand(
+        CompensationGovernanceApplicationService.TriggerResult result = service.trigger(
+                new CompensationGovernanceApplicationService.TriggerCommand(
                 actorId,
                 " searchPostProjectionRepair ",
                 20,
@@ -98,35 +85,33 @@ class CompensationGovernanceApplicationServiceTest {
         ));
 
         assertThat(result.jobName()).isEqualTo("searchPostProjectionRepair");
-        assertThat(result.accepted()).isTrue();
-        assertThat(result.processedCount()).isEqualTo(20);
-        assertThat(result.repairedCount()).isEqualTo(18);
-        assertThat(result.skippedCount()).isEqualTo(2);
-        assertThat(result.result()).isEqualTo(GovernanceResult.ACCEPTED.name());
-        verify(triggerPort).trigger(new TriggerCompensationCommand(
-                actorId,
-                "searchPostProjectionRepair",
-                20,
-                "repair stale projection"
-        ));
+        assertThat(result.accepted()).isFalse();
+        assertThat(result.processedCount()).isZero();
+        assertThat(result.repairedCount()).isZero();
+        assertThat(result.skippedCount()).isEqualTo(20);
+        assertThat(result.result()).isEqualTo(GovernanceResult.SKIPPED.name());
+        assertThat(result.message()).contains("owner repair trigger is not configured");
+        verify(outboxLeaseRecoveryPort, never()).recoverExpiredLeases(anyInt());
     }
 
     @Test
     void triggerShouldRecordAuditAndMetricsOnAcceptedResult() {
         UUID actorId = uuid(99);
-        when(triggerPort.trigger(any())).thenReturn(new CompensationTriggerResult(
-                "hotFeedProjectionRepair",
-                true,
-                10,
-                8,
-                2,
-                GovernanceResult.ACCEPTED.name(),
-                "accepted"
-        ));
+        when(outboxLeaseRecoveryPort.recoverExpiredLeases(10))
+                .thenReturn(new OutboxLeaseRecoveryResult(10, 8));
 
-        service.trigger(new TriggerCompensationCommand(actorId, "hotFeedProjectionRepair", 10, "repair hot feed"));
+        CompensationGovernanceApplicationService.TriggerResult result = service.trigger(
+                new CompensationGovernanceApplicationService.TriggerCommand(
+                        actorId,
+                        "outboxRecoverExpiredLeases",
+                        10,
+                        "recover expired workers"
+                ));
 
-        verify(governanceMetrics).recordCompensationTrigger("hotFeedProjectionRepair", GovernanceResult.ACCEPTED.name());
+        assertThat(result.processedCount()).isEqualTo(10);
+        assertThat(result.repairedCount()).isEqualTo(8);
+        assertThat(result.skippedCount()).isEqualTo(2);
+        verify(governanceMetrics).recordCompensationTrigger("outboxRecoverExpiredLeases", GovernanceResult.ACCEPTED.name());
         verify(governanceMetrics).recordGovernanceAction("COMPENSATION_TRIGGER", GovernanceResult.ACCEPTED.name());
         verify(auditPort).record(any(RecordGovernanceAuditCommand.class));
     }
@@ -134,20 +119,22 @@ class CompensationGovernanceApplicationServiceTest {
     @Test
     void triggerShouldRecordFailedMetricAndAuditWhenPortFails() {
         UUID actorId = uuid(99);
-        when(triggerPort.trigger(any())).thenThrow(new IllegalStateException("owner action failed"));
+        when(outboxLeaseRecoveryPort.recoverExpiredLeases(10))
+                .thenThrow(new IllegalStateException("lease recovery failed"));
 
-        CompensationTriggerResult result = service.trigger(new TriggerCompensationCommand(
+        CompensationGovernanceApplicationService.TriggerResult result = service.trigger(
+                new CompensationGovernanceApplicationService.TriggerCommand(
                 actorId,
-                "noticeProjectionRepair",
+                "outboxRecoverExpiredLeases",
                 10,
-                "repair notice projection"
+                "recover expired workers"
         ));
 
-        assertThat(result.jobName()).isEqualTo("noticeProjectionRepair");
+        assertThat(result.jobName()).isEqualTo("outboxRecoverExpiredLeases");
         assertThat(result.accepted()).isFalse();
         assertThat(result.result()).isEqualTo(GovernanceResult.FAILED.name());
-        assertThat(result.message()).contains("owner action failed");
-        verify(governanceMetrics).recordCompensationTrigger("noticeProjectionRepair", GovernanceResult.FAILED.name());
+        assertThat(result.message()).contains("lease recovery failed");
+        verify(governanceMetrics).recordCompensationTrigger("outboxRecoverExpiredLeases", GovernanceResult.FAILED.name());
         verify(governanceMetrics).recordGovernanceAction("COMPENSATION_TRIGGER", GovernanceResult.FAILED.name());
         verify(auditPort).record(any(RecordGovernanceAuditCommand.class));
     }

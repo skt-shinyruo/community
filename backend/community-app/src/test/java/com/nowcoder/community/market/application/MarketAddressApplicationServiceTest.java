@@ -58,31 +58,17 @@ class MarketAddressApplicationServiceTest {
     @Test
     void addressCrudShouldKeepOneDefaultAddressPerUser() {
         var userId = uuid(9);
-        CreateMarketAddressRequest first = new CreateMarketAddressRequest();
-        first.setReceiverName("张三");
-        first.setReceiverPhone("13800000000");
-        first.setProvince("上海市");
-        first.setCity("上海市");
-        first.setDistrict("浦东新区");
-        first.setDetailAddress("世纪大道 100 号");
-        first.setPostalCode("200120");
-        first.setDefaultAddress(true);
+        CreateMarketAddressRequest first = new CreateMarketAddressRequest(
+                "张三", "13800000000", "上海市", "上海市", "浦东新区", "世纪大道 100 号", "200120", true);
 
-        CreateMarketAddressRequest second = new CreateMarketAddressRequest();
-        second.setReceiverName("李四");
-        second.setReceiverPhone("13900000000");
-        second.setProvince("北京市");
-        second.setCity("北京市");
-        second.setDistrict("海淀区");
-        second.setDetailAddress("中关村大街 1 号");
-        second.setPostalCode("100080");
-        second.setDefaultAddress(true);
+        CreateMarketAddressRequest second = new CreateMarketAddressRequest(
+                "李四", "13900000000", "北京市", "北京市", "海淀区", "中关村大街 1 号", "100080", true);
 
         marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, first));
         marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, second));
 
         assertThat(marketAddressService.listAddresses(userId))
-                .filteredOn(MarketAddressResult::isDefault)
+                .filteredOn(MarketAddressResult::defaultAddress)
                 .hasSize(1)
                 .first()
                 .extracting(MarketAddressResult::receiverName)
@@ -155,14 +141,7 @@ class MarketAddressApplicationServiceTest {
     }
 
     private CreateMarketAddressRequest addressRequest(String receiverName) {
-        CreateMarketAddressRequest request = new CreateMarketAddressRequest();
-        request.setReceiverName(receiverName);
-        request.setReceiverPhone("13800000000");
-        request.setProvince("province");
-        request.setCity("city");
-        request.setDistrict("district");
-        request.setDetailAddress("detail");
-        request.setDefaultAddress(true);
-        return request;
+        return new CreateMarketAddressRequest(
+                receiverName, "13800000000", "province", "city", "district", "detail", null, true);
     }
 }

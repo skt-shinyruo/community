@@ -5,7 +5,6 @@ import com.nowcoder.community.user.api.action.UserRegistrationActionApi;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
@@ -115,11 +114,15 @@ class UserWriteTransactionIntegrationTest {
         try {
             Future<Throwable> first = executor.submit(() -> attemptRoleUpdate(
                     start,
-                    new UpdateUserRoleCommand(ACTOR_USER_ID, TARGET_USER_ID, 2, "delegate target", true)
+                    new AdminUserApplicationService.UpdateRoleCommand(
+                            ACTOR_USER_ID, TARGET_USER_ID, 2, "delegate target", true
+                    )
             ));
             Future<Throwable> second = executor.submit(() -> attemptRoleUpdate(
                     start,
-                    new UpdateUserRoleCommand(TARGET_USER_ID, ACTOR_USER_ID, 2, "delegate target", true)
+                    new AdminUserApplicationService.UpdateRoleCommand(
+                            TARGET_USER_ID, ACTOR_USER_ID, 2, "delegate target", true
+                    )
             ));
 
             start.countDown();
@@ -147,7 +150,7 @@ class UserWriteTransactionIntegrationTest {
             throw new IllegalStateException("audit failed");
         }).when(userAuditLogAdapter).recordRoleUpdated(any(), any(), any(Integer.class), any(Integer.class), any());
 
-        assertThatThrownBy(() -> adminUserApplicationService.updateRole(new UpdateUserRoleCommand(
+        assertThatThrownBy(() -> adminUserApplicationService.updateRole(new AdminUserApplicationService.UpdateRoleCommand(
                 ACTOR_USER_ID,
                 TARGET_USER_ID,
                 2,
@@ -247,7 +250,10 @@ class UserWriteTransactionIntegrationTest {
         return requiredValue("select type from user where id = ?", Integer.class);
     }
 
-    private Throwable attemptRoleUpdate(CountDownLatch start, UpdateUserRoleCommand command) {
+    private Throwable attemptRoleUpdate(
+            CountDownLatch start,
+            AdminUserApplicationService.UpdateRoleCommand command
+    ) {
         try {
             start.await();
             adminUserApplicationService.updateRole(command);

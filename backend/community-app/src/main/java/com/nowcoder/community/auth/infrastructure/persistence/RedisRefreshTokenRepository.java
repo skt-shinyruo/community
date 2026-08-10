@@ -13,8 +13,10 @@ import org.springframework.util.StringUtils;
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Component
@@ -186,15 +188,18 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
     private final StringRedisTemplate redisTemplate;
     private final JsonCodec jsonCodec;
     private final JwtProperties jwtProperties;
+    private final Clock clock;
 
     public RedisRefreshTokenRepository(
             StringRedisTemplate redisTemplate,
             JsonCodec jsonCodec,
-            JwtProperties jwtProperties
+            JwtProperties jwtProperties,
+            Clock clock
     ) {
-        this.redisTemplate = redisTemplate;
-        this.jsonCodec = jsonCodec;
-        this.jwtProperties = jwtProperties;
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate must not be null");
+        this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec must not be null");
+        this.jwtProperties = Objects.requireNonNull(jwtProperties, "jwtProperties must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -231,7 +236,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         );
         try {
             String json = jsonCodec.toJson(record);
-            long ttlSeconds = Math.max(1, expiresAt.getEpochSecond() - Instant.now().getEpochSecond());
+            long ttlSeconds = Math.max(1, expiresAt.getEpochSecond() - clock.instant().getEpochSecond());
             Long stored = redisTemplate.execute(
                     STORE_SCRIPT,
                     List.of(
@@ -293,7 +298,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         KEY_PREFIX_FAMILY_REVOKED + family,
                         KEY_PREFIX_FAMILY + family
                 ),
-                Instant.now().toString(),
+                clock.instant().toString(),
                 tokenId
         );
         return toStoredRefreshToken(token, readRecord(json), false);
@@ -356,7 +361,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
         }
         String pendingTokenId = tokenId(pendingToken);
         String replacementTokenId = tokenId(replacementToken);
-        long ttlSeconds = Math.max(1, replacementExpiresAt.getEpochSecond() - Instant.now().getEpochSecond());
+        long ttlSeconds = Math.max(1, replacementExpiresAt.getEpochSecond() - clock.instant().getEpochSecond());
         RedisRefreshRecord replacement = new RedisRefreshRecord(
                 replacementTokenId,
                 userId,
@@ -381,7 +386,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                     jsonCodec.toJson(replacement),
                     Long.toString(ttlSeconds),
                     replacementTokenId,
-                    Instant.now().toString(),
+                    clock.instant().toString(),
                     rotationLeaseId.toString(),
                     pendingTokenId,
                     userId.toString(),
@@ -540,7 +545,7 @@ public class RedisRefreshTokenRepository implements RefreshTokenRepository {
                         KEY_PREFIX_TOKEN_REVOKED + tokenId,
                         KEY_PREFIX_FAMILY + found.familyId().trim()
                 ),
-                Instant.now().toString(),
+                clock.instant().toString(),
                 tokenId
         );
     }

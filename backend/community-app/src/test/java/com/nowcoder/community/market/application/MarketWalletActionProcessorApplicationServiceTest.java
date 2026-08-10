@@ -11,6 +11,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
+import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
@@ -55,7 +56,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletAction action = escrowAction();
         Instant now = Instant.parse("2026-05-18T00:00:00Z");
         when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -90,7 +91,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(mapper.markCancelled(any(MarketWalletActionLease.class), eq("NOOP"))).thenReturn(1);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(false);
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -236,20 +237,21 @@ class MarketWalletActionProcessorApplicationServiceTest {
         )).thenThrow(new BusinessException(WalletErrorCode.INVALID_REQUEST, "escrow rejected"));
         when(mapper.markFailed(any(MarketWalletActionLease.class), any(), any()))
                 .thenThrow(new IllegalStateException("wallet action status write failed"));
+        Clock clock = Clock.fixed(Instant.parse("2026-05-18T00:00:00Z"), ZoneOffset.UTC);
         MarketOrderSagaApplicationService sagaService = new MarketOrderSagaApplicationService(
                 orderRepository,
                 listingRepository,
-                inventoryRepository
+                inventoryRepository,
+                clock
         );
-        Clock clock = Clock.fixed(Instant.parse("2026-05-18T00:00:00Z"), ZoneOffset.UTC);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 walletActionRepository,
                 walletApi,
                 sagaService,
                 actionCoordinator,
                 clock
         );
-        MarketWalletActionRecoveryApplicationService recovery = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService recovery = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -300,7 +302,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -334,7 +336,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(walletApi.refundOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -372,7 +374,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getAmount(),
                 action.getWalletBizId()
         )).thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_UPDATE_CONFLICT, "wallet version conflict"));
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -412,7 +414,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markEscrowSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
         when(sagaService.markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId())).thenReturn(true);
         when(mapper.markSucceeded(any(), eq(walletTxn.txnId()), eq("APPLIED"))).thenReturn(1);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -458,7 +460,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 .thenThrow(new IllegalStateException("saga write failed"));
         when(mapper.markRecoveryPending(any(), eq(walletTxn.txnId()), eq("SAGA_COMPLETION_FAILED"), any()))
                 .thenReturn(1);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -491,7 +493,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.ACCOUNT_BALANCE_INSUFFICIENT, "escrow insufficient"));
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -522,7 +524,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(walletApi.releaseOrder(action.getRequestId(), action.getActorUserId(), action.getAmount(), action.getWalletBizId()))
                 .thenThrow(new BusinessException(WalletErrorCode.INVALID_REQUEST, "invalid market wallet request"));
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -567,7 +569,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(true);
         when(mapper.markSucceeded(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), eq("APPLIED")))
                 .thenReturn(1);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -607,7 +609,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 .thenReturn(walletTxn);
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -652,7 +654,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markEscrowSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
         when(sagaService.markEscrowCancelRefundPending(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
 
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -700,7 +702,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(true);
         when(mapper.markSucceeded(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), eq("APPLIED")))
                 .thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -725,7 +727,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         claimSucceeds(mapper, action);
         when(sagaService.canApplyEscrow(action.getOrderId())).thenReturn(false);
         when(mapper.markCancelled(any(MarketWalletActionLease.class), eq("NOOP"))).thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -758,7 +760,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 "escrow insufficient"
         ));
         when(mapper.markRetrying(any(MarketWalletActionLease.class), any(), any())).thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -788,7 +790,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 action.getWalletBizId()
         )).thenThrow(new BusinessException(WalletErrorCode.INVALID_REQUEST, "invalid request"));
         when(mapper.markFailed(any(MarketWalletActionLease.class), any(), any())).thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -831,7 +833,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenReturn(false);
         when(mapper.markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any()))
                 .thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -870,7 +872,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 "escrow insufficient"
         ));
         when(mapper.markDead(any(MarketWalletActionLease.class), any())).thenReturn(0);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -993,21 +995,21 @@ class MarketWalletActionProcessorApplicationServiceTest {
         )).thenReturn(walletTxn);
         var walletActionRepository = new MyBatisMarketWalletActionRepository(mapper);
         Clock clock = Clock.fixed(Instant.parse("2026-05-18T00:00:00Z"), ZoneOffset.UTC);
-        MarketWalletActionProcessorApplicationService workerA = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService workerA = processor(
                 walletActionRepository,
                 walletApi,
                 sagaService,
                 actionCoordinator,
                 clock
         );
-        MarketWalletActionProcessorApplicationService workerB = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService workerB = processor(
                 walletActionRepository,
                 walletApi,
                 sagaService,
                 actionCoordinator,
                 clock
         );
-        MarketWalletActionRecoveryApplicationService recovery = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService recovery = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -1074,7 +1076,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         when(sagaService.markReleaseSucceeded(current.getOrderId(), walletTxn.txnId())).thenReturn(true);
         when(mapper.markSucceeded(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), eq("APPLIED")))
                 .thenReturn(1);
-        MarketWalletActionProcessorApplicationService processor = new MarketWalletActionProcessorApplicationService(
+        MarketWalletActionProcessorApplicationService processor = processor(
                 new MyBatisMarketWalletActionRepository(mapper),
                 walletApi,
                 sagaService,
@@ -1095,6 +1097,90 @@ class MarketWalletActionProcessorApplicationServiceTest {
                 staleCandidate.getActorUserId(),
                 staleCandidate.getAmount(),
                 staleCandidate.getWalletBizId()
+        );
+    }
+
+    private static MarketWalletActionProcessorApplicationService processor(
+            MarketWalletActionRepository walletActionRepository,
+            WalletMarketActionApi walletApi,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock
+    ) {
+        return processor(
+                walletActionRepository,
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                clock,
+                Duration.ofSeconds(60),
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
+    }
+
+    private static MarketWalletActionProcessorApplicationService processor(
+            MarketWalletActionRepository walletActionRepository,
+            WalletMarketActionApi walletApi,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock,
+            Duration processingLease
+    ) {
+        return processor(
+                walletActionRepository,
+                walletApi,
+                sagaService,
+                actionCoordinator,
+                clock,
+                processingLease,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
+    }
+
+    private static MarketWalletActionProcessorApplicationService processor(
+            MarketWalletActionRepository walletActionRepository,
+            WalletMarketActionApi walletApi,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock,
+            Duration processingLease,
+            int maxRetryAttempts
+    ) {
+        var transactionOperations = new MarketWalletActionProcessorTransactionOperations(
+                walletActionRepository,
+                mock(MarketOrderRepository.class),
+                sagaService,
+                actionCoordinator
+        );
+        return new MarketWalletActionProcessorApplicationService(
+                walletActionRepository,
+                walletApi,
+                transactionOperations,
+                clock,
+                processingLease,
+                maxRetryAttempts
+        );
+    }
+
+    private static MarketWalletActionRecoveryApplicationService recovery(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock
+    ) {
+        var transactionOperations = new MarketWalletActionRecoveryTransactionOperations(
+                walletActionRepository,
+                orderRepository,
+                sagaService,
+                actionCoordinator
+        );
+        return new MarketWalletActionRecoveryApplicationService(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                clock,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
         );
     }
 

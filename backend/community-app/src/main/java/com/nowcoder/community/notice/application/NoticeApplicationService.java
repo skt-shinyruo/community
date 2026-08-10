@@ -2,17 +2,14 @@ package com.nowcoder.community.notice.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.pagination.Pagination;
-import com.nowcoder.community.notice.application.command.CreateNoticeCommand;
-import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
-import com.nowcoder.community.notice.application.result.NoticeTopicSummaryResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.notice.domain.service.NoticeDomainService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -27,22 +24,18 @@ public class NoticeApplicationService {
     public static final int STATUS_REVOKED = 2;
 
     private final NoticeRepository noticeRepository;
-    private final NoticeDomainService noticeDomainService;
+    private final NoticeDomainService noticeDomainService = new NoticeDomainService();
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
-    public NoticeApplicationService(NoticeRepository noticeRepository) {
-        this(noticeRepository, new NoticeDomainService(), new UuidV7Generator());
-    }
-
-    NoticeApplicationService(
+    public NoticeApplicationService(
             NoticeRepository noticeRepository,
-            NoticeDomainService noticeDomainService,
-            UuidV7Generator idGenerator
+            UuidV7Generator idGenerator,
+            Clock clock
     ) {
-        this.noticeRepository = noticeRepository;
-        this.noticeDomainService = noticeDomainService;
-        this.idGenerator = idGenerator;
+        this.noticeRepository = Objects.requireNonNull(noticeRepository, "noticeRepository must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public void createNotice(CreateNoticeCommand command) {
@@ -57,7 +50,7 @@ public class NoticeApplicationService {
         notice.setSourceEventType(command.sourceEventType());
         notice.setSourceRelationKey(command.sourceRelationKey());
         notice.setStatus(STATUS_UNREAD);
-        notice.setCreateTime(new Date());
+        notice.setCreateTime(Date.from(clock.instant()));
         noticeRepository.insert(notice);
     }
 
@@ -125,5 +118,30 @@ public class NoticeApplicationService {
                 notice.getStatus(),
                 notice.getCreateTime()
         );
+    }
+
+    public record CreateNoticeCommand(
+            UUID toUserId,
+            String noticeTopic,
+            String contentJson,
+            String sourceEventType,
+            String sourceRelationKey
+    ) {
+    }
+
+    public record ListNoticeItemsCommand(
+            UUID userId,
+            String noticeTopic,
+            Integer page,
+            Integer size
+    ) {
+    }
+
+    public record NoticeTopicSummaryResult(
+            String noticeTopic,
+            NoticeItemResult latest,
+            int noticeCount,
+            int unreadCount
+    ) {
     }
 }

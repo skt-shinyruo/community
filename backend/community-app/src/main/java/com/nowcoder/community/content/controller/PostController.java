@@ -1,25 +1,19 @@
 package com.nowcoder.community.content.controller;
 
-import com.nowcoder.community.content.application.command.CreateCommentCommand;
-import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.command.PostContentBlockCommand;
-import com.nowcoder.community.content.application.command.RecordPostViewCommand;
+import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.application.PostCounterApplicationService;
+import com.nowcoder.community.content.application.PostCounterApplicationService.RecordPostViewCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.CreatePostCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.application.result.CommentPageResult;
-import com.nowcoder.community.content.application.result.CommentResult;
-import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.controller.dto.CommentPageResponse;
-import com.nowcoder.community.content.controller.dto.CommentResponse;
 import com.nowcoder.community.content.controller.dto.BatchPostSummaryRequest;
 import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
-import com.nowcoder.community.content.controller.dto.CreatePostResponse;
-import com.nowcoder.community.content.controller.dto.PostDetailResponse;
 import com.nowcoder.community.content.controller.dto.PostContentBlockRequest;
-import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.controller.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.controller.dto.UpdatePostRequest;
 import com.nowcoder.community.content.application.CommentApplicationService;
@@ -44,7 +38,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -60,6 +54,7 @@ public class PostController {
     private final CommentApplicationService commentApplicationService;
     private final PostCounterApplicationService postCounterApplicationService;
     private final ClientIpResolver clientIpResolver;
+    private final Clock clock;
 
     public PostController(
             PostReadApplicationService postReadApplicationService,
@@ -68,7 +63,8 @@ public class PostController {
             PostModerationApplicationService postModerationApplicationService,
             CommentApplicationService commentApplicationService,
             PostCounterApplicationService postCounterApplicationService,
-            ClientIpResolver clientIpResolver
+            ClientIpResolver clientIpResolver,
+            Clock clock
     ) {
         this.postReadApplicationService = postReadApplicationService;
         this.commentReadApplicationService = commentReadApplicationService;
@@ -77,10 +73,11 @@ public class PostController {
         this.commentApplicationService = commentApplicationService;
         this.postCounterApplicationService = postCounterApplicationService;
         this.clientIpResolver = Objects.requireNonNull(clientIpResolver, "clientIpResolver");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     @PostMapping
-    public Result<CreatePostResponse> create(
+    public Result<PostCreateResult> create(
             Authentication authentication,
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @Valid @RequestBody CreatePostRequest request
@@ -90,24 +87,24 @@ public class PostController {
                 idempotencyKey,
                 new CreatePostCommand(
                         userId,
-                        request.getTitle(),
-                        request.getCategoryId(),
-                        request.getTags(),
-                        toBlockCommands(request.getBlocks())
+                        request.title(),
+                        request.categoryId(),
+                        request.tags(),
+                        toBlockCommands(request.blocks())
                 )
         );
-        return Result.ok(CreatePostResponse.from(createResult));
+        return Result.ok(createResult);
     }
 
     @PostMapping("/batch-summary")
-    public Result<List<PostSummaryResponse>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
-        List<UUID> postIds = request == null ? List.of() : request.getPostIds();
+    public Result<List<PostSummaryResult>> batchSummary(@Valid @RequestBody BatchPostSummaryRequest request) {
+        List<UUID> postIds = request == null ? List.of() : request.postIds();
         List<PostSummaryResult> posts = postReadApplicationService.listPostsByIds(postIds);
-        return Result.ok(toPostSummaryResponses(posts));
+        return Result.ok(posts == null ? List.of() : posts);
     }
 
     @GetMapping("/{postId}")
-    public Result<PostDetailResponse> detail(
+    public Result<PostDetailResult> detail(
             Authentication authentication,
             HttpServletRequest request,
             @PathVariable UUID postId
@@ -117,19 +114,19 @@ public class PostController {
         postCounterApplicationService.recordView(new RecordPostViewCommand(
                 postId,
                 viewerFingerprint(authentication, request),
-                Instant.now()
+                clock.instant()
         ));
-        return Result.ok(PostDetailResponse.from(detail));
+        return Result.ok(detail);
     }
 
     @GetMapping("/{postId}/comments")
-    public Result<CommentPageResponse> comments(
+    public Result<CommentPageResult> comments(
             @PathVariable UUID postId,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
-        CommentPageResult comments = commentReadApplicationService.listRootComments(postId, cursor, size);
-        return Result.ok(CommentPageResponse.from(comments));
+        return Result.ok(normalizeCommentPage(
+                commentReadApplicationService.listRootComments(postId, cursor, size)));
     }
 
     @PostMapping("/{postId}/comments")
@@ -145,8 +142,8 @@ public class PostController {
                 new CreateCommentCommand(
                         userId,
                         postId,
-                        request.getParentCommentId(),
-                        request.getContent()
+                        request.parentCommentId(),
+                        request.content()
                 )
         ).commentId());
     }
@@ -157,10 +154,10 @@ public class PostController {
         postPublishingApplicationService.updatePost(
                 userId,
                 postId,
-                request.getTitle(),
-                request.getCategoryId(),
-                request.getTags(),
-                toBlockCommands(request.getBlocks())
+                request.title(),
+                request.categoryId(),
+                request.tags(),
+                toBlockCommands(request.blocks())
         );
         return Result.ok();
     }
@@ -180,19 +177,19 @@ public class PostController {
             @Valid @RequestBody UpdateCommentRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        commentApplicationService.updateComment(userId, postId, commentId, request.getContent());
+        commentApplicationService.updateComment(userId, postId, commentId, request.content());
         return Result.ok();
     }
 
     @GetMapping("/{postId}/comments/{commentId}/replies")
-    public Result<CommentPageResponse> replies(
+    public Result<CommentPageResult> replies(
             @PathVariable UUID postId,
             @PathVariable UUID commentId,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
-        CommentPageResult replies = commentReadApplicationService.listReplies(postId, commentId, cursor, size);
-        return Result.ok(CommentPageResponse.from(replies));
+        return Result.ok(normalizeCommentPage(
+                commentReadApplicationService.listReplies(postId, commentId, cursor, size)));
     }
 
     @PostMapping("/{postId}/top")
@@ -216,28 +213,25 @@ public class PostController {
         return Result.ok();
     }
 
-    private static List<PostSummaryResponse> toPostSummaryResponses(List<PostSummaryResult> views) {
-        if (views == null || views.isEmpty()) {
-            return List.of();
-        }
-        return views.stream().map(PostSummaryResponse::from).toList();
-    }
-
     private static List<PostContentBlockCommand> toBlockCommands(List<PostContentBlockRequest> blocks) {
         if (blocks == null || blocks.isEmpty()) {
             return List.of();
         }
         return blocks.stream()
                 .map(block -> new PostContentBlockCommand(
-                        block.getType(),
-                        block.getText(),
-                        block.getAssetId(),
-                        block.getLanguage(),
-                        block.getCaption(),
-                        block.getDisplayName(),
-                        block.getMetadata()
+                        block.type(),
+                        block.text(),
+                        block.assetId(),
+                        block.language(),
+                        block.caption(),
+                        block.displayName(),
+                        block.metadata()
                 ))
                 .toList();
+    }
+
+    private static CommentPageResult normalizeCommentPage(CommentPageResult page) {
+        return page == null ? new CommentPageResult(List.of(), "") : page;
     }
 
     private String viewerFingerprint(Authentication authentication, HttpServletRequest request) {

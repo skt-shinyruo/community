@@ -36,7 +36,7 @@ class UserAvatarApplicationServiceTest {
 
     @Test
     void createUploadSessionShouldRejectNullCommand() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UserAvatarApplicationService service = service();
         UUID userId = uuid(7);
 
         assertThatThrownBy(() -> service.createUploadSession(userId, userId, null))
@@ -46,7 +46,7 @@ class UserAvatarApplicationServiceTest {
 
     @Test
     void createUploadSessionShouldRejectNonSelfActor() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UserAvatarApplicationService service = service();
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
 
@@ -60,7 +60,7 @@ class UserAvatarApplicationServiceTest {
 
     @Test
     void createUploadSessionShouldDelegateToAvatarStoragePort() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UserAvatarApplicationService service = service();
         UUID userId = uuid(7);
         UUID objectId = uuid(21);
         UUID versionId = uuid(22);
@@ -89,7 +89,7 @@ class UserAvatarApplicationServiceTest {
 
     @Test
     void updateAvatarShouldRejectNonSelfActor() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UserAvatarApplicationService service = service();
         UUID actorUserId = uuid(1);
         UUID targetUserId = uuid(2);
         UUID objectId = uuid(30);
@@ -104,7 +104,7 @@ class UserAvatarApplicationServiceTest {
 
     @Test
     void updateAvatarShouldResolveObjectUrlAndUpdateUserHeaderUrl() {
-        UserAvatarApplicationService service = new UserAvatarApplicationService(avatarStoragePort, userRepository);
+        UserAvatarApplicationService service = service();
         UUID userId = uuid(7);
         UUID objectId = uuid(30);
         String headerUrl = "https://cdn.example.com/files/" + objectId + "/avatar.png";
@@ -119,6 +119,13 @@ class UserAvatarApplicationServiceTest {
 
     private static CreateAvatarUploadSessionCommand uploadSessionCommand() {
         return new CreateAvatarUploadSessionCommand("avatar.png", "image/png", 6, "sha256-avatar");
+    }
+
+    private UserAvatarApplicationService service() {
+        return new UserAvatarApplicationService(
+                avatarStoragePort,
+                new UserAvatarTransactionOperations(userRepository)
+        );
     }
 
     private static UUID uuid(long suffix) {

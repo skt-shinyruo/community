@@ -1,7 +1,6 @@
 package com.nowcoder.community.runtime.controller;
 
 import com.nowcoder.community.runtime.application.RuntimeConfigApplicationService;
-import com.nowcoder.community.runtime.application.result.RuntimeConfigResult;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -18,7 +17,7 @@ public class RuntimeConfigController {
     }
 
     @GetMapping
-    public ResponseEntity<RuntimeConfigResult> runtimeConfig() {
+    public ResponseEntity<RuntimeConfigApplicationService.RuntimeConfig> runtimeConfig() {
         return ResponseEntity.ok(applicationService.current());
     }
 }

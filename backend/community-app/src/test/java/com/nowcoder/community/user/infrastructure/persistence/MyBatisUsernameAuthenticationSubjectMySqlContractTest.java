@@ -2,7 +2,7 @@ package com.nowcoder.community.user.infrastructure.persistence;
 
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
-import com.nowcoder.community.user.application.result.UserAuthenticationResult;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
 import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
@@ -161,7 +161,8 @@ class MyBatisUsernameAuthenticationSubjectMySqlContractTest {
                 new MyBatisUserRepository(userMapper),
                 new UserCredentialDomainService(usernamePolicy),
                 new PasswordPolicyDomainService(),
-                subjectPort
+                subjectPort,
+                java.time.Clock.systemUTC()
         );
 
         UserCredentialApplicationService.PreparedAuthentication preparation =
@@ -170,7 +171,7 @@ class MyBatisUsernameAuthenticationSubjectMySqlContractTest {
         assertThat(preparation.user()).isNull();
         assertThat(preparation.storedHashUsable()).isFalse();
         assertThat(credentialService.authenticate(preparation, "secret12").failure())
-                .isEqualTo(UserAuthenticationResult.Failure.INVALID_CREDENTIALS);
+                .isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
     }
 
     @SpringBootConfiguration

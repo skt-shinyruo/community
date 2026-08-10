@@ -89,7 +89,8 @@ class PostContentBlockRepositoryJsonCodecTest {
     }
 
     private static MyBatisPostContentBlockRepository repository(PostContentBlockMapper mapper) {
-        return new MyBatisPostContentBlockRepository(mapper, jsonCodec(), new UuidV7Generator());
+        return new MyBatisPostContentBlockRepository(
+                mapper, jsonCodec(), new UuidV7Generator(), java.time.Clock.systemUTC());
     }
 
     private static JsonCodec jsonCodec() {

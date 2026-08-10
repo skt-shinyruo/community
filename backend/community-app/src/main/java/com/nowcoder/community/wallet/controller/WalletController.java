@@ -9,19 +9,19 @@ import com.nowcoder.community.wallet.application.WalletRechargeApplicationServic
 import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
-import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
-import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
-import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
-import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
-import com.nowcoder.community.wallet.application.result.WalletCapabilitiesResult;
+import com.nowcoder.community.wallet.application.WalletAccountApplicationService.WalletSummaryResult;
+import com.nowcoder.community.wallet.application.WalletLedgerApplicationService.ListWalletTransactionsCommand;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.CreateRechargeCommand;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.RechargeOrderResult;
+import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService.WalletCapabilitiesResult;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService.CreateTransferCommand;
+import com.nowcoder.community.wallet.application.WalletTransferApplicationService.TransferOrderResult;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.CreateWithdrawCommand;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.WithdrawOrderResult;
+import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.controller.dto.CreateRechargeRequest;
-import com.nowcoder.community.wallet.controller.dto.CreateRechargeResponse;
 import com.nowcoder.community.wallet.controller.dto.CreateTransferRequest;
-import com.nowcoder.community.wallet.controller.dto.CreateTransferResponse;
 import com.nowcoder.community.wallet.controller.dto.CreateWithdrawRequest;
-import com.nowcoder.community.wallet.controller.dto.CreateWithdrawResponse;
-import com.nowcoder.community.wallet.controller.dto.WalletSummaryResponse;
-import com.nowcoder.community.wallet.controller.dto.WalletTransactionResponse;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -63,9 +63,9 @@ public class WalletController {
     }
 
     @GetMapping("/summary")
-    public Result<WalletSummaryResponse> summary(Authentication authentication) {
+    public Result<WalletSummaryResult> summary(Authentication authentication) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(WalletSummaryResponse.from(accountService.summary(userId)));
+        return Result.ok(accountService.summary(userId));
     }
 
     @GetMapping("/capabilities")
@@ -75,50 +75,47 @@ public class WalletController {
     }
 
     @GetMapping("/transactions")
-    public Result<List<WalletTransactionResponse>> transactions(
+    public Result<List<WalletTransactionResult>> transactions(
             Authentication authentication,
             @RequestParam(required = false) Integer limit
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, limit))
-                .stream()
-                .map(WalletTransactionResponse::from)
-                .toList());
+        return Result.ok(ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, limit)));
     }
 
     @PostMapping("/recharges")
-    public Result<CreateRechargeResponse> recharge(
+    public Result<RechargeOrderResult> recharge(
             Authentication authentication,
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody @Valid CreateRechargeRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateRechargeResponse.from(rechargeService.recharge(
+        return Result.ok(rechargeService.recharge(
                 new CreateRechargeCommand(userId, request.getAmount(), idempotencyKey)
-        )));
+        ));
     }
 
     @PostMapping("/withdrawals")
-    public Result<CreateWithdrawResponse> withdraw(
+    public Result<WithdrawOrderResult> withdraw(
             Authentication authentication,
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody @Valid CreateWithdrawRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateWithdrawResponse.from(withdrawService.withdraw(
+        return Result.ok(withdrawService.withdraw(
                 new CreateWithdrawCommand(userId, request.getAmount(), idempotencyKey)
-        )));
+        ));
     }
 
     @PostMapping("/transfers")
-    public Result<CreateTransferResponse> transfer(
+    public Result<TransferOrderResult> transfer(
             Authentication authentication,
             @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
             @RequestBody @Valid CreateTransferRequest request
     ) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(CreateTransferResponse.from(transferService.transfer(
+        return Result.ok(transferService.transfer(
                 new CreateTransferCommand(fromUserId, request.getToUserId(), request.getAmount(), idempotencyKey)
-        )));
+        ));
     }
 }

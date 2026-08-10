@@ -5,34 +5,30 @@ import com.nowcoder.community.auth.application.LoginApplicationService;
 import com.nowcoder.community.auth.application.PasswordResetApplicationService;
 import com.nowcoder.community.auth.application.RegistrationApplicationService;
 import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService;
-import com.nowcoder.community.auth.application.command.ConfirmPasswordResetCommand;
-import com.nowcoder.community.auth.application.command.IssueCaptchaCommand;
-import com.nowcoder.community.auth.application.command.LoginCommand;
-import com.nowcoder.community.auth.application.command.LogoutCommand;
-import com.nowcoder.community.auth.application.command.RefreshCommand;
-import com.nowcoder.community.auth.application.command.RegisterCommand;
-import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
-import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
-import com.nowcoder.community.auth.application.result.CaptchaIssueResult;
+import com.nowcoder.community.auth.application.CaptchaApplicationService.CaptchaIssueResult;
+import com.nowcoder.community.auth.application.CaptchaApplicationService.IssueCaptchaCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.LoginCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.LogoutCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshCommand;
+import com.nowcoder.community.auth.application.LoginApplicationService.RefreshResult;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.ConfirmPasswordResetCommand;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.PasswordResetRequestResult;
+import com.nowcoder.community.auth.application.PasswordResetApplicationService.RequestPasswordResetCommand;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterCommand;
+import com.nowcoder.community.auth.application.RegistrationApplicationService.RegisterResult;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.RegisterCodeResendResult;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.ResendRegisterCodeCommand;
+import com.nowcoder.community.auth.application.RegistrationVerificationApplicationService.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.result.LoginResult;
 import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
-import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
-import com.nowcoder.community.auth.application.result.RefreshResult;
-import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
-import com.nowcoder.community.auth.application.result.RegisterResult;
-import com.nowcoder.community.auth.controller.dto.CaptchaIssueResponse;
 import com.nowcoder.community.auth.controller.dto.LoginRequest;
 import com.nowcoder.community.auth.controller.dto.LoginResponse;
 import com.nowcoder.community.auth.controller.dto.MeResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeResendRequest;
-import com.nowcoder.community.auth.controller.dto.RegisterCodeResendResponse;
 import com.nowcoder.community.auth.controller.dto.RegisterCodeVerifyRequest;
 import com.nowcoder.community.auth.controller.dto.RegisterRequest;
-import com.nowcoder.community.auth.controller.dto.RegisterResponse;
 import com.nowcoder.community.auth.controller.dto.PasswordResetConfirmRequest;
 import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
-import com.nowcoder.community.auth.controller.dto.PasswordResetRequestResponse;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
@@ -86,10 +82,10 @@ public class AuthController {
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
         ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         LoginResult result = loginApplicationService.login(new LoginCommand(
-                request.getUsername(),
-                request.getPassword(),
-                request.getCaptchaId(),
-                request.getCaptchaCode(),
+                request.username(),
+                request.password(),
+                request.captchaId(),
+                request.captchaCode(),
                 resolvedIp == null ? null : resolvedIp.ip(),
                 resolvedIp == null ? null : resolvedIp.source()
         ));
@@ -126,75 +122,75 @@ public class AuthController {
     }
 
     @PostMapping("/register")
-    public Result<RegisterResponse> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
+    public Result<RegisterResult> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
         ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
-        return Result.ok(toResponse(registrationApplicationService.register(new RegisterCommand(
-                request.getUsername(),
-                request.getPassword(),
-                request.getEmail(),
-                request.getCaptchaId(),
-                request.getCaptchaCode(),
+        return Result.ok(registrationApplicationService.register(new RegisterCommand(
+                request.username(),
+                request.password(),
+                request.email(),
+                request.captchaId(),
+                request.captchaCode(),
                 resolvedIp == null ? null : resolvedIp.ip()
-        ))));
+        )));
     }
 
     @PostMapping("/register/code/resend")
-    public Result<RegisterCodeResendResponse> resendRegisterCode(
+    public Result<RegisterCodeResendResult> resendRegisterCode(
             @Valid @RequestBody RegisterCodeResendRequest request,
             HttpServletRequest httpRequest
     ) {
         ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
-        return Result.ok(toResponse(registrationVerificationApplicationService.resendCode(new ResendRegisterCodeCommand(
-                request.getRegistrationToken(),
-                request.getCaptchaId(),
-                request.getCaptchaCode(),
+        return Result.ok(registrationVerificationApplicationService.resendCode(new ResendRegisterCodeCommand(
+                request.registrationToken(),
+                request.captchaId(),
+                request.captchaCode(),
                 resolvedIp == null ? null : resolvedIp.ip()
-        ))));
+        )));
     }
 
     @PostMapping("/register/code/verify")
     public Result<LoginResponse> verifyRegisterCode(@Valid @RequestBody RegisterCodeVerifyRequest request, HttpServletResponse response) {
         LoginResult result = registrationVerificationApplicationService.verifyAndLogin(new VerifyRegisterCodeCommand(
-                request.getRegistrationToken(),
-                request.getCode()
+                request.registrationToken(),
+                request.code()
         ));
         addRefreshCookie(response, result.refreshCookie());
         return Result.ok(new LoginResponse(result.accessToken()));
     }
 
     @GetMapping("/captcha")
-    public Result<CaptchaIssueResponse> captcha(HttpServletRequest request, HttpServletResponse response) {
+    public Result<CaptchaIssueResult> captcha(HttpServletRequest request, HttpServletResponse response) {
         ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(request);
         CaptchaIssueResult result = captchaApplicationService.issue(new IssueCaptchaCommand(
                 resolvedIp == null ? null : resolvedIp.ip()
         ));
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");
-        return Result.ok(new CaptchaIssueResponse(result.captchaId(), result.imageBase64(), result.ttlSeconds()));
+        return Result.ok(result);
     }
 
     @PostMapping("/password/reset/request")
-    public Result<PasswordResetRequestResponse> requestPasswordReset(
+    public Result<PasswordResetRequestResult> requestPasswordReset(
             @Valid @RequestBody PasswordResetRequestRequest request,
             HttpServletRequest httpRequest
     ) {
         ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         PasswordResetRequestResult result = passwordResetApplicationService.requestReset(new RequestPasswordResetCommand(
-                request.getEmail(),
-                request.getCaptchaId(),
-                request.getCaptchaCode(),
+                request.email(),
+                request.captchaId(),
+                request.captchaCode(),
                 resolvedIp == null ? null : resolvedIp.ip()
         ));
-        return Result.ok(new PasswordResetRequestResponse(result.issued()));
+        return Result.ok(result);
     }
 
     @PostMapping("/password/reset/confirm")
     public Result<Boolean> confirmPasswordReset(@Valid @RequestBody PasswordResetConfirmRequest request) {
         return Result.ok(passwordResetApplicationService.confirmReset(new ConfirmPasswordResetCommand(
-                request.getResetToken(),
-                request.getNewPassword(),
-                request.getCaptchaId(),
-                request.getCaptchaCode()
+                request.resetToken(),
+                request.newPassword(),
+                request.captchaId(),
+                request.captchaCode()
         )));
     }
 
@@ -232,24 +228,6 @@ public class AuthController {
             }
         }
         return null;
-    }
-
-    private RegisterResponse toResponse(RegisterResult result) {
-        RegisterResponse response = new RegisterResponse();
-        response.setUserId(result.userId());
-        response.setRegistrationToken(result.registrationToken());
-        response.setEmailCodeIssued(result.emailCodeIssued());
-        response.setMaskedEmail(result.maskedEmail());
-        response.setDebugEmailCode(result.debugEmailCode());
-        return response;
-    }
-
-    private RegisterCodeResendResponse toResponse(RegisterCodeResendResult result) {
-        RegisterCodeResendResponse response = new RegisterCodeResendResponse();
-        response.setIssued(result.issued());
-        response.setMaskedEmail(result.maskedEmail());
-        response.setDebugEmailCode(result.debugEmailCode());
-        return response;
     }
 
     private UUID parseUserUuidOrThrow(String subject) {

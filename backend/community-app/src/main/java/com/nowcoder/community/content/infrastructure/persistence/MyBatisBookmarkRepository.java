@@ -8,8 +8,10 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.common.pagination.Pagination;
 import org.springframework.stereotype.Repository;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -19,9 +21,11 @@ import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT
 public class MyBatisBookmarkRepository implements BookmarkRepository {
 
     private final BookmarkMapper bookmarkMapper;
+    private final Clock clock;
 
-    public MyBatisBookmarkRepository(BookmarkMapper bookmarkMapper) {
-        this.bookmarkMapper = bookmarkMapper;
+    public MyBatisBookmarkRepository(BookmarkMapper bookmarkMapper, Clock clock) {
+        this.bookmarkMapper = Objects.requireNonNull(bookmarkMapper, "bookmarkMapper must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -32,7 +36,7 @@ public class MyBatisBookmarkRepository implements BookmarkRepository {
         if (bookmarkMapper.lockActivePost(postId) == null) {
             throw new BusinessException(POST_NOT_FOUND);
         }
-        if (bookmarkMapper.insertBookmarkForActivePost(userId, postId, new Date()) > 0) {
+        if (bookmarkMapper.insertBookmarkForActivePost(userId, postId, Date.from(clock.instant())) > 0) {
             return true;
         }
         if (bookmarkMapper.existsActivePost(postId) == 0) {

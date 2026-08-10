@@ -40,7 +40,7 @@ class RedisPostFeedCacheTest {
         when(zSetOperations.reverseRange("post:feed:global:hot", 0L, 1L))
                 .thenReturn(new LinkedHashSet<>(List.of("not-a-uuid", postId.toString())));
 
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -75,7 +75,7 @@ class RedisPostFeedCacheTest {
                         firstId.toString(), secondId.toString(), thirdId.toString()
                 )));
 
-        RedisPostFeedCache cache = new RedisPostFeedCache(redisTemplate, cursorCodec, categoryContentRepository);
+        RedisPostFeedCache cache = newCache(redisTemplate, cursorCodec, categoryContentRepository);
 
         List<UUID> firstPage = cache.readGlobalHotIds("", 2);
         List<UUID> secondPage = cache.readGlobalHotIds(cursorCodec.encodePage(1, 2), 2);
@@ -95,7 +95,7 @@ class RedisPostFeedCacheTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get("post:feed:global:hot:rank-version")).thenReturn(" ");
 
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -118,7 +118,7 @@ class RedisPostFeedCacheTest {
         when(redisTemplate.opsForZSet()).thenReturn(zSetOperations);
         when(categoryContentRepository.listCategories()).thenReturn(List.of(first, second));
 
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -138,7 +138,7 @@ class RedisPostFeedCacheTest {
         CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
         UUID postId = uuid(8);
         UUID boardId = uuid(18);
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -191,7 +191,7 @@ class RedisPostFeedCacheTest {
                 category(payloadBoardId)
         ));
         when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -219,7 +219,7 @@ class RedisPostFeedCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         CategoryContentRepository categoryContentRepository = mock(CategoryContentRepository.class);
         UUID postId = uuid(10);
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -238,7 +238,7 @@ class RedisPostFeedCacheTest {
         UUID postId = uuid(11);
         when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
         when(categoryContentRepository.listCategories()).thenThrow(new IllegalStateException("category store unavailable"));
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -262,7 +262,7 @@ class RedisPostFeedCacheTest {
         when(redisTemplate.opsForValue()).thenReturn(valueOperations);
         when(valueOperations.get("post:feed:global:hot:rank-version")).thenReturn("hot-v2");
 
-        RedisPostFeedCache cache = new RedisPostFeedCache(
+        RedisPostFeedCache cache = newCache(
                 redisTemplate,
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryContentRepository
@@ -278,6 +278,19 @@ class RedisPostFeedCacheTest {
         Category category = new Category();
         category.setId(id);
         return category;
+    }
+
+    private static RedisPostFeedCache newCache(
+            StringRedisTemplate redisTemplate,
+            FeedCursorCodec feedCursorCodec,
+            CategoryContentRepository categoryContentRepository
+    ) {
+        return new RedisPostFeedCache(
+                redisTemplate,
+                feedCursorCodec,
+                categoryContentRepository,
+                java.time.Clock.systemUTC()
+        );
     }
 
     private static void verifyTerminalBoardRemoval(

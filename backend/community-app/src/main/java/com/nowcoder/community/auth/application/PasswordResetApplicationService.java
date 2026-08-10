@@ -1,10 +1,7 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.ConfirmPasswordResetCommand;
-import com.nowcoder.community.auth.application.command.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.port.PasswordResetMailDispatcher;
 import com.nowcoder.community.auth.application.port.PasswordResetTransactionCompletion;
-import com.nowcoder.community.auth.application.result.PasswordResetRequestResult;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.config.PasswordResetUrlPolicy;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
@@ -24,6 +21,7 @@ import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.text.Normalizer;
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
@@ -32,6 +30,25 @@ import java.util.UUID;
 
 @Service
 public class PasswordResetApplicationService {
+
+    public record RequestPasswordResetCommand(
+            String email,
+            String captchaId,
+            String captchaCode,
+            String clientIp
+    ) {
+    }
+
+    public record ConfirmPasswordResetCommand(
+            String resetToken,
+            String newPassword,
+            String captchaId,
+            String captchaCode
+    ) {
+    }
+
+    public record PasswordResetRequestResult(boolean issued) {
+    }
 
     private static final Logger log = LoggerFactory.getLogger(PasswordResetApplicationService.class);
     private static final String RATE_LIMIT_EMAIL_KEY_PREFIX = "auth:pwdreset:req:email:";
@@ -50,6 +67,7 @@ public class PasswordResetApplicationService {
     private final CaptchaChallengeComponent captchaChallenge;
     private final PasswordResetTokenDeriver passwordResetTokenDeriver;
     private final PasswordResetDomainService passwordResetDomainService;
+    private final Clock clock;
 
     public PasswordResetApplicationService(
             PasswordResetProperties properties,
@@ -61,18 +79,27 @@ public class PasswordResetApplicationService {
             PasswordResetTransactionCompletion transactionCompletion,
             CaptchaChallengeComponent captchaChallenge,
             PasswordResetTokenDeriver passwordResetTokenDeriver,
-            PasswordResetDomainService passwordResetDomainService
+            PasswordResetDomainService passwordResetDomainService,
+            Clock clock
     ) {
-        this.properties = properties;
-        this.tokenStore = tokenStore;
-        this.resetRequestRateLimitRepository = resetRequestRateLimitRepository;
-        this.userCredentialQueryApi = userCredentialQueryApi;
-        this.userCredentialActionApi = userCredentialActionApi;
-        this.passwordResetMailDispatcher = passwordResetMailDispatcher;
-        this.transactionCompletion = transactionCompletion;
-        this.captchaChallenge = captchaChallenge;
-        this.passwordResetTokenDeriver = passwordResetTokenDeriver;
-        this.passwordResetDomainService = passwordResetDomainService;
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.tokenStore = Objects.requireNonNull(tokenStore, "tokenStore must not be null");
+        this.resetRequestRateLimitRepository = Objects.requireNonNull(
+                resetRequestRateLimitRepository, "resetRequestRateLimitRepository must not be null");
+        this.userCredentialQueryApi = Objects.requireNonNull(
+                userCredentialQueryApi, "userCredentialQueryApi must not be null");
+        this.userCredentialActionApi = Objects.requireNonNull(
+                userCredentialActionApi, "userCredentialActionApi must not be null");
+        this.passwordResetMailDispatcher = Objects.requireNonNull(
+                passwordResetMailDispatcher, "passwordResetMailDispatcher must not be null");
+        this.transactionCompletion = Objects.requireNonNull(
+                transactionCompletion, "transactionCompletion must not be null");
+        this.captchaChallenge = Objects.requireNonNull(captchaChallenge, "captchaChallenge must not be null");
+        this.passwordResetTokenDeriver = Objects.requireNonNull(
+                passwordResetTokenDeriver, "passwordResetTokenDeriver must not be null");
+        this.passwordResetDomainService = Objects.requireNonNull(
+                passwordResetDomainService, "passwordResetDomainService must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -107,7 +134,7 @@ public class PasswordResetApplicationService {
                 passwordResetTokenDeriver.deriveDelivery(deliveryId);
         String token = delivery.token();
         Duration ttl = Duration.ofSeconds(Math.max(60, properties.getTtlSeconds()));
-        Instant expiresAt = Instant.now().plus(ttl);
+        Instant expiresAt = clock.instant().plus(ttl);
         boolean tokenStored = false;
         try {
             tokenStore.store(token, tokenUserId, securityVersion, ttl);
@@ -153,7 +180,7 @@ public class PasswordResetApplicationService {
         UUID confirmationLeaseId = UUID.randomUUID();
         PasswordResetTokenRepository.PendingPasswordResetToken pending = tokenStore.beginConfirmation(
                 normalizedToken,
-                Instant.now().plus(CONFIRMATION_LEASE),
+                clock.instant().plus(CONFIRMATION_LEASE),
                 confirmationLeaseId
         );
         if (pending == null || pending.userId() == null) {

@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.infrastructure.web;
 
 import com.nowcoder.community.auth.application.TokenFreshnessApplicationService;
-import com.nowcoder.community.auth.application.result.TokenFreshnessResult;
+import com.nowcoder.community.auth.application.TokenFreshnessApplicationService.TokenFreshnessResult;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;

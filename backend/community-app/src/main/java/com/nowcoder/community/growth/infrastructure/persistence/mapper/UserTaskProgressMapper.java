@@ -1,6 +1,6 @@
 package com.nowcoder.community.growth.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserTaskProgressDataObject;
+import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -12,9 +12,9 @@ import java.util.UUID;
 @Mapper
 public interface UserTaskProgressMapper {
 
-    UserTaskProgressDataObject selectByUserTaskAndPeriod(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
+    UserTaskProgress selectByUserTaskAndPeriod(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
 
-    UserTaskProgressDataObject selectByUserTaskAndPeriodForUpdate(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
+    UserTaskProgress selectByUserTaskAndPeriodForUpdate(@Param("userId") UUID userId, @Param("taskCode") String taskCode, @Param("periodKey") String periodKey);
 
     int countCompletedByUserTaskAndPeriodKeyRange(
             @Param("userId") UUID userId,

@@ -9,17 +9,12 @@ import com.nowcoder.community.content.api.model.HotFeedCacheStatusView;
 import com.nowcoder.community.content.api.model.HotFeedDegradationSignalView;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.api.query.HotFeedCacheGovernanceQueryApi;
-import com.nowcoder.community.ops.application.command.GetHotCacheStatusCommand;
-import com.nowcoder.community.ops.application.command.PrewarmHotCacheCommand;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.UpdateHotCacheDegradationCommand;
-import com.nowcoder.community.ops.application.result.HotCacheDegradationSignalResult;
-import com.nowcoder.community.ops.application.result.HotCachePrewarmResult;
-import com.nowcoder.community.ops.application.result.HotCacheStatusResult;
 import com.nowcoder.community.ops.domain.model.GovernanceAction;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -46,12 +41,12 @@ public class HotCacheGovernanceApplicationService {
         this.governanceAuditPort = Objects.requireNonNull(governanceAuditPort, "governanceAuditPort must not be null");
     }
 
-    public HotCacheStatusResult getStatus(GetHotCacheStatusCommand command) {
-        GetHotCacheStatusCommand c = validateStatus(command);
+    public StatusResult getStatus(GetStatusCommand command) {
+        GetStatusCommand c = validateStatus(command);
         HotFeedCacheStatusView view = hotFeedCacheGovernanceQueryApi.getStatus(c.scope(), c.boardId());
         String result = view.degraded() ? GovernanceResult.DEGRADED.name() : GovernanceResult.ACCEPTED.name();
         governanceMetrics.recordHotCacheGovernance(GovernanceAction.HOT_CACHE_STATUS.name(), result, c.scope());
-        return new HotCacheStatusResult(
+        return new StatusResult(
                 view.scope(),
                 view.boardId(),
                 view.rankVersion(),
@@ -63,13 +58,13 @@ public class HotCacheGovernanceApplicationService {
         );
     }
 
-    public HotCacheDegradationSignalResult getDegradationSignal() {
+    public DegradationSignalResult getDegradationSignal() {
         HotFeedDegradationSignalView view = hotFeedCacheGovernanceQueryApi.getDegradationSignal();
-        return new HotCacheDegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
+        return new DegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
     }
 
-    public HotCachePrewarmResult prewarm(PrewarmHotCacheCommand command) {
-        PrewarmHotCacheCommand c = validatePrewarm(command);
+    public PrewarmResult prewarm(PrewarmCommand command) {
+        PrewarmCommand c = validatePrewarm(command);
         HotFeedCachePrewarmResultView view = hotFeedCacheGovernanceActionApi.prewarm(new HotFeedCachePrewarmRequest(
                 c.scope(),
                 c.boardId(),
@@ -91,7 +86,7 @@ public class HotCacheGovernanceApplicationService {
                 "{\"loaded\":" + view.loadedCount() + ",\"warmed\":" + view.warmedCount() + "}",
                 null
         ));
-        return new HotCachePrewarmResult(
+        return new PrewarmResult(
                 view.scope(),
                 view.boardId(),
                 view.requestedCount(),
@@ -104,8 +99,8 @@ public class HotCacheGovernanceApplicationService {
         );
     }
 
-    public HotCacheDegradationSignalResult updateDegradation(UpdateHotCacheDegradationCommand command) {
-        UpdateHotCacheDegradationCommand c = validateDegradation(command);
+    public DegradationSignalResult updateDegradation(UpdateDegradationCommand command) {
+        UpdateDegradationCommand c = validateDegradation(command);
         HotFeedDegradationSignalView view = hotFeedCacheGovernanceActionApi.updateDegradationSignal(
                 new UpdateHotFeedDegradationSignalRequest(c.degraded(), c.reason())
         );
@@ -124,22 +119,22 @@ public class HotCacheGovernanceApplicationService {
                 "{\"degraded\":" + view.degraded() + ",\"reason\":\"" + safeJson(view.reason()) + "\"}",
                 null
         ));
-        return new HotCacheDegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
+        return new DegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
     }
 
-    private GetHotCacheStatusCommand validateStatus(GetHotCacheStatusCommand command) {
-        GetHotCacheStatusCommand c = command == null
-                ? new GetHotCacheStatusCommand(SCOPE_GLOBAL, null)
+    private GetStatusCommand validateStatus(GetStatusCommand command) {
+        GetStatusCommand c = command == null
+                ? new GetStatusCommand(SCOPE_GLOBAL, null)
                 : command.normalized();
         validateScope(c.scope(), c.boardId());
         return c;
     }
 
-    private PrewarmHotCacheCommand validatePrewarm(PrewarmHotCacheCommand command) {
+    private PrewarmCommand validatePrewarm(PrewarmCommand command) {
         if (command == null || command.actorUserId() == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "actorUserId is required");
         }
-        PrewarmHotCacheCommand c = command.normalized();
+        PrewarmCommand c = command.normalized();
         validateScope(c.scope(), c.boardId());
         if (c.limit() < 1 || c.limit() > 500) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "limit must be between 1 and 500");
@@ -150,11 +145,11 @@ public class HotCacheGovernanceApplicationService {
         return c;
     }
 
-    private UpdateHotCacheDegradationCommand validateDegradation(UpdateHotCacheDegradationCommand command) {
+    private UpdateDegradationCommand validateDegradation(UpdateDegradationCommand command) {
         if (command == null || command.actorUserId() == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "actorUserId is required");
         }
-        UpdateHotCacheDegradationCommand c = command.normalized();
+        UpdateDegradationCommand c = command.normalized();
         if (c.reason().isBlank()) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "degradation reason is required");
         }
@@ -179,5 +174,64 @@ public class HotCacheGovernanceApplicationService {
             return "";
         }
         return value.replace("\\", "\\\\").replace("\"", "\\\"");
+    }
+
+    public record GetStatusCommand(String scope, UUID boardId) {
+
+        GetStatusCommand normalized() {
+            return new GetStatusCommand(hasText(scope) ? scope.trim() : SCOPE_GLOBAL, boardId);
+        }
+    }
+
+    public record PrewarmCommand(UUID actorUserId, String scope, UUID boardId, int limit, String reason) {
+
+        PrewarmCommand normalized() {
+            return new PrewarmCommand(
+                    actorUserId,
+                    hasText(scope) ? scope.trim() : SCOPE_GLOBAL,
+                    boardId,
+                    limit,
+                    hasText(reason) ? reason.trim() : ""
+            );
+        }
+    }
+
+    public record UpdateDegradationCommand(UUID actorUserId, boolean degraded, String reason) {
+
+        UpdateDegradationCommand normalized() {
+            return new UpdateDegradationCommand(actorUserId, degraded, hasText(reason) ? reason.trim() : "");
+        }
+    }
+
+    public record StatusResult(
+            String scope,
+            UUID boardId,
+            String rankVersion,
+            long itemCount,
+            boolean summaryCacheAvailable,
+            boolean degraded,
+            String degradedReason,
+            Instant lastPrewarmAt
+    ) {
+    }
+
+    public record PrewarmResult(
+            String scope,
+            UUID boardId,
+            int requestedCount,
+            int loadedCount,
+            int warmedCount,
+            String rankVersion,
+            boolean degraded,
+            String degradedReason,
+            Instant lastPrewarmAt
+    ) {
+    }
+
+    public record DegradationSignalResult(boolean degraded, String reason, Instant updatedAt) {
+    }
+
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

@@ -1,8 +1,8 @@
 package com.nowcoder.community.im.infrastructure.event;
 
 import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService;
-import com.nowcoder.community.im.application.command.ProjectBlockRelationCommand;
-import com.nowcoder.community.im.application.command.ProjectUserPolicyCommand;
+import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectBlockRelationCommand;
+import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectUserPolicyCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;

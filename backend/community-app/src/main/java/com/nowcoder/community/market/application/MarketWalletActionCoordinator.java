@@ -26,13 +26,12 @@ public class MarketWalletActionCoordinator {
     private final MarketWalletActionDomainService walletActionDomainService = new MarketWalletActionDomainService();
 
     @Autowired
-    public MarketWalletActionCoordinator(MarketWalletActionRepository walletActionRepository) {
-        this(walletActionRepository, new UuidV7Generator());
-    }
-
-    MarketWalletActionCoordinator(MarketWalletActionRepository walletActionRepository, UuidV7Generator idGenerator) {
-        this.walletActionRepository = walletActionRepository;
-        this.idGenerator = idGenerator;
+    public MarketWalletActionCoordinator(
+            MarketWalletActionRepository walletActionRepository,
+            UuidV7Generator idGenerator
+    ) {
+        this.walletActionRepository = Objects.requireNonNull(walletActionRepository, "walletActionRepository must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional

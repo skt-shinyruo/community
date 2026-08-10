@@ -11,7 +11,9 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -39,13 +41,15 @@ class OutboxProjectionLagAdapterTest {
 
             OutboxProjectionLagAdapter adapter = new OutboxProjectionLagAdapter(
                     jdbcTemplate,
-                    new SpringOutboxHandlerCatalog(handlersProvider)
+                    new SpringOutboxHandlerCatalog(handlersProvider),
+                    Clock.fixed(Instant.parse("2026-07-07T00:05:00Z"), ZoneOffset.UTC)
             );
 
             var rows = adapter.listProjectionLag();
 
             assertThat(rows).extracting(row -> row.projection() + "|" + row.status() + "|" + row.count())
                     .containsExactly("projection.im.policy|PENDING|1");
+            assertThat(rows.get(0).oldestAge()).isEqualTo(java.time.Duration.ofMinutes(5));
         } finally {
             db.shutdown();
         }

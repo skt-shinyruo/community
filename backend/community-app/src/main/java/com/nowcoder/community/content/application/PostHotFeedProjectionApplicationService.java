@@ -1,10 +1,8 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
@@ -27,7 +25,6 @@ public class PostHotFeedProjectionApplicationService {
     private final HotFeedProjectionCompletion projectionCompletion;
     private final PostHotFeedProjectionTransactionOperations transactionOperations;
 
-    @Autowired
     public PostHotFeedProjectionApplicationService(
             PostContentRepository postContentRepository,
             LikeQueryPort likeQueryPort,
@@ -41,113 +38,19 @@ public class PostHotFeedProjectionApplicationService {
             PostHotFeedProjectionTransactionOperations transactionOperations,
             HotFeedProjectionCompletion projectionCompletion
     ) {
-        this.postContentRepository = postContentRepository;
-        this.likeQueryPort = likeQueryPort;
-        this.postFeedCache = postFeedCache;
-        this.postSummaryCache = postSummaryCache;
-        this.postDetailCache = postDetailCache;
-        this.postCounterCache = postCounterCache;
-        this.postHotnessDomainService = postHotnessDomainService;
-        this.policyProperties = policyProperties == null ? new ContentFeedPolicyProperties() : policyProperties;
-        this.projectionGuard = projectionGuard == null ? AllowAllHotFeedProjectionGuard.INSTANCE : projectionGuard;
+        this.postContentRepository = Objects.requireNonNull(
+                postContentRepository, "postContentRepository must not be null");
+        this.likeQueryPort = Objects.requireNonNull(likeQueryPort, "likeQueryPort must not be null");
+        this.postFeedCache = Objects.requireNonNull(postFeedCache, "postFeedCache must not be null");
+        this.postSummaryCache = Objects.requireNonNull(postSummaryCache, "postSummaryCache must not be null");
+        this.postDetailCache = Objects.requireNonNull(postDetailCache, "postDetailCache must not be null");
+        this.postCounterCache = Objects.requireNonNull(postCounterCache, "postCounterCache must not be null");
+        this.postHotnessDomainService = Objects.requireNonNull(
+                postHotnessDomainService, "postHotnessDomainService must not be null");
+        this.policyProperties = Objects.requireNonNull(policyProperties, "policyProperties must not be null");
+        this.projectionGuard = Objects.requireNonNull(projectionGuard, "projectionGuard must not be null");
         this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
         this.projectionCompletion = Objects.requireNonNull(projectionCompletion, "projectionCompletion must not be null");
-    }
-
-    public PostHotFeedProjectionApplicationService(
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
-            PostFeedCache postFeedCache,
-            PostSummaryCache postSummaryCache,
-            PostDetailCache postDetailCache,
-            PostCounterCache postCounterCache,
-            PostHotnessDomainService postHotnessDomainService,
-            ContentFeedPolicyProperties policyProperties,
-            HotFeedProjectionGuard projectionGuard,
-            HotFeedProjectionCompletion projectionCompletion
-    ) {
-        this(
-                postContentRepository,
-                likeQueryPort,
-                postFeedCache,
-                postSummaryCache,
-                postDetailCache,
-                postCounterCache,
-                postHotnessDomainService,
-                policyProperties,
-                projectionGuard,
-                new PostHotFeedProjectionTransactionOperations(postContentRepository),
-                projectionCompletion
-        );
-    }
-
-    public PostHotFeedProjectionApplicationService(
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
-            PostFeedCache postFeedCache,
-            PostSummaryCache postSummaryCache,
-            PostDetailCache postDetailCache,
-            PostCounterCache postCounterCache,
-            PostHotnessDomainService postHotnessDomainService,
-            ContentFeedPolicyProperties policyProperties,
-            HotFeedProjectionGuard projectionGuard
-    ) {
-        this(
-                postContentRepository,
-                likeQueryPort,
-                postFeedCache,
-                postSummaryCache,
-                postDetailCache,
-                postCounterCache,
-                postHotnessDomainService,
-                policyProperties,
-                projectionGuard,
-                ImmediateHotFeedProjectionCompletion.INSTANCE
-        );
-    }
-
-    public PostHotFeedProjectionApplicationService(
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
-            PostFeedCache postFeedCache,
-            PostSummaryCache postSummaryCache,
-            PostDetailCache postDetailCache,
-            PostCounterCache postCounterCache,
-            PostHotnessDomainService postHotnessDomainService,
-            ContentFeedPolicyProperties policyProperties
-    ) {
-        this(
-                postContentRepository,
-                likeQueryPort,
-                postFeedCache,
-                postSummaryCache,
-                postDetailCache,
-                postCounterCache,
-                postHotnessDomainService,
-                policyProperties,
-                AllowAllHotFeedProjectionGuard.INSTANCE
-        );
-    }
-
-    public PostHotFeedProjectionApplicationService(
-            PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
-            PostFeedCache postFeedCache,
-            PostSummaryCache postSummaryCache,
-            PostDetailCache postDetailCache,
-            PostCounterCache postCounterCache,
-            PostHotnessDomainService postHotnessDomainService
-    ) {
-        this(
-                postContentRepository,
-                likeQueryPort,
-                postFeedCache,
-                postSummaryCache,
-                postDetailCache,
-                postCounterCache,
-                postHotnessDomainService,
-                new ContentFeedPolicyProperties()
-        );
     }
 
     public void project(ProjectPostHotFeedCommand command) {
@@ -253,47 +156,13 @@ public class PostHotFeedProjectionApplicationService {
         );
     }
 
-    private enum ImmediateHotFeedProjectionCompletion implements HotFeedProjectionCompletion {
-        INSTANCE;
-
-        @Override
-        public void afterTransaction(Runnable committedAction, Runnable rolledBackAction) {
-            committedAction.run();
-        }
-    }
-
-    private enum AllowAllHotFeedProjectionGuard implements HotFeedProjectionGuard {
-        INSTANCE;
-
-        @Override
-        public ProjectionAttempt tryBegin(
-                UUID postId,
-                String sourceEventId,
-                long sourceVersion,
-                PostProjectionVersionLane sourceVersionLane,
-                boolean terminalDeletion
-        ) {
-            return ProjectionAttempt.accepted(
-                    postId,
-                    sourceEventId,
-                    sourceVersion,
-                    sourceVersionLane,
-                    terminalDeletion,
-                    "allow-all"
-            );
-        }
-
-        @Override
-        public boolean isCurrent(ProjectionAttempt attempt) {
-            return true;
-        }
-
-        @Override
-        public void commit(ProjectionAttempt attempt) {
-        }
-
-        @Override
-        public void abort(ProjectionAttempt attempt) {
-        }
+    public record ProjectPostHotFeedCommand(
+            UUID postId,
+            UUID boardId,
+            String sourceEventId,
+            long sourceVersion,
+            PostProjectionVersionLane sourceVersionLane,
+            boolean terminalDeletion
+    ) {
     }
 }

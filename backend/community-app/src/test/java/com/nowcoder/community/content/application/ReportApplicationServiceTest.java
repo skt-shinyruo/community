@@ -12,6 +12,10 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -25,6 +29,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class ReportApplicationServiceTest {
+
+    private static final Instant NOW = Instant.parse("2025-01-02T03:04:05Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     private ReportContentRepository reportContentRepository;
     private PostContentRepository postContentRepository;
@@ -42,7 +49,8 @@ class ReportApplicationServiceTest {
                 reportContentRepository,
                 postContentRepository,
                 commentRepository,
-                userLookupQueryApi
+                userLookupQueryApi,
+                CLOCK
         );
     }
 
@@ -66,7 +74,7 @@ class ReportApplicationServiceTest {
         assertThat(report.getReason()).isEqualTo("spam");
         assertThat(report.getDetail()).isEqualTo("detail");
         assertThat(report.getStatus()).isEqualTo(ReportContentRepository.STATUS_PENDING);
-        assertThat(report.getCreateTime()).isNotNull();
+        assertThat(report.getCreateTime()).isEqualTo(Date.from(NOW));
     }
 
     @Test

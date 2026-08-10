@@ -7,7 +7,7 @@ import com.nowcoder.community.content.application.command.PostMediaReferenceComm
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.util.Objects;
 
 @Component
@@ -16,15 +16,18 @@ public class OutboxPostMediaReferenceCommandPublisher implements PostMediaRefere
     private final JsonCodec jsonCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
+    private final Clock clock;
 
     public OutboxPostMediaReferenceCommandPublisher(
             JsonCodec jsonCodec,
             JdbcOutboxEventStore store,
-            @Value("${content.media.reference-command-topic:command.content.post-media-reference}") String topic
+            @Value("${content.media.reference-command-topic:command.content.post-media-reference}") String topic,
+            Clock clock
     ) {
         this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec must not be null");
         this.store = Objects.requireNonNull(store, "store must not be null");
         this.topic = Objects.requireNonNull(topic, "topic must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -37,7 +40,7 @@ public class OutboxPostMediaReferenceCommandPublisher implements PostMediaRefere
                 command.assetId().toString(),
                 jsonCodec.toJson(command)
         );
-        return enqueued || store.requeueDeadByEventId(eventId, Instant.now());
+        return enqueued || store.requeueDeadByEventId(eventId, clock.instant());
     }
 
     private String eventId(PostMediaReferenceCommand command) {

@@ -14,9 +14,10 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -27,14 +28,17 @@ public class MarketOrderSagaApplicationService {
     private final MarketOrderRepository marketOrderRepository;
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryRepository marketInventoryRepository;
+    private final Clock clock;
 
     @Autowired
     public MarketOrderSagaApplicationService(MarketOrderRepository marketOrderRepository,
                                              MarketListingRepository marketListingRepository,
-                                             MarketInventoryRepository marketInventoryRepository) {
-        this.marketOrderRepository = marketOrderRepository;
-        this.marketListingRepository = marketListingRepository;
-        this.marketInventoryRepository = marketInventoryRepository;
+                                             MarketInventoryRepository marketInventoryRepository,
+                                             Clock clock) {
+        this.marketOrderRepository = Objects.requireNonNull(marketOrderRepository, "marketOrderRepository must not be null");
+        this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
+        this.marketInventoryRepository = Objects.requireNonNull(marketInventoryRepository, "marketInventoryRepository must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional(readOnly = true)
@@ -151,10 +155,10 @@ public class MarketOrderSagaApplicationService {
         if (!order.isPreloadedDelivery()) {
             return;
         }
-        Date deliveredAt = new Date();
+        Date deliveredAt = Date.from(clock.instant());
         marketInventoryRepository.markDeliveredByOrderIfReserved(order.getOrderId(), deliveredAt);
         if (marketOrderRepository.apply(order.markDelivered(
-                Date.from(Instant.now().plus(24, ChronoUnit.HOURS))
+                Date.from(clock.instant().plus(24, ChronoUnit.HOURS))
         )) != MarketOrderRepository.ApplyStatus.APPLIED) {
             throw new IllegalStateException(
                     "preloaded market order delivery transition was stale: orderId=" + order.getOrderId()

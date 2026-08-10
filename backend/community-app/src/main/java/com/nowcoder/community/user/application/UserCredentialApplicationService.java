@@ -1,9 +1,9 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
+import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
-import com.nowcoder.community.user.application.result.UserAuthenticationResult;
-import com.nowcoder.community.user.application.result.UserCredentialResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
@@ -13,8 +13,10 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -31,24 +33,36 @@ public class UserCredentialApplicationService {
     private final UserCredentialDomainService userCredentialDomainService;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
     private final UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort;
+    private final Clock clock;
     private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
 
     public UserCredentialApplicationService(
             UserRepository userRepository,
             UserCredentialDomainService userCredentialDomainService,
             PasswordPolicyDomainService passwordPolicyDomainService,
-            UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort
+            UsernameAuthenticationSubjectPort usernameAuthenticationSubjectPort,
+            Clock clock
     ) {
-        this.userRepository = userRepository;
-        this.userCredentialDomainService = userCredentialDomainService;
-        this.passwordPolicyDomainService = passwordPolicyDomainService;
-        this.usernameAuthenticationSubjectPort = usernameAuthenticationSubjectPort;
+        this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
+        this.userCredentialDomainService = Objects.requireNonNull(
+                userCredentialDomainService,
+                "userCredentialDomainService must not be null"
+        );
+        this.passwordPolicyDomainService = Objects.requireNonNull(
+                passwordPolicyDomainService,
+                "passwordPolicyDomainService must not be null"
+        );
+        this.usernameAuthenticationSubjectPort = Objects.requireNonNull(
+                usernameAuthenticationSubjectPort,
+                "usernameAuthenticationSubjectPort must not be null"
+        );
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    public UserAuthenticationResult authenticate(String username, String password) {
+    public UserAuthenticationResultView authenticate(String username, String password) {
         if (!StringUtils.hasText(userCredentialDomainService.trim(username))
                 || !StringUtils.hasText(password)) {
-            return UserAuthenticationResult.invalidCredentials();
+            return UserAuthenticationResultView.invalidCredentials();
         }
         return authenticate(prepareAuthentication(username), password);
     }
@@ -85,13 +99,13 @@ public class UserCredentialApplicationService {
         return subject.trim();
     }
 
-    public UserAuthenticationResult authenticate(PreparedAuthentication preparation, String password) {
+    public UserAuthenticationResultView authenticate(PreparedAuthentication preparation, String password) {
         PreparedAuthentication safePreparation = preparation == null
                 ? new PreparedAuthentication(null, DUMMY_PASSWORD_HASH, false)
                 : preparation;
         String rawPassword = password == null ? "" : password;
         if (!StringUtils.hasText(rawPassword)) {
-            return UserAuthenticationResult.invalidCredentials();
+            return UserAuthenticationResultView.invalidCredentials();
         }
 
         UserAccount user = safePreparation.user();
@@ -102,37 +116,33 @@ public class UserCredentialApplicationService {
         // A dummy hash keeps timing uniform, but must never authenticate a real
         // account whose stored hash is missing or malformed.
         if (user == null || !safePreparation.storedHashUsable() || !passwordMatches) {
-            return UserAuthenticationResult.invalidCredentials();
+            return UserAuthenticationResultView.invalidCredentials();
         }
         if (user.status() == 0 || activeBan(user)) {
-            return UserAuthenticationResult.userDisabled(toCredentialResult(user));
+            return UserAuthenticationResultView.userDisabled(toCredentialView(user));
         }
-        return UserAuthenticationResult.authenticated(toCredentialResult(user));
+        return UserAuthenticationResultView.authenticated(toCredentialView(user));
     }
 
     public record PreparedAuthentication(UserAccount user, String encodedPassword, boolean storedHashUsable) {
 
-        public PreparedAuthentication(UserAccount user, String encodedPassword) {
-            this(user, encodedPassword, user != null && encodedPassword != null
-                    && encodedPassword.matches("\\A\\$2[aby]\\$(?:0[4-9]|[12][0-9]|3[01])\\$[./A-Za-z0-9]{53}\\z"));
-        }
     }
 
-    public UserCredentialResult getByUserId(UUID userId) {
+    public UserCredentialView getByUserId(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
         return userRepository.findById(userId)
-                .map(this::toCredentialResult)
+                .map(this::toCredentialView)
                 .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
     }
 
-    public UserCredentialResult findByEmailOrNull(String email) {
+    public UserCredentialView findByEmailOrNull(String email) {
         String value = userCredentialDomainService.canonicalEmail(email);
         if (!StringUtils.hasText(value)) {
             throw new BusinessException(INVALID_ARGUMENT, "email 不能为空");
         }
-        return userRepository.findByEmail(value).map(this::toCredentialResult).orElse(null);
+        return userRepository.findByEmail(value).map(this::toCredentialView).orElse(null);
     }
 
     @Transactional
@@ -176,7 +186,7 @@ public class UserCredentialApplicationService {
         userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword), securityVersion);
     }
 
-    public List<String> authoritiesOf(UserCredentialResult user) {
+    public List<String> authoritiesOf(UserCredentialView user) {
         return user == null ? List.of() : userCredentialDomainService.authoritiesForType(user.type());
     }
 
@@ -192,12 +202,12 @@ public class UserCredentialApplicationService {
     }
 
     private boolean activeBan(UserAccount user) {
-        return user != null && user.banUntil() != null && user.banUntil().isAfter(Instant.now());
+        return user != null && user.banUntil() != null && user.banUntil().isAfter(Instant.now(clock));
     }
 
-    private UserCredentialResult toCredentialResult(UserAccount user) {
+    private UserCredentialView toCredentialView(UserAccount user) {
         boolean allowed = user.status() != 0 && !activeBan(user);
-        return new UserCredentialResult(
+        return new UserCredentialView(
                 user.id(),
                 user.username(),
                 user.email(),

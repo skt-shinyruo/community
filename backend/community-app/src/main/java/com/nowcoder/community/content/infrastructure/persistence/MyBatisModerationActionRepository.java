@@ -7,13 +7,14 @@ import com.nowcoder.community.content.domain.repository.ModerationActionReposito
 import com.nowcoder.community.content.domain.model.ModerationAction;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
 import com.nowcoder.community.common.pagination.Pagination;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Repository;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -24,15 +25,17 @@ public class MyBatisModerationActionRepository implements ModerationActionReposi
 
     private final ModerationActionMapper moderationActionMapper;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
-    public MyBatisModerationActionRepository(ModerationActionMapper moderationActionMapper) {
-        this(moderationActionMapper, new UuidV7Generator());
-    }
-
-    MyBatisModerationActionRepository(ModerationActionMapper moderationActionMapper, UuidV7Generator idGenerator) {
-        this.moderationActionMapper = moderationActionMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisModerationActionRepository(
+            ModerationActionMapper moderationActionMapper,
+            UuidV7Generator idGenerator,
+            Clock clock
+    ) {
+        this.moderationActionMapper = Objects.requireNonNull(
+                moderationActionMapper, "moderationActionMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -44,7 +47,7 @@ public class MyBatisModerationActionRepository implements ModerationActionReposi
         row.setAction(action);
         row.setReason(reason);
         row.setDurationSeconds(durationSeconds == null ? 0 : Math.max(0, durationSeconds));
-        row.setCreateTime(new Date());
+        row.setCreateTime(Date.from(clock.instant()));
         moderationActionMapper.insertAction(row);
         return toRecord(row);
     }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.search.application;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.api.model.PostScanView;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
@@ -95,7 +96,7 @@ class SearchReindexApplicationServiceTest {
         SearchPolicyProperties properties = new SearchPolicyProperties();
         properties.setProjectionEnabled(false);
         SearchReindexApplicationService applicationService = new SearchReindexApplicationService(
-                postScanQueryApi, rebuildPort, leasePort, 10, LEASE_TTL, properties
+                postScanQueryApi, rebuildPort, leasePort, 10, LEASE_TTL, properties, new UuidV7Generator()
         );
 
         assertThatThrownBy(applicationService::reindex)
@@ -237,7 +238,13 @@ class SearchReindexApplicationServiceTest {
             int pageSize
     ) {
         return new SearchReindexApplicationService(
-                postScanQueryApi, rebuildPort, leasePort, pageSize, LEASE_TTL, new SearchPolicyProperties()
+                postScanQueryApi,
+                rebuildPort,
+                leasePort,
+                pageSize,
+                LEASE_TTL,
+                new SearchPolicyProperties(),
+                new UuidV7Generator()
         );
     }
 

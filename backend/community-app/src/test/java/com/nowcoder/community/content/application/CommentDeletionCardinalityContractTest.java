@@ -5,7 +5,6 @@ import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
@@ -16,6 +15,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
@@ -40,6 +42,9 @@ import static org.mockito.Mockito.when;
 
 class CommentDeletionCardinalityContractTest {
 
+    private static final Clock CLOCK = Clock.fixed(
+            Instant.parse("2025-01-02T03:04:05Z"), ZoneOffset.UTC);
+
     private static final UUID ROOT_ID = uuid(8401);
     private static final UUID FIRST_REPLY_ID = uuid(8402);
     private static final UUID SECOND_REPLY_ID = uuid(8403);
@@ -63,6 +68,8 @@ class CommentDeletionCardinalityContractTest {
         postCacheAfterCommit = mock(PostCacheAfterCommit.class);
         eventPublisher = mock(ContentEventPublisher.class);
         when(postRepository.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
+        CommentCacheAfterCommit cacheAfterCommit =
+                new CommentCacheAfterCommit(counterCache, pageCache, postCacheAfterCommit);
         service = new CommentApplicationService(
                 mock(ContentSanitizer.class),
                 mock(IdempotencyGuard.class),
@@ -71,9 +78,12 @@ class CommentDeletionCardinalityContractTest {
                 new CommentDomainService(),
                 repository,
                 postRepository,
-                new CommentCacheAfterCommit(counterCache, pageCache, postCacheAfterCommit),
+                cacheAfterCommit,
                 mock(SocialInteractionActionApi.class),
-                eventPublisher
+                eventPublisher,
+                new CommentDeletionTransactionOperations(
+                        repository, postRepository, cacheAfterCommit, eventPublisher, CLOCK),
+                CLOCK
         );
     }
 
@@ -82,9 +92,8 @@ class CommentDeletionCardinalityContractTest {
         CommentSnapshot root = root(ROOT_ID, AUTHOR_ID);
         CommentSnapshot firstReply = reply(FIRST_REPLY_ID, uuid(8411), ROOT_ID);
         CommentSnapshot secondReply = reply(SECOND_REPLY_ID, uuid(8412), ROOT_ID);
-        when(repository.getRequiredSnapshot(ROOT_ID)).thenReturn(root);
-        when(repository.getActiveThreadSnapshots(ROOT_ID)).thenReturn(List.of(root, firstReply, secondReply));
-        when(repository.apply(any(CommentThreadDeletion.class)))
+        when(repository.findSnapshot(ROOT_ID)).thenReturn(java.util.Optional.of(root));
+        when(repository.apply(any(CommentDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(List.of(root, firstReply, secondReply)));
 
         service.deleteByAuthor(AUTHOR_ID, POST_ID, ROOT_ID);
@@ -102,9 +111,8 @@ class CommentDeletionCardinalityContractTest {
 
     @Test
     void stalePersistenceConflictMustPublishNoEventsAndApplyNoCounters() {
-        when(repository.getRequiredSnapshot(ROOT_ID)).thenReturn(root(ROOT_ID, AUTHOR_ID));
-        when(repository.getActiveThreadSnapshots(ROOT_ID)).thenReturn(List.of(root(ROOT_ID, AUTHOR_ID)));
-        when(repository.apply(any(CommentThreadDeletion.class))).thenReturn(CommentDeletionResult.stale());
+        when(repository.findSnapshot(ROOT_ID)).thenReturn(java.util.Optional.of(root(ROOT_ID, AUTHOR_ID)));
+        when(repository.apply(any(CommentDeletion.class))).thenReturn(CommentDeletionResult.stale());
 
         assertThatThrownBy(() -> service.deleteByAuthor(AUTHOR_ID, POST_ID, ROOT_ID))
                 .isInstanceOf(IllegalStateException.class)
@@ -119,9 +127,8 @@ class CommentDeletionCardinalityContractTest {
     @Test
     void duplicateNoOpMustProduceZeroEventsAndZeroCounterChanges() {
         CommentSnapshot root = root(ROOT_ID, AUTHOR_ID);
-        when(repository.getRequiredSnapshot(ROOT_ID)).thenReturn(root);
-        when(repository.getActiveThreadSnapshots(ROOT_ID)).thenReturn(List.of(root));
-        when(repository.apply(any(CommentThreadDeletion.class))).thenReturn(CommentDeletionResult.noOp());
+        when(repository.findSnapshot(ROOT_ID)).thenReturn(java.util.Optional.of(root));
+        when(repository.apply(any(CommentDeletion.class))).thenReturn(CommentDeletionResult.noOp());
 
         service.deleteByAuthor(AUTHOR_ID, POST_ID, ROOT_ID);
 
@@ -134,7 +141,7 @@ class CommentDeletionCardinalityContractTest {
     void moderatorDeletionMustPublishFromThePersistedResultRatherThanActorOwnership() {
         UUID moderatorId = uuid(8499);
         CommentSnapshot reply = reply(FIRST_REPLY_ID, AUTHOR_ID, ROOT_ID);
-        when(repository.getRequiredSnapshot(FIRST_REPLY_ID)).thenReturn(reply);
+        when(repository.findSnapshot(FIRST_REPLY_ID)).thenReturn(java.util.Optional.of(reply));
         when(repository.apply(any(CommentDeletion.class)))
                 .thenReturn(CommentDeletionResult.applied(List.of(reply)));
 

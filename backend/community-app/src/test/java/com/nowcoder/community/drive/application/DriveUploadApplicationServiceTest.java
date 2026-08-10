@@ -1,13 +1,14 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.drive.application.command.CompleteDriveUploadCommand;
+import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.CompleteUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
-import com.nowcoder.community.drive.application.command.PrepareDriveUploadCommand;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DriveUploadRecoveryResult;
-import com.nowcoder.community.drive.application.result.DriveUploadSessionResult;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.RecoveryResult;
+import com.nowcoder.community.drive.application.DriveUploadApplicationService.UploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
@@ -65,7 +66,7 @@ class DriveUploadApplicationServiceTest {
         when(storage.prepareUpload(any())).thenThrow(new RuntimeException("response lost"));
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
 
-        assertThatThrownBy(() -> service.prepareUpload(new PrepareDriveUploadCommand(
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareUploadCommand(
                 uuid(7), null, "unknown.bin", "application/octet-stream", 8L, "")))
                 .isInstanceOf(BusinessException.class)
                 .hasMessage("网盘存储服务不可用");
@@ -90,7 +91,7 @@ class DriveUploadApplicationServiceTest {
                 userId, NOW.minusSeconds(10), NOW.plusSeconds(900));
         uploads.save(preparing);
 
-        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW, 10);
+        RecoveryResult result = service.recoverStaleUploads(NOW, 10);
 
         assertThat(result.prepared()).isOne();
         assertThat(storage.prepared).singleElement()
@@ -122,7 +123,7 @@ class DriveUploadApplicationServiceTest {
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
 
-        DriveUploadSessionResult result = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult result = service.prepareUpload(new PrepareUploadCommand(
                 userId,
                 null,
                 "report.pdf",
@@ -162,7 +163,7 @@ class DriveUploadApplicationServiceTest {
                 .thenReturn(new DriveObjectStoragePort.PreparedObject(uuid(101), uuid(102), uuid(103), NOW.plusSeconds(900)));
 
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
 
         assertThat(session.uploadId()).isNotBlank();
         DriveUpload persisted = uploads.findById(UUID.fromString(session.uploadId())).orElseThrow();
@@ -178,20 +179,21 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
 
-        DriveEntryResult first = service.completeUpload(new CompleteDriveUploadCommand(
+        DriveEntryResult first = service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
-        DriveEntryResult second = service.completeUpload(new CompleteDriveUploadCommand(
+        DriveEntryResult second = service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
         ));
 
         assertThat(first.entryId()).isEqualTo(second.entryId());
+        assertThat(first.entryId().version()).isEqualTo(7);
         assertThat(first.name()).isEqualTo("report.pdf");
         assertThat(first.type()).isEqualTo("FILE");
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(1_024L);
@@ -206,7 +208,7 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(
                 userId,
                 null,
                 "report.pdf",
@@ -215,7 +217,7 @@ class DriveUploadApplicationServiceTest {
                 "sha256:expected"
         ));
 
-        service.completeUpload(new CompleteDriveUploadCommand(
+        service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(
@@ -241,12 +243,12 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
 
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -261,7 +263,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(storage.completed).hasSize(1);
         assertThat(storage.deletedObjects).isEmpty();
 
-        DriveEntryResult recovered = service.completeUpload(new CompleteDriveUploadCommand(
+        DriveEntryResult recovered = service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -282,24 +284,24 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult objectCompletedSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "recoverable.txt", "text/plain", 1_024L, ""));
+        UploadSessionResult objectCompletedSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "recoverable.txt", "text/plain", 1_024L, ""));
         UUID objectCompletedUploadId = UUID.fromString(objectCompletedSession.uploadId());
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 objectCompletedUploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 1_024L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘条目创建失败");
 
-        DriveUploadSessionResult completingSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "unknown.txt", "text/plain", 512L, ""));
+        UploadSessionResult completingSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "unknown.txt", "text/plain", 512L, ""));
         UUID completingUploadId = UUID.fromString(completingSession.uploadId());
         DriveUpload prepared = uploads.findById(completingUploadId).orElseThrow();
         assertThat(spaces.reserve(prepared.spaceId(), prepared.sizeBytes(), NOW)).isTrue();
         assertThat(uploads.transitionStatus(prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
         storage.metadataStatuses.put(prepared.objectId(), "PURGED");
 
-        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
+        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
 
         assertThat(result.finalized()).isEqualTo(1);
         assertThat(result.markedObjectCompleted()).isZero();
@@ -320,11 +322,11 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "late-response.txt", "text/plain", 512L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "late-response.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         storage.failAfterObjectCompleted = true;
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
@@ -336,7 +338,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isZero();
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
 
-        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
+        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
 
         assertThat(result.finalized()).isEqualTo(1);
         assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
@@ -353,7 +355,7 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "unknown-outcome.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -362,7 +364,7 @@ class DriveUploadApplicationServiceTest {
                 prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
         storage.metadataUnavailable = true;
 
-        DriveUploadRecoveryResult beforeDeadline = service(
+        RecoveryResult beforeDeadline = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
 
@@ -370,7 +372,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETING);
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
 
-        DriveUploadRecoveryResult atDeadline = service(
+        RecoveryResult atDeadline = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -388,8 +390,8 @@ class DriveUploadApplicationServiceTest {
             InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
             FakeStoragePort storage = new FakeStoragePort();
             UUID userId = uuid(7);
-            DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
-                    .prepareUpload(new PrepareDriveUploadCommand(
+            UploadSessionResult session = service(spaces, entries, uploads, storage)
+                    .prepareUpload(new PrepareUploadCommand(
                             userId, null, ossStatus.toLowerCase() + ".txt", "text/plain", 512L, ""));
             UUID uploadId = UUID.fromString(session.uploadId());
             DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -398,7 +400,7 @@ class DriveUploadApplicationServiceTest {
                     prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
             storage.metadataStatuses.put(prepared.objectId(), ossStatus);
 
-            DriveUploadRecoveryResult result = service(
+            RecoveryResult result = service(
                     spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
                     .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
 
@@ -421,8 +423,8 @@ class DriveUploadApplicationServiceTest {
         InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
         FakeStoragePort storage = new FakeStoragePort();
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
-                .prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareUploadCommand(
                         userId, null, "cancel-race.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -432,7 +434,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataUnavailable = true;
         storage.cancellationCompleted = true;
 
-        DriveUploadRecoveryResult result = service(
+        RecoveryResult result = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -453,8 +455,8 @@ class DriveUploadApplicationServiceTest {
         InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
         FakeStoragePort storage = new FakeStoragePort();
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
-                .prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareUploadCommand(
                         userId, null, "cancel-retry.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -464,7 +466,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataUnavailable = true;
         storage.cancelFailuresRemaining = 1;
 
-        DriveUploadRecoveryResult first = service(
+        RecoveryResult first = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -473,7 +475,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
         assertThat(storage.deletedObjects).isEmpty();
 
-        DriveUploadRecoveryResult retried = service(
+        RecoveryResult retried = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -492,8 +494,8 @@ class DriveUploadApplicationServiceTest {
         InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
         FakeStoragePort storage = new FakeStoragePort();
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service(spaces, entries, uploads, storage)
-                .prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service(spaces, entries, uploads, storage)
+                .prepareUpload(new PrepareUploadCommand(
                         userId, null, "cleanup-retry.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -503,7 +505,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataStatuses.put(prepared.objectId(), "STAGED");
         storage.deleteFailuresRemaining = 1;
 
-        DriveUploadRecoveryResult first = service(
+        RecoveryResult first = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -516,7 +518,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(storage.deleteAttempts).containsExactly(prepared.objectId());
         assertThat(storage.deletedObjects).isEmpty();
 
-        DriveUploadRecoveryResult retried = service(
+        RecoveryResult retried = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -536,7 +538,7 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "confirmed.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveUpload prepared = uploads.findById(uploadId).orElseThrow();
@@ -554,7 +556,7 @@ class DriveUploadApplicationServiceTest {
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
         ));
 
-        DriveUploadRecoveryResult result = service(
+        RecoveryResult result = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -575,11 +577,11 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "retry-expired.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
@@ -587,7 +589,7 @@ class DriveUploadApplicationServiceTest {
                 .hasMessage("网盘条目创建失败");
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
 
-        DriveUploadRecoveryResult failedAttempt = service(
+        RecoveryResult failedAttempt = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -600,7 +602,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
         assertThat(storage.deletedObjects).isEmpty();
 
-        DriveUploadRecoveryResult retried = service(
+        RecoveryResult retried = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -618,9 +620,9 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         UUID userId = uuid(7);
         DriveUploadApplicationService initialService = service(spaces, entries, uploads, storage);
-        UUID firstUploadId = UUID.fromString(initialService.prepareUpload(new PrepareDriveUploadCommand(
+        UUID firstUploadId = UUID.fromString(initialService.prepareUpload(new PrepareUploadCommand(
                 userId, null, "blocked-cleanup.txt", "text/plain", 10L, "")).uploadId());
-        UUID secondUploadId = UUID.fromString(initialService.prepareUpload(new PrepareDriveUploadCommand(
+        UUID secondUploadId = UUID.fromString(initialService.prepareUpload(new PrepareUploadCommand(
                 userId, null, "next-cleanup.txt", "text/plain", 20L, "")).uploadId());
         DriveUpload firstPrepared = uploads.findById(firstUploadId).orElseThrow();
         DriveUpload secondPrepared = uploads.findById(secondUploadId).orElseThrow();
@@ -636,8 +638,8 @@ class DriveUploadApplicationServiceTest {
         DriveUploadApplicationService recoveryService = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(10), ZoneOffset.UTC));
 
-        DriveUploadRecoveryResult firstBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
-        DriveUploadRecoveryResult secondBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
+        RecoveryResult firstBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
+        RecoveryResult secondBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
 
         assertThat(firstBatch.skipped()).isEqualTo(1);
         assertThat(secondBatch.failed()).isEqualTo(1);
@@ -656,18 +658,18 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "retry-success.txt", "text/plain", 512L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘条目创建失败");
 
-        DriveUploadRecoveryResult result = service(
+        RecoveryResult result = service(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -687,12 +689,12 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
         DriveSpace space = spaces.findByUserId(userId).orElseThrow();
         storage.afterComplete = () -> entries.save(DriveEntry.file(uuid(82), space.spaceId(), null, "report.pdf", uuid(83), uuid(84), 10L, "application/pdf", NOW.plusSeconds(1)));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -718,10 +720,10 @@ class DriveUploadApplicationServiceTest {
         DriveEntry parent = DriveEntry.folder(uuid(91), space.spaceId(), null, "work", NOW);
         spaces.save(space);
         entries.save(parent);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
 
-        service.completeUpload(new CompleteDriveUploadCommand(
+        service.completeUpload(new CompleteUploadCommand(
                 userId,
                 uploadId,
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -731,7 +733,7 @@ class DriveUploadApplicationServiceTest {
         spaces.forceReserved(space.spaceId(), 1_024L, NOW.plusSeconds(2));
         entries.save(parent.trash(NOW.plusSeconds(3), NOW.plusSeconds(86_400)));
 
-        DriveUploadRecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(10), 10);
+        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(10), 10);
 
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.finalized()).isZero();
@@ -752,17 +754,17 @@ class DriveUploadApplicationServiceTest {
         spaces.save(space);
         spaces.captureSnapshot(space.spaceId());
         long uploadSize = 6_000_000_000L;
-        DriveUploadSessionResult firstSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
-        DriveUploadSessionResult secondSession = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
+        UploadSessionResult firstSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
+        UploadSessionResult secondSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
 
-        DriveEntryResult first = service.completeUpload(new CompleteDriveUploadCommand(
+        DriveEntryResult first = service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(firstSession.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("first".getBytes()), "application/octet-stream", uploadSize)
         ));
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isEqualTo(uploadSize);
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(secondSession.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("second".getBytes()), "application/octet-stream", uploadSize)
@@ -781,7 +783,7 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
 
-        assertThatThrownBy(() -> service.prepareUpload(new PrepareDriveUploadCommand(
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareUploadCommand(
                 uuid(7),
                 null,
                 "too-large.bin",
@@ -807,7 +809,7 @@ class DriveUploadApplicationServiceTest {
         spaces.save(space);
         entries.save(trashedParent);
 
-        assertThatThrownBy(() -> service.prepareUpload(new PrepareDriveUploadCommand(
+        assertThatThrownBy(() -> service.prepareUpload(new PrepareUploadCommand(
                 userId,
                 trashedParent.entryId(),
                 "report.pdf",
@@ -827,9 +829,9 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 512L)
@@ -846,10 +848,10 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
         uploads.forceExpire(UUID.fromString(session.uploadId()), NOW.plusSeconds(901));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -866,11 +868,11 @@ class DriveUploadApplicationServiceTest {
         FakeStoragePort storage = new FakeStoragePort();
         DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
         UUID userId = uuid(7);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, null, "report.pdf", "application/pdf", 1_024L, ""));
         DriveSpace space = spaces.findByUserId(userId).orElseThrow();
         entries.save(DriveEntry.file(uuid(82), space.spaceId(), null, "report.pdf", uuid(83), uuid(84), 10L, "application/pdf", NOW.plusSeconds(1)));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -891,10 +893,10 @@ class DriveUploadApplicationServiceTest {
         DriveEntry parent = DriveEntry.folder(uuid(91), space.spaceId(), null, "work", NOW);
         spaces.save(space);
         entries.save(parent);
-        DriveUploadSessionResult session = service.prepareUpload(new PrepareDriveUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
+        UploadSessionResult session = service.prepareUpload(new PrepareUploadCommand(userId, parent.entryId(), "report.pdf", "application/pdf", 1_024L, ""));
         entries.save(parent.trash(NOW.plusSeconds(1), NOW.plusSeconds(86_400)));
 
-        assertThatThrownBy(() -> service.completeUpload(new CompleteDriveUploadCommand(
+        assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
                 UUID.fromString(session.uploadId()),
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "application/pdf", 1_024L)
@@ -919,7 +921,15 @@ class DriveUploadApplicationServiceTest {
             DriveObjectStoragePort storage,
             Clock clock
     ) {
-        return new DriveUploadApplicationService(spaces, entries, uploads, storage, clock);
+        return new DriveUploadApplicationService(
+                spaces,
+                entries,
+                uploads,
+                storage,
+                clock,
+                DirectDriveTransactionOperations.INSTANCE,
+                new UuidV7Generator(clock)
+        );
     }
 
     private static final class InMemoryDriveSpaceRepository implements DriveSpaceRepository {

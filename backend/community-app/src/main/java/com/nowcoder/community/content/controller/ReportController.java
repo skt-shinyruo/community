@@ -30,10 +30,10 @@ public class ReportController {
         UUID reporterId = CurrentUser.requireUserUuid(authentication);
         UUID reportId = reportApplicationService.create(
                 reporterId,
-                request.getTargetType(),
-                request.getTargetId(),
-                request.getReason(),
-                request.getDetail()
+                request.targetType(),
+                request.targetId(),
+                request.reason(),
+                request.detail()
         );
 
         CreateReportResponse resp = new CreateReportResponse();

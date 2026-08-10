@@ -126,7 +126,8 @@ class CommentPersistenceBoundaryContractTest {
     @Test
     void replyContextMustRejectRootDeletedBetweenHintReadAndLockedReread() {
         CommentMapper mapper = mock(CommentMapper.class);
-        MyBatisCommentRepository repository = new MyBatisCommentRepository(mapper);
+        MyBatisCommentRepository repository = new MyBatisCommentRepository(
+                mapper, new com.nowcoder.community.common.id.UuidV7Generator());
         CommentDataObject root = row(ROOT_ID, null, 0, 7L);
         when(mapper.selectById(ROOT_ID)).thenReturn(root);
         when(mapper.selectByIdForUpdate(ROOT_ID)).thenAnswer(invocation -> {

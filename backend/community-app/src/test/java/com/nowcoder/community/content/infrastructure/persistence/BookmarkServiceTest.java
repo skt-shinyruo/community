@@ -32,7 +32,7 @@ class BookmarkServiceTest {
 
         when(bookmarkMapper.selectBookmarkedPosts(userId, 0, 10)).thenReturn(List.of(post));
 
-        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(bookmarkMapper);
+        MyBatisBookmarkRepository service = new MyBatisBookmarkRepository(bookmarkMapper, java.time.Clock.systemUTC());
 
         List<DiscussPost> posts = service.listBookmarkedPosts(userId, 0, 10);
 
@@ -49,7 +49,7 @@ class BookmarkServiceTest {
         when(bookmarkMapper.insertBookmarkForActivePost(eq(userId), eq(postId), any(Date.class)))
                 .thenReturn(1);
 
-        boolean created = new MyBatisBookmarkRepository(bookmarkMapper).add(userId, postId);
+        boolean created = new MyBatisBookmarkRepository(bookmarkMapper, java.time.Clock.systemUTC()).add(userId, postId);
 
         assertThat(created).isTrue();
         verify(bookmarkMapper, never()).existsActivePost(postId);
@@ -65,7 +65,7 @@ class BookmarkServiceTest {
                 .thenReturn(0);
         when(bookmarkMapper.existsActivePost(postId)).thenReturn(1);
 
-        boolean created = new MyBatisBookmarkRepository(bookmarkMapper).add(userId, postId);
+        boolean created = new MyBatisBookmarkRepository(bookmarkMapper, java.time.Clock.systemUTC()).add(userId, postId);
 
         assertThat(created).isFalse();
     }
@@ -77,7 +77,8 @@ class BookmarkServiceTest {
         UUID postId = uuid(26);
         when(bookmarkMapper.lockActivePost(postId)).thenReturn(null);
 
-        assertThatThrownBy(() -> new MyBatisBookmarkRepository(bookmarkMapper).add(userId, postId))
+        assertThatThrownBy(() -> new MyBatisBookmarkRepository(
+                bookmarkMapper, java.time.Clock.systemUTC()).add(userId, postId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND));
@@ -92,7 +93,8 @@ class BookmarkServiceTest {
         when(bookmarkMapper.lockPost(postId)).thenReturn(postId);
         when(bookmarkMapper.deleteBookmark(userId, postId)).thenReturn(0);
 
-        boolean removed = new MyBatisBookmarkRepository(bookmarkMapper).remove(userId, postId);
+        boolean removed = new MyBatisBookmarkRepository(
+                bookmarkMapper, java.time.Clock.systemUTC()).remove(userId, postId);
 
         assertThat(removed).isFalse();
         verify(bookmarkMapper).deleteBookmark(userId, postId);
@@ -105,7 +107,8 @@ class BookmarkServiceTest {
         UUID postId = uuid(30);
         when(bookmarkMapper.lockPost(postId)).thenReturn(null);
 
-        assertThatThrownBy(() -> new MyBatisBookmarkRepository(bookmarkMapper).remove(userId, postId))
+        assertThatThrownBy(() -> new MyBatisBookmarkRepository(
+                bookmarkMapper, java.time.Clock.systemUTC()).remove(userId, postId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND));

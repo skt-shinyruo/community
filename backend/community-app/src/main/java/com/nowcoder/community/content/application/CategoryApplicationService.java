@@ -1,11 +1,11 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
-import com.nowcoder.community.content.application.result.CategoryResult;
 import com.nowcoder.community.content.domain.model.Category;
 import org.springframework.stereotype.Service;
 
 import java.util.List;
+import java.util.UUID;
 
 @Service
 public class CategoryApplicationService {
@@ -30,5 +30,14 @@ public class CategoryApplicationService {
                 category.getPosition(),
                 category.getPostCount()
         );
+    }
+
+    public record CategoryResult(
+            UUID id,
+            String name,
+            String description,
+            int position,
+            int postCount
+    ) {
     }
 }

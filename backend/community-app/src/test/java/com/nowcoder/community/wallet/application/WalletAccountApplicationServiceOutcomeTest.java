@@ -1,6 +1,7 @@
 package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
@@ -105,7 +106,7 @@ class WalletAccountApplicationServiceOutcomeTest {
     }
 
     private WalletAccountApplicationService service() {
-        return new WalletAccountApplicationService(repository);
+        return new WalletAccountApplicationService(repository, new UuidV7Generator());
     }
 
     private WalletAccount account(long balance, String status, long version) {

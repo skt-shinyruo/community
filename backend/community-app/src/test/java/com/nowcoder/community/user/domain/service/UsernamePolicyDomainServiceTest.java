@@ -30,7 +30,11 @@ class UsernamePolicyDomainServiceTest {
 
     @Test
     void registrationOwnerUsesTheSameUsernameBoundary() {
-        UserRegistrationDomainService registration = new UserRegistrationDomainService();
+        UserRegistrationDomainService registration = new UserRegistrationDomainService(
+                java.time.Clock.systemUTC(),
+                new PasswordPolicyDomainService(),
+                policy
+        );
 
         assertThatThrownBy(() -> registration.requireValidRegistration(
                 "alice\u200D", "secret12", "alice@example.com"))

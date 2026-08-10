@@ -153,7 +153,9 @@ class PostScoreOutboxAtomicityIntegrationTest {
                             new JacksonJsonCodec(JsonMappers.standard())
                     ),
                     new JdbcOutboxEventStore(jdbcTemplate),
-                    "content.events"
+                    "content.events",
+                    new com.nowcoder.community.common.id.UuidV7Generator(),
+                    java.time.Clock.systemUTC()
             );
         }
 

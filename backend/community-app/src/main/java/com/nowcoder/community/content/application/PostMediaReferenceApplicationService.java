@@ -3,8 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
-import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
@@ -21,7 +19,6 @@ public class PostMediaReferenceApplicationService {
     private final PostMediaStoragePort storagePort;
     private final Clock clock;
 
-    @Autowired
     public PostMediaReferenceApplicationService(
             PostMediaReferenceTransactionOperations transactions,
             PostMediaStoragePort storagePort,
@@ -29,15 +26,7 @@ public class PostMediaReferenceApplicationService {
     ) {
         this.transactions = Objects.requireNonNull(transactions, "transactions must not be null");
         this.storagePort = Objects.requireNonNull(storagePort, "storagePort must not be null");
-        this.clock = clock == null ? Clock.systemUTC() : clock;
-    }
-
-    PostMediaReferenceApplicationService(
-            PostMediaAssetRepository assetRepository,
-            PostMediaStoragePort storagePort,
-            Clock clock
-    ) {
-        this(new PostMediaReferenceTransactionOperations(assetRepository), storagePort, clock);
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional(propagation = Propagation.NOT_SUPPORTED)

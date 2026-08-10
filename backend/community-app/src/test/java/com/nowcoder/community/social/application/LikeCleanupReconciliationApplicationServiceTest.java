@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
-import com.nowcoder.community.social.application.command.ReconcileLikeCleanupCommand;
-import com.nowcoder.community.social.application.result.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.ReconcileLikeCleanupCommand;
 import com.nowcoder.community.social.domain.model.LikeTargetState;
 import com.nowcoder.community.social.domain.repository.LikeTargetStateRepository;
 import org.junit.jupiter.api.Test;

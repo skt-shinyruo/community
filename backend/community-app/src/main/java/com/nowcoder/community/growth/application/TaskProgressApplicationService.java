@@ -1,10 +1,6 @@
 package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.growth.application.command.TriggerCommentCreatedCommand;
-import com.nowcoder.community.growth.application.command.TriggerLikeCreatedCommand;
-import com.nowcoder.community.growth.application.command.TriggerLikeRemovedCommand;
-import com.nowcoder.community.growth.application.command.TriggerPostPublishedCommand;
 import com.nowcoder.community.growth.domain.model.LikeTaskLifecycleState;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
@@ -35,6 +31,32 @@ import java.util.UUID;
 @Service
 public class TaskProgressApplicationService {
 
+    public record TriggerPostPublishedCommand(UUID postId, UUID userId, Instant createTime) {
+    }
+
+    public record TriggerCommentCreatedCommand(UUID commentId, UUID userId, Instant createTime) {
+    }
+
+    public record TriggerLikeCreatedCommand(
+            String sourceEventId,
+            long sourceVersion,
+            String relationKey,
+            UUID relationInstanceId,
+            UUID actorUserId,
+            UUID entityUserId,
+            Instant createTime
+    ) {
+    }
+
+    public record TriggerLikeRemovedCommand(
+            String sourceEventId,
+            long sourceVersion,
+            String relationKey,
+            UUID relationInstanceId,
+            UUID entityUserId
+    ) {
+    }
+
     private static final String STATUS_IN_PROGRESS = "IN_PROGRESS";
     private static final String STATUS_CLAIMABLE = "CLAIMABLE";
     private static final String STATUS_CLAIMED = "CLAIMED";
@@ -47,8 +69,8 @@ public class TaskProgressApplicationService {
     private final LikeTaskLifecycleStateRepository likeTaskLifecycleStateRepository;
     private final WalletRewardActionApi walletRewardActionApi;
     private final GrowthBusinessTimeService growthBusinessTimeService;
-    private final TaskProgressDomainService taskProgressDomainService;
-    private final RewardGrantDomainService rewardGrantDomainService;
+    private final TaskProgressDomainService taskProgressDomainService = new TaskProgressDomainService();
+    private final RewardGrantDomainService rewardGrantDomainService = new RewardGrantDomainService();
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -58,41 +80,16 @@ public class TaskProgressApplicationService {
             UserTaskEventLogRepository userTaskEventLogRepository,
             LikeTaskLifecycleStateRepository likeTaskLifecycleStateRepository,
             WalletRewardActionApi walletRewardActionApi,
-            GrowthBusinessTimeService growthBusinessTimeService
-    ) {
-        this(
-                taskTemplateRepository,
-                userTaskProgressRepository,
-                userTaskEventLogRepository,
-                likeTaskLifecycleStateRepository,
-                walletRewardActionApi,
-                growthBusinessTimeService,
-                new TaskProgressDomainService(),
-                new RewardGrantDomainService(),
-                new UuidV7Generator()
-        );
-    }
-
-    TaskProgressApplicationService(
-            TaskTemplateRepository taskTemplateRepository,
-            UserTaskProgressRepository userTaskProgressRepository,
-            UserTaskEventLogRepository userTaskEventLogRepository,
-            LikeTaskLifecycleStateRepository likeTaskLifecycleStateRepository,
-            WalletRewardActionApi walletRewardActionApi,
             GrowthBusinessTimeService growthBusinessTimeService,
-            TaskProgressDomainService taskProgressDomainService,
-            RewardGrantDomainService rewardGrantDomainService,
             UuidV7Generator idGenerator
     ) {
-        this.taskTemplateRepository = taskTemplateRepository;
-        this.userTaskProgressRepository = userTaskProgressRepository;
-        this.userTaskEventLogRepository = userTaskEventLogRepository;
-        this.likeTaskLifecycleStateRepository = likeTaskLifecycleStateRepository;
-        this.walletRewardActionApi = walletRewardActionApi;
-        this.growthBusinessTimeService = growthBusinessTimeService;
-        this.taskProgressDomainService = taskProgressDomainService;
-        this.rewardGrantDomainService = rewardGrantDomainService;
-        this.idGenerator = idGenerator;
+        this.taskTemplateRepository = Objects.requireNonNull(taskTemplateRepository, "taskTemplateRepository must not be null");
+        this.userTaskProgressRepository = Objects.requireNonNull(userTaskProgressRepository, "userTaskProgressRepository must not be null");
+        this.userTaskEventLogRepository = Objects.requireNonNull(userTaskEventLogRepository, "userTaskEventLogRepository must not be null");
+        this.likeTaskLifecycleStateRepository = Objects.requireNonNull(likeTaskLifecycleStateRepository, "likeTaskLifecycleStateRepository must not be null");
+        this.walletRewardActionApi = Objects.requireNonNull(walletRewardActionApi, "walletRewardActionApi must not be null");
+        this.growthBusinessTimeService = Objects.requireNonNull(growthBusinessTimeService, "growthBusinessTimeService must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     private void recordProgress(

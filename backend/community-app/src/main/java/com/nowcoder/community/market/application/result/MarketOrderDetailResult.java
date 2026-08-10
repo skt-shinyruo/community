@@ -32,10 +32,40 @@ public record MarketOrderDetailResult(
         String detailAddressSnapshot,
         String postalCodeSnapshot,
         List<String> deliveryContents,
-        MarketShipmentResult shipment,
+        ShipmentResult shipment,
         Date createTime,
         Date updateTime
 ) {
+
+    public record ShipmentResult(
+            UUID shipmentId,
+            UUID orderId,
+            UUID sellerUserId,
+            String carrierName,
+            String trackingNo,
+            String shippingRemark,
+            Date shippedAt,
+            Date createTime,
+            Date updateTime
+    ) {
+
+        public static ShipmentResult from(MarketShipment shipment) {
+            if (shipment == null) {
+                return null;
+            }
+            return new ShipmentResult(
+                    shipment.getShipmentId(),
+                    shipment.getOrderId(),
+                    shipment.getSellerUserId(),
+                    shipment.getCarrierName(),
+                    shipment.getTrackingNo(),
+                    shipment.getShippingRemark(),
+                    shipment.getShippedAt(),
+                    shipment.getCreateTime(),
+                    shipment.getUpdateTime()
+            );
+        }
+    }
 
     public static MarketOrderDetailResult from(MarketOrder order,
                                              List<String> deliveryContents,
@@ -65,7 +95,7 @@ public record MarketOrderDetailResult(
                 order.getDetailAddressSnapshot(),
                 order.getPostalCodeSnapshot(),
                 deliveryContents == null ? List.of() : List.copyOf(deliveryContents),
-                MarketShipmentResult.from(shipment),
+                ShipmentResult.from(shipment),
                 order.getCreateTime(),
                 order.getUpdateTime()
         );

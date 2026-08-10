@@ -2,9 +2,6 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.result.ModerationActionResult;
-import com.nowcoder.community.content.application.result.ReportModerationResult;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
 import com.nowcoder.community.content.domain.model.ModerationActionSummary;
 import com.nowcoder.community.content.domain.model.ModerationDecision;
@@ -19,6 +16,7 @@ import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.Date;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -190,5 +188,37 @@ public class ModerationApplicationService {
                 action.durationSeconds(),
                 action.createTime()
         );
+    }
+
+    public record TakeModerationActionCommand(
+            UUID actorId,
+            UUID reportId,
+            String action,
+            String reason,
+            Integer durationSeconds
+    ) {
+    }
+
+    public record ReportModerationResult(
+            UUID id,
+            UUID reporterId,
+            int targetType,
+            UUID targetId,
+            String reason,
+            String detail,
+            int status,
+            Date createTime
+    ) {
+    }
+
+    public record ModerationActionResult(
+            UUID id,
+            UUID reportId,
+            UUID actorId,
+            String action,
+            String reason,
+            int durationSeconds,
+            Date createTime
+    ) {
     }
 }

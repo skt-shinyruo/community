@@ -4,11 +4,11 @@ import com.nowcoder.community.app.security.CommunitySecurityConfig;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.drive.application.DriveShareApplicationService;
-import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
-import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.VerifyShareCommand;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.PublicShareGateResult;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DriveShareResult;
+import com.nowcoder.community.drive.application.DriveShareApplicationService.ShareResult;
 import com.nowcoder.community.drive.security.DriveSecurityRules;
 import com.nowcoder.community.support.WebMvcSliceJsonCodecTestConfig;
 import org.junit.jupiter.api.Test;
@@ -28,6 +28,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.hamcrest.Matchers.aMapWithSize;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.times;
@@ -65,13 +66,14 @@ class DrivePublicShareControllerUnitTest {
 
     @Test
     void publicShareGateShouldNotExposeEntryMetadataBeforeVerification() throws Exception {
-        when(shareApplicationService.loadPublicShareGate("token-a")).thenReturn(new DrivePublicShareGateResult(
+        when(shareApplicationService.loadPublicShareGate("token-a")).thenReturn(new PublicShareGateResult(
                 "token-a",
                 true
         ));
 
         mockMvc.perform(get("/api/drive/shares/token-a"))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", aMapWithSize(2)))
                 .andExpect(jsonPath("$.data.shareToken").value("token-a"))
                 .andExpect(jsonPath("$.data.requiresPassword").value(true))
                 .andExpect(jsonPath("$.data.shareId").doesNotExist())
@@ -84,7 +86,7 @@ class DrivePublicShareControllerUnitTest {
 
     @Test
     void verifyShareShouldNotRequireAuthentication() throws Exception {
-        when(shareApplicationService.verifyShare(any())).thenReturn(new DriveShareResult(
+        when(shareApplicationService.verifyShare(any())).thenReturn(new ShareResult(
                 uuid(1),
                 uuid(2),
                 "token-a",
@@ -100,12 +102,21 @@ class DrivePublicShareControllerUnitTest {
                         .contentType("application/json")
                         .content("{\"password\":\"1234\"}"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data.ticket").value("ticket-a"));
+                .andExpect(jsonPath("$.data", aMapWithSize(9)))
+                .andExpect(jsonPath("$.data.shareId").value(uuid(1).toString()))
+                .andExpect(jsonPath("$.data.entryId").value(uuid(2).toString()))
+                .andExpect(jsonPath("$.data.shareToken").value("token-a"))
+                .andExpect(jsonPath("$.data.entryName").value("a.txt"))
+                .andExpect(jsonPath("$.data.entryType").value("FILE"))
+                .andExpect(jsonPath("$.data.expiresAt").value("2026-05-10T00:00:00Z"))
+                .andExpect(jsonPath("$.data.status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data.ticket").value("ticket-a"))
+                .andExpect(jsonPath("$.data.ticketExpiresAt").value("2026-05-09T00:15:00Z"));
     }
 
     @Test
     void verifyShareShouldHashVisitorInputsBeforeEnteringApplication() throws Exception {
-        when(shareApplicationService.verifyShare(any())).thenReturn(new DriveShareResult(
+        when(shareApplicationService.verifyShare(any())).thenReturn(new ShareResult(
                 uuid(1),
                 uuid(2),
                 "token-a",
@@ -124,11 +135,11 @@ class DrivePublicShareControllerUnitTest {
         verifyShare("203.0.113.10", longUserAgent);
         verifyShare(remoteAddress, longUserAgent + "-changed");
 
-        ArgumentCaptor<VerifyDriveShareCommand> commands =
-                ArgumentCaptor.forClass(VerifyDriveShareCommand.class);
+        ArgumentCaptor<VerifyShareCommand> commands =
+                ArgumentCaptor.forClass(VerifyShareCommand.class);
         verify(shareApplicationService, times(4)).verifyShare(commands.capture());
         List<String> fingerprints = commands.getAllValues().stream()
-                .map(VerifyDriveShareCommand::visitorFingerprint)
+                .map(VerifyShareCommand::visitorFingerprint)
                 .toList();
         assertThat(fingerprints).allMatch(value -> value.matches("[0-9a-f]{64}"));
         assertThat(fingerprints.get(0))
@@ -150,8 +161,10 @@ class DrivePublicShareControllerUnitTest {
                         .param("ticket", "ticket-a")
                         .param("entryId", entryId.toString()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data", aMapWithSize(3)))
                 .andExpect(jsonPath("$.data.entryId").value(entryId.toString()))
-                .andExpect(jsonPath("$.data.url").value("https://cdn.example.test/file"));
+                .andExpect(jsonPath("$.data.url").value("https://cdn.example.test/file"))
+                .andExpect(jsonPath("$.data.expiresAt").value("2026-05-09T00:16:00Z"));
 
         verify(shareApplicationService).createShareDownloadUrl("token-a", "ticket-a", entryId);
     }
@@ -168,8 +181,15 @@ class DrivePublicShareControllerUnitTest {
                         .param("ticket", "ticket-a")
                         .param("parentId", parentId.toString()))
                 .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data[0]", aMapWithSize(8)))
                 .andExpect(jsonPath("$.data[0].entryId").value(entryId.toString()))
-                .andExpect(jsonPath("$.data[0].name").value("child.txt"));
+                .andExpect(jsonPath("$.data[0].parentId").value(parentId.toString()))
+                .andExpect(jsonPath("$.data[0].type").value("FILE"))
+                .andExpect(jsonPath("$.data[0].name").value("child.txt"))
+                .andExpect(jsonPath("$.data[0].sizeBytes").value(8L))
+                .andExpect(jsonPath("$.data[0].mimeType").value("text/plain"))
+                .andExpect(jsonPath("$.data[0].status").value("ACTIVE"))
+                .andExpect(jsonPath("$.data[0].updatedAt").value("2026-05-09T00:00:00Z"));
 
         verify(shareApplicationService).listShareEntries("token-a", "ticket-a", parentId);
     }

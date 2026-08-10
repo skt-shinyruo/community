@@ -24,7 +24,7 @@ class UserModerationGuardTest {
         UserModerationQueryApi userModerationQueryApi = mock(UserModerationQueryApi.class);
         UserModerationStateView status = new UserModerationStateView(userId, null, Instant.now().plusSeconds(60), 0L);
         when(userModerationQueryApi.getModerationState(userId)).thenReturn(status);
-        UserModerationGuard guard = new UserModerationGuard(userModerationQueryApi);
+        UserModerationGuard guard = new UserModerationGuard(userModerationQueryApi, java.time.Clock.systemUTC());
 
         BusinessException ex = catchThrowableOfType(() -> guard.assertCanSpeak(userId), BusinessException.class);
 

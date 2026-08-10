@@ -8,14 +8,15 @@ import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostContentBlockDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.PostContentBlockMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
+import java.time.Clock;
 import java.util.Collections;
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 import java.util.stream.Collectors;
 
@@ -27,16 +28,18 @@ public class MyBatisPostContentBlockRepository implements PostContentBlockReposi
     private final PostContentBlockMapper mapper;
     private final JsonCodec jsonCodec;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
-    public MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, JsonCodec jsonCodec) {
-        this(mapper, jsonCodec, new UuidV7Generator());
-    }
-
-    MyBatisPostContentBlockRepository(PostContentBlockMapper mapper, JsonCodec jsonCodec, UuidV7Generator idGenerator) {
-        this.mapper = mapper;
-        this.jsonCodec = jsonCodec;
-        this.idGenerator = idGenerator;
+    public MyBatisPostContentBlockRepository(
+            PostContentBlockMapper mapper,
+            JsonCodec jsonCodec,
+            UuidV7Generator idGenerator,
+            Clock clock
+    ) {
+        this.mapper = Objects.requireNonNull(mapper, "mapper must not be null");
+        this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -45,7 +48,7 @@ public class MyBatisPostContentBlockRepository implements PostContentBlockReposi
         if (blocks == null || blocks.isEmpty()) {
             return;
         }
-        Date now = new Date();
+        Date now = Date.from(clock.instant());
         for (PostContentBlock block : blocks) {
             mapper.insert(toRow(postId, block, now));
         }

@@ -7,6 +7,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.Locale;
+import java.util.Objects;
 import java.util.regex.Pattern;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -19,26 +20,20 @@ public class UserRegistrationDomainService {
     private final PasswordPolicyDomainService passwordPolicyDomainService;
     private final UsernamePolicyDomainService usernamePolicyDomainService;
 
-    public UserRegistrationDomainService() {
-        this(Clock.systemUTC(), new PasswordPolicyDomainService());
-    }
-
-    public UserRegistrationDomainService(Clock clock) {
-        this(clock, new PasswordPolicyDomainService());
-    }
-
-    public UserRegistrationDomainService(Clock clock, PasswordPolicyDomainService passwordPolicyDomainService) {
-        this(clock, passwordPolicyDomainService, new UsernamePolicyDomainService());
-    }
-
     public UserRegistrationDomainService(
             Clock clock,
             PasswordPolicyDomainService passwordPolicyDomainService,
             UsernamePolicyDomainService usernamePolicyDomainService
     ) {
-        this.clock = clock;
-        this.passwordPolicyDomainService = passwordPolicyDomainService;
-        this.usernamePolicyDomainService = usernamePolicyDomainService;
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.passwordPolicyDomainService = Objects.requireNonNull(
+                passwordPolicyDomainService,
+                "passwordPolicyDomainService must not be null"
+        );
+        this.usernamePolicyDomainService = Objects.requireNonNull(
+                usernamePolicyDomainService,
+                "usernamePolicyDomainService must not be null"
+        );
     }
 
     public RegistrationInput requireValidRegistration(String username, String password, String email) {

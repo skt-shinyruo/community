@@ -2,8 +2,6 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.market.application.command.CreateMarketAddressCommand;
-import com.nowcoder.community.market.application.command.UpdateMarketAddressCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
@@ -23,19 +21,45 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class MarketAddressApplicationService {
 
+    public record CreateMarketAddressCommand(
+            UUID userId,
+            String receiverName,
+            String receiverPhone,
+            String province,
+            String city,
+            String district,
+            String detailAddress,
+            String postalCode,
+            boolean defaultAddress
+    ) {
+    }
+
+    public record UpdateMarketAddressCommand(
+            UUID userId,
+            UUID addressId,
+            String receiverName,
+            String receiverPhone,
+            String province,
+            String city,
+            String district,
+            String detailAddress,
+            String postalCode,
+            boolean defaultAddress
+    ) {
+    }
+
     private static final String STATUS_ACTIVE = "ACTIVE";
 
     private final MarketAddressRepository marketAddressRepository;
     private final UuidV7Generator idGenerator;
 
     @Autowired
-    public MarketAddressApplicationService(MarketAddressRepository marketAddressRepository) {
-        this(marketAddressRepository, new UuidV7Generator());
-    }
-
-    MarketAddressApplicationService(MarketAddressRepository marketAddressRepository, UuidV7Generator idGenerator) {
-        this.marketAddressRepository = marketAddressRepository;
-        this.idGenerator = idGenerator;
+    public MarketAddressApplicationService(
+            MarketAddressRepository marketAddressRepository,
+            UuidV7Generator idGenerator
+    ) {
+        this.marketAddressRepository = Objects.requireNonNull(marketAddressRepository, "marketAddressRepository must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional

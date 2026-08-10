@@ -14,7 +14,9 @@ import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseType;
 
 import java.sql.Timestamp;
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.List;
 import java.util.UUID;
 
@@ -34,7 +36,11 @@ class JdbcOutboxGovernanceAdapterTest {
             createOutboxSchema(jdbcTemplate);
             UUID outboxId = UUID.fromString("0197e6f0-0000-7000-8000-000000000111");
             insertEvent(jdbcTemplate, outboxId);
-            JdbcOutboxGovernanceAdapter adapter = new JdbcOutboxGovernanceAdapter(new JdbcOutboxEventStore(jdbcTemplate));
+            Instant replayedAt = Instant.parse("2026-07-07T00:03:00Z");
+            JdbcOutboxGovernanceAdapter adapter = new JdbcOutboxGovernanceAdapter(
+                    new JdbcOutboxEventStore(jdbcTemplate),
+                    Clock.fixed(replayedAt, ZoneOffset.UTC)
+            );
 
             var rows = adapter.findEvents(new FindOutboxEventsCommand(
                     OutboxEventStatus.DEAD,
@@ -53,6 +59,13 @@ class JdbcOutboxGovernanceAdapterTest {
 
             assertThat(adapter.requeueDead(outboxId, "operator replay")).isTrue();
             assertThat(adapter.findById(outboxId).orElseThrow().status()).isEqualTo(OutboxEventStatus.PENDING);
+            Timestamp nextRetryAt = jdbcTemplate.queryForObject(
+                    "select next_retry_at from outbox_event where id = ?",
+                    Timestamp.class,
+                    BinaryUuidCodec.toBytes(outboxId)
+            );
+            assertThat(nextRetryAt).isNotNull();
+            assertThat(nextRetryAt.toInstant()).isEqualTo(replayedAt);
         } finally {
             db.shutdown();
         }

@@ -1,8 +1,6 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.RegisterCommand;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
-import com.nowcoder.community.auth.application.result.RegisterResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
@@ -20,6 +18,7 @@ import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -27,6 +26,25 @@ import java.util.UUID;
 
 @Service
 public class RegistrationApplicationService {
+
+    public record RegisterCommand(
+            String username,
+            String password,
+            String email,
+            String captchaId,
+            String captchaCode,
+            String clientIp
+    ) {
+    }
+
+    public record RegisterResult(
+            UUID userId,
+            String registrationToken,
+            boolean emailCodeIssued,
+            String maskedEmail,
+            String debugEmailCode
+    ) {
+    }
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationApplicationService.class);
 
@@ -39,6 +57,7 @@ public class RegistrationApplicationService {
     private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
     private final RegistrationRequestRateLimiter registrationRequestRateLimiter;
+    private final Clock clock;
 
     @Autowired
     public RegistrationApplicationService(
@@ -50,17 +69,25 @@ public class RegistrationApplicationService {
             RegistrationDraftRepository registrationDraftRepository,
             AuthSecretGenerator authSecretGenerator,
             RegistrationDomainService registrationDomainService,
-            RegistrationRequestRateLimiter registrationRequestRateLimiter
+            RegistrationRequestRateLimiter registrationRequestRateLimiter,
+            Clock clock
     ) {
-        this.userRegistrationActionApi = userRegistrationActionApi;
-        this.properties = properties;
-        this.mailDispatcher = mailDispatcher;
-        this.captchaChallenge = captchaChallenge;
-        this.registrationCodeStore = registrationCodeStore;
-        this.registrationDraftRepository = registrationDraftRepository;
-        this.authSecretGenerator = authSecretGenerator;
-        this.registrationDomainService = registrationDomainService;
-        this.registrationRequestRateLimiter = registrationRequestRateLimiter;
+        this.userRegistrationActionApi = Objects.requireNonNull(
+                userRegistrationActionApi, "userRegistrationActionApi must not be null");
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.mailDispatcher = Objects.requireNonNull(mailDispatcher, "mailDispatcher must not be null");
+        this.captchaChallenge = Objects.requireNonNull(captchaChallenge, "captchaChallenge must not be null");
+        this.registrationCodeStore = Objects.requireNonNull(
+                registrationCodeStore, "registrationCodeStore must not be null");
+        this.registrationDraftRepository = Objects.requireNonNull(
+                registrationDraftRepository, "registrationDraftRepository must not be null");
+        this.authSecretGenerator = Objects.requireNonNull(
+                authSecretGenerator, "authSecretGenerator must not be null");
+        this.registrationDomainService = Objects.requireNonNull(
+                registrationDomainService, "registrationDomainService must not be null");
+        this.registrationRequestRateLimiter = Objects.requireNonNull(
+                registrationRequestRateLimiter, "registrationRequestRateLimiter must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public RegisterResult register(RegisterCommand command) {
@@ -91,7 +118,7 @@ public class RegistrationApplicationService {
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
         String registrationToken = null;
         try {
-            Instant issuedAt = Instant.now();
+            Instant issuedAt = clock.instant();
             PreparedRegistrationDraft draft = new PreparedRegistrationDraft(
                     prepared.userId(),
                     prepared.username(),

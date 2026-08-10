@@ -21,6 +21,7 @@ import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import java.util.UUID;
 import java.util.stream.IntStream;
 
@@ -339,14 +340,24 @@ class LikeCleanupFenceApplicationServiceTest {
             LikeTargetStateRepository targetStateRepository,
             SocialDomainEventPublisher publisher
     ) {
+        LikeDomainService likeDomainService = new LikeDomainService();
         return new LikeApplicationService(
                 likeRepository,
                 mock(BlockRepository.class),
-                new LikeDomainService(),
+                likeDomainService,
                 new BlockDomainService(),
                 publisher,
                 targetStateRepository,
-                new UuidV7Generator(Clock.fixed(DELETED_AT, ZoneOffset.UTC))
+                new LikeCleanupMetrics(Optional.empty()),
+                new LikeCleanupTransactionOperations(
+                        likeRepository,
+                        targetStateRepository,
+                        likeDomainService,
+                        publisher,
+                        Clock.fixed(DELETED_AT, ZoneOffset.UTC)
+                ),
+                new UuidV7Generator(Clock.fixed(DELETED_AT, ZoneOffset.UTC)),
+                Clock.fixed(DELETED_AT, ZoneOffset.UTC)
         );
     }
 }

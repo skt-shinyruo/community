@@ -27,14 +27,14 @@ public class AdminWalletController {
     @PostMapping("/freeze")
     public Result<Void> freeze(Authentication authentication, @RequestBody @Valid AdminFreezeWalletRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        walletAdminOpsApplicationService.freezeWallet(actorUserId, request.getUserId(), request.getReason());
+        walletAdminOpsApplicationService.freezeWallet(actorUserId, request.userId(), request.reason());
         return Result.ok();
     }
 
     @PostMapping("/reverse")
     public Result<Void> reverse(Authentication authentication, @RequestBody @Valid AdminReverseTxnRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        walletAdminOpsApplicationService.reverseTxn(actorUserId, request.getTxnRef(), request.getReason());
+        walletAdminOpsApplicationService.reverseTxn(actorUserId, request.txnRef(), request.reason());
         return Result.ok();
     }
 }

@@ -3,16 +3,15 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
-import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
-import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
-import com.nowcoder.community.wallet.application.result.WithdrawOrderResult;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.CreateRechargeCommand;
+import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.RechargeOrderResult;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.CreateWithdrawCommand;
+import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.WithdrawOrderResult;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
 import com.nowcoder.community.wallet.domain.repository.WithdrawOrderRepository;
-import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataIntegrityViolationException;
@@ -181,7 +180,6 @@ class WalletTestCreditApplicationServiceUnitTest {
                 mock(WalletAccountApplicationService.class),
                 ledgerService,
                 passThroughIdempotencyGuard(),
-                new WalletOrderDomainService(),
                 new UuidV7Generator(),
                 enabledPolicy(),
                 acceptingQuota()
@@ -197,7 +195,6 @@ class WalletTestCreditApplicationServiceUnitTest {
                 mock(WalletAccountApplicationService.class),
                 ledgerService,
                 passThroughIdempotencyGuard(),
-                new WalletOrderDomainService(),
                 new UuidV7Generator(),
                 enabledPolicy(),
                 acceptingQuota()

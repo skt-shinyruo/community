@@ -1,13 +1,13 @@
 package com.nowcoder.community.content.controller;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.ModerationApplicationService;
-import com.nowcoder.community.content.application.command.TakeModerationActionCommand;
-import com.nowcoder.community.content.application.result.ModerationActionResult;
-import com.nowcoder.community.content.application.result.ReportModerationResult;
-import com.nowcoder.community.content.controller.dto.ModerationActionResponse;
+import com.nowcoder.community.content.application.ModerationApplicationService.ModerationActionResult;
+import com.nowcoder.community.content.application.ModerationApplicationService.ReportModerationResult;
+import com.nowcoder.community.content.application.ModerationApplicationService.TakeModerationActionCommand;
 import com.nowcoder.community.content.controller.dto.ModerationActionRequest;
-import com.nowcoder.community.content.controller.dto.ReportResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -31,6 +31,7 @@ class ModerationControllerTest {
 
     private static final UUID REPORT_ID = UUID.fromString("00000000-0000-7000-8000-000000000304");
     private static final UUID ACTION_ID = UUID.fromString("00000000-0000-7000-8000-000000000305");
+    private final ObjectMapper objectMapper = JsonMappers.standard();
 
     @Mock
     private ModerationApplicationService moderationApplicationService;
@@ -48,11 +49,13 @@ class ModerationControllerTest {
         ReportModerationResult response = new ReportModerationResult(REPORT_ID, reporterId, 1, uuid(88), "spam", "detail", 0, new Date());
         when(moderationApplicationService.listReports(0, 1, reporterId, null, null)).thenReturn(List.of(response));
 
-        Result<List<ReportResponse>> result = controller.reports(0, 1, reporterId, null, null);
+        Result<List<ReportModerationResult>> result = controller.reports(0, 1, reporterId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).extracting(ReportResponse::getId).containsExactly(REPORT_ID);
-        assertThat(result.getData()).extracting(ReportResponse::getReason).containsExactly("spam");
+        assertThat(result.getData()).extracting(ReportModerationResult::id).containsExactly(REPORT_ID);
+        assertThat(result.getData()).extracting(ReportModerationResult::reason).containsExactly("spam");
+        assertThat(objectMapper.valueToTree(result.getData().get(0)).fieldNames()).toIterable()
+                .containsExactly("id", "reporterId", "targetType", "targetId", "reason", "detail", "status", "createTime");
         verify(moderationApplicationService).listReports(0, 1, reporterId, null, null);
     }
 
@@ -62,11 +65,13 @@ class ModerationControllerTest {
         ModerationActionResult response = new ModerationActionResult(ACTION_ID, REPORT_ID, actorId, "ban", "abuse", 3600, new Date());
         when(moderationApplicationService.listActions(actorId, null, null)).thenReturn(List.of(response));
 
-        Result<List<ModerationActionResponse>> result = controller.actions(actorId, null, null);
+        Result<List<ModerationActionResult>> result = controller.actions(actorId, null, null);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData()).extracting(ModerationActionResponse::getId).containsExactly(ACTION_ID);
-        assertThat(result.getData()).extracting(ModerationActionResponse::getAction).containsExactly("ban");
+        assertThat(result.getData()).extracting(ModerationActionResult::id).containsExactly(ACTION_ID);
+        assertThat(result.getData()).extracting(ModerationActionResult::action).containsExactly("ban");
+        assertThat(objectMapper.valueToTree(result.getData().get(0)).fieldNames()).toIterable()
+                .containsExactly("id", "reportId", "actorId", "action", "reason", "durationSeconds", "createTime");
         verify(moderationApplicationService).listActions(actorId, null, null);
     }
 
@@ -74,11 +79,7 @@ class ModerationControllerTest {
     void actionShouldDelegateToModerationApplicationService() {
         UUID actorId = uuid(42);
         Authentication authentication = authentication(actorId);
-        ModerationActionRequest request = new ModerationActionRequest();
-        request.setReportId(REPORT_ID);
-        request.setAction("ban");
-        request.setReason("abuse");
-        request.setDurationSeconds(3600);
+        ModerationActionRequest request = new ModerationActionRequest(REPORT_ID, "ban", "abuse", 3600);
         TakeModerationActionCommand command = new TakeModerationActionCommand(actorId, REPORT_ID, "ban", "abuse", 3600);
         when(moderationApplicationService.takeAction(command)).thenReturn(ACTION_ID);
 

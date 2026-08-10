@@ -7,13 +7,13 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
 import com.nowcoder.community.common.pagination.Pagination;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
@@ -28,14 +28,10 @@ public class MyBatisPostContentRepository implements PostContentRepository {
     private final DiscussPostMapper discussPostMapper;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public MyBatisPostContentRepository(DiscussPostMapper discussPostMapper) {
-        this(discussPostMapper, new UuidV7Generator());
-    }
-
-    MyBatisPostContentRepository(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
-        this.discussPostMapper = discussPostMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisPostContentRepository(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
+        this.discussPostMapper = Objects.requireNonNull(
+                discussPostMapper, "discussPostMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override

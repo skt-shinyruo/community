@@ -3,7 +3,7 @@ package com.nowcoder.community.user.application;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
-import com.nowcoder.community.user.application.command.DispatchUserEventCommand;
+import com.nowcoder.community.user.application.UserEventDispatchApplicationService.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;

@@ -1,6 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
@@ -9,7 +10,6 @@ import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveEntryRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -33,39 +33,27 @@ public class DriveTrashApplicationService {
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
+    private final UuidV7Generator idGenerator;
 
-    @Autowired
     public DriveTrashApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            DriveTransactionOperations transactionOperations
+            DriveTransactionOperations transactionOperations,
+            UuidV7Generator idGenerator
     ) {
-        this.spaceRepository = spaceRepository;
-        this.entryRepository = entryRepository;
-        this.objectStoragePort = objectStoragePort;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
+        this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.transactionOperations = Objects.requireNonNull(
                 transactionOperations,
                 "transactionOperations must not be null"
         );
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
-    DriveTrashApplicationService(
-            DriveSpaceRepository spaceRepository,
-            DriveEntryRepository entryRepository,
-            DriveObjectStoragePort objectStoragePort,
-            Clock clock
-    ) {
-        this(
-                spaceRepository,
-                entryRepository,
-                objectStoragePort,
-                clock,
-                DirectDriveTransactionOperations.INSTANCE
-        );
-    }
 
     @Transactional
     public DriveEntryResult trash(UUID actorUserId, UUID entryId) {
@@ -179,7 +167,7 @@ public class DriveTrashApplicationService {
     }
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
         DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
         if (result != null
                 && (result.status() == DriveSpaceRepository.CreateStatus.CREATED

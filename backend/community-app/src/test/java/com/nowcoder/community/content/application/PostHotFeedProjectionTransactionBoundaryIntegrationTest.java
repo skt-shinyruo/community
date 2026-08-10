@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
+import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -85,9 +85,9 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         applicationService.project(new ProjectPostHotFeedCommand(
                 postId,
                 boardId,
-                1.5,
                 "evt-transaction-boundary",
                 7L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 

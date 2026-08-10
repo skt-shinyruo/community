@@ -2,7 +2,7 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.market.application.result.MarketWalletActionRecoveryResult;
+import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService.MarketWalletActionRecoveryResult;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
@@ -223,7 +223,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 action.getWalletTxnId(),
                 "APPLIED"
         )).thenReturn(0);
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -267,7 +267,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 action.getWalletTxnId(),
                 "APPLIED"
         )).thenReturn(1);
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -306,7 +306,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         when(walletActionRepository.findById(action.getActionId())).thenReturn(action);
         when(walletActionRepository.lockById(action.getActionId())).thenReturn(action);
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of());
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -348,7 +348,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 8,
                 action.getLastError()
         )).thenReturn(1);
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -401,7 +401,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 8,
                 action.getLastError()
         )).thenReturn(0);
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 sagaService,
@@ -441,7 +441,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
                 .thenThrow(new IllegalStateException("row transaction failed"));
         when(transactionOperations.reconcileWalletTxnAction(second.getActionId())).thenReturn(true);
         when(orderRepository.findWalletPendingOrders(1)).thenReturn(List.of());
-        MarketWalletActionRecoveryApplicationService service = new MarketWalletActionRecoveryApplicationService(
+        MarketWalletActionRecoveryApplicationService service = recovery(
                 walletActionRepository,
                 orderRepository,
                 transactionOperations,
@@ -465,6 +465,43 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setLeaseToken(uuid(303));
         marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
         return actionId;
+    }
+
+    private static MarketWalletActionRecoveryApplicationService recovery(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketOrderSagaApplicationService sagaService,
+            MarketWalletActionCoordinator actionCoordinator,
+            Clock clock
+    ) {
+        var transactionOperations = new MarketWalletActionRecoveryTransactionOperations(
+                walletActionRepository,
+                orderRepository,
+                sagaService,
+                actionCoordinator
+        );
+        return new MarketWalletActionRecoveryApplicationService(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                clock,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
+    }
+
+    private static MarketWalletActionRecoveryApplicationService recovery(
+            MarketWalletActionRepository walletActionRepository,
+            MarketOrderRepository orderRepository,
+            MarketWalletActionRecoveryTransactionOperations transactionOperations,
+            Clock clock
+    ) {
+        return new MarketWalletActionRecoveryApplicationService(
+                walletActionRepository,
+                orderRepository,
+                transactionOperations,
+                clock,
+                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
+        );
     }
 
     private void seedRefundPendingOrder() {

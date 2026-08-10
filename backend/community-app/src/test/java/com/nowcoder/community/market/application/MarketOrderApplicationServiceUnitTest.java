@@ -2,6 +2,7 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.exception.MarketErrorCode;
@@ -27,6 +28,7 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.dao.DuplicateKeyException;
 
+import java.time.Clock;
 import java.util.UUID;
 
 import static com.nowcoder.community.market.support.MarketOrderTestFixture.order;
@@ -35,6 +37,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -77,7 +80,9 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
                 marketWalletActionCoordinator,
                 marketOrderSagaService,
-                new UuidV7Generator()
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
 
         assertThatThrownBy(() -> service.createOrder(null))
@@ -133,7 +138,9 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
                 marketWalletActionCoordinator,
                 marketOrderSagaService,
-                new UuidV7Generator()
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000007");
@@ -162,7 +169,9 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
                 marketWalletActionCoordinator,
                 marketOrderSagaService,
-                new UuidV7Generator()
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
         UUID buyerUserId = UUID.fromString("00000000-0000-7000-8000-000000000009");
         UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000007");
@@ -233,7 +242,9 @@ class MarketOrderApplicationServiceUnitTest {
                 new MyBatisMarketShipmentRepository(marketShipmentMapper),
                 marketWalletActionCoordinator,
                 marketOrderSagaService,
-                new UuidV7Generator()
+                mock(IdempotencyGuard.class),
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
     }
 

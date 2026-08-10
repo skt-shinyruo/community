@@ -4,12 +4,8 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
-import com.nowcoder.community.content.domain.repository.CommentContentRepository;
-import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
-import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.Date;
@@ -17,6 +13,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
+import static java.util.Objects.requireNonNull;
 
 @Service
 public class FollowFeedReadApplicationService {
@@ -32,7 +29,6 @@ public class FollowFeedReadApplicationService {
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final FollowFeedCursorCodec followFeedCursorCodec;
 
-    @Autowired
     public FollowFeedReadApplicationService(
             SocialFollowQueryApi followQueryApi,
             PostContentRepository postContentRepository,
@@ -40,40 +36,11 @@ public class FollowFeedReadApplicationService {
             PostFeedSummaryLoader postFeedSummaryLoader,
             FollowFeedCursorCodec followFeedCursorCodec
     ) {
-        this.followQueryApi = followQueryApi;
-        this.postContentRepository = postContentRepository;
-        this.followFeedCache = followFeedCache;
-        this.postFeedSummaryLoader = postFeedSummaryLoader;
-        this.followFeedCursorCodec = followFeedCursorCodec;
-    }
-
-    public FollowFeedReadApplicationService(
-            SocialFollowQueryApi followQueryApi,
-            PostContentRepository postContentRepository,
-            FollowFeedCache followFeedCache,
-            CommentContentRepository commentContentRepository,
-            TagContentRepository tagContentRepository,
-            PostContentBlockRepository postContentBlockRepository,
-            PostSummaryCache postSummaryCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            PostSummaryAssembler postSummaryAssembler,
-            FollowFeedCursorCodec followFeedCursorCodec
-    ) {
-        this(
-                followQueryApi,
-                postContentRepository,
-                followFeedCache,
-                new PostFeedSummaryLoader(
-                        postContentRepository,
-                        commentContentRepository,
-                        tagContentRepository,
-                        postContentBlockRepository,
-                        postSummaryCache,
-                        postContentBlockTextProjector,
-                        postSummaryAssembler
-                ),
-                followFeedCursorCodec
-        );
+        this.followQueryApi = requireNonNull(followQueryApi, "followQueryApi");
+        this.postContentRepository = requireNonNull(postContentRepository, "postContentRepository");
+        this.followFeedCache = requireNonNull(followFeedCache, "followFeedCache");
+        this.postFeedSummaryLoader = requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader");
+        this.followFeedCursorCodec = requireNonNull(followFeedCursorCodec, "followFeedCursorCodec");
     }
 
     public FeedPageResult listFollowFeed(UUID currentUserId, String cursor, int size) {

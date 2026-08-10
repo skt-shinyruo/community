@@ -3,7 +3,6 @@ package com.nowcoder.community.market.controller;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.market.controller.dto.AdminResolveMarketDisputeRequest;
-import com.nowcoder.community.market.controller.dto.MarketDisputeResponse;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
 import com.nowcoder.community.market.application.MarketDisputeApplicationService;
 import jakarta.validation.Valid;
@@ -28,31 +27,25 @@ public class AdminMarketController {
         this.marketDisputeApplicationService = marketDisputeApplicationService;
     }
 
-    private static List<MarketDisputeResponse> toDisputeResponses(List<MarketDisputeResult> disputes) {
-        return disputes.stream()
-                .map(MarketDisputeResponse::from)
-                .toList();
-    }
-
     @GetMapping
-    public Result<List<MarketDisputeResponse>> list(Authentication authentication) {
+    public Result<List<MarketDisputeResult>> list(Authentication authentication) {
         CurrentUser.requireUserUuid(authentication);
-        return Result.ok(toDisputeResponses(marketDisputeApplicationService.listOpenDisputes()));
+        return Result.ok(marketDisputeApplicationService.listOpenDisputes());
     }
 
     @PostMapping("/{disputeId}/resolve-refund")
-    public Result<MarketDisputeResponse> resolveRefund(Authentication authentication,
+    public Result<MarketDisputeResult> resolveRefund(Authentication authentication,
                                                        @PathVariable UUID disputeId,
                                                        @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(marketDisputeApplicationService.adminResolveRefund(disputeId, actorUserId, request.getNote())));
+        return Result.ok(marketDisputeApplicationService.adminResolveRefund(disputeId, actorUserId, request.note()));
     }
 
     @PostMapping("/{disputeId}/resolve-release")
-    public Result<MarketDisputeResponse> resolveRelease(Authentication authentication,
+    public Result<MarketDisputeResult> resolveRelease(Authentication authentication,
                                                         @PathVariable UUID disputeId,
                                                         @RequestBody @Valid AdminResolveMarketDisputeRequest request) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        return Result.ok(MarketDisputeResponse.from(marketDisputeApplicationService.adminResolveRelease(disputeId, actorUserId, request.getNote())));
+        return Result.ok(marketDisputeApplicationService.adminResolveRelease(disputeId, actorUserId, request.note()));
     }
 }

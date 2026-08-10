@@ -1,10 +1,7 @@
 package com.nowcoder.community.auth.application;
 
-import com.nowcoder.community.auth.application.command.ResendRegisterCodeCommand;
-import com.nowcoder.community.auth.application.command.VerifyRegisterCodeCommand;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.auth.application.result.LoginResult;
-import com.nowcoder.community.auth.application.result.RegisterCodeResendResult;
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
@@ -23,6 +20,7 @@ import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
@@ -30,6 +28,24 @@ import java.util.UUID;
 
 @Service
 public class RegistrationVerificationApplicationService {
+
+    public record ResendRegisterCodeCommand(
+            String registrationToken,
+            String captchaId,
+            String captchaCode,
+            String clientIp
+    ) {
+    }
+
+    public record VerifyRegisterCodeCommand(String registrationToken, String code) {
+    }
+
+    public record RegisterCodeResendResult(
+            boolean issued,
+            String maskedEmail,
+            String debugEmailCode
+    ) {
+    }
 
     private static final Logger log = LoggerFactory.getLogger(RegistrationVerificationApplicationService.class);
     private final UserRegistrationActionApi userRegistrationActionApi;
@@ -42,6 +58,7 @@ public class RegistrationVerificationApplicationService {
     private final AuthSecretGenerator authSecretGenerator;
     private final RegistrationDomainService registrationDomainService;
     private final RegistrationRequestRateLimiter registrationRequestRateLimiter;
+    private final Clock clock;
 
     public RegistrationVerificationApplicationService(
             UserRegistrationActionApi userRegistrationActionApi,
@@ -53,18 +70,26 @@ public class RegistrationVerificationApplicationService {
             LoginTokenIssuer loginTokenIssuer,
             AuthSecretGenerator authSecretGenerator,
             RegistrationDomainService registrationDomainService,
-            RegistrationRequestRateLimiter registrationRequestRateLimiter
+            RegistrationRequestRateLimiter registrationRequestRateLimiter,
+            Clock clock
     ) {
-        this.userRegistrationActionApi = userRegistrationActionApi;
-        this.properties = properties;
-        this.registrationCodeStore = registrationCodeStore;
-        this.mailDispatcher = mailDispatcher;
-        this.captchaChallenge = captchaChallenge;
-        this.registrationDraftRepository = registrationDraftRepository;
-        this.loginTokenIssuer = loginTokenIssuer;
-        this.authSecretGenerator = authSecretGenerator;
-        this.registrationDomainService = registrationDomainService;
-        this.registrationRequestRateLimiter = registrationRequestRateLimiter;
+        this.userRegistrationActionApi = Objects.requireNonNull(
+                userRegistrationActionApi, "userRegistrationActionApi must not be null");
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
+        this.registrationCodeStore = Objects.requireNonNull(
+                registrationCodeStore, "registrationCodeStore must not be null");
+        this.mailDispatcher = Objects.requireNonNull(mailDispatcher, "mailDispatcher must not be null");
+        this.captchaChallenge = Objects.requireNonNull(captchaChallenge, "captchaChallenge must not be null");
+        this.registrationDraftRepository = Objects.requireNonNull(
+                registrationDraftRepository, "registrationDraftRepository must not be null");
+        this.loginTokenIssuer = Objects.requireNonNull(loginTokenIssuer, "loginTokenIssuer must not be null");
+        this.authSecretGenerator = Objects.requireNonNull(
+                authSecretGenerator, "authSecretGenerator must not be null");
+        this.registrationDomainService = Objects.requireNonNull(
+                registrationDomainService, "registrationDomainService must not be null");
+        this.registrationRequestRateLimiter = Objects.requireNonNull(
+                registrationRequestRateLimiter, "registrationRequestRateLimiter must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public RegisterCodeResendResult resendCode(ResendRegisterCodeCommand command) {
@@ -82,7 +107,7 @@ public class RegistrationVerificationApplicationService {
         Duration ttl = codeTtlWithinDraftLifetime(registrationToken, draft);
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
         UUID leaseId = UUID.randomUUID();
-        Instant issuedAt = Instant.now();
+        Instant issuedAt = clock.instant();
         Instant leaseExpiresAt = issuedAt.plus(operationLeaseTtl());
         RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.beginReplacement(
                 draft.userId(), code, ttl, cooldown, leaseExpiresAt, leaseId);
@@ -121,7 +146,7 @@ public class RegistrationVerificationApplicationService {
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
         UUID leaseId = UUID.randomUUID();
-        Instant leaseExpiresAt = Instant.now().plus(operationLeaseTtl());
+        Instant leaseExpiresAt = clock.instant().plus(operationLeaseTtl());
         RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyForConsumption(
                 draft.userId(), code.trim(), leaseExpiresAt, leaseId);
         if (result == RegistrationCodeRepository.VerifyResult.PENDING) {
@@ -213,7 +238,7 @@ public class RegistrationVerificationApplicationService {
             String registrationToken,
             PreparedRegistrationDraft draft
     ) {
-        Duration remaining = Duration.between(Instant.now(), draft.expiresAt());
+        Duration remaining = Duration.between(clock.instant(), draft.expiresAt());
         if (remaining.isNegative() || remaining.isZero() || remaining.toMillis() <= 0) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED);
         }
@@ -236,12 +261,12 @@ public class RegistrationVerificationApplicationService {
                 && StringUtils.hasText(draft.email())
                 && StringUtils.hasText(draft.encodedPassword())
                 && draft.expiresAt() != null
-                && Instant.now().isBefore(draft.expiresAt());
+                && clock.instant().isBefore(draft.expiresAt());
     }
 
     private Duration codeTtlWithinDraftLifetime(String registrationToken, PreparedRegistrationDraft draft) {
         Duration configuredTtl = Duration.ofSeconds(Math.max(60, properties.getCode().getTtlSeconds()));
-        Duration draftRemainingTtl = Duration.between(Instant.now(), draft.expiresAt());
+        Duration draftRemainingTtl = Duration.between(clock.instant(), draft.expiresAt());
         if (draftRemainingTtl.isNegative() || draftRemainingTtl.isZero()
                 || draftRemainingTtl.compareTo(operationLeaseTtl()) <= 0) {
             deleteDraftQuietly(registrationToken);

@@ -2,9 +2,9 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.social.application.command.FollowCommand;
-import com.nowcoder.community.social.application.command.UnfollowCommand;
-import com.nowcoder.community.social.application.result.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowCommand;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.UnfollowCommand;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.LikeChangedDomainEvent;
@@ -21,7 +21,9 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.junit.jupiter.api.Test;
 import org.mockito.InOrder;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
@@ -43,6 +45,8 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 class FollowApplicationServiceTest {
+
+    private static final Clock CLOCK = Clock.fixed(Instant.parse("2026-07-15T08:30:00Z"), ZoneOffset.UTC);
 
     @Test
     void followShouldRejectSelfWhenUuidValuesMatchButInstancesDiffer() {
@@ -180,6 +184,7 @@ class FollowApplicationServiceTest {
         assertThat(service.followerCount(USER, targetUserId)).isEqualTo(1);
         assertThat(publisher.snapshot()).hasSize(1);
         assertThat(publisher.snapshot().get(0)).isInstanceOf(FollowCreatedDomainEvent.class);
+        assertThat(((FollowCreatedDomainEvent) publisher.snapshot().get(0)).createTime()).isEqualTo(CLOCK.instant());
 
         service.follow(new FollowCommand(actorUserId, USER, targetUserId));
         assertThat(service.hasFollowed(actorUserId, USER, targetUserId)).isTrue();
@@ -301,7 +306,8 @@ class FollowApplicationServiceTest {
                 new FollowDomainService(),
                 new BlockDomainService(),
                 publisher,
-                allowAllUsersLookup()
+                allowAllUsersLookup(),
+                CLOCK
         );
         UUID viewerUserId = uuid(1);
         UUID visibleUserId = uuid(2);
@@ -351,7 +357,8 @@ class FollowApplicationServiceTest {
                 new FollowDomainService(),
                 new BlockDomainService(),
                 publisher,
-                allowAllUsersLookup()
+                allowAllUsersLookup(),
+                CLOCK
         );
         UUID viewerUserId = uuid(1);
         UUID visibleUserId = uuid(2);
@@ -417,7 +424,8 @@ class FollowApplicationServiceTest {
                 new FollowDomainService(),
                 new BlockDomainService(),
                 publisher,
-                userLookupQueryApi
+                userLookupQueryApi,
+                CLOCK
         );
     }
 

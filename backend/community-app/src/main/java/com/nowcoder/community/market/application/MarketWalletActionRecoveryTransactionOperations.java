@@ -14,6 +14,7 @@ import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -36,10 +37,10 @@ public class MarketWalletActionRecoveryTransactionOperations {
             MarketOrderSagaApplicationService sagaService,
             MarketWalletActionCoordinator actionCoordinator
     ) {
-        this.walletActionRepository = walletActionRepository;
-        this.orderRepository = orderRepository;
-        this.sagaService = sagaService;
-        this.actionCoordinator = actionCoordinator;
+        this.walletActionRepository = Objects.requireNonNull(walletActionRepository, "walletActionRepository must not be null");
+        this.orderRepository = Objects.requireNonNull(orderRepository, "orderRepository must not be null");
+        this.sagaService = Objects.requireNonNull(sagaService, "sagaService must not be null");
+        this.actionCoordinator = Objects.requireNonNull(actionCoordinator, "actionCoordinator must not be null");
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)

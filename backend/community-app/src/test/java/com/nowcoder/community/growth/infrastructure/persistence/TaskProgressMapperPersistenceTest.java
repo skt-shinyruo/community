@@ -3,7 +3,9 @@ package com.nowcoder.community.growth.infrastructure.persistence;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
+import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
+import com.nowcoder.community.growth.infrastructure.persistence.mapper.TaskTemplateMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -39,6 +41,7 @@ class TaskProgressMapperPersistenceTest {
     private static final UUID TASK_EVENT_LOG_ID = UUID.fromString("00000000-0000-7000-8000-000000000621");
     private static final UUID USER_ID = uuid(1);
     private static final String LIKE_TASK_CODE = "LOCKING_LIKE_TASK";
+    private static final String MAPPING_TASK_CODE = "MAPPING_TASK";
     private static final String LIKE_SOURCE_ID = "like-instance:" + TASK_EVENT_LOG_ID;
 
     @Autowired
@@ -46,6 +49,9 @@ class TaskProgressMapperPersistenceTest {
 
     @Autowired
     private UserTaskProgressMapper userTaskProgressMapper;
+
+    @Autowired
+    private TaskTemplateMapper taskTemplateMapper;
 
     @Autowired
     private UserTaskEventLogMapper userTaskEventLogMapper;
@@ -60,6 +66,7 @@ class TaskProgressMapperPersistenceTest {
     void setUp() {
         jdbcTemplate.update("delete from user_task_event_log");
         jdbcTemplate.update("delete from user_task_progress");
+        jdbcTemplate.update("delete from task_template where task_code = ?", MAPPING_TASK_CODE);
     }
 
     @Test
@@ -89,6 +96,54 @@ class TaskProgressMapperPersistenceTest {
         UserTaskProgress progress = userTaskProgressMapper.selectByUserTaskAndPeriod(USER_ID, "DAILY_POST", "2026-03-22");
         assertThat(progress).isNotNull();
         assertThat(progress.getId()).isEqualTo(TASK_PROGRESS_ID);
+        assertThat(progress.getUserId()).isEqualTo(USER_ID);
+        assertThat(progress.getTaskCode()).isEqualTo("DAILY_POST");
+        assertThat(progress.getPeriodKey()).isEqualTo("2026-03-22");
+        assertThat(progress.getCurrentValue()).isZero();
+        assertThat(progress.getTargetValue()).isOne();
+        assertThat(progress.getStatus()).isEqualTo("IN_PROGRESS");
+        assertThat(progress.getLastSourceEventId()).isEqualTo("post-evt-1");
+        assertThat(progress.getUpdateTime()).isNotNull();
+    }
+
+    @Test
+    void taskTemplateSelectShouldMapEveryDomainPropertyWithoutADataObjectSubclass() {
+        jdbcTemplate.update(
+                """
+                        insert into task_template(
+                            task_code, task_type, period_type, trigger_event_type, target_value,
+                            reward_growth_delta, reward_balance_delta, claim_required, display_order,
+                            status, create_time, update_time
+                        ) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, current_timestamp, current_timestamp)
+                        """,
+                MAPPING_TASK_CODE,
+                "SOCIAL",
+                "DAILY",
+                "PostCreated",
+                3,
+                5,
+                7,
+                true,
+                42,
+                "ACTIVE"
+        );
+
+        TaskTemplate template = taskTemplateMapper.selectActiveByTriggerEventType("PostCreated").stream()
+                .filter(candidate -> MAPPING_TASK_CODE.equals(candidate.getTaskCode()))
+                .findFirst()
+                .orElseThrow();
+
+        assertThat(template.getTaskType()).isEqualTo("SOCIAL");
+        assertThat(template.getPeriodType()).isEqualTo("DAILY");
+        assertThat(template.getTriggerEventType()).isEqualTo("PostCreated");
+        assertThat(template.getTargetValue()).isEqualTo(3);
+        assertThat(template.getRewardGrowthDelta()).isEqualTo(5);
+        assertThat(template.getRewardBalanceDelta()).isEqualTo(7);
+        assertThat(template.isClaimRequired()).isTrue();
+        assertThat(template.getDisplayOrder()).isEqualTo(42);
+        assertThat(template.getStatus()).isEqualTo("ACTIVE");
+        assertThat(template.getCreateTime()).isNotNull();
+        assertThat(template.getUpdateTime()).isNotNull();
     }
 
     @Test

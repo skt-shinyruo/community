@@ -1,9 +1,7 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.user.application.port.UserAuditLogPort;
-import com.nowcoder.community.user.application.result.AdminUserResult;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
@@ -14,6 +12,7 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.util.Date;
+import java.time.Clock;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -62,17 +61,17 @@ class AdminUserApplicationServiceTest {
         UserAccount user = user(uuid(7), "alice", "alice@example.com", 2, 0, "h7", createTime);
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        AdminUserResult result = service.search(null, "  alice  ", null);
+        AdminUserApplicationService.AdminUserResult result = service.search(null, "  alice  ", null);
 
         assertThat(result).isNotNull();
         assertThat(result).extracting(
-                AdminUserResult::id,
-                AdminUserResult::username,
-                AdminUserResult::email,
-                AdminUserResult::type,
-                AdminUserResult::status,
-                AdminUserResult::headerUrl,
-                AdminUserResult::createTime
+                AdminUserApplicationService.AdminUserResult::id,
+                AdminUserApplicationService.AdminUserResult::username,
+                AdminUserApplicationService.AdminUserResult::email,
+                AdminUserApplicationService.AdminUserResult::type,
+                AdminUserApplicationService.AdminUserResult::status,
+                AdminUserApplicationService.AdminUserResult::headerUrl,
+                AdminUserApplicationService.AdminUserResult::createTime
         ).containsExactly(uuid(7), "alice", "alice@example.com", 2, 0, "h7", createTime);
         verify(userRepository).findByUsername("alice");
     }
@@ -82,7 +81,7 @@ class AdminUserApplicationServiceTest {
         AdminUserApplicationService service = service();
         when(userRepository.findById(SEARCH_ID)).thenReturn(Optional.empty());
 
-        AdminUserResult result = service.search(SEARCH_ID, null, null);
+        AdminUserApplicationService.AdminUserResult result = service.search(SEARCH_ID, null, null);
 
         assertThat(result).isNull();
     }
@@ -90,7 +89,7 @@ class AdminUserApplicationServiceTest {
     @Test
     void updateRoleShouldRejectMissingTargetUser() {
         AdminUserApplicationService service = service();
-        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 1, "elevate", true);
+        AdminUserApplicationService.UpdateRoleCommand command = command(1, "elevate");
         when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
         when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.empty());
 
@@ -117,7 +116,7 @@ class AdminUserApplicationServiceTest {
     @Test
     void updateRoleShouldReturnWithoutWriteWhenRoleUnchanged() {
         AdminUserApplicationService service = service();
-        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 1, "noop", true);
+        AdminUserApplicationService.UpdateRoleCommand command = command(1, "noop");
         when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
         when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 1, "h8", new Date())));
 
@@ -130,7 +129,7 @@ class AdminUserApplicationServiceTest {
     @Test
     void updateRoleShouldPersistRoleChangeAndWriteAuditLog() {
         AdminUserApplicationService service = service();
-        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "  delegate moderation  ", true);
+        AdminUserApplicationService.UpdateRoleCommand command = command(2, "  delegate moderation  ");
         when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(activeAdmin(ACTOR_ID)));
         when(userRepository.findByIdForUpdate(TARGET_ID)).thenReturn(Optional.of(user(TARGET_ID, "admin", "admin@example.com", 1, 1, "h8", new Date())));
         when(userRepository.nextUserSecurityVersion(TARGET_ID)).thenReturn(123L);
@@ -149,7 +148,7 @@ class AdminUserApplicationServiceTest {
     @Test
     void updateRoleShouldReauthorizeActorAfterAcquiringRoleManagementLock() {
         AdminUserApplicationService service = service();
-        UpdateUserRoleCommand command = new UpdateUserRoleCommand(ACTOR_ID, TARGET_ID, 2, "delegate", true);
+        AdminUserApplicationService.UpdateRoleCommand command = command(2, "delegate");
         when(userRepository.findByIdForUpdate(ACTOR_ID)).thenReturn(Optional.of(
                 user(ACTOR_ID, "former-admin", "former@example.com", 2, 1, "ha", new Date())
         ));
@@ -167,7 +166,16 @@ class AdminUserApplicationServiceTest {
     }
 
     private AdminUserApplicationService service() {
-        return new AdminUserApplicationService(userRepository, new UserRoleDomainService(), userAuditLogPort);
+        return new AdminUserApplicationService(
+                userRepository,
+                new UserRoleDomainService(),
+                userAuditLogPort,
+                Clock.systemUTC()
+        );
+    }
+
+    private AdminUserApplicationService.UpdateRoleCommand command(int type, String reason) {
+        return new AdminUserApplicationService.UpdateRoleCommand(ACTOR_ID, TARGET_ID, type, reason, true);
     }
 
     private static UserAccount activeAdmin(UUID id) {

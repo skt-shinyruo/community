@@ -10,6 +10,7 @@ import org.springframework.stereotype.Component;
 import java.time.Clock;
 import java.time.Duration;
 import java.util.Date;
+import java.util.Objects;
 
 @Component
 public class PostMediaUploadRecoveryJob {
@@ -29,8 +30,8 @@ public class PostMediaUploadRecoveryJob {
             @Value("${content.media.upload-recovery.batch-size:50}") int batchSize,
             @Value("${content.media.upload-recovery.stale-seconds:300}") long staleSeconds
     ) {
-        this.applicationService = applicationService;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.applicationService = Objects.requireNonNull(applicationService, "applicationService must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.enabled = enabled;
         this.batchSize = Math.max(1, Math.min(500, batchSize));
         this.staleAge = Duration.ofSeconds(Math.max(30L, staleSeconds));

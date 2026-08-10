@@ -6,9 +6,7 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
-import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
-import com.nowcoder.community.wallet.application.result.RechargeOrderResult;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
@@ -16,7 +14,6 @@ import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.RechargeOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -26,6 +23,22 @@ import java.util.UUID;
 
 @Service
 public class WalletRechargeApplicationService {
+
+    public record CreateRechargeCommand(UUID userId, long amount, String idempotencyKey) {
+    }
+
+    public record RechargeOrderResult(UUID orderId, String requestId, UUID userId, long amount, String status) {
+
+        private static RechargeOrderResult from(RechargeOrder order) {
+            return new RechargeOrderResult(
+                    order.getOrderId(),
+                    order.getRequestId(),
+                    order.getUserId(),
+                    order.getAmount(),
+                    order.getStatus()
+            );
+        }
+    }
 
     private static final String TEST_CREDIT_EXPENSE_ACCOUNT = "PLATFORM_TEST_CREDIT_EXPENSE";
 
@@ -38,41 +51,21 @@ public class WalletRechargeApplicationService {
     private final WalletTestCreditPolicy testCreditPolicy;
     private final WalletTestCreditQuotaPort testCreditQuotaPort;
 
-    @Autowired
     public WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             IdempotencyGuard idempotencyGuard,
+                                            UuidV7Generator idGenerator,
                                             WalletTestCreditPolicy testCreditPolicy,
                                             WalletTestCreditQuotaPort testCreditQuotaPort) {
-        this(
-                rechargeOrderRepository,
-                accountService,
-                ledgerService,
-                idempotencyGuard,
-                new WalletOrderDomainService(),
-                new UuidV7Generator(),
-                testCreditPolicy,
-                testCreditQuotaPort
-        );
-    }
-
-    WalletRechargeApplicationService(RechargeOrderRepository rechargeOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService,
-                                     IdempotencyGuard idempotencyGuard,
-                                     WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator,
-                                     WalletTestCreditPolicy testCreditPolicy,
-                                     WalletTestCreditQuotaPort testCreditQuotaPort) {
-        this.rechargeOrderRepository = rechargeOrderRepository;
-        this.accountService = accountService;
-        this.ledgerService = ledgerService;
-        this.idempotencyGuard = idempotencyGuard;
-        this.orderDomainService = orderDomainService;
-        this.idGenerator = idGenerator;
-        this.testCreditPolicy = testCreditPolicy;
-        this.testCreditQuotaPort = testCreditQuotaPort;
+        this.rechargeOrderRepository = Objects.requireNonNull(rechargeOrderRepository, "rechargeOrderRepository must not be null");
+        this.accountService = Objects.requireNonNull(accountService, "accountService must not be null");
+        this.ledgerService = Objects.requireNonNull(ledgerService, "ledgerService must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
+        this.orderDomainService = new WalletOrderDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.testCreditPolicy = Objects.requireNonNull(testCreditPolicy, "testCreditPolicy must not be null");
+        this.testCreditQuotaPort = Objects.requireNonNull(testCreditQuotaPort, "testCreditQuotaPort must not be null");
     }
 
     @Transactional

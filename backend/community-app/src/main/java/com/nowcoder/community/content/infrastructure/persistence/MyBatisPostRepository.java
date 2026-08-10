@@ -7,10 +7,10 @@ import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.repository.PostRepository;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.DiscussPostMapper;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Repository;
 
 import java.util.Date;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.content.exception.ContentErrorCode.POST_NOT_FOUND;
@@ -22,14 +22,10 @@ public class MyBatisPostRepository implements PostRepository {
     private final DiscussPostMapper discussPostMapper;
     private final UuidV7Generator idGenerator;
 
-    @Autowired
-    public MyBatisPostRepository(DiscussPostMapper discussPostMapper) {
-        this(discussPostMapper, new UuidV7Generator());
-    }
-
-    MyBatisPostRepository(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
-        this.discussPostMapper = discussPostMapper;
-        this.idGenerator = idGenerator;
+    public MyBatisPostRepository(DiscussPostMapper discussPostMapper, UuidV7Generator idGenerator) {
+        this.discussPostMapper = Objects.requireNonNull(
+                discussPostMapper, "discussPostMapper must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Override

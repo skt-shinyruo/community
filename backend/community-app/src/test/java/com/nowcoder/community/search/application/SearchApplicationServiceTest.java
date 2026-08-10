@@ -4,8 +4,8 @@ import com.nowcoder.community.common.spring.degradation.DegradationDecisions;
 import com.nowcoder.community.common.spring.degradation.DegradationProperties;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
-import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
-import com.nowcoder.community.search.application.command.SearchPostsCommand;
+import com.nowcoder.community.search.application.SearchApplicationService.DeleteIndexedPostCommand;
+import com.nowcoder.community.search.application.SearchApplicationService.SearchPostsCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
@@ -32,7 +32,7 @@ class SearchApplicationServiceTest {
     @Test
     void searchPostsShouldRejectNullCommand() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
 
         assertThatThrownBy(() -> service.searchPosts(null))
                 .isInstanceOf(NullPointerException.class)
@@ -42,7 +42,7 @@ class SearchApplicationServiceTest {
     @Test
     void searchPostsShouldNormalizeQueryAndMapDomainHits() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
         UUID postId = uuid(11);
         UUID categoryId = uuid(3);
         PostSearchQuery expectedQuery = new PostSearchQuery("spring", categoryId, "java", 0, 50);
@@ -75,7 +75,9 @@ class SearchApplicationServiceTest {
         SearchApplicationService service = new SearchApplicationService(
                 repository,
                 new PostSearchDomainService(),
-                properties
+                properties,
+                new FeatureFlagDecisions(new FeatureFlagProperties()),
+                new DegradationDecisions(new DegradationProperties())
         );
         PostSearchQuery expectedQuery = new PostSearchQuery("spring", null, null, 0, 20);
         when(repository.search(expectedQuery)).thenReturn(List.of());
@@ -95,7 +97,9 @@ class SearchApplicationServiceTest {
         SearchApplicationService service = new SearchApplicationService(
                 repository,
                 new PostSearchDomainService(),
-                properties
+                properties,
+                new FeatureFlagDecisions(new FeatureFlagProperties()),
+                new DegradationDecisions(new DegradationProperties())
         );
         when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
                 .thenThrow(new IllegalStateException("es unavailable"));
@@ -147,7 +151,7 @@ class SearchApplicationServiceTest {
     @Test
     void searchPostsShouldPropagateRepositoryFailureWhenDegradationIsDisabled() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
         when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
                 .thenThrow(new IllegalStateException("es unavailable"));
 
@@ -159,7 +163,7 @@ class SearchApplicationServiceTest {
     @Test
     void syncPostProjectionShouldSaveActiveProjectionAsDomainDocument() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
         UUID postId = uuid(11);
 
         service.syncPostProjection(new SyncPostProjectionCommand(
@@ -189,7 +193,7 @@ class SearchApplicationServiceTest {
     @Test
     void syncPostProjectionShouldWriteVersionedTombstoneForDeletedProjection() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
         UUID postId = uuid(11);
 
         service.syncPostProjection(new SyncPostProjectionCommand(
@@ -214,7 +218,7 @@ class SearchApplicationServiceTest {
     @Test
     void syncPostProjectionShouldRejectNullCommand() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
 
         assertThatThrownBy(() -> service.syncPostProjection(null))
                 .isInstanceOf(NullPointerException.class)
@@ -224,7 +228,7 @@ class SearchApplicationServiceTest {
     @Test
     void deletePostShouldRejectNullCommand() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
 
         assertThatThrownBy(() -> service.deletePost(null))
                 .isInstanceOf(NullPointerException.class)
@@ -234,10 +238,20 @@ class SearchApplicationServiceTest {
     @Test
     void deletePostShouldIgnoreNullIds() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        SearchApplicationService service = new SearchApplicationService(repository, new PostSearchDomainService());
+        SearchApplicationService service = defaultService(repository);
 
         service.deletePost(new DeleteIndexedPostCommand(null, 1L));
 
         verifyNoMoreInteractions(repository);
+    }
+
+    private static SearchApplicationService defaultService(PostSearchRepository repository) {
+        return new SearchApplicationService(
+                repository,
+                new PostSearchDomainService(),
+                new SearchPolicyProperties(),
+                new FeatureFlagDecisions(new FeatureFlagProperties()),
+                new DegradationDecisions(new DegradationProperties())
+        );
     }
 }

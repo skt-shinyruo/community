@@ -10,6 +10,7 @@ import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -43,7 +44,8 @@ class HotFeedCacheGovernanceApplicationServiceTest {
                 postContentRepository,
                 postSummaryCache,
                 postFeedSummaryLoader,
-                policyProperties
+                policyProperties,
+                Clock.systemUTC()
         );
     }
 

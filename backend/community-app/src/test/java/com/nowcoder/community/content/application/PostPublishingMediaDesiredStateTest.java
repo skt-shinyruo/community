@@ -2,10 +2,10 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.content.application.command.CreatePostCommand;
-import com.nowcoder.community.content.application.command.PostContentBlockCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.CreatePostCommand;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
-import com.nowcoder.community.content.application.result.PostCreateResult;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;

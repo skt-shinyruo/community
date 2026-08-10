@@ -1,10 +1,10 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.PostMediaApplicationService;
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
+import com.nowcoder.community.content.application.PostMediaUploadContent;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
-import com.nowcoder.community.content.controller.dto.PostMediaUploadContentAdapter;
 import com.nowcoder.community.content.controller.dto.PostMediaUploadSessionResponse;
 import com.nowcoder.community.content.controller.dto.PreparePostMediaUploadRequest;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
@@ -19,7 +19,11 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
+import java.io.IOException;
+import java.io.InputStream;
 import java.util.UUID;
+
+import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 
 @RestController
 @RequestMapping("/api/posts/media")
@@ -37,14 +41,14 @@ public class PostMediaController {
             @Valid @RequestBody PreparePostMediaUploadRequest request
     ) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        PostMediaUploadSessionResult result = applicationService.prepareUpload(new PreparePostMediaUploadCommand(
+        PostMediaUploadSessionResult result = applicationService.prepareUpload(new PostMediaApplicationService.PreparePostMediaUploadCommand(
                 actorUserId,
-                request.getRequestId(),
-                request.getFileName(),
-                request.getContentType(),
-                request.getContentLength(),
-                request.getMediaKind(),
-                request.getChecksumSha256()
+                request.requestId(),
+                request.fileName(),
+                request.contentType(),
+                request.contentLength(),
+                request.mediaKind(),
+                request.checksumSha256()
         ));
         return Result.ok(PostMediaUploadSessionResponse.from(result));
     }
@@ -57,7 +61,27 @@ public class PostMediaController {
             @RequestParam("file") MultipartFile file
     ) {
         UUID actorUserId = CurrentUser.requireUserUuid(authentication);
-        applicationService.completeUpload(actorUserId, assetId, uploadId, PostMediaUploadContentAdapter.from(file));
+        applicationService.completeUpload(actorUserId, assetId, uploadId, toUploadContent(file));
         return Result.ok();
+    }
+
+    private PostMediaUploadContent toUploadContent(MultipartFile file) {
+        return new PostMediaUploadContent(
+                () -> openUploadStream(file),
+                file == null ? "" : file.getContentType(),
+                file == null ? 0 : file.getSize(),
+                ""
+        );
+    }
+
+    private InputStream openUploadStream(MultipartFile file) {
+        if (file == null) {
+            return InputStream.nullInputStream();
+        }
+        try {
+            return file.getInputStream();
+        } catch (IOException error) {
+            throw new BusinessException(INTERNAL_ERROR, "读取媒体文件失败", error);
+        }
     }
 }

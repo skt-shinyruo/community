@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
+import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
@@ -33,7 +33,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -53,9 +53,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(200),
                 uuid(10),
-                1.0,
                 "evt-post-updated",
                 42L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -78,7 +78,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -101,9 +101,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(206),
                 uuid(16),
-                1.0,
                 "evt-duplicate",
                 48L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -121,7 +121,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -144,9 +144,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(207),
                 uuid(17),
-                1.0,
                 "evt-stale",
                 47L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -164,7 +164,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -192,9 +192,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(210),
                 uuid(20),
-                1.0,
                 "evt-old",
                 50L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -212,7 +212,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -240,9 +240,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(212),
                 uuid(22),
-                1.0,
                 "evt-superseded",
                 52L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -263,7 +263,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostHotFeedProjectionTransactionOperations transactionOperations =
                 mock(PostHotFeedProjectionTransactionOperations.class);
         HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -300,9 +300,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(213),
                 uuid(23),
-                1.0,
                 "evt-superseded-after-cas",
                 53L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -321,7 +321,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -350,9 +350,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(211),
                 uuid(21),
-                1.0,
                 "evt-current",
                 51L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -370,7 +370,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -403,8 +403,10 @@ class PostHotFeedProjectionApplicationServiceTest {
         when(postContentRepository.updateScore(uuid(230), 14.0, 7L)).thenReturn(8L);
         when(projectionGuard.isCurrent(accepted)).thenReturn(true);
 
-        service.project(new ProjectPostHotFeedCommand(uuid(230), uuid(30), 1.0, "evt-new", 20L, false));
-        service.project(new ProjectPostHotFeedCommand(uuid(230), uuid(30), 1.0, "evt-old", 10L, false));
+        service.project(new ProjectPostHotFeedCommand(
+                uuid(230), uuid(30), "evt-new", 20L, PostProjectionVersionLane.POST, false));
+        service.project(new ProjectPostHotFeedCommand(
+                uuid(230), uuid(30), "evt-old", 10L, PostProjectionVersionLane.POST, false));
 
         verify(postFeedCache).upsertGlobalHot(uuid(230), 14.0, "hot-v2", 7L, 8L);
         verify(postHotnessDomainService, times(1)).recomputeScore(post, 2L);
@@ -422,7 +424,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -434,7 +436,8 @@ class PostHotFeedProjectionApplicationServiceTest {
                 projectionGuard
         );
 
-        service.project(new ProjectPostHotFeedCommand(uuid(208), uuid(18), 1.0, " ", 49L, false));
+        service.project(new ProjectPostHotFeedCommand(
+                uuid(208), uuid(18), " ", 49L, PostProjectionVersionLane.POST, false));
 
         verifyNoInteractions(projectionGuard, postContentRepository, likeQueryPort, postFeedCache, postSummaryCache, postDetailCache, postCounterCache, postHotnessDomainService);
     }
@@ -449,7 +452,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -461,7 +464,8 @@ class PostHotFeedProjectionApplicationServiceTest {
                 projectionGuard
         );
 
-        service.project(new ProjectPostHotFeedCommand(uuid(209), uuid(19), 1.0, "evt-invalid-version", 0L, false));
+        service.project(new ProjectPostHotFeedCommand(
+                uuid(209), uuid(19), "evt-invalid-version", 0L, PostProjectionVersionLane.POST, false));
 
         verifyNoInteractions(projectionGuard, postContentRepository, likeQueryPort, postFeedCache, postSummaryCache, postDetailCache, postCounterCache, postHotnessDomainService);
     }
@@ -475,7 +479,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -495,9 +499,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(203),
                 uuid(13),
-                1.0,
                 "evt-post-updated",
                 43L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -514,7 +518,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -531,9 +535,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(201),
                 uuid(11),
-                0.0,
                 "evt-post-deleted",
                 44L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -553,7 +557,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -570,9 +574,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 postId,
                 boardId,
-                0.0,
                 "evt-post-missing",
                 9L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -595,7 +599,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
         HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -622,9 +626,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(231),
                 uuid(31),
-                0.0,
                 "evt-terminal-delete",
                 5L,
+                PostProjectionVersionLane.POST,
                 true
         ));
 
@@ -654,7 +658,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
         HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -681,9 +685,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(232),
                 uuid(32),
-                0.0,
                 "evt-terminal-delete-rollback",
                 4L,
+                PostProjectionVersionLane.POST,
                 true
         ));
 
@@ -709,7 +713,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
         HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -736,9 +740,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         assertThatThrownBy(() -> service.project(new ProjectPostHotFeedCommand(
                 uuid(233),
                 uuid(33),
-                0.0,
                 "evt-terminal-delete-failure",
                 3L,
+                PostProjectionVersionLane.POST,
                 true
         )))
                 .isInstanceOf(IllegalStateException.class)
@@ -761,7 +765,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -781,9 +785,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(202),
                 null,
-                1.0,
                 "evt-like-created",
                 45L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -800,7 +804,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -820,9 +824,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(204),
                 uuid(99),
-                1.0,
                 "evt-post-updated",
                 46L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -839,7 +843,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
-        PostHotFeedProjectionApplicationService service = new PostHotFeedProjectionApplicationService(
+        PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
                 postFeedCache,
@@ -859,9 +863,9 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(205),
                 uuid(15),
-                1.5,
                 "ce:1",
                 47L,
+                PostProjectionVersionLane.POST,
                 false
         ));
 
@@ -876,6 +880,153 @@ class PostHotFeedProjectionApplicationServiceTest {
         ContentFeedPolicyProperties properties = new ContentFeedPolicyProperties();
         properties.setHotRankVersion("hot-v2");
         return properties;
+    }
+
+    private static PostHotFeedProjectionApplicationService newService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties
+    ) {
+        return newService(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                AllowAllProjectionGuard.INSTANCE
+        );
+    }
+
+    private static PostHotFeedProjectionApplicationService newService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedProjectionGuard projectionGuard
+    ) {
+        return newService(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                projectionGuard,
+                ImmediateProjectionCompletion.INSTANCE
+        );
+    }
+
+    private static PostHotFeedProjectionApplicationService newService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedProjectionGuard projectionGuard,
+            HotFeedProjectionCompletion projectionCompletion
+    ) {
+        return newService(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                projectionGuard,
+                new PostHotFeedProjectionTransactionOperations(postContentRepository),
+                projectionCompletion
+        );
+    }
+
+    private static PostHotFeedProjectionApplicationService newService(
+            PostContentRepository postContentRepository,
+            LikeQueryPort likeQueryPort,
+            PostFeedCache postFeedCache,
+            PostSummaryCache postSummaryCache,
+            PostDetailCache postDetailCache,
+            PostCounterCache postCounterCache,
+            PostHotnessDomainService postHotnessDomainService,
+            ContentFeedPolicyProperties policyProperties,
+            HotFeedProjectionGuard projectionGuard,
+            PostHotFeedProjectionTransactionOperations transactionOperations,
+            HotFeedProjectionCompletion projectionCompletion
+    ) {
+        return new PostHotFeedProjectionApplicationService(
+                postContentRepository,
+                likeQueryPort,
+                postFeedCache,
+                postSummaryCache,
+                postDetailCache,
+                postCounterCache,
+                postHotnessDomainService,
+                policyProperties,
+                projectionGuard,
+                transactionOperations,
+                projectionCompletion
+        );
+    }
+
+    private enum ImmediateProjectionCompletion implements HotFeedProjectionCompletion {
+        INSTANCE;
+
+        @Override
+        public void afterTransaction(Runnable committedAction, Runnable rolledBackAction) {
+            committedAction.run();
+        }
+    }
+
+    private enum AllowAllProjectionGuard implements HotFeedProjectionGuard {
+        INSTANCE;
+
+        @Override
+        public ProjectionAttempt tryBegin(
+                UUID postId,
+                String sourceEventId,
+                long sourceVersion,
+                PostProjectionVersionLane sourceVersionLane,
+                boolean terminalDeletion
+        ) {
+            return ProjectionAttempt.accepted(
+                    postId,
+                    sourceEventId,
+                    sourceVersion,
+                    sourceVersionLane,
+                    terminalDeletion,
+                    "test"
+            );
+        }
+
+        @Override
+        public boolean isCurrent(ProjectionAttempt attempt) {
+            return true;
+        }
+
+        @Override
+        public void commit(ProjectionAttempt attempt) {
+        }
+
+        @Override
+        public void abort(ProjectionAttempt attempt) {
+        }
     }
 
     private static DiscussPost post(UUID postId, UUID boardId, int status, double score) {

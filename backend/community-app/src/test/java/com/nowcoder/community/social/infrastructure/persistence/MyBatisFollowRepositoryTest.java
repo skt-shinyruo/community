@@ -2,7 +2,12 @@ package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.social.infrastructure.persistence.mapper.FollowMapper;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 
+import java.time.Clock;
+import java.time.Instant;
+import java.time.ZoneOffset;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
@@ -17,10 +22,13 @@ import static org.mockito.Mockito.when;
 
 class MyBatisFollowRepositoryTest {
 
+    private static final Instant TEST_NOW = Instant.parse("2026-08-10T12:34:56Z");
+    private static final Clock TEST_CLOCK = Clock.fixed(TEST_NOW, ZoneOffset.UTC);
+
     @Test
     void followedStatusesBatchShouldUseOneMapperQueryAndFillMissingTargetsWithFalse() {
         FollowMapper mapper = mock(FollowMapper.class);
-        MyBatisFollowRepository repository = new MyBatisFollowRepository(mapper);
+        MyBatisFollowRepository repository = new MyBatisFollowRepository(mapper, TEST_CLOCK);
         UUID actorUserId = uuid(1);
         UUID followedUserId = uuid(2);
         UUID otherUserId = uuid(3);
@@ -44,5 +52,30 @@ class MyBatisFollowRepositoryTest {
         );
         verify(mapper, never()).countFollow(actorUserId, USER, followedUserId);
         verify(mapper, never()).countFollow(actorUserId, USER, otherUserId);
+    }
+
+    @Test
+    void followShouldUseInjectedClockWhenCallerDoesNotSupplyATimestamp() {
+        FollowMapper mapper = mock(FollowMapper.class);
+        MyBatisFollowRepository repository = new MyBatisFollowRepository(mapper, TEST_CLOCK);
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(2);
+        when(mapper.insertFollow(
+                org.mockito.ArgumentMatchers.eq(actorUserId),
+                org.mockito.ArgumentMatchers.eq(USER),
+                org.mockito.ArgumentMatchers.eq(targetUserId),
+                org.mockito.ArgumentMatchers.any(Date.class)
+        )).thenReturn(1);
+
+        assertThat(repository.follow(actorUserId, USER, targetUserId, 0L)).isTrue();
+
+        ArgumentCaptor<Date> createdAt = ArgumentCaptor.forClass(Date.class);
+        verify(mapper).insertFollow(
+                org.mockito.ArgumentMatchers.eq(actorUserId),
+                org.mockito.ArgumentMatchers.eq(USER),
+                org.mockito.ArgumentMatchers.eq(targetUserId),
+                createdAt.capture()
+        );
+        assertThat(createdAt.getValue()).isEqualTo(Date.from(TEST_NOW));
     }
 }

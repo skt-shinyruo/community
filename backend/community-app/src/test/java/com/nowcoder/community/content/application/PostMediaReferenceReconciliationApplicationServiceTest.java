@@ -2,8 +2,8 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort.RemoteReferenceStatus;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
-import com.nowcoder.community.content.application.command.ReconcilePostMediaReferencesCommand;
-import com.nowcoder.community.content.application.result.PostMediaReferenceReconciliationResult;
+import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService.ReconcilePostMediaReferencesCommand;
+import com.nowcoder.community.content.application.PostMediaReferenceReconciliationApplicationService.PostMediaReferenceReconciliationResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;

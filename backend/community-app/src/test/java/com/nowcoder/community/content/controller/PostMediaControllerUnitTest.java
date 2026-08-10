@@ -1,9 +1,10 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.PostMediaApplicationService;
 import com.nowcoder.community.content.application.PostMediaUploadContent;
-import com.nowcoder.community.content.application.command.PreparePostMediaUploadCommand;
+import com.nowcoder.community.content.application.PostMediaApplicationService.PreparePostMediaUploadCommand;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.controller.dto.PostMediaUploadSessionResponse;
 import com.nowcoder.community.content.controller.dto.PreparePostMediaUploadRequest;
@@ -11,18 +12,22 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.mock.web.MockMultipartFile;
+import org.springframework.web.multipart.MultipartFile;
 import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.io.IOException;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -41,12 +46,14 @@ class PostMediaControllerUnitTest {
     void prepareUploadShouldCallSameDomainApplicationServiceAndMapResponse() {
         UUID actorUserId = uuid(7);
         UUID assetId = uuid(8);
-        PreparePostMediaUploadRequest request = new PreparePostMediaUploadRequest();
-        request.setFileName("demo.mp4");
-        request.setContentType("video/mp4");
-        request.setContentLength(1234);
-        request.setMediaKind("VIDEO");
-        request.setChecksumSha256("checksum");
+        PreparePostMediaUploadRequest request = new PreparePostMediaUploadRequest(
+                null,
+                "demo.mp4",
+                "video/mp4",
+                1234,
+                "VIDEO",
+                "checksum"
+        );
         when(applicationService.prepareUpload(any())).thenReturn(new PostMediaUploadSessionResult(
                 assetId,
                 uuid(11).toString(),
@@ -100,6 +107,25 @@ class PostMediaControllerUnitTest {
         assertThat(captor.getValue().size()).isEqualTo(5);
         assertThat(captor.getValue().empty()).isFalse();
         assertThat(new String(captor.getValue().openStream().readAllBytes())).isEqualTo("media");
+    }
+
+    @Test
+    void uploadShouldKeepMultipartStreamOpeningDeferredAndTranslateIoFailure() throws Exception {
+        UUID actorUserId = uuid(7);
+        UUID assetId = uuid(8);
+        UUID uploadId = uuid(11);
+        MultipartFile file = mock(MultipartFile.class);
+        when(file.getContentType()).thenReturn("video/mp4");
+        when(file.getSize()).thenReturn(5L);
+        when(file.getInputStream()).thenThrow(new IOException("unreadable"));
+        doAnswer(invocation -> {
+            invocation.getArgument(3, PostMediaUploadContent.class).openStream();
+            return null;
+        }).when(applicationService).completeUpload(any(), any(), any(), any());
+
+        assertThatThrownBy(() -> controller.upload(authentication(actorUserId), assetId, uploadId, file))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("读取媒体文件失败");
     }
 
     private static Authentication authentication(UUID userId) {

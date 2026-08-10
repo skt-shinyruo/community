@@ -1,6 +1,5 @@
 package com.nowcoder.community.market.application;
 
-import com.nowcoder.community.market.application.result.MarketWalletActionRecoveryResult;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
@@ -20,6 +19,13 @@ import java.util.Objects;
 @Service
 public class MarketWalletActionRecoveryApplicationService {
 
+    public record MarketWalletActionRecoveryResult(
+            int recoveredLeases,
+            int reconciledCount,
+            int skippedCount
+    ) {
+    }
+
     private static final Logger log = LoggerFactory.getLogger(MarketWalletActionRecoveryApplicationService.class);
     private static final int DEFAULT_RECOVERY_SCAN_LIMIT = 100;
 
@@ -34,64 +40,13 @@ public class MarketWalletActionRecoveryApplicationService {
             MarketWalletActionRepository walletActionRepository,
             MarketOrderRepository orderRepository,
             MarketWalletActionRecoveryTransactionOperations transactionOperations,
+            Clock clock,
             @Value("${market.wallet-action.max-retry-attempts:8}") int maxRetryAttempts
     ) {
-        this(
-                walletActionRepository,
-                orderRepository,
-                transactionOperations,
-                Clock.systemUTC(),
-                maxRetryAttempts
-        );
-    }
-
-    MarketWalletActionRecoveryApplicationService(
-            MarketWalletActionRepository walletActionRepository,
-            MarketOrderRepository orderRepository,
-            MarketOrderSagaApplicationService sagaService,
-            MarketWalletActionCoordinator actionCoordinator,
-            Clock clock
-    ) {
-        this(
-                walletActionRepository,
-                orderRepository,
-                new MarketWalletActionRecoveryTransactionOperations(
-                        walletActionRepository,
-                        orderRepository,
-                        sagaService,
-                        actionCoordinator
-                ),
-                clock,
-                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
-        );
-    }
-
-    MarketWalletActionRecoveryApplicationService(
-            MarketWalletActionRepository walletActionRepository,
-            MarketOrderRepository orderRepository,
-            MarketWalletActionRecoveryTransactionOperations transactionOperations,
-            Clock clock
-    ) {
-        this(
-                walletActionRepository,
-                orderRepository,
-                transactionOperations,
-                clock,
-                MarketWalletActionRetryPolicy.DEFAULT_MAX_RETRY_ATTEMPTS
-        );
-    }
-
-    MarketWalletActionRecoveryApplicationService(
-            MarketWalletActionRepository walletActionRepository,
-            MarketOrderRepository orderRepository,
-            MarketWalletActionRecoveryTransactionOperations transactionOperations,
-            Clock clock,
-            int maxRetryAttempts
-    ) {
-        this.walletActionRepository = walletActionRepository;
-        this.orderRepository = orderRepository;
-        this.transactionOperations = transactionOperations;
-        this.clock = clock;
+        this.walletActionRepository = Objects.requireNonNull(walletActionRepository, "walletActionRepository must not be null");
+        this.orderRepository = Objects.requireNonNull(orderRepository, "orderRepository must not be null");
+        this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.maxRetryAttempts = MarketWalletActionRetryPolicy.normalizeMaxRetryAttempts(maxRetryAttempts);
     }
 

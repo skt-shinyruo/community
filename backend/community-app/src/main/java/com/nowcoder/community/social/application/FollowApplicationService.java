@@ -3,9 +3,6 @@ package com.nowcoder.community.social.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
-import com.nowcoder.community.social.application.command.FollowCommand;
-import com.nowcoder.community.social.application.command.UnfollowCommand;
-import com.nowcoder.community.social.application.result.FollowRelationResult;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
 import com.nowcoder.community.social.domain.model.FollowRelation;
@@ -17,6 +14,7 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
@@ -41,6 +39,7 @@ public class FollowApplicationService implements SocialFollowQueryApi {
     private final BlockDomainService blockDomainService;
     private final SocialDomainEventPublisher eventPublisher;
     private final UserLookupQueryApi userLookupQueryApi;
+    private final Clock clock;
 
     public FollowApplicationService(
             FollowRepository followRepository,
@@ -48,14 +47,16 @@ public class FollowApplicationService implements SocialFollowQueryApi {
             FollowDomainService followDomainService,
             BlockDomainService blockDomainService,
             SocialDomainEventPublisher eventPublisher,
-            UserLookupQueryApi userLookupQueryApi
+            UserLookupQueryApi userLookupQueryApi,
+            Clock clock
     ) {
-        this.followRepository = followRepository;
-        this.blockRepository = blockRepository;
-        this.followDomainService = followDomainService;
-        this.blockDomainService = blockDomainService;
-        this.eventPublisher = eventPublisher;
-        this.userLookupQueryApi = userLookupQueryApi;
+        this.followRepository = Objects.requireNonNull(followRepository, "followRepository must not be null");
+        this.blockRepository = Objects.requireNonNull(blockRepository, "blockRepository must not be null");
+        this.followDomainService = Objects.requireNonNull(followDomainService, "followDomainService must not be null");
+        this.blockDomainService = Objects.requireNonNull(blockDomainService, "blockDomainService must not be null");
+        this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher must not be null");
+        this.userLookupQueryApi = Objects.requireNonNull(userLookupQueryApi, "userLookupQueryApi must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -75,7 +76,7 @@ public class FollowApplicationService implements SocialFollowQueryApi {
             }
         }
 
-        long now = System.currentTimeMillis();
+        long now = clock.millis();
         boolean created = followRepository.follow(actorUserId, entityType, entityId, now);
         if (!created) {
             return;
@@ -206,6 +207,15 @@ public class FollowApplicationService implements SocialFollowQueryApi {
 
     private FollowRelationResult toResult(FollowRelation relation) {
         return new FollowRelationResult(relation.targetId(), relation.followTime());
+    }
+
+    public record FollowCommand(UUID actorUserId, int entityType, UUID entityId) {
+    }
+
+    public record UnfollowCommand(UUID actorUserId, int entityType, UUID entityId) {
+    }
+
+    public record FollowRelationResult(UUID targetId, Instant followTime) {
     }
 
 }

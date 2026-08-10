@@ -1,6 +1,5 @@
 package com.nowcoder.community.runtime.application;
 
-import com.nowcoder.community.runtime.application.result.RuntimeConfigResult;
 import com.nowcoder.community.runtime.config.RuntimeConfigProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -29,7 +28,7 @@ class RuntimeConfigApplicationServiceTest {
         properties.getUpload().setAvatarUploadEnabled(true);
         properties.getUpload().setMediaUploadEnabled(true);
 
-        RuntimeConfigResult result = new RuntimeConfigApplicationService(properties).current();
+        RuntimeConfigApplicationService.RuntimeConfig result = new RuntimeConfigApplicationService(properties).current();
 
         assertThat(result.apiBasePath()).isEqualTo("/api");
         assertThat(result.publicGatewayOrigin()).isEqualTo("http://localhost:12880");
@@ -67,7 +66,7 @@ class RuntimeConfigApplicationServiceTest {
                 .bind("frontend.runtime", RuntimeConfigProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
-        RuntimeConfigResult result = new RuntimeConfigApplicationService(properties).current();
+        RuntimeConfigApplicationService.RuntimeConfig result = new RuntimeConfigApplicationService(properties).current();
 
         assertThat(result.apiBasePath()).isEqualTo("/api");
         assertThat(result.publicGatewayOrigin()).isEqualTo("http://localhost:12880");

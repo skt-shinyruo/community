@@ -1,10 +1,14 @@
 package com.nowcoder.community.notice.controller;
 
+import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
-import com.nowcoder.community.notice.application.command.ListNoticeItemsCommand;
+import com.nowcoder.community.notice.application.NoticeApplicationService.ListNoticeItemsCommand;
+import com.nowcoder.community.notice.application.NoticeApplicationService.NoticeTopicSummaryResult;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.controller.dto.NoticeItemResponse;
+import com.nowcoder.community.notice.controller.dto.NoticeTopicSummaryResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -14,6 +18,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
 import java.time.Instant;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -51,6 +56,45 @@ class NoticeControllerUnitTest {
             assertThat(response.getTopic()).isEqualTo("comment");
         });
         verify(noticeApplicationService).listNoticeItems(new ListNoticeItemsCommand(userId, "comment", null, null));
+    }
+
+    @Test
+    void summaryJsonShouldPreserveTopicAndNestedLatestFields() {
+        UUID userId = uuid(7);
+        NoticeItemResult latest = new NoticeItemResult(
+                NOTICE_ID,
+                uuid(0),
+                userId,
+                "comment",
+                "{}",
+                0,
+                null
+        );
+        when(noticeApplicationService.topicSummary(userId)).thenReturn(List.of(
+                new NoticeTopicSummaryResult("comment", latest, 2, 1)
+        ));
+
+        Result<List<NoticeTopicSummaryResponse>> result = controller.summary(authentication(userId));
+        JsonNode summary = JsonMappers.standard().valueToTree(result.getData().get(0));
+        List<String> summaryFields = new ArrayList<>();
+        summary.fieldNames().forEachRemaining(summaryFields::add);
+        List<String> latestFields = new ArrayList<>();
+        summary.path("latest").fieldNames().forEachRemaining(latestFields::add);
+
+        assertThat(summaryFields).containsExactlyInAnyOrder("topic", "latest", "noticeCount", "unreadCount");
+        assertThat(summaryFields).doesNotContain("noticeTopic");
+        assertThat(summary.path("topic").asText()).isEqualTo("comment");
+        assertThat(latestFields).containsExactlyInAnyOrder(
+                "id",
+                "senderUserId",
+                "recipientUserId",
+                "topic",
+                "content",
+                "status",
+                "createTime"
+        );
+        assertThat(latestFields).doesNotContain("noticeTopic");
+        assertThat(summary.path("latest").path("topic").asText()).isEqualTo("comment");
     }
 
     private Authentication authentication(UUID userId) {

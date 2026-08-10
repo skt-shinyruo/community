@@ -4,10 +4,9 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.application.FollowApplicationService;
-import com.nowcoder.community.social.application.command.FollowCommand;
-import com.nowcoder.community.social.application.command.UnfollowCommand;
-import com.nowcoder.community.social.application.result.FollowRelationResult;
-import com.nowcoder.community.social.controller.dto.FollowItem;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowCommand;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.UnfollowCommand;
 import com.nowcoder.community.social.controller.dto.FollowRequest;
 import jakarta.validation.Valid;
 import org.springframework.security.core.Authentication;
@@ -67,7 +66,7 @@ public class FollowController {
     }
 
     @GetMapping("/{userId}/followees")
-    public Result<List<FollowItem>> followees(
+    public Result<List<FollowRelationResult>> followees(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer entityType,
             @RequestParam(required = false) Integer page,
@@ -76,14 +75,11 @@ public class FollowController {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(followApplicationService.listFollowees(userId, t, p, s)
-                .stream()
-                .map(this::toItem)
-                .toList());
+        return Result.ok(followApplicationService.listFollowees(userId, t, p, s));
     }
 
     @GetMapping("/{userId}/followers")
-    public Result<List<FollowItem>> followers(
+    public Result<List<FollowRelationResult>> followers(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer entityType,
             @RequestParam(required = false) Integer page,
@@ -92,10 +88,7 @@ public class FollowController {
         int t = entityType == null ? ENTITY_TYPE_USER : entityType;
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
-        return Result.ok(followApplicationService.listFollowers(t, userId, p, s)
-                .stream()
-                .map(this::toItem)
-                .toList());
+        return Result.ok(followApplicationService.listFollowers(t, userId, p, s));
     }
 
     @GetMapping("/{userId}/followees/count")
@@ -110,10 +103,4 @@ public class FollowController {
         return Result.ok(followApplicationService.followerCount(t, userId));
     }
 
-    private FollowItem toItem(FollowRelationResult result) {
-        FollowItem item = new FollowItem();
-        item.setTargetId(result.targetId());
-        item.setFollowTime(result.followTime());
-        return item;
-    }
 }

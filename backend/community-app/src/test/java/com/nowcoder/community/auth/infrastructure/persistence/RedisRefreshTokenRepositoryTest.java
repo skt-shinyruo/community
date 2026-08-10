@@ -235,7 +235,7 @@ class RedisRefreshTokenRepositoryTest {
     private static RedisRefreshTokenRepository repository(StringRedisTemplate redis) {
         JwtProperties properties = new JwtProperties();
         properties.setRefreshTokenTtlSeconds(604800L);
-        return new RedisRefreshTokenRepository(redis, jsonCodec(), properties);
+        return new RedisRefreshTokenRepository(redis, jsonCodec(), properties, java.time.Clock.systemUTC());
     }
 
     private static String activeJson(Instant expiresAt) throws Exception {

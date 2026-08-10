@@ -49,7 +49,7 @@ class RedisPostCounterCacheTest {
                 eq("baseViewCount"),
                 eq("baseScore")
         )).thenReturn(1L);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         PostCounterSnapshot snapshot = cache.get(postId);
 
@@ -88,7 +88,7 @@ class RedisPostCounterCacheTest {
         when(hashes.entries(counterKey(postId))).thenReturn(v2);
         when(hashes.entries(previousCounterKey(postId))).thenReturn(previous);
         when(hashes.entries(legacyCounterKey(postId))).thenReturn(Map.of());
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         PostCounterSnapshot snapshot = cache.get(postId);
 
@@ -103,7 +103,7 @@ class RedisPostCounterCacheTest {
     void viewUpdateShouldInitializeDeduplicateIncrementAndMarkDirtyInOneClusterSlot() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         UUID postId = uuid(6);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
         PostCounterSnapshot baseline = new PostCounterSnapshot(postId, 9L, 2L, 3L, 4L, 8.5, 12L);
 
         cache.recordView(postId, "viewer:private-value", Instant.EPOCH, baseline);
@@ -152,7 +152,7 @@ class RedisPostCounterCacheTest {
     void canonicalCounterChangeShouldOnlyAllocateADirtyRevision() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         UUID postId = uuid(12);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(List.of(dirtyKey(postId), dirtySequenceKey(postId))),
@@ -172,7 +172,7 @@ class RedisPostCounterCacheTest {
     void initializationShouldCarryPersistentRevisionIntoTheClusterSlotSequence() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         UUID postId = uuid(13);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         cache.initializeIfAbsent(new PostCounterSnapshot(postId, 9L, 2L, 3L, 4L, 8.5, 21L));
 
@@ -202,7 +202,7 @@ class RedisPostCounterCacheTest {
         when(zsets.rangeWithScores(dirtyKey(postId), 0L, 0L)).thenReturn(new LinkedHashSet<>(List.of(tuple)));
         when(tuple.getValue()).thenReturn(postId.toString());
         when(tuple.getScore()).thenReturn(11.0);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         List<PostCounterCache.DirtyPost> dirtyPosts = cache.dirtyPosts(1);
         cache.clearDirtyPosts(dirtyPosts);
@@ -238,7 +238,7 @@ class RedisPostCounterCacheTest {
                 .thenReturn(new LinkedHashSet<>(tuples.subList(0, 4)));
         when(zsets.rangeWithScores(key, 0L, 4L))
                 .thenReturn(new LinkedHashSet<>(tuples));
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         List<PostCounterCache.DirtyPost> result = cache.dirtyPosts(5);
 
@@ -266,7 +266,7 @@ class RedisPostCounterCacheTest {
         when(zsets.rangeWithScores("post:counter:dirty", 0L, 0L)).thenReturn(new LinkedHashSet<>());
         stubGrowingQueue(zsets, dirtyKey(firstShardPosts.get(0)), firstTuples);
         stubGrowingQueue(zsets, dirtyKey(secondShardPosts.get(0)), secondTuples);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         List<PostCounterCache.DirtyPost> result = cache.dirtyPosts(4);
 
@@ -308,7 +308,7 @@ class RedisPostCounterCacheTest {
         when(zsets.remove(key, "not-a-uuid")).thenReturn(1L);
         when(zsets.remove(key, wrongShardPost.toString())).thenReturn(1L);
         when(zsets.remove(key, invalidScorePost.toString())).thenReturn(1L);
-        RedisPostCounterCache cache = new RedisPostCounterCache(redisTemplate, 86_400L);
+        RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         List<PostCounterCache.DirtyPost> result = cache.dirtyPosts(2);
 
@@ -364,6 +364,17 @@ class RedisPostCounterCacheTest {
             }
         }
         throw new AssertionError("unable to find test UUID for shard " + wantedShard);
+    }
+
+    private static RedisPostCounterCache newCache(
+            StringRedisTemplate redisTemplate,
+            long viewerWindowSeconds
+    ) {
+        return new RedisPostCounterCache(
+                redisTemplate,
+                viewerWindowSeconds,
+                java.time.Clock.systemUTC()
+        );
     }
 
     private static int shard(UUID postId) {

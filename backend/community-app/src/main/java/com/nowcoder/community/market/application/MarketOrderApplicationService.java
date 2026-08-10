@@ -6,7 +6,6 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
-import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.model.MarketAddressSnapshot;
@@ -31,7 +30,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.time.Instant;
+import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.Date;
 import java.util.List;
@@ -44,6 +43,15 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 
 @Service
 public class MarketOrderApplicationService {
+
+    public record CreateOrderCommand(
+            UUID buyerUserId,
+            UUID listingId,
+            int quantity,
+            UUID addressId,
+            String idempotencyKey
+    ) {
+    }
 
     private static final String DELIVERY_TYPE_MANUAL_TEXT = "MANUAL_TEXT";
     private static final String DELIVERY_STATUS_DELIVERED = "DELIVERED";
@@ -59,6 +67,7 @@ public class MarketOrderApplicationService {
     private final MarketOrderSagaApplicationService marketOrderSagaService;
     private final IdempotencyGuard idempotencyGuard;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
     private final MarketOrderDomainService orderDomainService = new MarketOrderDomainService();
 
     @Autowired
@@ -70,64 +79,24 @@ public class MarketOrderApplicationService {
                               MarketShipmentRepository marketShipmentRepository,
                               MarketWalletActionCoordinator marketWalletActionCoordinator,
                               MarketOrderSagaApplicationService marketOrderSagaService,
-                              IdempotencyGuard idempotencyGuard) {
-        this(marketListingRepository,
-                marketInventoryRepository,
-                marketOrderRepository,
-                marketAddressRepository,
-                marketDeliveryRepository,
-                marketShipmentRepository,
-                marketWalletActionCoordinator,
-                marketOrderSagaService,
-                idempotencyGuard,
-                new UuidV7Generator());
-    }
-
-    MarketOrderApplicationService(MarketListingRepository marketListingRepository,
-                       MarketInventoryRepository marketInventoryRepository,
-                       MarketOrderRepository marketOrderRepository,
-                       MarketAddressRepository marketAddressRepository,
-                       MarketDeliveryRepository marketDeliveryRepository,
-                       MarketShipmentRepository marketShipmentRepository,
-                       MarketWalletActionCoordinator marketWalletActionCoordinator,
-                       MarketOrderSagaApplicationService marketOrderSagaService,
-                       IdempotencyGuard idempotencyGuard,
-                       UuidV7Generator idGenerator) {
-        this.marketListingRepository = marketListingRepository;
-        this.marketInventoryRepository = marketInventoryRepository;
-        this.marketOrderRepository = marketOrderRepository;
-        this.marketAddressRepository = marketAddressRepository;
-        this.marketDeliveryRepository = marketDeliveryRepository;
-        this.marketShipmentRepository = marketShipmentRepository;
-        this.marketWalletActionCoordinator = marketWalletActionCoordinator;
-        this.marketOrderSagaService = marketOrderSagaService;
-        this.idempotencyGuard = idempotencyGuard;
-        this.idGenerator = idGenerator;
-    }
-
-    MarketOrderApplicationService(MarketListingRepository marketListingRepository,
-                       MarketInventoryRepository marketInventoryRepository,
-                       MarketOrderRepository marketOrderRepository,
-                       MarketAddressRepository marketAddressRepository,
-                       MarketDeliveryRepository marketDeliveryRepository,
-                       MarketShipmentRepository marketShipmentRepository,
-                       MarketWalletActionCoordinator marketWalletActionCoordinator,
-                       MarketOrderSagaApplicationService marketOrderSagaService,
-                       UuidV7Generator idGenerator) {
-        this(marketListingRepository,
-                marketInventoryRepository,
-                marketOrderRepository,
-                marketAddressRepository,
-                marketDeliveryRepository,
-                marketShipmentRepository,
-                marketWalletActionCoordinator,
-                marketOrderSagaService,
-                null,
-                idGenerator);
+                              IdempotencyGuard idempotencyGuard,
+                              UuidV7Generator idGenerator,
+                              Clock clock) {
+        this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
+        this.marketInventoryRepository = Objects.requireNonNull(marketInventoryRepository, "marketInventoryRepository must not be null");
+        this.marketOrderRepository = Objects.requireNonNull(marketOrderRepository, "marketOrderRepository must not be null");
+        this.marketAddressRepository = Objects.requireNonNull(marketAddressRepository, "marketAddressRepository must not be null");
+        this.marketDeliveryRepository = Objects.requireNonNull(marketDeliveryRepository, "marketDeliveryRepository must not be null");
+        this.marketShipmentRepository = Objects.requireNonNull(marketShipmentRepository, "marketShipmentRepository must not be null");
+        this.marketWalletActionCoordinator = Objects.requireNonNull(marketWalletActionCoordinator, "marketWalletActionCoordinator must not be null");
+        this.marketOrderSagaService = Objects.requireNonNull(marketOrderSagaService, "marketOrderSagaService must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
-    public MarketOrderResult createOrder(CreateMarketOrderCommand command) {
+    public MarketOrderResult createOrder(CreateOrderCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
@@ -242,10 +211,10 @@ public class MarketOrderApplicationService {
         delivery.setDeliveryType(DELIVERY_TYPE_MANUAL_TEXT);
         delivery.setDeliveryContent(deliveryContent.trim());
         delivery.setStatus(DELIVERY_STATUS_DELIVERED);
-        delivery.setDeliveredAt(new Date());
+        delivery.setDeliveredAt(Date.from(clock.instant()));
         marketDeliveryRepository.save(delivery);
 
-        MarketOrderTransition transition = order.markDelivered(Date.from(Instant.now().plus(24, ChronoUnit.HOURS)));
+        MarketOrderTransition transition = order.markDelivered(Date.from(clock.instant().plus(24, ChronoUnit.HOURS)));
         applyForeground(transition);
         return MarketOrderResult.from(reloadOrder(orderId));
     }
@@ -287,10 +256,10 @@ public class MarketOrderApplicationService {
         shipment.setCarrierName(carrierName.trim());
         shipment.setTrackingNo(trackingNo.trim());
         shipment.setShippingRemark(StringUtils.hasText(remark) ? remark.trim() : null);
-        shipment.setShippedAt(new Date());
+        shipment.setShippedAt(Date.from(clock.instant()));
         marketShipmentRepository.save(shipment);
 
-        MarketOrderTransition transition = order.markShipped(Date.from(Instant.now().plus(7, ChronoUnit.DAYS)));
+        MarketOrderTransition transition = order.markShipped(Date.from(clock.instant().plus(7, ChronoUnit.DAYS)));
         applyForeground(transition);
         return MarketOrderResult.from(reloadOrder(orderId));
     }

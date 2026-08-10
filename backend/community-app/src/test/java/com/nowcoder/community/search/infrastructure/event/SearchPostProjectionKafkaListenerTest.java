@@ -11,7 +11,7 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.content.infrastructure.event.JacksonContentContractEventCodec;
 import com.nowcoder.community.search.application.SearchPostProjectionApplicationService;
-import com.nowcoder.community.search.application.command.ProjectPostCommand;
+import com.nowcoder.community.search.application.SearchPostProjectionApplicationService.ProjectPostCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

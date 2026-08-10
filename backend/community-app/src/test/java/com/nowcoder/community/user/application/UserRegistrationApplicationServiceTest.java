@@ -12,6 +12,7 @@ import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.repository.UserRepository.InsertResult;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserRegistrationDomainService;
+import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
 import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -210,9 +211,14 @@ class UserRegistrationApplicationServiceTest {
     private UserRegistrationApplicationService service() {
         return new UserRegistrationApplicationService(
                 userRepository,
-                new UserRegistrationDomainService(Clock.fixed(NOW, ZoneOffset.UTC), new PasswordPolicyDomainService()),
+                new UserRegistrationDomainService(
+                        Clock.fixed(NOW, ZoneOffset.UTC),
+                        new PasswordPolicyDomainService(),
+                        new UsernamePolicyDomainService()
+                ),
                 new UuidV7Generator(Clock.fixed(NOW, ZoneOffset.UTC)),
-                userPolicyEventPublisher
+                userPolicyEventPublisher,
+                Clock.fixed(NOW, ZoneOffset.UTC)
         );
     }
 

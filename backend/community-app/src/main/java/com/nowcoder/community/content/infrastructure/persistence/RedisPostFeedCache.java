@@ -11,10 +11,12 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
 
@@ -81,15 +83,19 @@ public class RedisPostFeedCache implements PostFeedCache {
     private final StringRedisTemplate redisTemplate;
     private final FeedCursorCodec feedCursorCodec;
     private final CategoryContentRepository categoryContentRepository;
+    private final Clock clock;
 
     public RedisPostFeedCache(
             StringRedisTemplate redisTemplate,
             FeedCursorCodec feedCursorCodec,
-            CategoryContentRepository categoryContentRepository
+            CategoryContentRepository categoryContentRepository,
+            Clock clock
     ) {
-        this.redisTemplate = redisTemplate;
-        this.feedCursorCodec = feedCursorCodec;
-        this.categoryContentRepository = categoryContentRepository;
+        this.redisTemplate = Objects.requireNonNull(redisTemplate, "redisTemplate must not be null");
+        this.feedCursorCodec = Objects.requireNonNull(feedCursorCodec, "feedCursorCodec must not be null");
+        this.categoryContentRepository = Objects.requireNonNull(
+                categoryContentRepository, "categoryContentRepository must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Override
@@ -204,7 +210,7 @@ public class RedisPostFeedCache implements PostFeedCache {
 
     @Override
     public HotFeedDegradationSignalResult writeDegradationSignal(boolean degraded, String reason) {
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : "";
         redisTemplate.opsForValue().set(HOT_DEGRADATION_DEGRADED_KEY, Boolean.toString(degraded));
         redisTemplate.opsForValue().set(HOT_DEGRADATION_REASON_KEY, degraded ? normalizedReason : "");

@@ -2,11 +2,11 @@ package com.nowcoder.community.analytics.infrastructure.api;
 
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
-import com.nowcoder.community.analytics.application.command.RecordLoginSuccessCommand;
 import com.nowcoder.community.analytics.infrastructure.web.AnalyticsIngestProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
+import java.util.Objects;
 
 @Service
 public class AnalyticsIngestActionApiAdapter implements AnalyticsIngestActionApi {
@@ -18,15 +18,18 @@ public class AnalyticsIngestActionApiAdapter implements AnalyticsIngestActionApi
             AnalyticsIngestApplicationService analyticsIngestApplicationService,
             AnalyticsIngestProperties properties
     ) {
-        this.analyticsIngestApplicationService = analyticsIngestApplicationService;
-        this.properties = properties;
+        this.analyticsIngestApplicationService = Objects.requireNonNull(
+                analyticsIngestApplicationService,
+                "analyticsIngestApplicationService must not be null"
+        );
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
     }
 
     @Override
     public void recordLoginSuccess(UUID userId) {
-        analyticsIngestApplicationService.recordLoginSuccess(new RecordLoginSuccessCommand(
+        analyticsIngestApplicationService.recordLoginSuccess(new AnalyticsIngestApplicationService.RecordLoginSuccess(
                 userId,
-                properties != null && properties.isEnabled() && properties.isRecordDau()
+                properties.isEnabled() && properties.isRecordDau()
         ));
     }
 }

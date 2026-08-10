@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
-import com.nowcoder.community.profile.controller.dto.UserProfilePostSummaryResponse;
 import com.nowcoder.community.profile.controller.dto.UserProfileResponse;
-import com.nowcoder.community.profile.controller.dto.UserRecentCommentItemResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -103,20 +101,20 @@ class UserProfileControllerTest {
                 )
         ));
 
-        Result<List<UserProfilePostSummaryResponse>> posts = controller.recentPosts(userId, 1, 5);
-        Result<List<UserRecentCommentItemResponse>> comments = controller.recentComments(userId, 2, 10);
+        Result<List<UserProfilePageResult.RecentPostSummaryResult>> posts = controller.recentPosts(userId, 1, 5);
+        Result<List<UserProfilePageResult.RecentCommentItemResult>> comments = controller.recentComments(userId, 2, 10);
 
         assertThat(posts.getData()).singleElement().satisfies(item -> {
-            assertThat(item.getId()).isEqualTo(postId);
-            assertThat(item.getTitle()).isEqualTo("first post");
-            assertThat(item.getScore()).isEqualTo(9.5);
-            assertThat(item.getTags()).containsExactly("java");
-            assertThat(item.getLastReplyPreview()).isEqualTo("latest reply");
+            assertThat(item.id()).isEqualTo(postId);
+            assertThat(item.title()).isEqualTo("first post");
+            assertThat(item.score()).isEqualTo(9.5);
+            assertThat(item.tags()).containsExactly("java");
+            assertThat(item.lastReplyPreview()).isEqualTo("latest reply");
         });
         assertThat(comments.getData()).singleElement().satisfies(item -> {
-            assertThat(item.getId()).isEqualTo(commentId);
-            assertThat(item.getPostTitle()).isEqualTo("post title");
-            assertThat(item.getContent()).isEqualTo("reply body");
+            assertThat(item.id()).isEqualTo(commentId);
+            assertThat(item.postTitle()).isEqualTo("post title");
+            assertThat(item.content()).isEqualTo("reply body");
         });
     }
 

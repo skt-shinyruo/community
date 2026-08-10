@@ -6,8 +6,6 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
-import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
-import com.nowcoder.community.wallet.application.result.TransferOrderResult;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
@@ -17,7 +15,6 @@ import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
 import com.nowcoder.community.wallet.domain.service.WalletOrderDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -30,6 +27,30 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 @Service
 public class WalletTransferApplicationService {
 
+    public record CreateTransferCommand(UUID fromUserId, UUID toUserId, long amount, String idempotencyKey) {
+    }
+
+    public record TransferOrderResult(
+            UUID orderId,
+            String requestId,
+            UUID fromUserId,
+            UUID toUserId,
+            long amount,
+            String status
+    ) {
+
+        private static TransferOrderResult from(TransferOrder order) {
+            return new TransferOrderResult(
+                    order.getOrderId(),
+                    order.getRequestId(),
+                    order.getFromUserId(),
+                    order.getToUserId(),
+                    order.getAmount(),
+                    order.getStatus()
+            );
+        }
+    }
+
     private final TransferOrderRepository transferOrderRepository;
     private final WalletAccountApplicationService accountService;
     private final WalletLedgerApplicationService ledgerService;
@@ -38,52 +59,19 @@ public class WalletTransferApplicationService {
     private final UuidV7Generator idGenerator;
     private final UserLookupQueryApi userLookupQueryApi;
 
-    @Autowired
     public WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
                                             WalletAccountApplicationService accountService,
                                             WalletLedgerApplicationService ledgerService,
                                             IdempotencyGuard idempotencyGuard,
+                                            UuidV7Generator idGenerator,
                                             UserLookupQueryApi userLookupQueryApi) {
-        this(
-                transferOrderRepository,
-                accountService,
-                ledgerService,
-                idempotencyGuard,
-                new WalletOrderDomainService(),
-                new UuidV7Generator(),
-                userLookupQueryApi
-        );
-    }
-
-    WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService,
-                                     IdempotencyGuard idempotencyGuard,
-                                     WalletOrderDomainService orderDomainService,
-                                     UuidV7Generator idGenerator,
-                                     UserLookupQueryApi userLookupQueryApi) {
-        this.transferOrderRepository = transferOrderRepository;
-        this.accountService = accountService;
-        this.ledgerService = ledgerService;
-        this.idempotencyGuard = idempotencyGuard;
-        this.orderDomainService = orderDomainService;
-        this.idGenerator = idGenerator;
-        this.userLookupQueryApi = userLookupQueryApi;
-    }
-
-    WalletTransferApplicationService(TransferOrderRepository transferOrderRepository,
-                                     WalletAccountApplicationService accountService,
-                                     WalletLedgerApplicationService ledgerService,
-                                     UserLookupQueryApi userLookupQueryApi) {
-        this(
-                transferOrderRepository,
-                accountService,
-                ledgerService,
-                null,
-                new WalletOrderDomainService(),
-                new UuidV7Generator(),
-                userLookupQueryApi
-        );
+        this.transferOrderRepository = Objects.requireNonNull(transferOrderRepository, "transferOrderRepository must not be null");
+        this.accountService = Objects.requireNonNull(accountService, "accountService must not be null");
+        this.ledgerService = Objects.requireNonNull(ledgerService, "ledgerService must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
+        this.orderDomainService = new WalletOrderDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.userLookupQueryApi = Objects.requireNonNull(userLookupQueryApi, "userLookupQueryApi must not be null");
     }
 
     @Transactional

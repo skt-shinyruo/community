@@ -5,21 +5,19 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
 import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.command.ReplayOutboxBatchCommand;
-import com.nowcoder.community.ops.application.command.ReplayOutboxEventCommand;
 import com.nowcoder.community.ops.application.result.OutboxBacklogResult;
-import com.nowcoder.community.ops.application.result.OutboxBatchReplayItemResult;
-import com.nowcoder.community.ops.application.result.OutboxBatchReplayResult;
 import com.nowcoder.community.ops.application.result.OutboxEventResult;
-import com.nowcoder.community.ops.application.result.OutboxReplayResult;
 import com.nowcoder.community.ops.domain.model.GovernanceAction;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import com.nowcoder.community.ops.domain.model.ReplayDecision;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class OutboxGovernanceApplicationService {
@@ -52,7 +50,7 @@ public class OutboxGovernanceApplicationService {
         return outboxGovernancePort.findEvents(normalized);
     }
 
-    public OutboxReplayResult replay(ReplayOutboxEventCommand command) {
+    public ReplayResult replay(ReplayCommand command) {
         if (command == null || command.actorUserId() == null || command.outboxId() == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "actorUserId and outboxId are required");
         }
@@ -69,7 +67,7 @@ public class OutboxGovernanceApplicationService {
         boolean requeued = outboxGovernancePort.requeueDead(command.outboxId(), command.normalizedReason());
         String result = requeued ? decision.result() : "NOT_REQUEUED";
         governanceMetrics.recordReplay(event.topic(), result);
-        return new OutboxReplayResult(
+        return new ReplayResult(
                 event.id(),
                 event.eventId(),
                 event.topic(),
@@ -80,8 +78,8 @@ public class OutboxGovernanceApplicationService {
         );
     }
 
-    public OutboxBatchReplayResult replayBatch(ReplayOutboxBatchCommand command) {
-        ReplayOutboxBatchCommand c = validateBatchCommand(command);
+    public BatchReplayResult replayBatch(ReplayBatchCommand command) {
+        ReplayBatchCommand c = validateBatchCommand(command);
         List<OutboxEventResult> events = outboxGovernancePort.findEvents(new FindOutboxEventsCommand(
                 OutboxEventStatus.DEAD,
                 c.topic(),
@@ -90,7 +88,7 @@ public class OutboxGovernanceApplicationService {
                 c.createdTo(),
                 c.limit()
         ));
-        List<OutboxBatchReplayItemResult> items = new ArrayList<>();
+        List<BatchReplayResult.Item> items = new ArrayList<>();
         int replayed = 0;
         int rejected = 0;
         int notRequeued = 0;
@@ -113,7 +111,7 @@ public class OutboxGovernanceApplicationService {
             recordBatchRowAudit(c, event, result, requeued ? "requeued" : "not requeued");
         }
         String result = batchResult(replayed, rejected, notRequeued, events.size());
-        OutboxBatchReplayResult batchResult = new OutboxBatchReplayResult(
+        BatchReplayResult batchResult = new BatchReplayResult(
                 c.topic(),
                 events.size(),
                 replayed,
@@ -128,11 +126,11 @@ public class OutboxGovernanceApplicationService {
         return batchResult;
     }
 
-    private ReplayOutboxBatchCommand validateBatchCommand(ReplayOutboxBatchCommand command) {
+    private ReplayBatchCommand validateBatchCommand(ReplayBatchCommand command) {
         if (command == null || command.actorUserId() == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "actorUserId is required");
         }
-        ReplayOutboxBatchCommand c = command.normalized();
+        ReplayBatchCommand c = command.normalized();
         if (c.topic() == null || c.topic().isBlank()) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "topic is required");
         }
@@ -157,14 +155,14 @@ public class OutboxGovernanceApplicationService {
         return c;
     }
 
-    private OutboxBatchReplayItemResult batchItem(
+    private BatchReplayResult.Item batchItem(
             OutboxEventResult event,
             boolean replayed,
             String result,
             String message,
             String afterStatus
     ) {
-        return new OutboxBatchReplayItemResult(
+        return new BatchReplayResult.Item(
                 event == null ? null : event.id(),
                 event == null ? null : event.eventId(),
                 event == null ? null : event.topic(),
@@ -186,7 +184,7 @@ public class OutboxGovernanceApplicationService {
         return GovernanceResult.REPLAYED.name();
     }
 
-    private void recordBatchAudit(ReplayOutboxBatchCommand command, OutboxBatchReplayResult result) {
+    private void recordBatchAudit(ReplayBatchCommand command, BatchReplayResult result) {
         governanceAuditPort.record(new RecordGovernanceAuditCommand(
                 GovernanceAction.OUTBOX_REPLAY_BATCH.name(),
                 command.actorUserId(),
@@ -202,7 +200,7 @@ public class OutboxGovernanceApplicationService {
         ));
     }
 
-    private void recordBatchRowAudit(ReplayOutboxBatchCommand command, OutboxEventResult event, String result, String message) {
+    private void recordBatchRowAudit(ReplayBatchCommand command, OutboxEventResult event, String result, String message) {
         governanceAuditPort.record(new RecordGovernanceAuditCommand(
                 GovernanceAction.OUTBOX_REPLAY_BATCH.name(),
                 command.actorUserId(),
@@ -238,5 +236,77 @@ public class OutboxGovernanceApplicationService {
             return ReplayDecision.reject("outbox payload is blank");
         }
         return ReplayDecision.allow();
+    }
+
+    public record ReplayCommand(UUID actorUserId, UUID outboxId, String reason) {
+
+        String normalizedReason() {
+            return reason == null || reason.isBlank() ? "" : reason.trim();
+        }
+    }
+
+    public record ReplayBatchCommand(
+            UUID actorUserId,
+            String topic,
+            String status,
+            Instant createdFrom,
+            Instant createdTo,
+            int limit,
+            String reason
+    ) {
+
+        ReplayBatchCommand normalized() {
+            return new ReplayBatchCommand(
+                    actorUserId,
+                    trim(topic),
+                    trim(status),
+                    createdFrom,
+                    createdTo,
+                    limit,
+                    trim(reason)
+            );
+        }
+
+        private static String trim(String value) {
+            return StringUtils.hasText(value) ? value.trim() : null;
+        }
+    }
+
+    public record ReplayResult(
+            UUID outboxId,
+            String eventId,
+            String topic,
+            String beforeStatus,
+            String afterStatus,
+            boolean replayed,
+            String result
+    ) {
+    }
+
+    public record BatchReplayResult(
+            String topic,
+            int requestedCount,
+            int replayedCount,
+            int rejectedCount,
+            int notRequeuedCount,
+            String result,
+            List<Item> items
+    ) {
+
+        public BatchReplayResult {
+            items = items == null ? List.of() : List.copyOf(items);
+        }
+
+        public record Item(
+                UUID outboxId,
+                String eventId,
+                String topic,
+                String beforeStatus,
+                String afterStatus,
+                boolean replayed,
+                String result,
+                String message
+        ) {
+        }
     }
 }

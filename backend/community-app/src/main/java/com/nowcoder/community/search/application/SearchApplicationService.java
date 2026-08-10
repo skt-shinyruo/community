@@ -1,23 +1,19 @@
 package com.nowcoder.community.search.application;
 
 import com.nowcoder.community.common.spring.degradation.DegradationDecisions;
-import com.nowcoder.community.common.spring.degradation.DegradationProperties;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
-import com.nowcoder.community.search.application.command.DeleteIndexedPostCommand;
-import com.nowcoder.community.search.application.command.SearchPostsCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
-import com.nowcoder.community.search.application.result.SearchPostResult;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
 import com.nowcoder.community.search.domain.repository.PostSearchRepository;
 import com.nowcoder.community.search.domain.service.PostSearchDomainService;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
+import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class SearchApplicationService {
@@ -28,7 +24,6 @@ public class SearchApplicationService {
     private final FeatureFlagDecisions featureFlags;
     private final DegradationDecisions degradationDecisions;
 
-    @Autowired
     public SearchApplicationService(
             PostSearchRepository postSearchRepository,
             PostSearchDomainService postSearchDomainService,
@@ -36,32 +31,11 @@ public class SearchApplicationService {
             FeatureFlagDecisions featureFlags,
             DegradationDecisions degradationDecisions
     ) {
-        this.postSearchRepository = postSearchRepository;
-        this.postSearchDomainService = postSearchDomainService;
-        this.searchPolicyProperties = searchPolicyProperties == null ? new SearchPolicyProperties() : searchPolicyProperties;
-        this.featureFlags = featureFlags == null ? new FeatureFlagDecisions(new FeatureFlagProperties()) : featureFlags;
-        this.degradationDecisions = degradationDecisions == null ? new DegradationDecisions(new DegradationProperties()) : degradationDecisions;
-    }
-
-    public SearchApplicationService(
-            PostSearchRepository postSearchRepository,
-            PostSearchDomainService postSearchDomainService,
-            SearchPolicyProperties searchPolicyProperties
-    ) {
-        this(
-                postSearchRepository,
-                postSearchDomainService,
-                searchPolicyProperties,
-                new FeatureFlagDecisions(new FeatureFlagProperties()),
-                new DegradationDecisions(new DegradationProperties())
-        );
-    }
-
-    public SearchApplicationService(
-            PostSearchRepository postSearchRepository,
-            PostSearchDomainService postSearchDomainService
-    ) {
-        this(postSearchRepository, postSearchDomainService, new SearchPolicyProperties());
+        this.postSearchRepository = Objects.requireNonNull(postSearchRepository, "postSearchRepository must not be null");
+        this.postSearchDomainService = Objects.requireNonNull(postSearchDomainService, "postSearchDomainService must not be null");
+        this.searchPolicyProperties = Objects.requireNonNull(searchPolicyProperties, "searchPolicyProperties must not be null");
+        this.featureFlags = Objects.requireNonNull(featureFlags, "featureFlags must not be null");
+        this.degradationDecisions = Objects.requireNonNull(degradationDecisions, "degradationDecisions must not be null");
     }
 
     public List<SearchPostResult> searchPosts(SearchPostsCommand command) {
@@ -138,5 +112,40 @@ public class SearchApplicationService {
                 hit.createTime(),
                 hit.score()
         );
+    }
+
+    public record SearchPostsCommand(
+            String keyword,
+            UUID categoryId,
+            String tag,
+            Integer page,
+            Integer size
+    ) {
+    }
+
+    public record DeleteIndexedPostCommand(UUID postId, long aggregateVersion) {
+
+        public DeleteIndexedPostCommand {
+            if (aggregateVersion <= 0L) {
+                throw new IllegalArgumentException("post projection aggregateVersion must be positive");
+            }
+        }
+    }
+
+    public record SearchPostResult(
+            UUID postId,
+            UUID userId,
+            UUID categoryId,
+            List<String> tags,
+            String title,
+            String highlightedTitle,
+            String highlightedContent,
+            Instant createTime,
+            Double score
+    ) {
+
+        public SearchPostResult {
+            tags = tags == null ? List.of() : List.copyOf(tags);
+        }
     }
 }

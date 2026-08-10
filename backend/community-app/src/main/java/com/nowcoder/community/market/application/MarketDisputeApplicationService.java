@@ -15,6 +15,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
@@ -37,23 +38,20 @@ public class MarketDisputeApplicationService {
     private final MarketOrderRepository marketOrderRepository;
     private final MarketWalletActionCoordinator marketWalletActionCoordinator;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
     private final MarketDisputeDomainService disputeDomainService = new MarketDisputeDomainService();
 
     @Autowired
     public MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
-                                MarketOrderRepository marketOrderRepository,
-                                MarketWalletActionCoordinator marketWalletActionCoordinator) {
-        this(marketDisputeRepository, marketOrderRepository, marketWalletActionCoordinator, new UuidV7Generator());
-    }
-
-    MarketDisputeApplicationService(MarketDisputeRepository marketDisputeRepository,
-                         MarketOrderRepository marketOrderRepository,
-                         MarketWalletActionCoordinator marketWalletActionCoordinator,
-                         UuidV7Generator idGenerator) {
-        this.marketDisputeRepository = marketDisputeRepository;
-        this.marketOrderRepository = marketOrderRepository;
-        this.marketWalletActionCoordinator = marketWalletActionCoordinator;
-        this.idGenerator = idGenerator;
+                                           MarketOrderRepository marketOrderRepository,
+                                           MarketWalletActionCoordinator marketWalletActionCoordinator,
+                                           UuidV7Generator idGenerator,
+                                           Clock clock) {
+        this.marketDisputeRepository = Objects.requireNonNull(marketDisputeRepository, "marketDisputeRepository must not be null");
+        this.marketOrderRepository = Objects.requireNonNull(marketOrderRepository, "marketOrderRepository must not be null");
+        this.marketWalletActionCoordinator = Objects.requireNonNull(marketWalletActionCoordinator, "marketWalletActionCoordinator must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     @Transactional
@@ -91,7 +89,7 @@ public class MarketDisputeApplicationService {
         dispute.setStatus(DISPUTE_STATUS_SELLER_ACCEPTED);
         dispute.setSellerNote(sellerNote.trim());
         dispute.setResolutionType(RESOLUTION_REFUND);
-        dispute.setResolvedAt(new Date());
+        dispute.setResolvedAt(Date.from(clock.instant()));
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRefund());
         marketWalletActionCoordinator.enqueueDisputeRefund(
@@ -125,7 +123,7 @@ public class MarketDisputeApplicationService {
         dispute.setSellerNote(note.trim());
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedBy(adminUserId);
-        dispute.setResolvedAt(new Date());
+        dispute.setResolvedAt(Date.from(clock.instant()));
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRefund());
         marketWalletActionCoordinator.enqueueDisputeRefund(
@@ -149,7 +147,7 @@ public class MarketDisputeApplicationService {
         dispute.setSellerNote(note.trim());
         dispute.setResolutionType(RESOLUTION_RELEASE);
         dispute.setResolvedBy(adminUserId);
-        dispute.setResolvedAt(new Date());
+        dispute.setResolvedAt(Date.from(clock.instant()));
         marketDisputeRepository.saveChanges(dispute);
         applyForeground(order.requestDisputeRelease());
         marketWalletActionCoordinator.enqueueDisputeRelease(

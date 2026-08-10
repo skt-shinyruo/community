@@ -79,7 +79,7 @@ class FeedReadApplicationServiceTest {
         when(postContentBlockTextProjector.preview(List.of(paragraphBlock(firstPostId, "<body-1>")), 240)).thenReturn("<body-1>");
         when(postContentBlockTextProjector.preview(List.of(paragraphBlock(secondPostId, "<body-2>")), 240)).thenReturn("<body-2>");
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -130,7 +130,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(Map.of(postId, List.of(paragraphBlock(postId, "<board-preview>"))));
         when(postContentBlockTextProjector.preview(List.of(paragraphBlock(postId, "<board-preview>")), 240)).thenReturn("<board-preview>");
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -173,7 +173,7 @@ class FeedReadApplicationServiceTest {
         when(postSummaryCache.getAll(List.of(postId)))
                 .thenReturn(Map.of(postId, summary(postId, "<stale-board>", staleBoardId)));
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -232,7 +232,7 @@ class FeedReadApplicationServiceTest {
         )).thenReturn(allPosts.subList(2, 4));
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, allPosts);
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -307,7 +307,7 @@ class FeedReadApplicationServiceTest {
                 List.of(next)
         );
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -362,7 +362,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(allPosts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, allPosts);
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -406,7 +406,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(posts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -465,7 +465,7 @@ class FeedReadApplicationServiceTest {
                 List.of(first, second, third)
         );
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -519,7 +519,7 @@ class FeedReadApplicationServiceTest {
         when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -572,7 +572,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(posts);
         mockSummaryDependencies(commentContentRepository, tagContentRepository, postContentBlockRepository, postContentBlockTextProjector, posts);
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -621,7 +621,7 @@ class FeedReadApplicationServiceTest {
                 List.of(boardPost)
         );
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -671,7 +671,7 @@ class FeedReadApplicationServiceTest {
                 .thenReturn(Map.of(secondPostId, List.of(paragraphBlock(secondPostId, "<body-2>"))));
         when(postContentBlockTextProjector.preview(List.of(paragraphBlock(secondPostId, "<body-2>")), 240)).thenReturn("<body-2>");
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -713,7 +713,7 @@ class FeedReadApplicationServiceTest {
         when(postContentRepository.listPosts(0, 20, 21, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of());
 
-        FeedReadApplicationService service = new FeedReadApplicationService(
+        FeedReadApplicationService service = service(
                 postFeedCache,
                 postContentRepository,
                 commentContentRepository,
@@ -728,6 +728,96 @@ class FeedReadApplicationServiceTest {
         FeedPageResult page = service.listGlobalHotFeed(null, "", 20);
 
         assertThat(page.rankVersion()).isEqualTo("hot-v2");
+    }
+
+    @Test
+    void feedPageResultShouldNormalizeNullableFields() {
+        FeedPageResult page = new FeedPageResult(null, null, null);
+
+        assertThat(page.items()).isEmpty();
+        assertThat(page.nextCursor()).isEmpty();
+        assertThat(page.rankVersion()).isEmpty();
+
+        FeedPageResult withNullItem = new FeedPageResult(
+                java.util.Arrays.asList((PostSummaryResult) null),
+                "cursor",
+                "rank"
+        );
+        assertThat(withNullItem.items()).containsExactly((PostSummaryResult) null);
+        assertThatCode(() -> withNullItem.items().add(null))
+                .isInstanceOf(UnsupportedOperationException.class);
+    }
+
+    private static FeedReadApplicationService service(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            CommentContentRepository commentContentRepository,
+            TagContentRepository tagContentRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            PostSummaryAssembler postSummaryAssembler,
+            FeedCursorCodec feedCursorCodec
+    ) {
+        return service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec,
+                new ContentFeedPolicyProperties()
+        );
+    }
+
+    private static FeedReadApplicationService service(
+            PostFeedCache postFeedCache,
+            PostContentRepository postContentRepository,
+            CommentContentRepository commentContentRepository,
+            TagContentRepository tagContentRepository,
+            PostContentBlockRepository postContentBlockRepository,
+            PostSummaryCache postSummaryCache,
+            PostContentBlockTextProjector postContentBlockTextProjector,
+            PostSummaryAssembler postSummaryAssembler,
+            FeedCursorCodec feedCursorCodec,
+            ContentFeedPolicyProperties policyProperties
+    ) {
+        return new FeedReadApplicationService(
+                postFeedCache,
+                postContentRepository,
+                new PostFeedSummaryLoader(
+                        postContentRepository,
+                        commentContentRepository,
+                        tagContentRepository,
+                        postContentBlockRepository,
+                        postSummaryCache,
+                        postContentBlockTextProjector,
+                        postSummaryAssembler
+                ),
+                feedCursorCodec,
+                policyProperties,
+                new HotFeedReadMetrics((io.micrometer.core.instrument.MeterRegistry) null),
+                new ContentHotPathProperties(),
+                loaderSingleFlight()
+        );
+    }
+
+    private static HotPathSingleFlight loaderSingleFlight() {
+        return new HotPathSingleFlight() {
+            @Override
+            public <T> T execute(
+                    String scope,
+                    String key,
+                    java.time.Duration ttl,
+                    java.util.function.Supplier<T> loader,
+                    java.util.function.Supplier<T> fallbackWhenBusy
+            ) {
+                return loader.get();
+            }
+        };
     }
 
     private static DiscussPost post(UUID postId, String title) {

@@ -21,12 +21,12 @@ import com.nowcoder.community.content.application.PostReadTransactionOperations.
 import com.nowcoder.community.content.application.PostReadTransactionOperations.ProjectionBatchSnapshot;
 import com.nowcoder.community.content.application.PostReadTransactionOperations.ProjectionSnapshot;
 import com.nowcoder.community.content.application.PostReadTransactionOperations.SummarySnapshot;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
@@ -53,7 +53,6 @@ public class PostReadApplicationService implements PostScanQueryApi {
     private final HotPathSingleFlight hotPathSingleFlight;
     private final PostReadTransactionOperations readTransactionOperations;
 
-    @Autowired
     public PostReadApplicationService(
             PostContentRepository postContentPort,
             CommentContentRepository commentContentPort,
@@ -74,116 +73,30 @@ public class PostReadApplicationService implements PostScanQueryApi {
             ContentHotPathProperties hotPathProperties,
             HotPathSingleFlight hotPathSingleFlight
     ) {
-        this.postContentPort = postContentPort;
-        this.commentContentPort = commentContentPort;
-        this.likeQueryService = likeQueryService;
-        this.tagContentPort = tagContentPort;
-        this.bookmarkContentPort = bookmarkContentPort;
-        this.subscriptionContentPort = subscriptionContentPort;
-        this.postCounterApplicationService = postCounterApplicationService;
-        this.postContentBlockRepository = postContentBlockRepository;
-        this.postMediaAssetRepository = postMediaAssetRepository;
-        this.postDetailCache = postDetailCache;
-        this.postContentBlockTextProjector = postContentBlockTextProjector;
-        this.textCodec = textCodec;
-        this.postSummaryAssembler = postSummaryAssembler;
-        this.postDetailAssembler = postDetailAssembler;
-        this.recentUserCommentAssembler = recentUserCommentAssembler;
-        this.readTransactionOperations = readTransactionOperations;
-        this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
-        this.hotPathSingleFlight = hotPathSingleFlight == null ? loaderSingleFlight() : hotPathSingleFlight;
-    }
-
-    public PostReadApplicationService(
-            PostContentRepository postContentPort,
-            CommentContentRepository commentContentPort,
-            LikeQueryPort likeQueryService,
-            TagContentRepository tagContentPort,
-            BookmarkRepository bookmarkContentPort,
-            SubscriptionRepository subscriptionContentPort,
-            PostCounterApplicationService postCounterApplicationService,
-            PostContentBlockRepository postContentBlockRepository,
-            PostMediaAssetRepository postMediaAssetRepository,
-            PostDetailCache postDetailCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            ContentTextCodec textCodec,
-            PostSummaryAssembler postSummaryAssembler,
-            PostDetailAssembler postDetailAssembler,
-            RecentUserCommentAssembler recentUserCommentAssembler,
-            ContentHotPathProperties hotPathProperties,
-            HotPathSingleFlight hotPathSingleFlight
-    ) {
-        this(
-                postContentPort,
-                commentContentPort,
-                likeQueryService,
-                tagContentPort,
-                bookmarkContentPort,
-                subscriptionContentPort,
-                postCounterApplicationService,
-                postContentBlockRepository,
-                postMediaAssetRepository,
-                postDetailCache,
-                postContentBlockTextProjector,
-                textCodec,
-                postSummaryAssembler,
-                postDetailAssembler,
-                recentUserCommentAssembler,
-                new PostReadTransactionOperations(
-                        postContentPort,
-                        commentContentPort,
-                        tagContentPort,
-                        postContentBlockRepository,
-                        postMediaAssetRepository
-                ),
-                hotPathProperties,
-                hotPathSingleFlight
-        );
-    }
-
-    public PostReadApplicationService(
-            PostContentRepository postContentPort,
-            CommentContentRepository commentContentPort,
-            LikeQueryPort likeQueryService,
-            TagContentRepository tagContentPort,
-            BookmarkRepository bookmarkContentPort,
-            SubscriptionRepository subscriptionContentPort,
-            PostCounterApplicationService postCounterApplicationService,
-            PostContentBlockRepository postContentBlockRepository,
-            PostMediaAssetRepository postMediaAssetRepository,
-            PostDetailCache postDetailCache,
-            PostContentBlockTextProjector postContentBlockTextProjector,
-            ContentTextCodec textCodec,
-            PostSummaryAssembler postSummaryAssembler,
-            PostDetailAssembler postDetailAssembler,
-            RecentUserCommentAssembler recentUserCommentAssembler
-    ) {
-        this(
-                postContentPort,
-                commentContentPort,
-                likeQueryService,
-                tagContentPort,
-                bookmarkContentPort,
-                subscriptionContentPort,
-                postCounterApplicationService,
-                postContentBlockRepository,
-                postMediaAssetRepository,
-                postDetailCache,
-                postContentBlockTextProjector,
-                textCodec,
-                postSummaryAssembler,
-                postDetailAssembler,
-                recentUserCommentAssembler,
-                new PostReadTransactionOperations(
-                        postContentPort,
-                        commentContentPort,
-                        tagContentPort,
-                        postContentBlockRepository,
-                        postMediaAssetRepository
-                ),
-                new ContentHotPathProperties(),
-                loaderSingleFlight()
-        );
+        this.postContentPort = Objects.requireNonNull(postContentPort, "postContentPort");
+        this.commentContentPort = Objects.requireNonNull(commentContentPort, "commentContentPort");
+        this.likeQueryService = Objects.requireNonNull(likeQueryService, "likeQueryService");
+        this.tagContentPort = Objects.requireNonNull(tagContentPort, "tagContentPort");
+        this.bookmarkContentPort = Objects.requireNonNull(bookmarkContentPort, "bookmarkContentPort");
+        this.subscriptionContentPort = Objects.requireNonNull(subscriptionContentPort, "subscriptionContentPort");
+        this.postCounterApplicationService = Objects.requireNonNull(
+                postCounterApplicationService, "postCounterApplicationService");
+        this.postContentBlockRepository = Objects.requireNonNull(
+                postContentBlockRepository, "postContentBlockRepository");
+        this.postMediaAssetRepository = Objects.requireNonNull(
+                postMediaAssetRepository, "postMediaAssetRepository");
+        this.postDetailCache = Objects.requireNonNull(postDetailCache, "postDetailCache");
+        this.postContentBlockTextProjector = Objects.requireNonNull(
+                postContentBlockTextProjector, "postContentBlockTextProjector");
+        this.textCodec = Objects.requireNonNull(textCodec, "textCodec");
+        this.postSummaryAssembler = Objects.requireNonNull(postSummaryAssembler, "postSummaryAssembler");
+        this.postDetailAssembler = Objects.requireNonNull(postDetailAssembler, "postDetailAssembler");
+        this.recentUserCommentAssembler = Objects.requireNonNull(
+                recentUserCommentAssembler, "recentUserCommentAssembler");
+        this.readTransactionOperations = Objects.requireNonNull(
+                readTransactionOperations, "readTransactionOperations");
+        this.hotPathProperties = Objects.requireNonNull(hotPathProperties, "hotPathProperties");
+        this.hotPathSingleFlight = Objects.requireNonNull(hotPathSingleFlight, "hotPathSingleFlight");
     }
 
     public List<PostSummaryResult> listPosts(UUID currentUserId, String order, UUID categoryId, String tag, Boolean subscribed, Integer page, Integer size) {
@@ -444,15 +357,6 @@ public class PostReadApplicationService implements PostScanQueryApi {
             return Math.max(0, fallback);
         }
         return rawCount >= Integer.MAX_VALUE ? Integer.MAX_VALUE : (int) rawCount;
-    }
-
-    private static HotPathSingleFlight loaderSingleFlight() {
-        return new HotPathSingleFlight() {
-            @Override
-            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
-                return loader.get();
-            }
-        };
     }
 
     private record VersionedPostDetail(PostDetailResult detail, long aggregateVersion) {

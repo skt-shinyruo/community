@@ -13,8 +13,10 @@ import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
+import java.util.Objects;
 import java.util.UUID;
 
 @Service
@@ -23,15 +25,18 @@ public class ImPolicySnapshotApplicationService {
     private final UserModerationQueryApi userModerationQueryApi;
     private final SocialBlockQueryApi socialBlockQueryApi;
     private final UserLookupQueryApi userLookupQueryApi;
+    private final Clock clock;
 
     public ImPolicySnapshotApplicationService(
             UserModerationQueryApi userModerationQueryApi,
             SocialBlockQueryApi socialBlockQueryApi,
-            UserLookupQueryApi userLookupQueryApi
+            UserLookupQueryApi userLookupQueryApi,
+            Clock clock
     ) {
-        this.userModerationQueryApi = userModerationQueryApi;
-        this.socialBlockQueryApi = socialBlockQueryApi;
-        this.userLookupQueryApi = userLookupQueryApi;
+        this.userModerationQueryApi = Objects.requireNonNull(userModerationQueryApi, "userModerationQueryApi");
+        this.socialBlockQueryApi = Objects.requireNonNull(socialBlockQueryApi, "socialBlockQueryApi");
+        this.userLookupQueryApi = Objects.requireNonNull(userLookupQueryApi, "userLookupQueryApi");
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit) {
@@ -41,7 +46,7 @@ public class ImPolicySnapshotApplicationService {
     public UserMessagingPolicySnapshot userPolicies(UUID afterUserId, int limit, Long snapshotVersion) {
         requireSnapshotVersionForContinuation(afterUserId != null, snapshotVersion);
         int normalizedLimit = normalizeLimit(limit);
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         long currentVersion = userModerationQueryApi.currentModerationProjectionVersion();
         long snapshotHighWatermark = resolveSnapshotVersion(snapshotVersion, currentVersion);
         List<UserModerationStateView> states = userModerationQueryApi.scanModerationStatesAtVersionAfterId(
@@ -78,7 +83,7 @@ public class ImPolicySnapshotApplicationService {
         boolean continuation = afterBlockerUserId != null || afterBlockedUserId != null;
         requireSnapshotVersionForContinuation(continuation, snapshotVersion);
         int normalizedLimit = normalizeLimit(limit);
-        long occurredAtEpochMillis = Instant.now().toEpochMilli();
+        long occurredAtEpochMillis = clock.millis();
         long currentVersion = socialBlockQueryApi.currentBlockProjectionVersion();
         long snapshotHighWatermark = resolveSnapshotVersion(snapshotVersion, currentVersion);
         List<SocialBlockRelationView> views =
@@ -118,7 +123,7 @@ public class ImPolicySnapshotApplicationService {
             return PrivateMessagePolicyDecision.deny(404, "policy_denied", "接收方不存在");
         }
 
-        Instant now = Instant.now();
+        Instant now = clock.instant();
         UserMessagingPolicyEntry fromPolicy = toUserPolicyEntry(
                 userModerationQueryApi.getModerationState(fromUserId),
                 now

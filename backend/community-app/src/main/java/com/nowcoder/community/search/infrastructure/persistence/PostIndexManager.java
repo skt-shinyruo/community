@@ -16,6 +16,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.math.BigInteger;
+import java.time.Clock;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.time.format.DateTimeFormatter;
@@ -24,6 +25,7 @@ import java.util.Comparator;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Set;
 import java.util.regex.Pattern;
 
@@ -56,18 +58,21 @@ public class PostIndexManager {
     private final String indexPrefix;
     private final Pattern managedIndexPattern;
     private final int keepHistory;
+    private final Clock clock;
 
     public PostIndexManager(
             ElasticsearchOperations operations,
             @Value("${search.index.prefix:community_posts_v}") String indexPrefix,
-            @Value("${search.index.keep-history:2}") int keepHistory
+            @Value("${search.index.keep-history:2}") int keepHistory,
+            Clock clock
     ) {
-        this.operations = operations;
+        this.operations = Objects.requireNonNull(operations, "operations");
         this.indexPrefix = StringUtils.hasText(indexPrefix) ? indexPrefix.trim() : EsPostDocument.INDEX_PREFIX;
         this.managedIndexPattern = Pattern.compile(
                 "^" + Pattern.quote(this.indexPrefix) + "\\d{14}(?:_\\d+)?$"
         );
         this.keepHistory = Math.max(0, keepHistory);
+        this.clock = Objects.requireNonNull(clock, "clock");
     }
 
     public void ensureAliasReady() {
@@ -90,7 +95,7 @@ public class PostIndexManager {
     }
 
     public String createNewIndex() {
-        String base = indexPrefix + VERSION_FORMAT.format(Instant.now().atZone(ZoneOffset.UTC));
+        String base = indexPrefix + VERSION_FORMAT.format(clock.instant().atZone(ZoneOffset.UTC));
         for (int attempt = 0; attempt < MAX_INDEX_NAME_ATTEMPTS; attempt++) {
             String indexName = attempt == 0 ? base : base + "_" + attempt;
             if (createIndexWithMapping(indexName)) {

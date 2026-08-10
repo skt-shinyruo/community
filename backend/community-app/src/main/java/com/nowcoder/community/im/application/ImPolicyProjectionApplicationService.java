@@ -1,15 +1,40 @@
 package com.nowcoder.community.im.application;
 
-import com.nowcoder.community.im.application.command.ProjectBlockRelationCommand;
-import com.nowcoder.community.im.application.command.ProjectUserPolicyCommand;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
 import java.util.Objects;
+import java.util.UUID;
 
 @Service
 public class ImPolicyProjectionApplicationService {
+
+    public record ProjectUserPolicyCommand(
+            String sourceDomain,
+            String sourceEventId,
+            UUID userId,
+            boolean userExists,
+            boolean suspended,
+            boolean muted,
+            Long muteUntil,
+            Long banUntil,
+            boolean canSendPrivate,
+            long occurredAtEpochMillis,
+            long version
+    ) {
+    }
+
+    public record ProjectBlockRelationCommand(
+            String sourceDomain,
+            String sourceEventId,
+            UUID blockerUserId,
+            UUID blockedUserId,
+            boolean active,
+            long occurredAtEpochMillis,
+            long version
+    ) {
+    }
 
     private final ImPolicyProjectionOutboxPort outboxPort;
 

@@ -30,7 +30,7 @@ public class PasswordResetMailDeliveryApplicationService {
         this.mailPort = Objects.requireNonNull(mailPort, "mailPort must not be null");
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.tokenDeriver = Objects.requireNonNull(tokenDeriver, "tokenDeriver must not be null");
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public DeliveryOutcome deliver(Delivery command) {

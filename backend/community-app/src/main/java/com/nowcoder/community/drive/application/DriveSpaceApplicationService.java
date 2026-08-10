@@ -1,7 +1,7 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.drive.application.result.DriveSpaceResult;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.domain.model.DriveSpace;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import org.springframework.stereotype.Service;
@@ -9,6 +9,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
@@ -19,10 +20,16 @@ public class DriveSpaceApplicationService {
 
     private final DriveSpaceRepository spaceRepository;
     private final Clock clock;
+    private final UuidV7Generator idGenerator;
 
-    public DriveSpaceApplicationService(DriveSpaceRepository spaceRepository, Clock clock) {
-        this.spaceRepository = spaceRepository;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+    public DriveSpaceApplicationService(
+            DriveSpaceRepository spaceRepository,
+            Clock clock,
+            UuidV7Generator idGenerator
+    ) {
+        this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional
@@ -39,7 +46,7 @@ public class DriveSpaceApplicationService {
     }
 
     private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(UUID.randomUUID(), userId, now);
+        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
         DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
         if (result != null
                 && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
@@ -65,5 +72,14 @@ public class DriveSpaceApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         return actorUserId;
+    }
+
+    public record DriveSpaceResult(
+            UUID spaceId,
+            UUID userId,
+            long quotaBytes,
+            long usedBytes,
+            long remainingBytes
+    ) {
     }
 }

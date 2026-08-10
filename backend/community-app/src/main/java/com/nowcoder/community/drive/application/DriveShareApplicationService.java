@@ -1,17 +1,13 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.pagination.Pagination;
-import com.nowcoder.community.drive.application.command.CreateDriveShareCommand;
-import com.nowcoder.community.drive.application.command.VerifyDriveShareCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.port.DrivePasswordHasher;
 import com.nowcoder.community.drive.application.port.DriveShareTicketCodec;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.result.DrivePublicShareGateResult;
-import com.nowcoder.community.drive.application.result.DriveShareResult;
-import com.nowcoder.community.drive.application.result.DriveSharePageResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
 import com.nowcoder.community.drive.domain.model.DriveShare;
@@ -22,7 +18,6 @@ import com.nowcoder.community.drive.domain.repository.DriveShareAccessRepository
 import com.nowcoder.community.drive.domain.repository.DriveShareRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -56,9 +51,9 @@ public class DriveShareApplicationService {
     private final DriveShareTicketCodec ticketCodec;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
+    private final UuidV7Generator idGenerator;
     private final SecureRandom secureRandom = new SecureRandom();
 
-    @Autowired
     public DriveShareApplicationService(
             DriveSpaceRepository spaceRepository,
             DriveEntryRepository entryRepository,
@@ -68,35 +63,23 @@ public class DriveShareApplicationService {
             DrivePasswordHasher passwordHasher,
             DriveShareTicketCodec ticketCodec,
             Clock clock,
-            DriveTransactionOperations transactionOperations
+            DriveTransactionOperations transactionOperations,
+            UuidV7Generator idGenerator
     ) {
-        this.spaceRepository = spaceRepository;
-        this.entryRepository = entryRepository;
-        this.shareRepository = shareRepository;
-        this.shareAccessRepository = shareAccessRepository;
-        this.objectStoragePort = objectStoragePort;
-        this.passwordHasher = passwordHasher;
-        this.ticketCodec = ticketCodec;
-        this.clock = clock == null ? Clock.systemUTC() : clock;
+        this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
+        this.shareRepository = Objects.requireNonNull(shareRepository, "shareRepository must not be null");
+        this.shareAccessRepository = Objects.requireNonNull(shareAccessRepository, "shareAccessRepository must not be null");
+        this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
+        this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher must not be null");
+        this.ticketCodec = Objects.requireNonNull(ticketCodec, "ticketCodec must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
-    }
-
-    DriveShareApplicationService(
-            DriveSpaceRepository spaceRepository,
-            DriveEntryRepository entryRepository,
-            DriveShareRepository shareRepository,
-            DriveShareAccessRepository shareAccessRepository,
-            DriveObjectStoragePort objectStoragePort,
-            DrivePasswordHasher passwordHasher,
-            DriveShareTicketCodec ticketCodec,
-            Clock clock
-    ) {
-        this(spaceRepository, entryRepository, shareRepository, shareAccessRepository, objectStoragePort,
-                passwordHasher, ticketCodec, clock, DirectDriveTransactionOperations.INSTANCE);
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional
-    public DriveShareResult createShare(CreateDriveShareCommand command) {
+    public ShareResult createShare(CreateShareCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "分享参数非法");
@@ -110,7 +93,7 @@ public class DriveShareApplicationService {
         DriveSpace space = loadSpace(actorUserId);
         DriveEntry entry = loadActiveFileOrFolder(space.spaceId(), command.entryId());
         DriveShare share = DriveShare.active(
-                UUID.randomUUID(),
+                idGenerator.next(),
                 entry.entryId(),
                 nextToken(),
                 passwordHasher.hash(password),
@@ -123,7 +106,7 @@ public class DriveShareApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public DriveSharePageResult listOwnShares(UUID actorUserId, Integer page, Integer size) {
+    public SharePageResult listOwnShares(UUID actorUserId, Integer page, Integer size) {
         UUID userId = requireUser(actorUserId);
         int normalizedPage = page == null ? 0 : Math.max(0, page);
         int normalizedSize = size == null ? 20 : Math.min(100, Math.max(1, size));
@@ -141,10 +124,10 @@ public class DriveShareApplicationService {
                 ).stream()
                 .collect(Collectors.toMap(DriveEntry::entryId, Function.identity()));
         Instant now = clock.instant();
-        List<DriveShareResult> items = visible.stream()
+        List<ShareResult> items = visible.stream()
                 .map(share -> toManagementShareResult(share, entriesById.get(share.entryId()), now))
                 .toList();
-        return new DriveSharePageResult(items, hasNext, normalizedPage, normalizedSize);
+        return new SharePageResult(items, hasNext, normalizedPage, normalizedSize);
     }
 
     @Transactional
@@ -162,13 +145,13 @@ public class DriveShareApplicationService {
     }
 
     @Transactional(readOnly = true)
-    public DrivePublicShareGateResult loadPublicShareGate(String shareToken) {
+    public PublicShareGateResult loadPublicShareGate(String shareToken) {
         DriveShare share = loadActiveShare(shareToken);
-        return new DrivePublicShareGateResult(share.shareToken(), true);
+        return new PublicShareGateResult(share.shareToken(), true);
     }
 
     @Transactional(noRollbackFor = BusinessException.class)
-    public DriveShareResult verifyShare(VerifyDriveShareCommand command) {
+    public ShareResult verifyShare(VerifyShareCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         DriveShare share = shareRepository.findByToken(command.shareToken())
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用"));
@@ -309,7 +292,7 @@ public class DriveShareApplicationService {
     }
 
     private void recordAccess(DriveShare share, String visitorFingerprint, boolean success, Instant now) {
-        shareAccessRepository.record(UUID.randomUUID(), share.shareId(), visitorFingerprint, success, now);
+        shareAccessRepository.record(idGenerator.next(), share.shareId(), visitorFingerprint, success, now);
     }
 
     private String nextToken() {
@@ -318,8 +301,8 @@ public class DriveShareApplicationService {
         return Base64.getUrlEncoder().withoutPadding().encodeToString(bytes);
     }
 
-    private static DriveShareResult toShareResult(DriveShare share, DriveEntry entry, String ticket, Instant ticketExpiresAt) {
-        return new DriveShareResult(
+    private static ShareResult toShareResult(DriveShare share, DriveEntry entry, String ticket, Instant ticketExpiresAt) {
+        return new ShareResult(
                 share.shareId(),
                 share.entryId(),
                 share.shareToken(),
@@ -332,12 +315,12 @@ public class DriveShareApplicationService {
         );
     }
 
-    private static DriveShareResult toManagementShareResult(DriveShare share, DriveEntry entry, Instant now) {
+    private static ShareResult toManagementShareResult(DriveShare share, DriveEntry entry, Instant now) {
         String effectiveStatus = share.status().name();
         if (share.status() == DriveShareStatus.ACTIVE && !share.activeAt(now)) {
             effectiveStatus = "EXPIRED";
         }
-        return new DriveShareResult(
+        return new ShareResult(
                 share.shareId(),
                 share.entryId(),
                 share.shareToken(),
@@ -375,5 +358,38 @@ public class DriveShareApplicationService {
             throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
         }
         return actorUserId;
+    }
+
+    public record CreateShareCommand(
+            UUID actorUserId,
+            UUID entryId,
+            String password,
+            Instant expiresAt
+    ) {
+    }
+
+    public record VerifyShareCommand(String shareToken, String password, String visitorFingerprint) {
+    }
+
+    public record PublicShareGateResult(String shareToken, boolean requiresPassword) {
+    }
+
+    public record SharePageResult(List<ShareResult> items, boolean hasNext, int page, int size) {
+        public SharePageResult {
+            items = items == null ? List.of() : List.copyOf(items);
+        }
+    }
+
+    public record ShareResult(
+            UUID shareId,
+            UUID entryId,
+            String shareToken,
+            String entryName,
+            String entryType,
+            Instant expiresAt,
+            String status,
+            String ticket,
+            Instant ticketExpiresAt
+    ) {
     }
 }

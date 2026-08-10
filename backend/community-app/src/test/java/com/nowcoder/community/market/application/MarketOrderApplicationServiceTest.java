@@ -415,20 +415,11 @@ class MarketOrderApplicationServiceTest {
     }
 
     private UUID seedDeliveredVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("VIRTUAL");
-        request.setTitle("Steam 兑换码");
-        request.setDescription("自动交付");
-        request.setUnitPrice(1_999L);
-        request.setDeliveryMode("PRELOADED");
-        request.setStockMode("FINITE");
-        request.setStockTotal(1);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "VIRTUAL", "Steam 兑换码", "自动交付", 1_999L, "PRELOADED", "FINITE", 1, 1, 1, null);
 
-        var inventory = new com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest();
-        inventory.setPayloadType("CODE");
-        inventory.setPayloads(List.of("CODE-001"));
+        var inventory = new com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest(
+                "CODE", List.of("CODE-001"));
 
         UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, inventory)).listingId();
         MarketOrderResult created = marketOrderService.createOrder("virtual:req-1", buyerUserId, listingId, 1, null);
@@ -437,16 +428,8 @@ class MarketOrderApplicationServiceTest {
     }
 
     private UUID seedEscrowedVirtualOrder(UUID sellerUserId, UUID buyerUserId) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("VIRTUAL");
-        request.setTitle("邀请码");
-        request.setDescription("手工交付");
-        request.setUnitPrice(1_200L);
-        request.setDeliveryMode("MANUAL");
-        request.setStockMode("FINITE");
-        request.setStockTotal(2);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(2);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "VIRTUAL", "邀请码", "手工交付", 1_200L, "MANUAL", "FINITE", 2, 1, 2, null);
 
         UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
         MarketOrderResult created = marketOrderService.createOrder("virtual:manual:req-1", buyerUserId, listingId, 1, null);
@@ -455,16 +438,8 @@ class MarketOrderApplicationServiceTest {
     }
 
     private UUID seedManualVirtualListing(UUID sellerUserId, String title, long unitPrice) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("VIRTUAL");
-        request.setTitle(title);
-        request.setDescription("手工交付");
-        request.setUnitPrice(unitPrice);
-        request.setDeliveryMode("MANUAL");
-        request.setStockMode("FINITE");
-        request.setStockTotal(2);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(2);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "VIRTUAL", title, "手工交付", unitPrice, "MANUAL", "FINITE", 2, 1, 2, null);
         return marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
     }
 
@@ -485,27 +460,15 @@ class MarketOrderApplicationServiceTest {
     }
 
     private UUID seedPhysicalListing(UUID sellerUserId, int stockTotal, long unitPrice, int maxPurchaseQuantity) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(unitPrice);
-        request.setStockTotal(stockTotal);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(maxPurchaseQuantity);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", unitPrice, null, null,
+                stockTotal, 1, maxPurchaseQuantity, null);
         return marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
     }
 
     private UUID seedAddress(UUID userId, boolean isDefault) {
-        CreateMarketAddressRequest request = new CreateMarketAddressRequest();
-        request.setReceiverName("张三");
-        request.setReceiverPhone("13800000000");
-        request.setProvince("上海市");
-        request.setCity("上海市");
-        request.setDistrict("浦东新区");
-        request.setDetailAddress("世纪大道 100 号");
-        request.setPostalCode("200120");
-        request.setDefaultAddress(isDefault);
+        CreateMarketAddressRequest request = new CreateMarketAddressRequest(
+                "张三", "13800000000", "上海市", "上海市", "浦东新区", "世纪大道 100 号", "200120", isDefault);
         return marketAddressService.createAddress(MarketTestCommands.addressCommand(userId, request)).addressId();
     }
 

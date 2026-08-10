@@ -3,7 +3,7 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.application.command.RewardProjectionCommand;
+import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

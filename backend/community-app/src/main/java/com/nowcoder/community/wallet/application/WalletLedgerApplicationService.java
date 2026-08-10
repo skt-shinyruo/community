@@ -2,8 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand;
-import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -17,11 +15,12 @@ import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.domain.service.WalletLedgerDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
+import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.Clock;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -32,25 +31,24 @@ import java.util.UUID;
 @Service
 public class WalletLedgerApplicationService {
 
+    public record ListWalletTransactionsCommand(UUID userId, Integer limit) {
+    }
+
     private final WalletAccountApplicationService walletAccountService;
     private final WalletLedgerRepository walletLedgerRepository;
     private final WalletLedgerDomainService domainService;
     private final UuidV7Generator idGenerator;
+    private final Clock clock;
 
-    @Autowired
     public WalletLedgerApplicationService(WalletAccountApplicationService walletAccountService,
-                                          WalletLedgerRepository walletLedgerRepository) {
-        this(walletAccountService, walletLedgerRepository, new WalletLedgerDomainService(), new UuidV7Generator());
-    }
-
-    WalletLedgerApplicationService(WalletAccountApplicationService walletAccountService,
-                                   WalletLedgerRepository walletLedgerRepository,
-                                   WalletLedgerDomainService domainService,
-                                   UuidV7Generator idGenerator) {
-        this.walletAccountService = walletAccountService;
-        this.walletLedgerRepository = walletLedgerRepository;
-        this.domainService = domainService;
-        this.idGenerator = idGenerator;
+                                          WalletLedgerRepository walletLedgerRepository,
+                                          UuidV7Generator idGenerator,
+                                          Clock clock) {
+        this.walletAccountService = Objects.requireNonNull(walletAccountService, "walletAccountService must not be null");
+        this.walletLedgerRepository = Objects.requireNonNull(walletLedgerRepository, "walletLedgerRepository must not be null");
+        this.domainService = new WalletLedgerDomainService();
+        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public UUID ensureUserWallet(UUID userId) {
@@ -158,7 +156,7 @@ public class WalletLedgerApplicationService {
                 normalizedBizType,
                 normalizedBizId,
                 amountOf(postings),
-                new Date()
+                Date.from(clock.instant())
         );
         CreationOutcome<WalletTxn> outcome = walletLedgerRepository.create(txn);
         if (outcome == null

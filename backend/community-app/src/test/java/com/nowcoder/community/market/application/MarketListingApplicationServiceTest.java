@@ -5,7 +5,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
-import com.nowcoder.community.market.application.command.UpdateMarketListingCommand;
+import com.nowcoder.community.market.application.MarketListingApplicationService.UpdateMarketListingCommand;
 import com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.result.MarketListingResult;
@@ -67,14 +67,8 @@ class MarketListingApplicationServiceTest {
     @Test
     void createPhysicalListingShouldPersistGoodsTypeWithoutVirtualOnlyFields() {
         var sellerUserId = uuid(7);
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
-        request.setStockTotal(3);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", 12_900L, null, null, 3, 1, 1, null);
 
         MarketListingResult response = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null));
 
@@ -87,14 +81,8 @@ class MarketListingApplicationServiceTest {
     void sellerListingQueryShouldOnlyReturnOwnedListings() {
         var firstSellerId = uuid(7);
         var secondSellerId = uuid(8);
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
-        request.setStockTotal(3);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", 12_900L, null, null, 3, 1, 1, null);
 
         marketListingService.createListing(MarketTestCommands.listingCommand(firstSellerId, request, null));
         marketListingService.createListing(MarketTestCommands.listingCommand(secondSellerId, request, null));
@@ -107,14 +95,8 @@ class MarketListingApplicationServiceTest {
     @Test
     void resumeListingShouldKeepPhysicalSoldOutListingSoldOutWhenStockIsStillZero() {
         UUID sellerUserId = uuid(7);
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
-        request.setStockTotal(1);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", 12_900L, null, null, 1, 1, 1, null);
 
         UUID listingId = marketListingService.createListing(MarketTestCommands.listingCommand(sellerUserId, request, null)).listingId();
         jdbcTemplate.update(
@@ -259,34 +241,16 @@ class MarketListingApplicationServiceTest {
     }
 
     private CreateMarketListingRequest physicalListingRequest() {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("PHYSICAL");
-        request.setTitle("二手键盘");
-        request.setDescription("九成新");
-        request.setUnitPrice(12_900L);
-        request.setStockTotal(3);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
-        return request;
+        return new CreateMarketListingRequest(
+                "PHYSICAL", "二手键盘", "九成新", 12_900L, null, null, 3, 1, 1, null);
     }
 
     private UUID createPreloadedListing(UUID sellerUserId) {
-        CreateMarketListingRequest request = new CreateMarketListingRequest();
-        request.setGoodsType("VIRTUAL");
-        request.setTitle("兑换码");
-        request.setDescription("单个预加载兑换码");
-        request.setUnitPrice(100L);
-        request.setDeliveryMode("PRELOADED");
-        request.setStockMode("FINITE");
-        request.setStockTotal(1);
-        request.setMinPurchaseQuantity(1);
-        request.setMaxPurchaseQuantity(1);
-
-        AddMarketInventoryBatchRequest inventory = new AddMarketInventoryBatchRequest();
-        inventory.setPayloadType("TEXT");
-        inventory.setPayloads(List.of("initial-code"));
+        CreateMarketListingRequest request = new CreateMarketListingRequest(
+                "VIRTUAL", "兑换码", "单个预加载兑换码", 100L, "PRELOADED", "FINITE", 1, 1, 1,
+                new AddMarketInventoryBatchRequest("TEXT", List.of("initial-code")));
         return marketListingService.createListing(
-                MarketTestCommands.listingCommand(sellerUserId, request, inventory)
+                MarketTestCommands.listingCommand(sellerUserId, request, request.inventory())
         ).listingId();
     }
 

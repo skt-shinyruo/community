@@ -5,7 +5,9 @@ import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.springframework.stereotype.Service;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
@@ -20,9 +22,12 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 public class UserModerationGuard {
 
     private final UserModerationQueryApi userModerationQueryApi;
+    private final Clock clock;
 
-    public UserModerationGuard(UserModerationQueryApi userModerationQueryApi) {
-        this.userModerationQueryApi = userModerationQueryApi;
+    public UserModerationGuard(UserModerationQueryApi userModerationQueryApi, Clock clock) {
+        this.userModerationQueryApi = Objects.requireNonNull(
+                userModerationQueryApi, "userModerationQueryApi must not be null");
+        this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
     public void assertCanSpeak(UUID userId) {
@@ -31,7 +36,7 @@ public class UserModerationGuard {
         }
 
         UserModerationStateView status = userModerationQueryApi.getModerationState(userId);
-        Instant now = Instant.now();
+        Instant now = clock.instant();
 
         if (status != null && status.banUntil() != null && status.banUntil().isAfter(now)) {
             throw new BusinessException(FORBIDDEN, "账号已被封禁，无法发言");

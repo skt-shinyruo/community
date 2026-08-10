@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.infrastructure.job;
 
 import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService;
-import com.nowcoder.community.social.application.command.ReconcileLikeCleanupCommand;
-import com.nowcoder.community.social.application.result.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.LikeCleanupReconciliationResult;
+import com.nowcoder.community.social.application.LikeCleanupReconciliationApplicationService.ReconcileLikeCleanupCommand;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 

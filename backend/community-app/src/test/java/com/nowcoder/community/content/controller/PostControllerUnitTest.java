@@ -1,30 +1,26 @@
 package com.nowcoder.community.content.controller;
 
 import com.fasterxml.jackson.databind.DeserializationFeature;
+import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.application.command.RecordPostViewCommand;
-import com.nowcoder.community.content.application.command.CreateCommentCommand;
+import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.application.CommentApplicationService.CommentCreateResult;
+import com.nowcoder.community.content.application.PostCounterApplicationService.RecordPostViewCommand;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.application.PostCounterApplicationService;
 import com.nowcoder.community.content.application.PostPublishingApplicationService;
+import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.application.PostModerationApplicationService;
-import com.nowcoder.community.content.application.result.PostCreateResult;
 import com.nowcoder.community.content.controller.dto.BatchPostSummaryRequest;
-import com.nowcoder.community.content.controller.dto.CommentPageResponse;
-import com.nowcoder.community.content.controller.dto.CommentResponse;
 import com.nowcoder.community.content.controller.dto.CreateCommentRequest;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
-import com.nowcoder.community.content.controller.dto.CreatePostResponse;
 import com.nowcoder.community.content.controller.dto.PostContentBlockRequest;
-import com.nowcoder.community.content.controller.dto.PostDetailResponse;
-import com.nowcoder.community.content.controller.dto.PostSummaryResponse;
 import com.nowcoder.community.content.controller.dto.UpdateCommentRequest;
 import com.nowcoder.community.content.controller.dto.UpdatePostRequest;
 import com.nowcoder.community.content.application.CommentApplicationService;
@@ -42,10 +38,14 @@ import org.springframework.security.authentication.TestingAuthenticationToken;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.oauth2.jwt.Jwt;
 
+import java.time.Clock;
 import java.time.Instant;
+import java.time.ZoneOffset;
 import java.util.Arrays;
 import java.util.Date;
+import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.idempotency.IdempotencyGuard.HEADER_IDEMPOTENCY_KEY;
@@ -59,6 +59,9 @@ import static org.mockito.Mockito.when;
 
 @ExtendWith(MockitoExtension.class)
 class PostControllerUnitTest {
+
+    private static final Instant NOW = Instant.parse("2025-01-02T03:04:05Z");
+    private static final Clock CLOCK = Clock.fixed(NOW, ZoneOffset.UTC);
 
     @Mock
     private PostReadApplicationService postReadApplicationService;
@@ -92,7 +95,8 @@ class PostControllerUnitTest {
                 postModerationApplicationService,
                 commentApplicationService,
                 postCounterApplicationService,
-                clientIpResolver
+                clientIpResolver,
+                CLOCK
         );
     }
 
@@ -102,11 +106,12 @@ class PostControllerUnitTest {
         UUID postId = uuid(11);
         UUID categoryId = uuid(3);
         PostCreateResult createResult = new PostCreateResult(postId);
-        CreatePostRequest request = new CreatePostRequest();
-        request.setTitle("title");
-        request.setBlocks(List.of(paragraphBlock("content")));
-        request.setCategoryId(categoryId);
-        request.setTags(List.of("java"));
+        CreatePostRequest request = new CreatePostRequest(
+                "title",
+                List.of(paragraphBlock("content")),
+                categoryId,
+                List.of("java")
+        );
         when(postPublishingApplicationService.create(eq("idem-1"), argThat(command ->
                 userId.equals(command.userId())
                         && "title".equals(command.title())
@@ -117,10 +122,10 @@ class PostControllerUnitTest {
         )))
                 .thenReturn(createResult);
 
-        Result<CreatePostResponse> result = controller.create(authentication(userId), "idem-1", request);
+        Result<PostCreateResult> result = controller.create(authentication(userId), "idem-1", request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData().getPostId()).isEqualTo(postId);
+        assertThat(result.getData().postId()).isEqualTo(postId);
         verify(postPublishingApplicationService).create(eq("idem-1"), argThat(command ->
                 userId.equals(command.userId())
                         && "title".equals(command.title())
@@ -132,7 +137,7 @@ class PostControllerUnitTest {
     }
 
     @Test
-    void batchSummaryShouldReturnDtoResponsesFromControllerMapper() {
+    void batchSummaryShouldReturnApplicationReadModelsDirectly() {
         UUID userId = uuid(7);
         UUID postId = uuid(11);
         UUID secondPostId = uuid(12);
@@ -140,15 +145,24 @@ class PostControllerUnitTest {
         Date createTime = new Date();
         PostSummaryResult firstView = postSummaryView(postId, userId, categoryId, createTime, "first");
         PostSummaryResult secondView = postSummaryView(secondPostId, userId, categoryId, createTime, "second");
-        BatchPostSummaryRequest request = new BatchPostSummaryRequest();
-        request.setPostIds(List.of(postId, secondPostId));
+        BatchPostSummaryRequest request = new BatchPostSummaryRequest(List.of(postId, secondPostId));
         when(postReadApplicationService.listPostsByIds(List.of(postId, secondPostId)))
                 .thenReturn(List.of(firstView, secondView));
 
-        Result<List<PostSummaryResponse>> batchResult = controller.batchSummary(request);
+        Result<List<PostSummaryResult>> batchResult = controller.batchSummary(request);
 
-        assertThat(batchResult.getData()).extracting(PostSummaryResponse::getTitle).containsExactly("first", "second");
+        assertThat(batchResult.getData()).extracting(PostSummaryResult::title).containsExactly("first", "second");
         verify(postReadApplicationService).listPostsByIds(List.of(postId, secondPostId));
+    }
+
+    @Test
+    void batchSummaryShouldKeepNullApplicationResultAsEmptyList() {
+        BatchPostSummaryRequest request = new BatchPostSummaryRequest(List.of(uuid(11)));
+        when(postReadApplicationService.listPostsByIds(request.postIds())).thenReturn(null);
+
+        Result<List<PostSummaryResult>> result = controller.batchSummary(request);
+
+        assertThat(result.getData()).isEmpty();
     }
 
     @Test
@@ -182,25 +196,25 @@ class PostControllerUnitTest {
         when(commentReadApplicationService.listReplies(postId, commentId, replyCursor, 10))
                 .thenReturn(new CommentPageResult(List.of(commentView), "cursor-replies-1"));
 
-        Result<PostDetailResponse> detailResult = controller.detail(authentication, request, postId);
-        Result<CommentPageResponse> commentsResult = controller.comments(postId, rootCursor, 10);
-        Result<CommentPageResponse> repliesResult = controller.replies(postId, commentId, replyCursor, 10);
+        Result<PostDetailResult> detailResult = controller.detail(authentication, request, postId);
+        Result<CommentPageResult> commentsResult = controller.comments(postId, rootCursor, 10);
+        Result<CommentPageResult> repliesResult = controller.replies(postId, commentId, replyCursor, 10);
 
-        assertThat(detailResult.getData().getId()).isEqualTo(postId);
-        assertThat(detailResult.getData().getTitle()).isEqualTo("detail");
-        assertThat(detailResult.getData().getBlocks()).singleElement().satisfies(block -> {
-            assertThat(block.getType()).isEqualTo("paragraph");
-            assertThat(block.getText()).isEqualTo("body");
+        assertThat(detailResult.getData().id()).isEqualTo(postId);
+        assertThat(detailResult.getData().title()).isEqualTo("detail");
+        assertThat(detailResult.getData().blocks()).singleElement().satisfies(block -> {
+            assertThat(block.type()).isEqualTo("paragraph");
+            assertThat(block.text()).isEqualTo("body");
         });
-        assertThat(commentsResult.getData().getNextCursor()).isEqualTo("cursor-roots-1");
-        assertThat(commentsResult.getData().getItems()).singleElement().satisfies(response -> {
-            assertThat(response.getId()).isEqualTo(commentId);
-            assertThat(response.getContent()).isEqualTo("comment");
+        assertThat(commentsResult.getData().nextCursor()).isEqualTo("cursor-roots-1");
+        assertThat(commentsResult.getData().items()).singleElement().satisfies(response -> {
+            assertThat(response.id()).isEqualTo(commentId);
+            assertThat(response.content()).isEqualTo("comment");
         });
-        assertThat(repliesResult.getData().getNextCursor()).isEqualTo("cursor-replies-1");
-        assertThat(repliesResult.getData().getItems()).singleElement().satisfies(response -> {
-            assertThat(response.getId()).isEqualTo(commentId);
-            assertThat(response.getContent()).isEqualTo("comment");
+        assertThat(repliesResult.getData().nextCursor()).isEqualTo("cursor-replies-1");
+        assertThat(repliesResult.getData().items()).singleElement().satisfies(response -> {
+            assertThat(response.id()).isEqualTo(commentId);
+            assertThat(response.content()).isEqualTo("comment");
         });
         verify(postReadApplicationService).getPostDetail(actorUserId, postId);
         ArgumentCaptor<RecordPostViewCommand> viewCommandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
@@ -209,9 +223,21 @@ class PostControllerUnitTest {
         assertThat(viewCommandCaptor.getValue().viewerKey())
                 .isEqualTo("auth:" + actorUserId)
                 .doesNotContain("198.51.100.1");
+        assertThat(viewCommandCaptor.getValue().viewedAt()).isEqualTo(NOW);
         verify(clientIpResolver, never()).resolve(request);
         verify(commentReadApplicationService).listRootComments(postId, rootCursor, 10);
         verify(commentReadApplicationService).listReplies(postId, commentId, replyCursor, 10);
+    }
+
+    @Test
+    void commentsShouldKeepNullApplicationPageAsEmptyResponse() {
+        UUID postId = uuid(11);
+        when(commentReadApplicationService.listRootComments(postId, null, null)).thenReturn(null);
+
+        Result<CommentPageResult> result = controller.comments(postId, null, null);
+
+        assertThat(result.getData().items()).isEmpty();
+        assertThat(result.getData().nextCursor()).isEmpty();
     }
 
     @Test
@@ -269,16 +295,14 @@ class PostControllerUnitTest {
         UUID createdCommentId = uuid(22);
         UUID parentCommentId = uuid(31);
         UUID categoryId = uuid(3);
-        CreateCommentRequest createCommentRequest = new CreateCommentRequest();
-        createCommentRequest.setParentCommentId(parentCommentId);
-        createCommentRequest.setContent("reply");
-        UpdatePostRequest updatePostRequest = new UpdatePostRequest();
-        updatePostRequest.setTitle("updated");
-        updatePostRequest.setBlocks(List.of(paragraphBlock("body")));
-        updatePostRequest.setCategoryId(categoryId);
-        updatePostRequest.setTags(List.of("spring"));
-        UpdateCommentRequest updateCommentRequest = new UpdateCommentRequest();
-        updateCommentRequest.setContent("edited");
+        CreateCommentRequest createCommentRequest = new CreateCommentRequest("reply", parentCommentId);
+        UpdatePostRequest updatePostRequest = new UpdatePostRequest(
+                "updated",
+                List.of(paragraphBlock("body")),
+                categoryId,
+                List.of("spring")
+        );
+        UpdateCommentRequest updateCommentRequest = new UpdateCommentRequest("edited");
         when(commentApplicationService.create(eq("idem-2"), argThat(command ->
                 userId.equals(command.userId())
                         && postId.equals(command.postId())
@@ -369,6 +393,51 @@ class PostControllerUnitTest {
         );
     }
 
+    @Test
+    void directApplicationModelsShouldPreservePostAndCommentResponseJsonFields() {
+        UUID postId = uuid(11);
+        UUID userId = uuid(7);
+        UUID categoryId = uuid(3);
+        Date createTime = new Date(1_700_000_000_000L);
+        ObjectMapper objectMapper = JsonMappers.standard();
+
+        JsonNode create = objectMapper.valueToTree(new PostCreateResult(postId));
+        JsonNode summary = objectMapper.valueToTree(postSummaryView(postId, userId, categoryId, createTime, "title"));
+        JsonNode detail = objectMapper.valueToTree(postDetailView(postId, userId, categoryId, "title"));
+        JsonNode comment = objectMapper.valueToTree(new CommentResult(
+                uuid(21), userId, postId, uuid(22), null, null, "comment", createTime, null, 0));
+        JsonNode commentPage = objectMapper.valueToTree(new CommentPageResult(
+                List.of(new CommentResult(
+                        uuid(21), userId, postId, uuid(22), null, null,
+                        "comment", createTime, null, 0)),
+                "cursor-1"
+        ));
+
+        assertThat(fieldNames(create)).containsExactly("postId");
+        assertThat(fieldNames(summary)).containsExactlyInAnyOrder(
+                "id", "userId", "title", "preview", "type", "status", "createTime",
+                "commentCount", "score", "categoryId", "tags", "lastReplyUserId",
+                "lastReplyTime", "lastActivityTime", "lastReplyPreview"
+        );
+        assertThat(fieldNames(detail)).containsExactlyInAnyOrder(
+                "id", "userId", "title", "blocks", "type", "status", "createTime", "updateTime",
+                "editCount", "commentCount", "score", "categoryId", "tags", "likeCount", "liked", "bookmarked"
+        );
+        assertThat(fieldNames(detail.path("blocks").get(0))).containsExactlyInAnyOrder(
+                "id", "index", "type", "text", "assetId", "language", "caption",
+                "displayName", "metadata", "media"
+        );
+        assertThat(fieldNames(comment)).containsExactlyInAnyOrder(
+                "id", "userId", "postId", "rootCommentId", "parentCommentId",
+                "replyToUserId", "content", "createTime", "updateTime", "editCount"
+        );
+        assertThat(fieldNames(commentPage)).containsExactlyInAnyOrder("items", "nextCursor");
+        assertThat(fieldNames(commentPage.path("items").get(0))).containsExactlyInAnyOrder(
+                "id", "userId", "postId", "rootCommentId", "parentCommentId",
+                "replyToUserId", "content", "createTime", "updateTime", "editCount"
+        );
+    }
+
     private static PostSummaryResult postSummaryView(UUID postId, UUID userId, UUID categoryId, Date createTime, String title) {
         return new PostSummaryResult(
                 postId,
@@ -411,10 +480,13 @@ class PostControllerUnitTest {
     }
 
     private static PostContentBlockRequest paragraphBlock(String text) {
-        PostContentBlockRequest block = new PostContentBlockRequest();
-        block.setType("paragraph");
-        block.setText(text);
-        return block;
+        return new PostContentBlockRequest("paragraph", text, null, null, null, null, null);
+    }
+
+    private static Set<String> fieldNames(JsonNode node) {
+        Set<String> names = new LinkedHashSet<>();
+        node.fieldNames().forEachRemaining(names::add);
+        return names;
     }
 
     private static Authentication authentication(UUID userId) {

@@ -78,7 +78,7 @@ class WalletLedgerApplicationServiceTest {
 
     @Test
     void recentTransactionsShouldRejectNullCommand() {
-        assertThatThrownBy(() -> service.recentTransactions((com.nowcoder.community.wallet.application.command.ListWalletTransactionsCommand) null))
+        assertThatThrownBy(() -> service.recentTransactions((WalletLedgerApplicationService.ListWalletTransactionsCommand) null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
     }

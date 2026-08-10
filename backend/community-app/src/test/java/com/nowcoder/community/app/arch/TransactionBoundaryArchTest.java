@@ -1,18 +1,15 @@
 package com.nowcoder.community.app.arch;
 
 import com.nowcoder.community.growth.application.UserLevelApplicationService;
-import com.nowcoder.community.growth.application.command.UpdateUserLevelConfigCommand;
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryTransactionOperations;
-import com.nowcoder.community.market.application.command.CreateMarketOrderCommand;
 import com.nowcoder.community.content.application.PostReadTransactionOperations;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.PostHotFeedProjectionTransactionOperations;
 import com.nowcoder.community.content.application.CommentDeletionTransactionOperations;
 import com.nowcoder.community.content.application.CommentThreadCleanupApplicationService;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
-import com.nowcoder.community.content.application.command.ProjectPostHotFeedCommand;
 import com.nowcoder.community.social.application.LikeApplicationService;
 import com.nowcoder.community.social.application.LikeCleanupTransactionOperations;
 import com.nowcoder.community.social.application.command.CleanupDeletedContentLikesCommand;
@@ -22,13 +19,9 @@ import com.nowcoder.community.user.application.UserAvatarTransactionOperations;
 import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.UserModerationApplicationService;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
-import com.nowcoder.community.user.application.command.UpdateUserRoleCommand;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
 import com.nowcoder.community.wallet.application.WalletTransferApplicationService;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService;
-import com.nowcoder.community.wallet.application.command.CreateRechargeCommand;
-import com.nowcoder.community.wallet.application.command.CreateTransferCommand;
-import com.nowcoder.community.wallet.application.command.CreateWithdrawCommand;
 import com.tngtech.archunit.core.domain.JavaClass;
 import com.tngtech.archunit.core.domain.JavaMethodCall;
 import com.tngtech.archunit.core.importer.ClassFileImporter;
@@ -97,12 +90,37 @@ class TransactionBoundaryArchTest {
 
     @Test
     void controllerFacingApplicationEntryPointsMustRemainTransactional() throws NoSuchMethodException {
-        assertTransactional(WalletRechargeApplicationService.class, "recharge", CreateRechargeCommand.class);
-        assertTransactional(WalletWithdrawApplicationService.class, "withdraw", CreateWithdrawCommand.class);
-        assertTransactional(WalletTransferApplicationService.class, "transfer", CreateTransferCommand.class);
-        assertTransactional(MarketOrderApplicationService.class, "createOrder", CreateMarketOrderCommand.class);
-        assertTransactional(UserLevelApplicationService.class, "updateConfig", UUID.class, UpdateUserLevelConfigCommand.class);
-        assertTransactional(AdminUserApplicationService.class, "updateRole", UpdateUserRoleCommand.class);
+        assertTransactional(
+                WalletRechargeApplicationService.class,
+                "recharge",
+                WalletRechargeApplicationService.CreateRechargeCommand.class
+        );
+        assertTransactional(
+                WalletWithdrawApplicationService.class,
+                "withdraw",
+                WalletWithdrawApplicationService.CreateWithdrawCommand.class
+        );
+        assertTransactional(
+                WalletTransferApplicationService.class,
+                "transfer",
+                WalletTransferApplicationService.CreateTransferCommand.class
+        );
+        assertTransactional(
+                MarketOrderApplicationService.class,
+                "createOrder",
+                MarketOrderApplicationService.CreateOrderCommand.class
+        );
+        assertTransactional(
+                UserLevelApplicationService.class,
+                "updateConfig",
+                UUID.class,
+                UserLevelApplicationService.UpdateConfigCommand.class
+        );
+        assertTransactional(
+                AdminUserApplicationService.class,
+                "updateRole",
+                AdminUserApplicationService.UpdateRoleCommand.class
+        );
         assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
         assertTransactional(
                 UserModerationApplicationService.class,
@@ -219,7 +237,7 @@ class TransactionBoundaryArchTest {
         assertNotTransactional(
                 PostHotFeedProjectionApplicationService.class,
                 "project",
-                ProjectPostHotFeedCommand.class
+                PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand.class
         );
         assertTransactionalWithPropagation(
                 PostHotFeedProjectionTransactionOperations.class,

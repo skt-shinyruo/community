@@ -92,6 +92,12 @@ class ControllerBoundaryArchTest {
                     .should(ArchitectureRulesSupport.notDependOnSameDomainServicesExceptApplicationServices());
 
     @ArchTest
+    static final ArchRule controller_application_fields_must_be_application_services_or_pure_queries =
+            classes()
+                    .that().areAnnotatedWith(RestController.class)
+                    .should(enterSameDomainApplicationThroughReviewedEntries());
+
+    @ArchTest
     static final ArchRule drive_controllers_should_only_depend_on_drive_application_boundary =
             noClasses()
                     .that().resideInAnyPackage("..drive.controller..")
@@ -164,6 +170,32 @@ class ControllerBoundaryArchTest {
                     }
                     events.add(SimpleConditionEvent.violated(item, dependency.getDescription()));
                 }
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> enterSameDomainApplicationThroughReviewedEntries() {
+        return new ArchCondition<>("enter same-domain application through *ApplicationService or pure *Query fields") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                String owner = domainOf(item);
+                item.getFields().forEach(field -> {
+                    JavaClass target = field.getRawType();
+                    if (!owner.equals(domainOf(target))
+                            || !ArchitectureRulesSupport.residesInLayer(target, Set.of("application"))) {
+                        return;
+                    }
+                    boolean applicationService = target.getSimpleName().endsWith("ApplicationService");
+                    boolean applicationQuery = target.isInterface()
+                            && target.getSimpleName().endsWith("Query")
+                            && target.getPackageName().equals(BASE_PACKAGE + owner + ".application");
+                    if (!applicationService && !applicationQuery) {
+                        events.add(SimpleConditionEvent.violated(
+                                item,
+                                field.getFullName() + " is not a reviewed application entry"
+                        ));
+                    }
+                });
             }
         };
     }

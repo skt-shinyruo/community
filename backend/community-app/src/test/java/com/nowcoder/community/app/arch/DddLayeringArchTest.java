@@ -200,203 +200,27 @@ class DddLayeringArchTest {
                     );
 
     @ArchTest
-    static final ArchRule legacy_business_root_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage(
-                            "..analytics.service..",
-                            "..analytics.repo..",
-                            "..analytics.ingest..",
-                            "..auth.dto..",
-                            "..auth.service..",
-                            "..auth.web..",
-                            "..content.app..",
-                            "..content.assembler..",
-                            "..content.dto..",
-                            "..content.entity..",
-                            "..content.event..",
-                            "..content.like..",
-                            "..content.mapper..",
-                            "..content.score..",
-                            "..content.service..",
-                            "..content.text..",
-                            "..content.util..",
-                            "..content.domain.assembler..",
-                            "..growth.entity..",
-                            "..growth.event..",
-                            "..growth.mapper..",
-                            "..growth.service..",
-                            "..im.service..",
-                            "..market.entity..",
-                            "..market.job..",
-                            "..market.mapper..",
-                            "..market.model..",
-                            "..market.service..",
-                            "..notice.entity..",
-                            "..notice.event..",
-                            "..notice.mapper..",
-                            "..notice.service..",
-                            "..ops.dto..",
-                            "..search.event..",
-                            "..search.repo..",
-                            "..search.service..",
-                            "..social.block..",
-                            "..social.dto..",
-                            "..social.event..",
-                            "..social.follow..",
-                            "..social.like..",
-                            "..social.service..",
-                            "..user.dto..",
-                            "..user.entity..",
-                            "..user.event..",
-                            "..user.mapper..",
-                            "..user.service..",
-                            "..user.session..",
-                            "..wallet.entity..",
-                            "..wallet.mapper..",
-                            "..wallet.model..",
-                            "..wallet.service.."
-                    )
-                    .allowEmptyShould(true);
+    static final ArchRule owner_packages_must_use_the_owner_first_structure =
+            classes()
+                    .that().resideInAnyPackage(ownerPackagePatterns())
+                    .and().resideOutsideOfPackage("com.nowcoder.community.im.common..")
+                    .should(resideInApprovedOwnerRootPackage())
+                    .because("community-app owner code uses explicit controller/application/domain/infrastructure/API roots; "
+                            + "the separately built im-common module publishes shared wire contracts");
 
     @ArchTest
-    static final ArchRule user_controllers_must_not_depend_on_legacy_user_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..user.controller..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..user.service..",
-                            "..user.mapper..",
-                            "..user.entity..",
-                            "..user.infrastructure.."
-                    );
+    static final ArchRule application_services_must_have_one_explicit_constructor =
+            classes()
+                    .that().resideInAnyPackage("..application..")
+                    .and().haveSimpleNameEndingWith("ApplicationService")
+                    .should(haveExactlyOneConstructor());
 
     @ArchTest
-    static final ArchRule auth_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..auth.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_auth_web_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..auth.web..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule auth_controller_and_adapters_must_not_depend_on_legacy_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage(
-                            "..auth.controller..",
-                            "..auth.infrastructure.job..",
-                            "..auth.infrastructure.web.."
-                    )
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..auth.service..",
-                            "..auth.web..",
-                            "..auth.domain..",
-                            "..auth.infrastructure.persistence..",
-                            "..auth.infrastructure.jwt..",
-                            "..auth.infrastructure.mail.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule ops_controller_must_call_ops_application_only =
-            noClasses()
-                    .that().resideInAnyPackage("..ops.controller..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..search.api..",
-                            "..ops.infrastructure..",
-                            "..ops.dto.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_ops_dto_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..ops.dto..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule user_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..user.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_user_mapper_and_entity_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..user.mapper..", "..user.entity..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule social_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..social.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_social_feature_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage(
-                            "..social.like..",
-                            "..social.follow..",
-                            "..social.block..",
-                            "..social.event.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule social_controllers_must_not_depend_on_legacy_social_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..social.controller..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..social.service..",
-                            "..social.infrastructure..",
-                            "..social.domain..",
-                            "..social.like..",
-                            "..social.follow..",
-                            "..social.block..",
-                            "..social.event.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule wallet_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..wallet.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_wallet_mapper_entity_model_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..wallet.mapper..", "..wallet.entity..", "..wallet.model..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule wallet_controllers_must_not_depend_on_legacy_wallet_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..wallet.controller..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..wallet.service..",
-                            "..wallet.infrastructure..",
-                            "..wallet.domain..",
-                            "..wallet.mapper..",
-                            "..wallet.entity..",
-                            "..wallet.model.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule market_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..market.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_market_mapper_entity_model_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..market.mapper..", "..market.entity..", "..market.model..")
-                    .allowEmptyShould(true);
+    static final ArchRule application_must_receive_clock_and_uuid_v7_generator_dependencies =
+            classes()
+                    .that().resideInAnyPackage("..application..")
+                    .should(notCreateClockOrUuidV7Generator())
+                    .because("time and ordered ID policy belongs in the Spring composition root");
 
     @ArchTest
     static final ArchRule market_domain_repositories_must_use_domain_method_names =
@@ -410,105 +234,90 @@ class DddLayeringArchTest {
                     .that().resideInAnyPackage("..market.application..")
                     .should(notDeclareFieldsEndingWith("Mapper"));
 
-    @ArchTest
-    static final ArchRule market_controllers_and_jobs_must_not_depend_on_legacy_market_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..market.controller..", "..market.infrastructure.job..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..market.service..",
-                            "..market.infrastructure..",
-                            "..market.domain..",
-                            "..market.mapper..",
-                            "..market.entity..",
-                            "..market.model.."
-                    )
-                    .allowEmptyShould(true);
+    private static String[] ownerPackagePatterns() {
+        return ArchitectureRulesSupport.TACTICAL_ROOTS.stream()
+                .map(owner -> "com.nowcoder.community." + owner + "..")
+                .toArray(String[]::new);
+    }
 
-    @ArchTest
-    static final ArchRule growth_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..growth.service..")
-                    .allowEmptyShould(true);
+    private static ArchCondition<JavaClass> resideInApprovedOwnerRootPackage() {
+        Set<String> approvedRoots = Set.of(
+                "api",
+                "application",
+                "config",
+                "contracts",
+                "controller",
+                "domain",
+                "exception",
+                "infrastructure",
+                "logging",
+                "security"
+        );
+        return new ArchCondition<>("reside in an approved owner-first root package") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                String owner = ArchitectureRulesSupport.domainOf(item);
+                if (!ArchitectureRulesSupport.TACTICAL_ROOTS.contains(owner)) {
+                    return;
+                }
+                String prefix = "com.nowcoder.community." + owner + ".";
+                String relativePackage = item.getPackageName().substring(prefix.length());
+                String root = relativePackage.contains(".")
+                        ? relativePackage.substring(0, relativePackage.indexOf('.'))
+                        : relativePackage;
+                if (!approvedRoots.contains(root)) {
+                    events.add(SimpleConditionEvent.violated(
+                            item,
+                            item.getName() + " resides in unapproved owner root '" + root + "'"
+                    ));
+                }
+            }
+        };
+    }
 
-    @ArchTest
-    static final ArchRule legacy_growth_mapper_entity_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..growth.mapper..", "..growth.entity..")
-                    .allowEmptyShould(true);
+    private static ArchCondition<JavaClass> haveExactlyOneConstructor() {
+        return new ArchCondition<>("declare exactly one non-empty constructor") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                if (item.getConstructors().size() != 1) {
+                    events.add(SimpleConditionEvent.violated(
+                            item,
+                            item.getName() + " declares " + item.getConstructors().size() + " constructors"
+                    ));
+                    return;
+                }
+                var constructor = item.getConstructors().iterator().next();
+                if (constructor.getRawParameterTypes().isEmpty()) {
+                    events.add(SimpleConditionEvent.violated(
+                            item,
+                            constructor.getFullName() + " has no explicit dependencies"
+                    ));
+                }
+            }
+        };
+    }
 
-    @ArchTest
-    static final ArchRule notice_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..notice.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_notice_mapper_entity_event_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..notice.mapper..", "..notice.entity..", "..notice.event..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule notice_controllers_and_listeners_must_not_depend_on_legacy_notice_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..notice.controller..", "..notice.infrastructure.event..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..notice.service..",
-                            "..notice.mapper..",
-                            "..notice.entity..",
-                            "..notice.event.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule search_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..search.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_search_repo_event_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..search.repo..", "..search.event..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule search_controller_and_event_adapters_must_not_depend_on_legacy_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..search.controller..", "..search.infrastructure.event..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..search.service..",
-                            "..search.repo..",
-                            "..search.event..",
-                            "..search.infrastructure.persistence..",
-                            "..search.domain.."
-                    )
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule analytics_service_package_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..analytics.service..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule legacy_analytics_repo_ingest_packages_must_stay_retired =
-            noClasses()
-                    .should().resideInAnyPackage("..analytics.repo..", "..analytics.ingest..")
-                    .allowEmptyShould(true);
-
-    @ArchTest
-    static final ArchRule analytics_controller_and_web_adapters_must_not_depend_on_legacy_surfaces =
-            noClasses()
-                    .that().resideInAnyPackage("..analytics.controller..", "..analytics.infrastructure.web..")
-                    .should().dependOnClassesThat().resideInAnyPackage(
-                            "..analytics.service..",
-                            "..analytics.repo..",
-                            "..analytics.ingest..",
-                            "..analytics.infrastructure.persistence..",
-                            "..analytics.domain.."
-                    )
-                    .allowEmptyShould(true);
+    private static ArchCondition<JavaClass> notCreateClockOrUuidV7Generator() {
+        return new ArchCondition<>("not create Clock or UuidV7Generator dependencies") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                item.getConstructorCallsFromSelf().stream()
+                        .filter(call -> call.getTargetOwner().getName()
+                                .equals("com.nowcoder.community.common.id.UuidV7Generator"))
+                        .forEach(call -> events.add(SimpleConditionEvent.violated(
+                                call,
+                                call.getDescription()
+                        )));
+                item.getMethodCallsFromSelf().stream()
+                        .filter(call -> call.getTargetOwner().getName().equals("java.time.Clock"))
+                        .filter(call -> call.getName().startsWith("system"))
+                        .forEach(call -> events.add(SimpleConditionEvent.violated(
+                                call,
+                                call.getDescription()
+                        )));
+            }
+        };
+    }
 
     private static ArchCondition<JavaClass> notReturnWebTransportTypes() {
         Set<String> forbiddenTypeNames = Set.of(

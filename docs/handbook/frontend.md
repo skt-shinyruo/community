@@ -11,6 +11,8 @@
 | 会话恢复 | `frontend/src/auth/session.js`、`frontend/src/auth/sessionHint.js`、`frontend/src/stores/auth.js` |
 | API base URL | `frontend/src/config/runtimeConfig.js`、`frontend/src/config/endpointResolution.js` |
 | HTTP 客户端 | `frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js` |
+| 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
+| 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
 | IM 长连 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/conversationDetailState.js` |
 | 页面纯状态 | `frontend/src/views/*State.js` |
@@ -73,7 +75,9 @@ shouldBootstrapSession(...)
       -> ready / anonymous / error
 ```
 
-`pendingSessionPromise` 保证同一时间只有一个会话恢复请求，避免多个受保护页面并发进入时重复 refresh。
+`pendingSessionPromise` 按 auth store 实例和 `tokenGeneration` 共享同一次会话恢复，避免多个受保护页面并发进入时重复 refresh，也不会把上一份会话的 Promise 交给新会话。`refreshCoordinator.js` 的 refresh single-flight 使用同样的会话快照边界。
+
+Auth store 使用 `identityState=anonymous|unresolved|resolved` 表达身份快照。安装不同 access token 时必须同步清空旧 `me` 并推进 `tokenGeneration`；新 token 对应的 `/me` 暂时失败时保持 `unresolved`，不能组合成“新 token + 旧 me”。只有 refresh 或 `/me` 明确返回 `401/403` 才是权威认证失败并清空会话；网络错误、限流、服务端错误和缺少临时响应字段均保留当前会话并返回可重试错误。
 
 `sessionHint` 只表示“这个浏览器曾经有过登录态”，不是凭据。真正登录态必须由 `/api/auth/refresh` 和 `/api/auth/me` 确认。
 
@@ -93,7 +97,7 @@ shouldBootstrapSession(...)
 `FRONTEND_RUNTIME_IM_HTTP_BASE_URL` 写入 `/app-config.js`；未设置时两者回退到
 `GATEWAY_PUBLIC_BASE_URL`。输出通过 JSON 编码生成，部署值中的引号、反斜杠和换行不会变成可执行脚本。
 该文件明确使用 `no-store`，因此同一份静态镜像可以在不同环境注入端点而无需重新构建。
-将某个 `FRONTEND_RUNTIME_*` 变量显式设为空字符串会启用该客户端的同源相对路径。
+将某个 `FRONTEND_RUNTIME_*` 变量显式设为空字符串会启用该客户端的同源相对路径。runtime config 的“键不存在”和“键存在但值为空”语义不同：前者继续读取 Vite env，后者明确覆盖 Vite env。
 
 ## HTTP 客户端
 
@@ -102,15 +106,18 @@ shouldBootstrapSession(...)
 - `baseURL` 来自 `resolveApiBaseUrl()`。
 - `withCredentials=true`，用于 refresh cookie。
 - 请求 interceptor 注入 `Authorization: Bearer <accessToken>`。
+- 请求发出时记录 `tokenGeneration`；即使当时没有 access token，也能识别请求返回 `401` 前已经完成的并发登录 / refresh。
 - 非 `/api/auth/**` 响应 `401` 时单飞行调用 `/api/auth/refresh`，成功后重试原请求；登录、注册、密码重置等 auth 自身入口不触发 refresh 重试。
-- 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`。
-- 对发帖、评论、钱包写接口和市场下单自动附加 `Idempotency-Key`。
+- 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`。同一个 Error 对象只能被 `showErrorToast` 认领一次，页面 catch 不重复弹出同一错误。
+- 通用 HTTP 层不生成 `Idempotency-Key`；高风险写必须由调用方提供 `WriteAttempt`。
 
 IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 
 - `baseURL` 来自 `resolveImHttpBaseUrl()`。
 - 请求同样注入 access token。
-- `401` 时复用主站 `http.post('/api/auth/refresh')` 刷新 access token，再重试 IM HTTP 请求。
+- `401` 时复用 `refreshCoordinator` 刷新 access token，再重试 IM HTTP 请求。
+
+上传不经过带 15 秒超时的主站 `http`。`uploadTransport.js` 会把浏览器 origin 和 runtime API origin 都视为可信主站：可信上传使用 `timeout=0`、主站认证和共享的 `401` 恢复；其他绝对 URL 使用无 cookie、不注入主站 `Authorization`、不触发 refresh 的独立客户端，但保留 upload session 明确提供的存储服务签名头。`uploadSession.js` 在发送字节前校验服务端 session 的 `maxBytes` / `mimeTypes`；`POST` 指令构造 multipart，预签名 `PUT` 指令发送原始文件。页面通过 `AbortSignal` 和规范化进度回调提供取消与进度状态。
 
 ## 前端幂等语义
 
@@ -118,12 +125,12 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 
 | 功能 | 当前前端行为 |
 | --- | --- |
-| 发帖 | `http.js` 根据 `POST /api/posts` 自动生成并短期复用 `Idempotency-Key`。 |
-| 评论 | `http.js` 根据 `POST /api/posts/{postId}/comments` 自动生成并短期复用 `Idempotency-Key`。 |
-| 测试积分领取 / 销毁、钱包转账 | `http.js` 根据对应钱包写接口自动生成并短期复用 `Idempotency-Key`。 |
-| 市场下单 | `http.js` 根据 `POST /api/market/orders` 自动生成并短期复用 `Idempotency-Key`。 |
+| 发帖 | 发帖 composer 持有一个 `WriteAttempt`，失败后人工重试复用 key。 |
+| 评论 / 回复 | 输入框或回复草稿持有 `WriteAttempt`；同一草稿重试复用 key。 |
+| 测试积分领取 / 销毁、钱包转账 | 每个动作表单分别持有 `WriteAttempt`。 |
+| 市场下单 | 商品详情的下单表单持有一个 `WriteAttempt`。 |
 
-`frontend/src/api/idempotencyKeyCache.js` 按请求指纹短期复用 key，默认窗口是 10 秒。修改重试、按钮防重复或自动保存逻辑时，必须保证同一次业务尝试复用同一个 key；新业务尝试才生成新值。
+`frontend/src/api/writeAttempt.js` 明确建模 `idle -> active -> succeeded|cancelled|changed`。首次发送生成 key；传输失败不结束 attempt，人工重试继续使用同一个 key；成功、取消、切换账号 / 页面或修改业务意图后清除旧 key，下次发送再生成。不要按 URL、payload 指纹或时间窗口缓存 key，两个内容相同但由用户分别发起的动作仍是两个业务尝试。高风险 service 缺少 `WriteAttempt` 时直接报错，以便在开发期暴露生命周期遗漏。
 
 ## IM 实时客户端
 
@@ -151,7 +158,10 @@ connect(accessToken)
 
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
-- 会话详情页必须通过 HTTP history / backfill 补齐断线期间消息。
+- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。
+- 会话详情页先等待首次 `limit=50` history 建立 scope-bound 基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续 `seq` 水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
+- backfill 按会话 scope 单飞串行执行；执行期间再次出现重连上升沿时排队一轮，当前轮结束后从最新水位继续补，不能吞掉新的恢复请求。
+- HTTP 持久化消息通过 `seq`、`messageId`、`fromId + clientMsgId` 与 pending send 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。
 - 消息合并和排序逻辑在 `frontend/src/views/conversationDetailState.js`，优先按 `seq` 去重和排序，再回退到时间 / id。
 
 ## 页面状态模块
@@ -172,6 +182,8 @@ connect(accessToken)
 | `searchResultSurface.js` | 搜索结果展示状态。 |
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。组件只保留加载、提交、toast 和 UI 绑定。
+
+跨页面重复的有状态流程使用 focused composable：`useMarketOrderList.js` 统一买单 / 卖单的会话隔离、分页和过期请求丢弃，`useDriveWorkspaceState.js` 统一 Drive 的模式、目录、选择和刷新收敛，`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 ## 全局 Store
 
@@ -196,6 +208,8 @@ connect(accessToken)
 
 `frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块；页面空态、错误态和开发态都直接使用它。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
 
+所有 dialog 使用 `useModalFocus.js`：打开后聚焦首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。
+
 `/dev` 只保留给本地联调和 trace 检查，不应进入正常导航；如果页面需要展示调试辅助信息，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。
 
 这些约定由 `frontend/src/styles/productTokens.test.js` 和 `frontend/src/views/viewComplexity.test.js` 约束，新增全局样式时不要绕过这些 guardrail。
@@ -208,12 +222,12 @@ connect(accessToken)
 | --- | --- |
 | Notice | 通知是 owner Kafka 驱动的最终一致投影，写操作成功后可能稍后出现；失败由 consumer retry / `.dlq` 处理。 |
 | Search | 搜索结果来自 ES 投影，发帖 / 改帖后搜索可短暂落后；必要时查 `content.events` consumer/DLQ 或 reindex。 |
-| IM | WS 推送是 best-effort，断线后以 HTTP history 补拉为准。 |
+| IM | WS 推送是 best-effort；pending send 以 committed / reject frame 更新，断线重连后从 HTTP 已确认的连续 `seq` 水位分页补拉并合并。 |
 | Market 下单 | HTTP 成功可能只是订单创建成功，资金可能处于 `ESCROW_PENDING`。 |
 | Market 确认 / 取消 / 争议 | 资金放款 / 退款由 `market_wallet_action` processor / recovery 推进，`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING`、`DISPUTE_REFUND_PENDING` 都应展示为处理中。 |
 | Wallet | 钱包 ledger 是资金 owner；市场页面不要自行推断余额变化。 |
 | Like / Follow | 前端可乐观更新局部状态，但最终计数以 owner API 读侧返回为准。 |
-| Drive | 上传先创建服务端 upload session，再按 upload instruction 提交 multipart；分享下载必须先用提取码换短时 ticket。彻底删除后 OSS blob 清理失败时，后端可通过重复 delete 重试，前端不要把本地条目恢复为 active。 |
+| Drive | 上传先创建服务端 upload session，前置校验约束后再由独立 transport 提交 multipart，并支持进度 / 取消；外部绝对上传地址不携带主站凭据。分享下载必须先用提取码换短时 ticket。彻底删除后 OSS blob 清理失败时，后端可通过重复 delete 重试，前端不要把本地条目恢复为 active。 |
 
 ## 测试
 

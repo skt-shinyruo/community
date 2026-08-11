@@ -36,7 +36,7 @@ import static org.mockito.Mockito.when;
 class FeedReadApplicationServiceTest {
 
     @Test
-    void listGlobalHotFeedShouldReadOrderedIdsFromFeedCacheAndEmitNextCursor() {
+    void listGlobalHotFeedShouldReadOrderedProjectionFromFeedCacheAndEmitNextCursor() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
@@ -58,10 +58,11 @@ class FeedReadApplicationServiceTest {
         DiscussPost extraPost = post(extraPostId, "<extra>");
         extraPost.setScore(5.0);
 
-        when(postFeedCache.readGlobalHotIds("", 2))
-                .thenReturn(List.of(firstPostId, secondPostId));
-        when(postFeedCache.readGlobalHotIds(feedCursorCodec.encodePage(1, 2), 2))
-                .thenReturn(List.of(extraPostId));
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(new PostFeedCache.HotProjectionPage(
+                List.of(projectionOf(firstPost), projectionOf(secondPost)),
+                1L,
+                true
+        ));
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPostsByIds(List.of(firstPostId, secondPostId)))
                 .thenReturn(List.of(firstPost, secondPost));
@@ -103,7 +104,113 @@ class FeedReadApplicationServiceTest {
     }
 
     @Test
-    void listBoardHotFeedShouldReadBoardOrderedIdsFromFeedCache() {
+    void cacheHitAtMaximumCursorPageShouldNotEmitAnotherCursor() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(mock(ContentTextCodec.class));
+        FeedCursorCodec.HotBoundary boundary = new FeedCursorCodec.HotBoundary(
+                0, 60.0, new Date(6_000L), uuid(701));
+        String cursor = feedCursorCodec.encodeHotPage(
+                FeedCursorCodec.MAX_CURSOR_PAGE, 2, boundary, 17L);
+        Date firstCreatedAt = new Date(5_000L);
+        Date secondCreatedAt = new Date(4_000L);
+        PostFeedCache.HotProjectionEntry first = new PostFeedCache.HotProjectionEntry(
+                uuid(702), 0, 59.0, firstCreatedAt);
+        PostFeedCache.HotProjectionEntry second = new PostFeedCache.HotProjectionEntry(
+                uuid(703), 0, 58.0, secondCreatedAt);
+
+        when(postFeedCache.readGlobalHotProjection(cursor, 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(List.of(first, second), 17L, true));
+        when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
+        when(postSummaryCache.getAll(List.of(first.postId(), second.postId()))).thenReturn(Map.of(
+                first.postId(), summaryWithRank(first.postId(), "<first>", 0, 59.0, firstCreatedAt),
+                second.postId(), summaryWithRank(second.postId(), "<second>", 0, 58.0, secondCreatedAt)
+        ));
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, cursor, 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id)
+                .containsExactly(first.postId(), second.postId());
+        assertThat(result.nextCursor()).isEmpty();
+        verifyNoInteractions(postContentRepository);
+    }
+
+    @Test
+    void sqlFallbackAtMaximumCursorPageShouldTrimLookaheadWithoutEmittingCursor() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        FeedCursorCodec.HotBoundary boundary = new FeedCursorCodec.HotBoundary(
+                0, 60.0, new Date(6_000L), uuid(711));
+        String cursor = feedCursorCodec.encodeHotPage(
+                FeedCursorCodec.MAX_CURSOR_PAGE, 2, boundary, 17L);
+        DiscussPost first = post(uuid(712), "<first>");
+        first.setScore(59.0);
+        first.setCreateTime(new Date(5_000L));
+        DiscussPost second = post(uuid(713), "<second>");
+        second.setScore(58.0);
+        second.setCreateTime(new Date(4_000L));
+        DiscussPost lookahead = post(uuid(714), "<lookahead>");
+        lookahead.setScore(57.0);
+        lookahead.setCreateTime(new Date(3_000L));
+
+        when(postFeedCache.readGlobalHotProjection(cursor, 2)).thenReturn(cacheMiss());
+        when(postContentRepository.listHotPostsAfter(
+                boundary.type(), boundary.score(), boundary.createTime(), boundary.postId(), 3, null
+        )).thenReturn(List.of(first, second, lookahead));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(first, second)
+        );
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, cursor, 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id)
+                .containsExactly(first.getId(), second.getId());
+        assertThat(result.nextCursor()).isEmpty();
+    }
+
+    @Test
+    void listBoardHotFeedShouldConfirmProjectionTailThroughRepository() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
@@ -120,8 +227,13 @@ class FeedReadApplicationServiceTest {
         DiscussPost boardPost = post(postId, "<board-post>");
         boardPost.setCategoryId(boardId);
 
-        when(postFeedCache.readBoardHotIds(boardId, null, 2))
-                .thenReturn(List.of(postId));
+        when(postFeedCache.readBoardHotProjection(boardId, null, 2)).thenReturn(new PostFeedCache.HotProjectionPage(
+                List.of(projectionOf(boardPost)),
+                1L,
+                false
+        ));
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, boardId, null))
+                .thenReturn(List.of(boardPost));
         when(postContentRepository.listPostsByIds(List.of(postId)))
                 .thenReturn(List.of(boardPost));
         when(commentContentRepository.getLatestPostActivitiesByPostIds(List.of(postId))).thenReturn(Map.of());
@@ -152,7 +264,7 @@ class FeedReadApplicationServiceTest {
     }
 
     @Test
-    void listBoardHotFeedShouldDropSummariesThatNoLongerBelongToRequestedBoard() {
+    void listBoardHotFeedShouldFallbackWhenCachedSummaryNoLongerBelongsToRequestedBoard() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
@@ -168,10 +280,15 @@ class FeedReadApplicationServiceTest {
         UUID staleBoardId = uuid(9);
         UUID postId = uuid(22);
 
-        when(postFeedCache.readBoardHotIds(boardId, null, 2))
-                .thenReturn(List.of(postId));
+        when(postFeedCache.readBoardHotProjection(boardId, null, 1)).thenReturn(new PostFeedCache.HotProjectionPage(
+                List.of(new PostFeedCache.HotProjectionEntry(postId, 0, 0.0, new Date(1_000))),
+                1L,
+                true
+        ));
         when(postSummaryCache.getAll(List.of(postId)))
                 .thenReturn(Map.of(postId, summary(postId, "<stale-board>", staleBoardId)));
+        when(postContentRepository.listPosts(0, 1, 2, PostContentRepository.ORDER_HOT, boardId, null))
+                .thenReturn(List.of());
 
         FeedReadApplicationService service = service(
                 postFeedCache,
@@ -185,9 +302,10 @@ class FeedReadApplicationServiceTest {
                 feedCursorCodec
         );
 
-        FeedPageResult result = service.listBoardHotFeed(null, boardId, null, 2);
+        FeedPageResult result = service.listBoardHotFeed(null, boardId, null, 1);
 
         assertThat(result.items()).isEmpty();
+        verify(postContentRepository).listPosts(0, 1, 2, PostContentRepository.ORDER_HOT, boardId, null);
     }
 
     @Test
@@ -211,10 +329,11 @@ class FeedReadApplicationServiceTest {
                 })
                 .toList();
 
-        when(postFeedCache.readGlobalHotIds("", 2))
-                .thenReturn(List.of(uuid(1), uuid(2)));
-        when(postFeedCache.readGlobalHotIds(feedCursorCodec.encodePage(1, 2), 2))
-                .thenReturn(List.of(uuid(3), uuid(4)));
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(new PostFeedCache.HotProjectionPage(
+                allPosts.subList(0, 2).stream().map(FeedReadApplicationServiceTest::projectionOf).toList(),
+                1L,
+                true
+        ));
         when(postContentRepository.listPostsByIds(List.of(uuid(1), uuid(2))))
                 .thenReturn(allPosts.subList(0, 2));
         when(postContentRepository.listPostsByIds(List.of(uuid(3), uuid(4))))
@@ -245,6 +364,8 @@ class FeedReadApplicationServiceTest {
         );
 
         FeedPageResult firstPage = service.listGlobalHotFeed(null, "", 2);
+        when(postFeedCache.readGlobalHotProjection(firstPage.nextCursor(), 2))
+                .thenReturn(cacheMiss());
         FeedPageResult secondPage = service.listGlobalHotFeed(null, firstPage.nextCursor(), 2);
 
         assertThat(firstPage.items()).extracting(PostSummaryResult::title).containsExactly("<post-1>", "<post-2>");
@@ -252,7 +373,7 @@ class FeedReadApplicationServiceTest {
     }
 
     @Test
-    void cachedPageShouldUseAuthoritativeRankTupleBeforeDatabaseFallback() {
+    void warmCachedPageShouldUseProjectionRankTupleWithoutDatabaseQuery() {
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
         CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
@@ -268,44 +389,27 @@ class FeedReadApplicationServiceTest {
         UUID pinnedId = uuid(90);
         UUID boundaryId = uuid(82);
         UUID nextId = uuid(81);
-        DiscussPost pinned = post(pinnedId, "<pinned>");
-        pinned.setType(1);
-        pinned.setScore(10.0);
-        pinned.setCreateTime(new Date(5_000L));
-        DiscussPost boundary = post(boundaryId, "<boundary>");
-        boundary.setScore(50.0);
-        boundary.setCreateTime(new Date(4_000L));
-        DiscussPost next = post(nextId, "<next>");
-        next.setScore(50.0);
-        next.setCreateTime(new Date(4_000L));
+        UUID extraId = uuid(80);
+        Date pinnedAt = new Date(5_000L);
+        Date boundaryAt = new Date(4_000L);
+        Date nextAt = new Date(3_000L);
+        Date extraAt = new Date(2_000L);
+        PostFeedCache.HotProjectionEntry pinned = new PostFeedCache.HotProjectionEntry(
+                pinnedId, 1, 10.0, pinnedAt);
+        PostFeedCache.HotProjectionEntry boundary = new PostFeedCache.HotProjectionEntry(
+                boundaryId, 0, 50.0, boundaryAt);
+        PostFeedCache.HotProjectionEntry next = new PostFeedCache.HotProjectionEntry(
+                nextId, 0, 49.0, nextAt);
+        PostFeedCache.HotProjectionEntry extra = new PostFeedCache.HotProjectionEntry(
+                extraId, 0, 48.0, extraAt);
 
-        String secondPageOffset = feedCursorCodec.encodePage(1, 2);
-        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of(pinnedId, boundaryId));
-        when(postFeedCache.readGlobalHotIds(secondPageOffset, 2))
-                .thenReturn(List.of(nextId))
-                .thenThrow(new IllegalStateException("redis unavailable"));
+        when(postFeedCache.readGlobalHotProjection("", 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(List.of(pinned, boundary), 17L, true));
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postSummaryCache.getAll(List.of(pinnedId, boundaryId))).thenReturn(Map.of(
-                pinnedId, summaryWithRank(pinnedId, "<cached-pinned>", 0, 999.0, new Date(9_000L)),
-                boundaryId, summaryWithRank(boundaryId, "<cached-boundary>", 1, 998.0, new Date(8_000L))
+                pinnedId, summaryWithRank(pinnedId, "<cached-pinned>", 1, 10.0, pinnedAt),
+                boundaryId, summaryWithRank(boundaryId, "<cached-boundary>", 0, 50.0, boundaryAt)
         ));
-        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
-                .thenReturn(List.of(pinned, boundary, next));
-        when(postContentRepository.listHotPostsAfter(
-                boundary.getType(),
-                boundary.getScore(),
-                boundary.getCreateTime(),
-                boundary.getId(),
-                3,
-                null
-        )).thenReturn(List.of(next));
-        mockSummaryDependencies(
-                commentContentRepository,
-                tagContentRepository,
-                postContentBlockRepository,
-                postContentBlockTextProjector,
-                List.of(next)
-        );
 
         FeedReadApplicationService service = service(
                 postFeedCache,
@@ -321,23 +425,199 @@ class FeedReadApplicationServiceTest {
 
         FeedPageResult firstPage = service.listGlobalHotFeed(null, "", 2);
         FeedCursorCodec.CursorState cursor = feedCursorCodec.decode(firstPage.nextCursor());
+        FeedCursorCodec.HotBoundary cachedBoundary = new FeedCursorCodec.HotBoundary(
+                0, 50.0, boundaryAt, boundaryId);
+
+        when(postFeedCache.readGlobalHotProjection(firstPage.nextCursor(), 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(List.of(next, extra), 17L, true));
+        when(postSummaryCache.getAll(List.of(nextId, extraId))).thenReturn(Map.of(
+                nextId, summaryWithRank(nextId, "<cached-next>", 0, 49.0, nextAt),
+                extraId, summaryWithRank(extraId, "<cached-extra>", 0, 48.0, extraAt)
+        ));
         FeedPageResult secondPage = service.listGlobalHotFeed(null, firstPage.nextCursor(), 2);
 
         assertThat(firstPage.items()).extracting(PostSummaryResult::id).containsExactly(pinnedId, boundaryId);
-        assertThat(firstPage.items().get(0).type()).isEqualTo(1);
+        assertThat(firstPage.items().get(0).score()).isEqualTo(10.0);
         assertThat(firstPage.items().get(1).score()).isEqualTo(50.0);
-        assertThat(cursor.hotBoundary()).isEqualTo(new FeedCursorCodec.HotBoundary(
-                boundary.getType(), boundary.getScore(), boundary.getCreateTime(), boundary.getId()
-        ));
-        assertThat(secondPage.items()).extracting(PostSummaryResult::id).containsExactly(nextId);
-        verify(postContentRepository).listHotPostsAfter(
-                boundary.getType(),
-                boundary.getScore(),
-                boundary.getCreateTime(),
-                boundary.getId(),
-                3,
-                null
+        assertThat(cursor.hotBoundary()).isEqualTo(cachedBoundary);
+        assertThat(cursor.projectionEpoch()).isEqualTo(17L);
+        assertThat(secondPage.items()).extracting(PostSummaryResult::id).containsExactly(nextId, extraId);
+        verify(postFeedCache).readGlobalHotProjection(firstPage.nextCursor(), 2);
+        verifyNoInteractions(
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector
         );
+    }
+
+    @Test
+    void projectionTupleMismatchShouldFallbackToRepository() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        UUID postId = uuid(91);
+        Date createdAt = new Date(7_000L);
+        DiscussPost current = post(postId, "<current>");
+        current.setScore(90.0);
+        current.setCreateTime(createdAt);
+
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(new PostFeedCache.HotProjectionPage(
+                List.of(new PostFeedCache.HotProjectionEntry(postId, 0, 90.0, createdAt)),
+                11L,
+                true
+        ));
+        when(postSummaryCache.getAll(List.of(postId))).thenReturn(Map.of(
+                postId, summaryWithRank(postId, "<stale>", 0, 99.0, createdAt)
+        ));
+        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
+                .thenReturn(List.of(current));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(current)
+        );
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
+
+        assertThat(result.items()).singleElement().satisfies(item -> {
+            assertThat(item.id()).isEqualTo(postId);
+            assertThat(item.score()).isEqualTo(90.0);
+        });
+        verify(postContentRepository).listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null);
+    }
+
+    @Test
+    void projectionEpochMismatchShouldContinueFromSqlBoundary() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        FeedCursorCodec.HotBoundary boundary = new FeedCursorCodec.HotBoundary(
+                0, 50.0, new Date(5_000L), uuid(92));
+        String cursor = feedCursorCodec.encodeHotPage(1, 2, boundary, 7L);
+        DiscussPost next = post(uuid(93), "<next>");
+        next.setScore(49.0);
+        next.setCreateTime(new Date(4_000L));
+
+        when(postFeedCache.readGlobalHotProjection(cursor, 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(List.of(), 0L, false));
+        when(postContentRepository.listHotPostsAfter(
+                boundary.type(), boundary.score(), boundary.createTime(), boundary.postId(), 3, null
+        )).thenReturn(List.of(next));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(next)
+        );
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, cursor, 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(next.getId());
+        verify(postContentRepository).listHotPostsAfter(
+                boundary.type(), boundary.score(), boundary.createTime(), boundary.postId(), 3, null);
+    }
+
+    @Test
+    void projectionTailShouldNotHideRowsBeyondPrewarmWindow() {
+        PostFeedCache postFeedCache = mock(PostFeedCache.class);
+        PostContentRepository postContentRepository = mock(PostContentRepository.class);
+        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
+        TagContentRepository tagContentRepository = mock(TagContentRepository.class);
+        PostContentBlockRepository postContentBlockRepository = mock(PostContentBlockRepository.class);
+        PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
+        PostContentBlockTextProjector postContentBlockTextProjector = mock(PostContentBlockTextProjector.class);
+        FeedCursorCodec feedCursorCodec = new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper()));
+        ContentTextCodec contentTextCodec = mock(ContentTextCodec.class);
+        when(contentTextCodec.decodeOnRead(anyString())).thenAnswer(invocation -> invocation.getArgument(0));
+        PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
+        FeedCursorCodec.HotBoundary boundary = new FeedCursorCodec.HotBoundary(
+                0, 60.0, new Date(6_000L), uuid(94));
+        String cursor = feedCursorCodec.encodeHotPage(20, 2, boundary, 9L);
+        DiscussPost first = post(uuid(95), "<first-after-warm-tail>");
+        first.setScore(59.0);
+        first.setCreateTime(new Date(5_000L));
+        DiscussPost second = post(uuid(96), "<second-after-warm-tail>");
+        second.setScore(58.0);
+        second.setCreateTime(new Date(4_000L));
+        DiscussPost third = post(uuid(97), "<database-only-row>");
+        third.setScore(57.0);
+        third.setCreateTime(new Date(3_000L));
+        List<PostFeedCache.HotProjectionEntry> cachedTail = List.of(projectionOf(first), projectionOf(second));
+
+        when(postFeedCache.readGlobalHotProjection(cursor, 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(cachedTail, 9L, false));
+        when(postContentRepository.listHotPostsAfter(
+                boundary.type(), boundary.score(), boundary.createTime(), boundary.postId(), 3, null
+        )).thenReturn(List.of(first, second, third));
+        mockSummaryDependencies(
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postContentBlockTextProjector,
+                List.of(first, second, third)
+        );
+        FeedReadApplicationService service = service(
+                postFeedCache,
+                postContentRepository,
+                commentContentRepository,
+                tagContentRepository,
+                postContentBlockRepository,
+                postSummaryCache,
+                postContentBlockTextProjector,
+                postSummaryAssembler,
+                feedCursorCodec
+        );
+
+        FeedPageResult result = service.listGlobalHotFeed(null, cursor, 2);
+
+        assertThat(result.items()).extracting(PostSummaryResult::id)
+                .containsExactly(first.getId(), second.getId());
+        assertThat(result.nextCursor()).isNotBlank();
+        verify(postContentRepository).listHotPostsAfter(
+                boundary.type(), boundary.score(), boundary.createTime(), boundary.postId(), 3, null);
     }
 
     @Test
@@ -355,8 +635,12 @@ class FeedReadApplicationServiceTest {
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
         List<DiscussPost> allPosts = List.of(post(uuid(1), "<first>"), post(uuid(2), "<second>"));
 
-        when(postFeedCache.readGlobalHotIds("%%%not-a-cursor%%%", 2))
-                .thenReturn(List.of(uuid(1), uuid(2)));
+        when(postFeedCache.readGlobalHotProjection("%%%not-a-cursor%%%", 2))
+                .thenReturn(new PostFeedCache.HotProjectionPage(
+                        allPosts.stream().map(FeedReadApplicationServiceTest::projectionOf).toList(),
+                        1L,
+                        true
+                ));
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPostsByIds(List.of(uuid(1), uuid(2))))
                 .thenReturn(allPosts);
@@ -400,7 +684,7 @@ class FeedReadApplicationServiceTest {
         secondPost.setScore(88.0);
         List<DiscussPost> posts = List.of(firstPost, secondPost);
 
-        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(posts);
@@ -422,8 +706,8 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(uuid(31), uuid(32));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertGlobalHot(uuid(31), 91.0, "hot-v2", 7L, 3L);
-        verify(postFeedCache).upsertGlobalHot(uuid(32), 88.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(projectionOf(firstPost), "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(projectionOf(secondPost), "hot-v2", 7L, 3L);
     }
 
     @Test
@@ -446,7 +730,7 @@ class FeedReadApplicationServiceTest {
         DiscussPost third = post(uuid(73), "<third>");
         third.setScore(70.0);
 
-        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(first, second, third));
         when(postContentRepository.listHotPostsAfter(
@@ -479,7 +763,7 @@ class FeedReadApplicationServiceTest {
 
         FeedPageResult firstPage = service.listGlobalHotFeed(null, "", 2);
         FeedCursorCodec.CursorState next = feedCursorCodec.decode(firstPage.nextCursor());
-        when(postFeedCache.readGlobalHotIds(feedCursorCodec.encodePage(1, 2), 2)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection(firstPage.nextCursor(), 2)).thenReturn(cacheMiss());
         FeedPageResult secondPage = service.listGlobalHotFeed(null, firstPage.nextCursor(), 2);
 
         assertThat(firstPage.items()).extracting(PostSummaryResult::id).containsExactly(first.getId(), second.getId());
@@ -516,7 +800,7 @@ class FeedReadApplicationServiceTest {
         ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
         policyProperties.setLatestFallbackEnabled(false);
 
-        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
 
         FeedReadApplicationService service = service(
@@ -566,7 +850,7 @@ class FeedReadApplicationServiceTest {
         firstPost.setScore(123.0);
         List<DiscussPost> posts = List.of(firstPost);
 
-        when(postFeedCache.readGlobalHotIds("", 2)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(posts);
@@ -589,7 +873,7 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.rankVersion()).isEqualTo("hot-v9");
         verify(postFeedCache).writeRankVersion("hot-v9");
-        verify(postFeedCache).upsertGlobalHot(uuid(61), 123.0, "hot-v9", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(projectionOf(firstPost), "hot-v9", 7L, 3L);
     }
 
     @Test
@@ -610,7 +894,7 @@ class FeedReadApplicationServiceTest {
         boardPost.setCategoryId(boardId);
         boardPost.setScore(77.0);
 
-        when(postFeedCache.readBoardHotIds(boardId, "", 2)).thenReturn(List.of());
+        when(postFeedCache.readBoardHotProjection(boardId, "", 2)).thenReturn(cacheMiss());
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, boardId, null))
                 .thenReturn(List.of(boardPost));
         mockSummaryDependencies(
@@ -637,7 +921,7 @@ class FeedReadApplicationServiceTest {
 
         assertThat(result.items()).singleElement().satisfies(item -> assertThat(item.id()).isEqualTo(uuid(42)));
         assertThat(result.nextCursor()).isEmpty();
-        verify(postFeedCache).upsertBoardHot(boardId, uuid(42), 77.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertBoardHot(boardId, projectionOf(boardPost), "hot-v2", 7L, 3L);
     }
 
     @Test
@@ -658,8 +942,11 @@ class FeedReadApplicationServiceTest {
         DiscussPost firstPost = post(firstPostId, "<first>");
         DiscussPost secondPost = post(secondPostId, "<second>");
 
-        when(postFeedCache.readGlobalHotIds("", 2))
-                .thenReturn(List.of(firstPostId, secondPostId));
+        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(new PostFeedCache.HotProjectionPage(
+                List.of(projectionOf(firstPost), projectionOf(secondPost)),
+                1L,
+                true
+        ));
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
         when(postSummaryCache.getAll(List.of(firstPostId, secondPostId)))
                 .thenReturn(Map.of(firstPostId, summary(firstPostId, "<cached>")));
@@ -709,7 +996,7 @@ class FeedReadApplicationServiceTest {
         PostSummaryAssembler postSummaryAssembler = new PostSummaryAssembler(contentTextCodec);
 
         when(postFeedCache.readRankVersion()).thenReturn("hot-v2");
-        when(postFeedCache.readGlobalHotIds("", 20)).thenReturn(List.of());
+        when(postFeedCache.readGlobalHotProjection("", 20)).thenReturn(cacheMiss());
         when(postContentRepository.listPosts(0, 20, 21, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of());
 
@@ -829,6 +1116,15 @@ class FeedReadApplicationServiceTest {
         post.setAggregateVersion(7L);
         post.setScoreVersion(3L);
         return post;
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionOf(DiscussPost post) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), post.getScore(), post.getCreateTime());
+    }
+
+    private static PostFeedCache.HotProjectionPage cacheMiss() {
+        return new PostFeedCache.HotProjectionPage(List.of(), 0L, false);
     }
 
     private static Comment lastActivity(UUID userId, String content) {

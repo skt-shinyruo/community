@@ -11,6 +11,17 @@
         where account_id = #{accountId, jdbcType=BINARY}
     </select>
 
+    <select id="selectByAccountIdsForUpdate" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject">
+        select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
+        from wallet_account
+        where account_id in
+        <foreach collection="accountIds" item="accountId" open="(" separator="," close=")">
+            #{accountId, jdbcType=BINARY}
+        </foreach>
+        order by account_id
+        for update
+    </select>
+
     <select id="selectByOwner" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject">
         select account_id, owner_type, owner_id, account_type, balance, status, version, create_time, update_time
         from wallet_account

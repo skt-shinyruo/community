@@ -213,6 +213,79 @@ describe('WalletView', () => {
     expect(wrapper.text()).toContain('真实支付与外部出款当前未接入')
   })
 
+  it('keeps successful wallet sections visible when transactions are temporarily unavailable', async () => {
+    getWalletTransactions.mockRejectedValueOnce(new Error('ledger unavailable'))
+
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('部分钱包数据加载失败：ledger unavailable')
+    expect(wrapper.text()).toContain('可用余额')
+    expect(wrapper.text()).toContain('转账')
+  })
+
+  it('reuses the write-attempt key for a manual retry and renews it after success', async () => {
+    const observedKeys = []
+    createTransfer
+      .mockImplementationOnce((_command, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.reject(new Error('temporary transfer failure'))
+      })
+      .mockImplementation((_command, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.resolve({ data: { status: 'SUCCEEDED' }, traceId: '' })
+      })
+    const wrapper = mountWalletView()
+    await flushPromises()
+    const inputs = wrapper.findAll('input')
+    const submit = () => wrapper.findAll('button').find((button) => button.text() === '发起转账')
+
+    await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
+    await inputs[3].setValue('25')
+    await submit().trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('temporary transfer failure')
+
+    await submit().trigger('click')
+    await flushPromises()
+    expect(observedKeys[1]).toBe(observedKeys[0])
+
+    const nextInputs = wrapper.findAll('input')
+    await nextInputs[2].setValue('22222222-2222-7222-8222-222222222222')
+    await nextInputs[3].setValue('10')
+    await submit().trigger('click')
+    await flushPromises()
+    expect(observedKeys[2]).not.toBe(observedKeys[1])
+  })
+
+  it('does not let a completed transfer clear a newer form intent', async () => {
+    const pendingTransfer = deferred()
+    createTransfer.mockReturnValueOnce(pendingTransfer.promise)
+    const wrapper = mountWalletView()
+    await flushPromises()
+    const inputs = wrapper.findAll('input')
+    const submit = wrapper.findAll('button').find((button) => button.text() === '发起转账')
+
+    await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
+    await inputs[3].setValue('25')
+    await submit.trigger('click')
+    await vi.waitFor(() => expect(createTransfer).toHaveBeenCalledTimes(1))
+
+    expect(inputs[2].attributes('disabled')).toBeDefined()
+    expect(inputs[3].attributes('disabled')).toBeDefined()
+    inputs[2].element.disabled = false
+    inputs[3].element.disabled = false
+    await inputs[2].setValue('22222222-2222-7222-8222-222222222222')
+    await inputs[3].setValue('30')
+    pendingTransfer.resolve({ data: { status: 'SUCCEEDED' }, traceId: 'trace-old-transfer' })
+    await flushPromises()
+
+    expect(inputs[2].element.value).toBe('22222222-2222-7222-8222-222222222222')
+    expect(inputs[3].element.value).toBe('30')
+    expect(getWalletSummary).toHaveBeenCalledTimes(1)
+    expect(submit.attributes('disabled')).toBeUndefined()
+  })
+
   it('discards a previous identity wallet response after the session changes', async () => {
     const oldSummary = deferred()
     const oldTransactions = deferred()

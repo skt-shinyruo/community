@@ -16,6 +16,7 @@ import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import java.util.List;
 import java.util.UUID;
 import java.util.stream.Stream;
 
@@ -68,7 +69,7 @@ class WalletAccountApplicationServiceOutcomeTest {
     @Test
     void setStatusShouldTranslateFreezeIntoADomainChange() {
         WalletAccount account = account(500L, "ACTIVE", 7L);
-        when(repository.findByAccountId(ACCOUNT_ID)).thenReturn(account);
+        when(repository.findAllByAccountIdsForUpdate(List.of(ACCOUNT_ID))).thenReturn(List.of(account));
         when(repository.apply(any(WalletAccountChange.class))).thenReturn(ApplyResult.APPLIED);
 
         service().setStatus(ACCOUNT_ID, "FROZEN");
@@ -85,7 +86,7 @@ class WalletAccountApplicationServiceOutcomeTest {
     @Test
     void setStatusShouldTranslateUnfreezeIntoADomainChange() {
         WalletAccount account = account(500L, "FROZEN", 8L);
-        when(repository.findByAccountId(ACCOUNT_ID)).thenReturn(account);
+        when(repository.findAllByAccountIdsForUpdate(List.of(ACCOUNT_ID))).thenReturn(List.of(account));
         when(repository.apply(any(WalletAccountChange.class))).thenReturn(ApplyResult.APPLIED);
 
         service().setStatus(ACCOUNT_ID, "ACTIVE");

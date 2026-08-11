@@ -5,7 +5,7 @@ import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PostBlockEditor from './PostBlockEditor.vue'
 import UiFileInput from '../ui/UiFileInput.vue'
-import { preparePostMediaUpload } from '../../api/services/postMediaService'
+import { preparePostMediaUpload, uploadPostMediaFile } from '../../api/services/postMediaService'
 
 vi.mock('../../api/services/postMediaService', () => ({
   inferMediaKind: vi.fn(() => 'IMAGE'),
@@ -31,6 +31,7 @@ describe('PostBlockEditor', () => {
         constraints: { maxBytes: 10, mimeTypes: ['image/png'] }
       }
     })
+    uploadPostMediaFile.mockResolvedValue({ traceId: 'trace-upload' })
   })
 
   it('emits paragraph blocks and can add code blocks', async () => {
@@ -62,6 +63,35 @@ describe('PostBlockEditor', () => {
       uploadState: 'completed',
       assetId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     })
+    expect(preparePostMediaUpload).toHaveBeenCalledWith(expect.objectContaining({
+      signal: expect.any(Object)
+    }))
+  })
+
+  it('preserves and renders upload progress while the media request is pending', async () => {
+    let resolveUpload
+    uploadPostMediaFile.mockImplementation(({ onProgress }) => {
+      onProgress({ loaded: 42, total: 100, percent: 42 })
+      return new Promise((resolve) => {
+        resolveUpload = resolve
+      })
+    })
+    const wrapper = mount(PostBlockEditor, {
+      props: { modelValue: [{ type: 'image', assetId: '', caption: '', uploadState: 'idle' }] }
+    })
+    const file = new File(['image'], 'demo.png', { type: 'image/png' })
+
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('上传中 42%')
+    expect(wrapper.emitted('update:modelValue').at(-1)[0][0]).toMatchObject({
+      uploadState: 'uploading',
+      uploadProgress: 42
+    })
+
+    resolveUpload({ traceId: 'trace-upload' })
+    await flushPromises()
   })
 
   it('keeps media blocks failed when upload session has no asset id', async () => {

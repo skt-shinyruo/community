@@ -2,41 +2,13 @@ import axios from 'axios'
 import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { useAuthStore } from '../stores/auth'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
-import { showToast } from '../ui/toastService'
+import { showErrorToast } from '../ui/toastService'
 
 const http = axios.create({
   baseURL: resolveApiBaseUrl(),
   withCredentials: true,
   timeout: 15000
 })
-
-const IDEMPOTENCY_HEADER = 'Idempotency-Key'
-
-function shouldAttachIdempotencyKey(config) {
-  const method = String(config?.method || '').toLowerCase()
-  const url = String(config?.url || '')
-  if (method !== 'post') return false
-
-  if (url === '/api/posts') return true
-  if (/^\/api\/posts\/[^/]+\/comments$/.test(url)) return true
-  if (url === '/api/wallet/recharges') return true
-  if (url === '/api/wallet/withdrawals') return true
-  if (url === '/api/wallet/transfers') return true
-  if (url === '/api/market/orders') return true
-
-  return false
-}
-
-function generateIdempotencyKey() {
-  try {
-    const cryptoObj = globalThis?.crypto
-    if (cryptoObj?.randomUUID) return cryptoObj.randomUUID()
-  } catch { }
-
-  const rand = Math.random().toString(36).slice(2)
-  const now = Date.now().toString(36)
-  return `idem_${now}_${rand}`
-}
 
 function isAuthEndpointUrl(url) {
   let path = String(url || '')
@@ -57,17 +29,11 @@ function setAuthorization(config, accessToken) {
 
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
+  config._authTokenGeneration = auth.tokenGeneration
   if (auth.accessToken) {
     setAuthorization(config, auth.accessToken)
-    config._authTokenGeneration = auth.tokenGeneration
   }
 
-  if (shouldAttachIdempotencyKey(config)) {
-    config.headers = config.headers || {}
-    if (!config.headers.has(IDEMPOTENCY_HEADER)) {
-      config.headers.set(IDEMPOTENCY_HEADER, generateIdempotencyKey())
-    }
-  }
   return config
 })
 
@@ -88,7 +54,7 @@ http.interceptors.response.use(
     if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK')) {
       const text = resultMessage || error.message || '服务异常，请稍后重试。'
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-      showToast({
+      showErrorToast(error, {
         type: 'error',
         title: '系统错误',
         text: `${text}${traceSuffix}`
@@ -122,7 +88,7 @@ http.interceptors.response.use(
       const title = status === 401 ? '未登录或登录失效' : '请求失败'
       const text = resultMessage || error.message || '请求失败'
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-      showToast({
+      showErrorToast(error, {
         type: 'error',
         title,
         text: `${text}${traceSuffix}`

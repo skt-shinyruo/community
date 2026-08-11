@@ -3,7 +3,15 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { followUser, getFollowStatuses, getLikeCounts, getLikeStatuses, setLike } from './socialService'
+import {
+  followUser,
+  getFollowStatuses,
+  getLikeCounts,
+  getLikeStatuses,
+  listFollowers,
+  listFollowees,
+  setLike
+} from './socialService'
 import { useAuthStore } from '../../stores/auth'
 
 describe('api/services/socialService', () => {
@@ -36,6 +44,41 @@ describe('api/services/socialService', () => {
       liked: true
     })
     await followUser(3, entityId)
+  })
+
+  it('follow relation lists use cursor endpoints and normalize their page contract', async () => {
+    const userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const relation = { targetId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/follows/${userId}/followees/page`).reply((config) => {
+      expect(config.params).toEqual({ cursor: 'followee-cursor', size: 20, entityType: 3 })
+      expect(config.params).not.toHaveProperty('page')
+      return [200, {
+        code: 0,
+        message: '',
+        data: { items: [relation], nextCursor: 'next-followee', hasNext: true },
+        traceId: 'trace-followees'
+      }]
+    })
+    mock.onGet(`/api/follows/${userId}/followers/page`).reply((config) => {
+      expect(config.params).toEqual({ cursor: 'follower-cursor', size: 10, entityType: 3 })
+      expect(config.params).not.toHaveProperty('page')
+      return [200, {
+        code: 0,
+        message: '',
+        data: { items: [relation], nextCursor: '', hasNext: true },
+        traceId: 'trace-followers'
+      }]
+    })
+
+    await expect(listFollowees(userId, { cursor: 'followee-cursor', size: 20 })).resolves.toEqual({
+      data: { items: [relation], nextCursor: 'next-followee', hasNext: true },
+      traceId: 'trace-followees'
+    })
+    await expect(listFollowers(userId, { cursor: 'follower-cursor' })).resolves.toEqual({
+      data: { items: [relation], nextCursor: '', hasNext: false },
+      traceId: 'trace-followers'
+    })
   })
 
   it('getLikeCounts should preserve UUID entity ids in batch query params', async () => {

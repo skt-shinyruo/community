@@ -41,6 +41,7 @@ class RuntimeObservabilityAutoConfigurationTest {
                     RuntimeObservabilityAutoConfiguration.class,
                     RuntimeMyBatisObservabilityAutoConfiguration.class,
                     RuntimeKafkaObservabilityAutoConfiguration.class,
+                    RuntimeRestClientObservabilityAutoConfiguration.class,
                     RuntimeWebClientObservabilityAutoConfiguration.class,
                     RuntimeServletObservabilityAutoConfiguration.class
             ));
@@ -168,6 +169,8 @@ class RuntimeObservabilityAutoConfigurationTest {
                         "jakarta.servlet",
                         "org.apache.ibatis",
                         "org.springframework.kafka",
+                        "org.springframework.boot.restclient",
+                        "org.springframework.boot.webclient",
                         "org.springframework.web.reactive"
                 ))
                 .run(context -> {
@@ -177,6 +180,7 @@ class RuntimeObservabilityAutoConfigurationTest {
                     assertThat(context).doesNotHaveBean("runtimeKafkaProducerListener");
                     assertThat(context).doesNotHaveBean("runtimeKafkaRebalanceListener");
                     assertThat(context).doesNotHaveBean("runtimeKafkaRecordInterceptor");
+                    assertThat(context).doesNotHaveBean("runtimeRestClientCustomizer");
                     assertThat(context).doesNotHaveBean("runtimeWebClientCustomizer");
                     assertThat(context).doesNotHaveBean("servletAccessRuntimeLogFilter");
                     assertThat(context).doesNotHaveBean("runtimeServletAccessLogFilterRegistration");

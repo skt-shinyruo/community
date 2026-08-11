@@ -198,6 +198,7 @@ import UiState from '../components/ui/UiState.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiToolbar from '../components/ui/UiToolbar.vue'
+import { useTagSuggestions } from '../composables/useTagSuggestions'
 
 const emit = defineEmits(['trace'])
 const route = useRoute()
@@ -209,7 +210,14 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const keyword = ref('')
 	const categoryId = ref('')
 	const tagDraft = ref('')
-		const tagSuggestNames = ref([])
+	const taxonomy = useTaxonomyStore()
+	const { suggestions: suggestedTags } = useTagSuggestions({
+	  query: tagDraft,
+	  hotTags: computed(() => taxonomy.hotTags),
+	  suggest: apiSuggestTags,
+	  limit: 10
+	})
+	const tagSuggestNames = computed(() => suggestedTags.value.map((tag) => tag?.name).filter(Boolean))
 	const page = ref(0)
 	const size = ref(10)
 	const loading = ref(false)
@@ -218,7 +226,6 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	const hasNext = ref(false)
 	const searchRequestTracker = createLatestRequestTracker()
 
-	const taxonomy = useTaxonomyStore()
 	const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
 	const categoryOptions = computed(() => [
 	  { label: '全部分类', value: '' },
@@ -372,7 +379,6 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  loading.value = false
 	  categoryId.value = ''
 	  tagDraft.value = ''
-	  tagSuggestNames.value = []
 	  router.replace({ name: 'search', query: {} })
 	}
 
@@ -431,31 +437,6 @@ function searchActivity(item) {
 	    run(0)
 	  }
 	}
-
-	let suggestTimer = 0
-	let suggestToken = 0
-
-	watch(tagDraft, (v) => {
-	  if (suggestTimer) window.clearTimeout(suggestTimer)
-	  const q = String(v || '').trim()
-	  if (!q) {
-	    tagSuggestNames.value = (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : [])
-	      .map((x) => x?.name)
-	      .filter(Boolean)
-	      .slice(0, 10)
-	    return
-	  }
-	  const token = ++suggestToken
-	  suggestTimer = window.setTimeout(async () => {
-	    try {
-	      const resp = await apiSuggestTags({ q, limit: 10 })
-	      if (token !== suggestToken) return
-	      tagSuggestNames.value = (Array.isArray(resp?.data) ? resp.data : []).map((x) => x?.name).filter(Boolean)
-	    } catch {
-	      // ignore
-	    }
-	  }, 180)
-	})
 
 	onMounted(() => {
 	  taxonomy.ensureCategories()

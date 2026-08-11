@@ -324,7 +324,29 @@ describe('PostsView', () => {
     expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
       title: 'hello',
       blocks: [expect.objectContaining({ type: 'paragraph', text: 'body' })]
-    }))
+    }), expect.objectContaining({ writeAttempt: expect.any(Object) }))
+  })
+
+  it('does not let an old publish response clear a newer composer intent', async () => {
+    const pendingCreate = deferred()
+    createPost.mockReturnValueOnce(pendingCreate.promise)
+    const wrapper = mountView()
+    await openComposer(wrapper)
+    const titleInput = wrapper.get('input[name="post-title"]')
+    await titleInput.setValue('first title')
+    await wrapper.get('[data-test="block-text-0"]').setValue('body')
+    await wrapper.get('.posts-composer-submit').trigger('click')
+    await vi.waitFor(() => expect(createPost).toHaveBeenCalledTimes(1))
+
+    expect(titleInput.attributes('disabled')).toBeDefined()
+    titleInput.element.disabled = false
+    await titleInput.setValue('new draft title')
+    pendingCreate.resolve({ data: { postId: 'old-post-id' }, traceId: 'trace-old-create' })
+    await flushPromises()
+
+    expect(wrapper.get('input[name="post-title"]').element.value).toBe('new draft title')
+    expect(wrapper.find('.posts-composer').exists()).toBe(true)
+    expect(routerState.push).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -376,7 +398,7 @@ describe('PostsView', () => {
     expect(createPost).toHaveBeenCalledWith(expect.objectContaining({
       title: 'clean',
       blocks: [expect.objectContaining({ type: 'paragraph', text: 'body' })]
-    }))
+    }), expect.objectContaining({ writeAttempt: expect.any(Object) }))
   })
 
   it('strips client-only block fields from create payload', async () => {
@@ -411,6 +433,6 @@ describe('PostsView', () => {
           caption: 'caption'
         }
       ]
-    }))
+    }), expect.objectContaining({ writeAttempt: expect.any(Object) }))
   })
 })

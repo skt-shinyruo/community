@@ -1,5 +1,6 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { writeAttemptConfig } from '../writeAttempt'
 
 export async function getWalletSummary() {
   const resp = await http.get('/api/wallet/summary')
@@ -19,20 +20,20 @@ export async function getWalletTransactions(limit = 12) {
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
-export async function createRecharge(payload) {
-  const resp = await http.post('/api/wallet/recharges', payload)
+export async function createRecharge(payload, { writeAttempt } = {}) {
+  const resp = await http.post('/api/wallet/recharges', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '领取测试积分')
   return { data: data || {}, traceId }
 }
 
-export async function createWithdrawal(payload) {
-  const resp = await http.post('/api/wallet/withdrawals', payload)
+export async function createWithdrawal(payload, { writeAttempt } = {}) {
+  const resp = await http.post('/api/wallet/withdrawals', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '销毁测试积分')
   return { data: data || {}, traceId }
 }
 
-export async function createTransfer(payload) {
-  const resp = await http.post('/api/wallet/transfers', payload)
+export async function createTransfer(payload, { writeAttempt } = {}) {
+  const resp = await http.post('/api/wallet/transfers', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '发起转账')
   return { data: data || {}, traceId }
 }

@@ -58,7 +58,7 @@
                   ×
                 </UiIconButton>
               </div>
-              <UiInput v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="posts-composer-input" />
+              <UiInput v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="posts-composer-input" :disabled="creating" />
               <PostBlockEditor
                 v-model="newBlocks"
                 class="posts-composer-block-editor"
@@ -101,6 +101,7 @@
                       variant="ghost"
                       class="tag-btn"
                       :title="`移除标签 ${t}`"
+                      :disabled="creating"
                       @click="removeNewTag(t)"
                     >
                       <span class="tag">#{{ t }}</span>

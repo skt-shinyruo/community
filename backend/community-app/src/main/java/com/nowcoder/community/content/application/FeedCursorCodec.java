@@ -15,6 +15,8 @@ import java.util.UUID;
 public class FeedCursorCodec {
 
     private static final int HOT_CURSOR_VERSION = 2;
+    static final int MAX_CURSOR_PAGE = 200;
+    static final int MAX_CURSOR_SIZE = 50;
 
     private final JsonCodec jsonCodec;
 
@@ -30,6 +32,10 @@ public class FeedCursorCodec {
     }
 
     public String encodeHotPage(int page, int size, HotBoundary boundary) {
+        return encodeHotPage(page, size, boundary, 0L);
+    }
+
+    public String encodeHotPage(int page, int size, HotBoundary boundary, long projectionEpoch) {
         if (boundary == null
                 || !Double.isFinite(boundary.score())
                 || boundary.createTime() == null
@@ -43,7 +49,8 @@ public class FeedCursorCodec {
                 "type", boundary.type(),
                 "score", boundary.score(),
                 "createTimeMillis", boundary.createTime().getTime(),
-                "postId", boundary.postId().toString()
+                "postId", boundary.postId().toString(),
+                "projectionEpoch", Math.max(0L, projectionEpoch)
         ));
     }
 
@@ -57,13 +64,19 @@ public class FeedCursorCodec {
             if (node == null || !node.isObject()) {
                 return CursorState.initial();
             }
-            int page = nonNegativeInt(node.get("page"));
-            int size = nonNegativeInt(node.get("size"));
+            int page = boundedNonNegativeInt(node.get("page"), MAX_CURSOR_PAGE);
+            int size = boundedNonNegativeInt(node.get("size"), MAX_CURSOR_SIZE);
+            if (page < 0 || size < 0) {
+                return CursorState.initial();
+            }
             if (node.path("version").asInt(0) != HOT_CURSOR_VERSION) {
-                return new CursorState(page, size, null);
+                return new CursorState(page, size, null, 0L);
             }
             HotBoundary boundary = decodeHotBoundary(node);
-            return boundary == null ? CursorState.initial() : new CursorState(page, size, boundary);
+            long projectionEpoch = boundedPositiveLong(node.get("projectionEpoch"));
+            return boundary == null
+                    ? CursorState.initial()
+                    : new CursorState(page, size, boundary, projectionEpoch);
         } catch (IllegalArgumentException | JsonCodecException ex) {
             return CursorState.initial();
         }
@@ -98,20 +111,34 @@ public class FeedCursorCodec {
         );
     }
 
-    private static int nonNegativeInt(JsonNode node) {
-        return node != null && node.isIntegralNumber() && node.canConvertToInt()
-                ? Math.max(0, node.asInt())
-                : 0;
+    private static int boundedNonNegativeInt(JsonNode node, int maximum) {
+        if (node == null || !node.isIntegralNumber() || !node.canConvertToInt()) {
+            return 0;
+        }
+        int value = node.asInt();
+        return value >= 0 && value <= maximum ? value : -1;
     }
 
-    public record CursorState(int page, int size, HotBoundary hotBoundary) {
+    private static long boundedPositiveLong(JsonNode node) {
+        if (node == null || !node.isIntegralNumber() || !node.canConvertToLong()) {
+            return 0L;
+        }
+        return Math.max(0L, node.asLong());
+    }
+
+    public record CursorState(int page, int size, HotBoundary hotBoundary, long projectionEpoch) {
         public CursorState {
             page = Math.max(0, page);
             size = Math.max(0, size);
+            projectionEpoch = Math.max(0L, projectionEpoch);
+        }
+
+        public CursorState(int page, int size, HotBoundary hotBoundary) {
+            this(page, size, hotBoundary, 0L);
         }
 
         public static CursorState initial() {
-            return new CursorState(0, 0, null);
+            return new CursorState(0, 0, null, 0L);
         }
 
         public boolean hasHotBoundary() {

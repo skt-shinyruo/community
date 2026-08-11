@@ -19,7 +19,6 @@ import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
-import org.springframework.data.elasticsearch.core.query.ScriptType;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -203,7 +202,6 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         Document source = toSource(doc);
         return UpdateQuery.builder(doc.getPostId())
                 .withScript(MONOTONIC_PROJECTION_SCRIPT)
-                .withScriptType(ScriptType.INLINE)
                 .withLang("painless")
                 .withParams(Map.of(
                         "aggregateVersion", post.aggregateVersion(),

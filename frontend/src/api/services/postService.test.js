@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
+import { createWriteAttempt } from '../writeAttempt'
 import { addComment, createPost, listBoardFeed, listComments, listGlobalFeed, updatePost } from './postService'
 
 describe('api/services/postService', () => {
@@ -62,7 +63,7 @@ describe('api/services/postService', () => {
       content: '回复内容',
       parentCommentId,
       replyToUserId
-    })
+    }, { writeAttempt: createWriteAttempt() })
 
     expect(resp.traceId).toBe('trace-add-comment')
     expect(resp.data).toEqual({ id: 'reply-1' })
@@ -140,7 +141,7 @@ describe('api/services/postService', () => {
       return [200, { code: 0, message: '', data: null, traceId: 'trace-update-post' }]
     })
 
-    await createPost({ title: 'hello', blocks, categoryId })
+    await createPost({ title: 'hello', blocks, categoryId }, { writeAttempt: createWriteAttempt() })
     await updatePost(postId, { title: 'hello', blocks, categoryId })
 
     expect(seen).toEqual([

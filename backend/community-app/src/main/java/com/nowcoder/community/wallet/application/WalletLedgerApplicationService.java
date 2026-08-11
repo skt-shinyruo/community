@@ -23,6 +23,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.Clock;
 import java.util.Date;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -142,6 +143,9 @@ public class WalletLedgerApplicationService {
         String normalizedBizId = validateText(command.bizId(), "bizId");
         List<WalletPosting> postings = command.postings();
         domainService.validateBalancedPostings(postings);
+        domainService.balancedAmountOf(postings);
+        postings = domainService.canonicalizePostings(postings);
+        domainService.validateBalancedPostings(postings);
 
         WalletTxn existing = walletLedgerRepository.findTxnByRequestId(requestId);
         if (existing != null) {
@@ -173,8 +177,13 @@ public class WalletLedgerApplicationService {
             return new WalletTxnResult(txn.getTxnId(), txn.getStatus());
         }
 
+        List<UUID> accountIds = postings.stream().map(WalletPosting::accountId).toList();
+        Map<UUID, WalletPosting> postingByAccount = new LinkedHashMap<>();
         for (WalletPosting posting : postings) {
-            WalletAccount account = walletAccountService.lock(posting.accountId());
+            postingByAccount.put(posting.accountId(), posting);
+        }
+        for (WalletAccount account : walletAccountService.lockAll(accountIds)) {
+            WalletPosting posting = postingByAccount.get(account.getAccountId());
             long nextBalance = walletAccountService.apply(
                     account,
                     walletAccountService.deltaOf(account, posting),

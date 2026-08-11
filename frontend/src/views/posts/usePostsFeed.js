@@ -23,6 +23,9 @@ import {
   normalizePostsBoardId
 } from '../../router/navigation'
 import { buildComposerCategoryOptions } from './usePostComposer'
+import { createWriteAttempt } from '../../api/writeAttempt'
+import { useTagSuggestions } from '../../composables/useTagSuggestions'
+import { showErrorToast } from '../../ui/toastService'
 
 
 export function usePostsFeed(emit) {
@@ -96,12 +99,18 @@ export function usePostsFeed(emit) {
   const newTags = ref([])
   const newTagError = ref('')
 
-  const composerTagSuggest = ref([])
+  const { suggestions: composerTagSuggest } = useTagSuggestions({
+    query: newTagDraft,
+    hotTags: computed(() => taxonomy.hotTags),
+    suggest: apiSuggestTags,
+    limit: 8
+  })
   const composerTagSuggestNames = computed(() =>
     (Array.isArray(composerTagSuggest.value) ? composerTagSuggest.value : []).map((tag) => String(tag?.name || '').trim()).filter(Boolean)
   )
   const creating = ref(false)
   const createError = ref('')
+  const createAttempt = createWriteAttempt()
 
   const seenBaselineAt = ref(0)
   let touchedLatestIdentity = ''
@@ -146,6 +155,7 @@ export function usePostsFeed(emit) {
   }
 
   function closeComposer() {
+    createAttempt.cancel()
     resetComposerDraft()
     isPublishFocused.value = false
   }
@@ -216,27 +226,19 @@ export function usePostsFeed(emit) {
       })
   }
 
-  let suggestTimer = 0
-  let suggestToken = 0
-
-  watch(newTagDraft, (v) => {
-    if (suggestTimer) window.clearTimeout(suggestTimer)
-    const q = String(v || '').trim()
-    if (!q) {
-      composerTagSuggest.value = (Array.isArray(taxonomy.hotTags) ? taxonomy.hotTags : []).slice(0, 8)
-      return
+  function createCommand() {
+    const categoryId = normalizeOpaqueId(newCategoryId.value)
+    return {
+      title: newTitle.value,
+      blocks: publishableBlocks(),
+      categoryId: categoryId || undefined,
+      tags: [...newTags.value]
     }
-    const token = ++suggestToken
-    suggestTimer = window.setTimeout(async () => {
-      try {
-        const resp = await apiSuggestTags({ q, limit: 8 })
-        if (token !== suggestToken) return
-        composerTagSuggest.value = Array.isArray(resp?.data) ? resp.data : []
-      } catch {
-        // ignore：suggest 失败时不阻塞发帖
-      }
-    }, 180)
-  })
+  }
+
+  function createIntent(command = createCommand()) {
+    return JSON.stringify(command)
+  }
 
   watch(isPublishFocused, (v) => {
     if (!v) return
@@ -426,7 +428,7 @@ export function usePostsFeed(emit) {
     } catch (e) {
       if (token !== lastLoadToken) return
       if (!append) error.value = e?.message || '加载失败'
-      else showToast({ type: 'error', text: '加载更多失败' })
+      else showErrorToast(e, { type: 'error', text: '加载更多失败' }, showToast)
       return false
     } finally {
       if (token === lastLoadToken) {
@@ -464,7 +466,7 @@ export function usePostsFeed(emit) {
        }
     } catch (e) {
       if (auth.tokenGeneration !== authGeneration) return
-      showToast({ type: 'error', text: e?.message || '点赞失败' })
+      showErrorToast(e, { type: 'error', text: e?.message || '点赞失败' }, showToast)
     }
   }
 
@@ -480,25 +482,21 @@ export function usePostsFeed(emit) {
       createError.value = mediaError
       return
     }
-    const blocks = publishableBlocks()
-    if (!newTitle.value || blocks.length === 0) {
+    const command = createCommand()
+    if (!command.title || command.blocks.length === 0) {
       createError.value = '请填写完整内容'
       return
     }
     creating.value = true
     const authGeneration = auth.tokenGeneration
+    const requestedIntent = createIntent(command)
     try {
-      const cid = normalizeOpaqueId(newCategoryId.value)
-      const resp = await apiCreatePost({
-        title: newTitle.value,
-        blocks,
-        categoryId: cid || undefined,
-        tags: newTags.value
-      })
-      if (auth.tokenGeneration !== authGeneration) return
+      const resp = await apiCreatePost(command, { writeAttempt: createAttempt })
+      if (auth.tokenGeneration !== authGeneration || requestedIntent !== createIntent()) return
       emit('trace', resp?.traceId || '')
 
       const createdPostId = normalizeOpaqueId(resp?.data?.postId)
+      createAttempt.succeed()
       const hasPostId = !!createdPostId
       showToast({
         type: 'success',
@@ -513,7 +511,7 @@ export function usePostsFeed(emit) {
       isPublishFocused.value = false 
       await reload()
     } catch (e) {
-      if (auth.tokenGeneration !== authGeneration) return
+      if (auth.tokenGeneration !== authGeneration || requestedIntent !== createIntent()) return
       createError.value = e?.message || '发布失败'
     } finally {
       if (auth.tokenGeneration === authGeneration) {
@@ -533,8 +531,6 @@ export function usePostsFeed(emit) {
       for (const p of Array.isArray(items.value) ? items.value : []) {
         if (p) p.liked = false
       }
-      suggestToken += 1
-      if (suggestTimer) window.clearTimeout(suggestTimer)
       composerTagSuggest.value = []
       closeComposer()
       if (!authed.value) socialPrefs.clear()
@@ -545,6 +541,12 @@ export function usePostsFeed(emit) {
       }
       reload()
     }
+  )
+
+  watch(
+    [newTitle, newBlocks, newCategoryId, newTagDraft, newTags],
+    () => createAttempt.changeIntent(),
+    { deep: true }
   )
 
   watch(boardId, () => {

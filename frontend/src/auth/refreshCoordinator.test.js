@@ -39,8 +39,9 @@ describe('refreshCoordinator', () => {
     refresh.resolve({ data: { accessToken: 'new-token' }, traceId: 'trace-refresh' })
     await vi.waitFor(() => expect(transport.requestCurrentUser).toHaveBeenCalledTimes(1))
     expect(transport.requestCurrentUser).toHaveBeenCalledWith('new-token')
-    expect(auth.accessToken).toBe('old-token')
-    expect(auth.me).toEqual({ userId: 7, username: 'alice' })
+    expect(auth.accessToken).toBe('new-token')
+    expect(auth.me).toBeNull()
+    expect(auth.identityState).toBe('unresolved')
 
     profile.resolve({
       data: { userId: 8, username: 'bob' },
@@ -146,7 +147,7 @@ describe('refreshCoordinator', () => {
     expect(transport.requestCurrentUser).not.toHaveBeenCalled()
   })
 
-  it('clears once and shares one terminal failure across all joiners', async () => {
+  it('keeps the session and shares one retryable refresh failure across all joiners', async () => {
     const auth = useAuthStore()
     auth.setAccessToken('old-token')
     const generation = auth.tokenGeneration
@@ -163,12 +164,12 @@ describe('refreshCoordinator', () => {
     expect(settled.every((result) => result.status === 'rejected')).toBe(true)
     expect(settled[0].reason).toBe(settled[1].reason)
     expect(settled[1].reason).toBe(settled[2].reason)
-    expect(settled[0].reason).toMatchObject({ sessionRefreshState: 'terminal' })
-    expect(clear).toHaveBeenCalledTimes(1)
-    expect(auth.accessToken).toBe('')
+    expect(settled[0].reason).toMatchObject({ sessionRefreshState: 'retryable' })
+    expect(clear).not.toHaveBeenCalled()
+    expect(auth.accessToken).toBe('old-token')
   })
 
-  it('installs a valid token and preserves the old profile after a temporary profile failure', async () => {
+  it('installs a valid token with unresolved identity after a temporary profile failure', async () => {
     const auth = useAuthStore()
     const oldProfile = { userId: 7, username: 'alice' }
     auth.installSession({ accessToken: 'old-token', me: oldProfile })
@@ -179,13 +180,12 @@ describe('refreshCoordinator', () => {
     })
     transport.requestCurrentUser.mockRejectedValueOnce(new Error('profile unavailable'))
 
-    await expect(refreshSession({ auth, expectedGeneration: generation })).resolves.toEqual({
-      accessToken: 'new-token',
-      profileLoaded: false,
-      traceId: 'trace-refresh'
+    await expect(refreshSession({ auth, expectedGeneration: generation })).rejects.toMatchObject({
+      sessionRefreshState: 'retryable'
     })
     expect(auth.accessToken).toBe('new-token')
-    expect(auth.me).toEqual(oldProfile)
+    expect(auth.me).toBeNull()
+    expect(auth.identityState).toBe('unresolved')
   })
 
   it('treats a profile 401 as a terminal authentication failure', async () => {

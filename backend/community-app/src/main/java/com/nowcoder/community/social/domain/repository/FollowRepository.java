@@ -6,6 +6,7 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import java.time.Instant;
 
 public interface FollowRepository {
 
@@ -88,6 +89,24 @@ public interface FollowRepository {
                 .limit(Math.max(0, limit))
                 .toList();
     }
+
+    List<FollowRelation> listFolloweesAfterExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            Instant beforeTime,
+            UUID beforeTargetId,
+            int limit
+    );
+
+    List<FollowRelation> listFollowersAfterExcludingBlocked(
+            int entityType,
+            UUID entityId,
+            BlockRepository blockRepository,
+            Instant beforeTime,
+            UUID beforeTargetId,
+            int limit
+    );
 
     private boolean isEitherBlocked(UUID userIdA, UUID userIdB, BlockRepository blockRepository) {
         if (userIdA == null || userIdB == null || userIdA.equals(userIdB) || blockRepository == null) {

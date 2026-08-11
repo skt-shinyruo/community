@@ -17,8 +17,8 @@ import org.springframework.kafka.support.ProducerListener;
 @AutoConfiguration(
         after = RuntimeObservabilityAutoConfiguration.class,
         beforeName = {
-                "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
-                "org.springframework.boot.autoconfigure.kafka.KafkaAnnotationDrivenConfiguration"
+                "org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration",
+                "org.springframework.boot.kafka.autoconfigure.KafkaAnnotationDrivenConfiguration"
         }
 )
 @ConditionalOnClass(name = "org.springframework.kafka.core.KafkaTemplate")

@@ -7,7 +7,6 @@ import com.nowcoder.community.common.observability.data.DataSourceRuntimeLogger;
 import com.nowcoder.community.common.observability.data.SqlRuntimeLogger;
 import com.nowcoder.community.common.observability.executor.ExecutorRuntimeLogger;
 import com.nowcoder.community.common.observability.http.HttpClientRuntimeLogger;
-import com.nowcoder.community.common.observability.http.RuntimeRestClientCustomizer;
 import com.nowcoder.community.common.observability.jvm.GcPauseThresholdLogger;
 import com.nowcoder.community.common.observability.jvm.JvmExtendedRuntimeLogger;
 import com.nowcoder.community.common.observability.jvm.JvmRuntimeLogger;
@@ -24,11 +23,9 @@ import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.client.RestClientCustomizer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.core.env.Environment;
 
@@ -40,8 +37,8 @@ import java.util.concurrent.Executor;
 
 @AutoConfiguration(beforeName = {
         "org.mybatis.spring.boot.autoconfigure.MybatisAutoConfiguration",
-        "org.springframework.boot.autoconfigure.kafka.KafkaAutoConfiguration",
-        "org.springframework.boot.autoconfigure.kafka.KafkaAnnotationDrivenConfiguration"
+        "org.springframework.boot.kafka.autoconfigure.KafkaAutoConfiguration",
+        "org.springframework.boot.kafka.autoconfigure.KafkaAnnotationDrivenConfiguration"
 })
 @EnableConfigurationProperties(RuntimeLoggingProperties.class)
 public class RuntimeObservabilityAutoConfiguration {
@@ -174,15 +171,6 @@ public class RuntimeObservabilityAutoConfiguration {
     @ConditionalOnProperty(prefix = PREFIX + ".http-client", name = "enabled", havingValue = "true", matchIfMissing = true)
     public HttpClientRuntimeLogger httpClientRuntimeLogger(RuntimeLogWriter logWriter, RuntimeLoggingProperties properties) {
         return new HttpClientRuntimeLogger(logWriter, properties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean(RuntimeRestClientCustomizer.class)
-    @ConditionalOnClass(name = "org.springframework.web.client.RestClient")
-    @ConditionalOnBean(HttpClientRuntimeLogger.class)
-    @ConditionalOnProperty(prefix = PREFIX + ".http-client", name = "enabled", havingValue = "true", matchIfMissing = true)
-    public RestClientCustomizer runtimeRestClientCustomizer(HttpClientRuntimeLogger logger) {
-        return new RuntimeRestClientCustomizer(logger);
     }
 
     @Bean

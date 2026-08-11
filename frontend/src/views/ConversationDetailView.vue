@@ -56,6 +56,8 @@
               <span class="message-time">{{ formatTimeShort(m.createTime) }}</span>
             </div>
             <div class="message-bubble">{{ m.content }}</div>
+            <span v-if="m.deliveryState === 'pending'" class="message-delivery">发送中…</span>
+            <span v-else-if="m.deliveryState === 'failed'" class="message-delivery error">发送失败</span>
           </div>
         </div>
       </div>
@@ -79,7 +81,7 @@
 <script setup>
 import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
-import { listImConversationHistory, markImConversationRead } from '../api/services/imCoreChatService'
+import { listImConversationHistory, listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { showToast } from '../ui/toastService'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -91,7 +93,11 @@ import UiDivider from '../components/ui/UiDivider.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
+  advanceConversationSeqWaterline,
   findLatestConversationSeq,
+  commitPendingConversationMessage,
+  createPendingConversationMessage,
+  failPendingConversationMessage,
   mapConversationMessage,
   mergeConversationMessages,
   parseConversationTargetId
@@ -114,7 +120,11 @@ const chatArea = ref(null)
 const realtimeState = ref({ ...imRealtimeClient.state })
 const pendingClientMsgIds = new Set()
 const loadRequestTracker = createLatestRequestTracker()
+const backfillRequestTracker = createLatestRequestTracker()
 let latestLoadBuffer = null
+let initialHistoryBaselineRun = null
+let backfillRun = null
+let backfillWaterline = null
 
 const conversationId = computed(() => String(props.conversationId || '').trim())
 const targetId = computed(() => parseTargetId())
@@ -149,9 +159,22 @@ function isCurrentRequest(token, context) {
   return loadRequestTracker.isCurrent(token) && currentViewScope() === context.scope
 }
 
-async function load() {
-  const token = loadRequestTracker.begin()
+function load() {
   const context = captureViewContext()
+  const running = loadLatestHistory(context)
+  const canEstablishBaseline = auth.authed && context.conversationId && context.meId && context.targetId
+  if (backfillWaterline == null && canEstablishBaseline) {
+    const baselineRun = { scope: context.scope, promise: running }
+    initialHistoryBaselineRun = baselineRun
+    void running.finally(() => {
+      if (initialHistoryBaselineRun === baselineRun) initialHistoryBaselineRun = null
+    })
+  }
+  return running
+}
+
+async function loadLatestHistory(context) {
+  const token = loadRequestTracker.begin()
   if (!auth.authed || !context.conversationId || !context.meId || !context.targetId) {
     loading.value = false
     return
@@ -166,7 +189,20 @@ async function load() {
     if (!isCurrentRequest(token, context)) return
     const rows = Array.isArray(resp?.items) ? resp.items : []
     const historyMessages = rows.map((m) => mapConversationMessage(m))
-    items.value = mergeConversationMessages([], [...historyMessages, ...bufferedMessages])
+    if (backfillWaterline == null) {
+      // A latest-history response establishes the starting point even when older pages are not loaded.
+      backfillWaterline = findLatestConversationSeq(historyMessages)
+    } else {
+      backfillWaterline = advanceConversationSeqWaterline(backfillWaterline, historyMessages)
+    }
+    const localDeliveryMessages = items.value.filter((message) =>
+      message?.deliveryState === 'pending' || message?.deliveryState === 'failed'
+    )
+    items.value = mergeConversationMessages([], [
+      ...historyMessages,
+      ...bufferedMessages,
+      ...localDeliveryMessages
+    ])
     if (latestLoadBuffer?.token === token) latestLoadBuffer = null
     nextBeforeSeq.value = resp?.nextBeforeSeq ?? null
     hasMoreHistory.value = Boolean(resp?.hasMore && nextBeforeSeq.value != null)
@@ -238,8 +274,18 @@ async function send() {
     if (!realtimeState.value.authed) {
       throw new Error('IM 正在认证，请稍后重试')
     }
-    const cmid = imRealtimeClient.sendPrivateText({ toUserId: toId, content: content.value })
-    if (cmid) pendingClientMsgIds.add(String(cmid))
+    const pendingContent = content.value
+    const cmid = imRealtimeClient.sendPrivateText({ toUserId: toId, content: pendingContent })
+    if (cmid) {
+      pendingClientMsgIds.add(String(cmid))
+      items.value = mergeConversationMessages(items.value, [createPendingConversationMessage({
+        clientMsgId: cmid,
+        fromId: meId.value,
+        toId,
+        content: pendingContent
+      })])
+      scrollToBottom()
+    }
     content.value = ''
   } catch (e) {
     error.value = e?.message || '发送失败'
@@ -258,6 +304,10 @@ function scrollToBottom(viewScope = currentViewScope()) {
 
 function resetForViewScope() {
   loadRequestTracker.invalidate()
+  backfillRequestTracker.invalidate()
+  initialHistoryBaselineRun = null
+  backfillRun = null
+  backfillWaterline = null
   latestLoadBuffer = null
   loading.value = false
   loadingHistory.value = false
@@ -269,6 +319,102 @@ function resetForViewScope() {
   sending.value = false
   pendingClientMsgIds.clear()
   if (auth.authed && conversationId.value && meId.value && targetId.value) load()
+}
+
+function isCurrentBackfill(run) {
+  return backfillRequestTracker.isCurrent(run.token) && currentViewScope() === run.context.scope
+}
+
+async function awaitInitialHistoryBaseline(run) {
+  if (backfillWaterline != null) return true
+
+  let baselineRun = initialHistoryBaselineRun
+  if (!baselineRun) {
+    void load()
+    baselineRun = initialHistoryBaselineRun
+  }
+  while (baselineRun && baselineRun.scope === run.context.scope && isCurrentBackfill(run)) {
+    await baselineRun.promise
+    if (!isCurrentBackfill(run)) return false
+    if (backfillWaterline != null) return true
+
+    const replacementRun = initialHistoryBaselineRun
+    if (!replacementRun || replacementRun === baselineRun) return false
+    baselineRun = replacementRun
+  }
+  return false
+}
+
+async function runBackfillPass(run) {
+  try {
+    if (!await awaitInitialHistoryBaseline(run) || !isCurrentBackfill(run)) return
+    const { context } = run
+    const previousMaxSeq = findLatestConversationSeq(items.value)
+    let afterSeq = Number(backfillWaterline)
+    let receivedCount = 0
+
+    while (true) {
+      const response = await listImConversationMessages(context.conversationId, { afterSeq, limit: 100 })
+      if (!isCurrentBackfill(run)) return
+      const messages = (Array.isArray(response?.items) ? response.items : []).map(mapConversationMessage)
+      receivedCount += messages.length
+      if (latestLoadBuffer && isCurrentRequest(latestLoadBuffer.token, latestLoadBuffer.context)) {
+        latestLoadBuffer.messages.push(...messages)
+      }
+      items.value = mergeConversationMessages(items.value, messages)
+      for (const message of messages) {
+        if (message.clientMsgId && sameOpaqueId(message.fromId, context.meId)) {
+          pendingClientMsgIds.delete(message.clientMsgId)
+        }
+      }
+
+      const pageMaxSeq = findLatestConversationSeq(messages)
+      const nextAfterSeq = advanceConversationSeqWaterline(afterSeq, messages)
+      backfillWaterline = Math.max(Number(backfillWaterline ?? 0), nextAfterSeq)
+      const hasInternalGap = pageMaxSeq > nextAfterSeq
+      if (messages.length < 100 || nextAfterSeq <= afterSeq || hasInternalGap) break
+      afterSeq = Math.max(nextAfterSeq, backfillWaterline)
+    }
+
+    const nextMaxSeq = findLatestConversationSeq(items.value)
+    if (receivedCount > 0 && nextMaxSeq > previousMaxSeq) {
+      try { await markImConversationRead(context.conversationId, nextMaxSeq) } catch {}
+      if (isCurrentBackfill(run)) scrollToBottom(context.scope)
+    }
+  } catch (e) {
+    if (isCurrentBackfill(run)) {
+      error.value = e?.message || '消息补同步失败，请手动刷新'
+    }
+  }
+}
+
+function backfillAfterReconnect() {
+  const context = captureViewContext()
+  if (!auth.authed || !context.conversationId || !context.meId || !context.targetId) return
+  if (backfillRun && backfillRun.context.scope === context.scope) {
+    backfillRun.rerunRequested = true
+    return backfillRun.promise
+  }
+
+  const run = {
+    token: backfillRequestTracker.begin(),
+    context,
+    rerunRequested: true,
+    promise: null
+  }
+  const running = (async () => {
+    try {
+      while (run.rerunRequested && isCurrentBackfill(run)) {
+        run.rerunRequested = false
+        await runBackfillPass(run)
+      }
+    } finally {
+      if (backfillRun === run) backfillRun = null
+    }
+  })()
+  run.promise = running
+  backfillRun = run
+  return running
 }
 
 watch(currentViewScope, resetForViewScope)
@@ -316,6 +462,10 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   loadRequestTracker.invalidate()
+  backfillRequestTracker.invalidate()
+  initialHistoryBaselineRun = null
+  backfillRun = null
+  backfillWaterline = null
   latestLoadBuffer = null
   pendingClientMsgIds.clear()
   try { offPrivate?.() } catch {}
@@ -328,13 +478,26 @@ onBeforeUnmount(() => {
 onMounted(() => {
   realtimeState.value = { ...imRealtimeClient.state }
   offStateChanged = imRealtimeClient.on('stateChanged', (state) => {
+    const wasAuthed = realtimeState.value.authed === true
     realtimeState.value = { ...state }
+    if (!wasAuthed && realtimeState.value.authed) void backfillAfterReconnect()
   })
 
   offSendCommitted = imRealtimeClient.on('sendCommitted', (msg) => {
     if (String(msg?.cmd || '') !== 'sendPrivateText') return
     const cmid = String(msg?.clientMsgId || '')
-    if (cmid) pendingClientMsgIds.delete(cmid)
+    if (!cmid || !pendingClientMsgIds.has(cmid)) return
+    const pending = items.value.find((item) =>
+      item.clientMsgId === cmid && sameOpaqueId(item.fromId, meId.value)
+    )
+    if (pending) {
+      try {
+        items.value = mergeConversationMessages(items.value, [commitPendingConversationMessage(pending, msg)])
+      } catch {
+        // HTTP backfill remains authoritative when a committed frame is incomplete.
+      }
+    }
+    pendingClientMsgIds.delete(cmid)
   })
 
   offSendRejected = imRealtimeClient.on('sendRejected', (msg) => {
@@ -342,6 +505,11 @@ onMounted(() => {
     const cmid = String(msg?.clientMsgId || '')
     if (!cmid || !pendingClientMsgIds.has(cmid)) return
     pendingClientMsgIds.delete(cmid)
+    items.value = items.value.map((item) =>
+      item.clientMsgId === cmid && sameOpaqueId(item.fromId, meId.value)
+        ? failPendingConversationMessage(item)
+        : item
+    )
 
     const message = String(msg?.message || '发送失败')
     error.value = message
@@ -357,6 +525,11 @@ onMounted(() => {
     const cmid = String(msg?.clientMsgId || '')
     if (!cmid || !pendingClientMsgIds.has(cmid)) return
     pendingClientMsgIds.delete(cmid)
+    items.value = items.value.map((item) =>
+      item.clientMsgId === cmid && sameOpaqueId(item.fromId, meId.value)
+        ? failPendingConversationMessage(item)
+        : item
+    )
 
     const message = String(msg?.message || '发送失败')
     error.value = message
@@ -525,6 +698,11 @@ onMounted(() => {
 }
 
 .message-time {
+  font-size: 11px;
+  color: var(--text-3);
+}
+
+.message-delivery {
   font-size: 11px;
   color: var(--text-3);
 }

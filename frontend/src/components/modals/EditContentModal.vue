@@ -2,6 +2,7 @@
 <template>
   <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
     <div
+      ref="dialogRef"
       class="modal-card card"
       style="max-width: 720px"
       role="dialog"
@@ -54,6 +55,7 @@ import UiIconButton from '../ui/UiIconButton.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
 import PostBlockEditor from '../posts/PostBlockEditor.vue'
+import { useModalFocus } from '../../composables/useModalFocus'
 
 const props = defineProps({
   mode: { type: String, default: 'post' }, // post | comment
@@ -65,6 +67,8 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submit'])
 const titleId = `edit-content-modal-title-${useId()}`
+const dialogRef = ref(null)
+useModalFocus(dialogRef)
 
 const title = ref(String(props.initialTitle || ''))
 const content = ref(String(props.initialContent || ''))

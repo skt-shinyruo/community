@@ -93,6 +93,7 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import { showErrorToast } from '../ui/toastService'
 
 const emit = defineEmits(['trace'])
 const showToast = inject('showToast', () => {})
@@ -217,7 +218,7 @@ async function onConfirmUpdate() {
   } catch (e) {
     if (!isCurrentAction(generation, scope, targetUserId)) return
     error.value = e?.message || '更新失败'
-    showToast({ type: 'error', title: '更新失败', text: error.value })
+    showErrorToast(e, { type: 'error', title: '更新失败', text: error.value }, showToast)
   } finally {
     if (isCurrentAction(generation, scope, targetUserId)) loading.value = false
   }

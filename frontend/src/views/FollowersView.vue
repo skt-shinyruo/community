@@ -77,6 +77,7 @@ const userId = computed(() => normalizeOpaqueId(props.userId))
 
 const page = ref(0)
 const size = ref(10)
+const cursorHistory = ref([''])
 
 const loading = ref(false)
 const error = ref('')
@@ -97,22 +98,37 @@ const viewScope = computed(() => [
 async function load(targetPage = page.value) {
   const profileUserId = userId.value
   if (!profileUserId) return
+  const targetCursor = cursorHistory.value[targetPage]
+  if (targetPage < 0 || targetCursor == null) return
   const scope = viewScope.value
   const generation = ++requestGeneration
   const viewer = { authed: authed.value, viewerUserId: meId.value }
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listFollowers(profileUserId, { page: targetPage, size: size.value })
+    const { data, traceId } = await listFollowers(profileUserId, {
+      cursor: targetCursor,
+      size: size.value
+    })
     if (generation !== requestGeneration || scope !== viewScope.value) return
 
-    const nextItems = Array.isArray(data) ? data : []
+    const nextItems = Array.isArray(data?.items) ? data.items : []
     const hydrated = await hydrateFollowRelations(nextItems, viewer)
     if (generation !== requestGeneration || scope !== viewScope.value) return
 
-    hasNext.value = nextItems.length >= Number(size.value || 10)
+    const nextCursor = data?.hasNext === true && data?.nextCursor
+      ? String(data.nextCursor)
+      : ''
     emit('trace', traceId || '')
-    if (targetPage > page.value && nextItems.length === 0) return
+    if (targetPage > page.value && nextItems.length === 0) {
+      hasNext.value = false
+      cursorHistory.value = cursorHistory.value.slice(0, targetPage)
+      return
+    }
+    const nextHistory = cursorHistory.value.slice(0, targetPage + 1)
+    if (nextCursor) nextHistory[targetPage + 1] = nextCursor
+    cursorHistory.value = nextHistory
+    hasNext.value = Boolean(nextCursor)
     page.value = targetPage
     items.value = hydrated
   } catch (e) {
@@ -207,6 +223,7 @@ watch(viewScope, () => {
   activeMutations.clear()
   mutatingTargetIds.value = new Set()
   page.value = 0
+  cursorHistory.value = ['']
   items.value = []
   hasNext.value = true
   loading.value = false

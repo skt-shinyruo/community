@@ -370,17 +370,17 @@ class ForwardedHeaderCanonicalizationWebFilterTest {
         assertThat((String) capture.exchange().getAttribute(
                 ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE)).isNull();
         assertForwardingHeadersRemoved(capture.downstream());
-        assertThat(capture.downstream().getRequest().getHeaders()).doesNotContainKey(X_FORWARDED_FOR);
+        assertThat(capture.downstream().getRequest().getHeaders().get(X_FORWARDED_FOR)).isNull();
     }
 
     private static void assertForwardingHeadersRemoved(ServerWebExchange exchange) {
         HttpHeaders headers = exchange.getRequest().getHeaders();
-        assertThat(headers).doesNotContainKey(FORWARDED);
-        assertThat(headers).doesNotContainKey(X_FORWARDED_HOST);
-        assertThat(headers).doesNotContainKey(X_FORWARDED_PORT);
-        assertThat(headers).doesNotContainKey(X_FORWARDED_PREFIX);
-        assertThat(headers).doesNotContainKey(X_FORWARDED_PROTO);
-        assertThat(headers).doesNotContainKey(X_REAL_IP);
+        assertThat(headers.get(FORWARDED)).isNull();
+        assertThat(headers.get(X_FORWARDED_HOST)).isNull();
+        assertThat(headers.get(X_FORWARDED_PORT)).isNull();
+        assertThat(headers.get(X_FORWARDED_PREFIX)).isNull();
+        assertThat(headers.get(X_FORWARDED_PROTO)).isNull();
+        assertThat(headers.get(X_REAL_IP)).isNull();
     }
 
     private record CapturedRequest(ServerWebExchange exchange, ServerWebExchange downstream) {

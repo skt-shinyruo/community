@@ -1,10 +1,13 @@
 // @vitest-environment jsdom
 
 import { mount } from '@vue/test-utils'
-import { describe, expect, it } from 'vitest'
+import { afterEach, describe, expect, it } from 'vitest'
 import UiModalConfirm from './UiModalConfirm.vue'
 
 describe('UiModalConfirm', () => {
+  afterEach(() => {
+    document.body.innerHTML = ''
+  })
   it('exposes dialog semantics with labelled title and description', () => {
     const wrapper = mount(UiModalConfirm, {
       props: {
@@ -28,5 +31,23 @@ describe('UiModalConfirm', () => {
     await wrapper.get('.modal-mask').trigger('keydown', { key: 'Escape' })
 
     expect(wrapper.emitted('cancel')).toHaveLength(1)
+  })
+
+  it('traps focus and restores the trigger after closing', async () => {
+    const trigger = document.createElement('button')
+    document.body.appendChild(trigger)
+    trigger.focus()
+    const wrapper = mount(UiModalConfirm, { attachTo: document.body })
+    await wrapper.vm.$nextTick()
+
+    const buttons = wrapper.findAll('button')
+    expect(document.activeElement).toBe(buttons[0].element)
+
+    buttons.at(-1).element.focus()
+    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
+    expect(document.activeElement).toBe(buttons[0].element)
+
+    wrapper.unmount()
+    expect(document.activeElement).toBe(trigger)
   })
 })

@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.gateway.session;
+package com.nowcoder.community.im.ticket;
 
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;

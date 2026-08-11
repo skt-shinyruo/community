@@ -22,7 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.test.EmbeddedKafkaBroker;
@@ -87,7 +87,7 @@ class ImCoreKafkaIntegrationTest {
     @Autowired
     private PrivateMessageRepository privateMessageRepository;
 
-    @MockBean
+    @MockitoBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
 
     private Consumer<String, String> consumer;

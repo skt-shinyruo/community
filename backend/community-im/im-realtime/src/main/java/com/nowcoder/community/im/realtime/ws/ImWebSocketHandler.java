@@ -22,7 +22,7 @@ import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
 import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
-import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
+import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;

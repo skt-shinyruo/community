@@ -1,7 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.security.SecurityProperties;
 import org.springframework.core.Ordered;
 import org.springframework.http.HttpStatus;
 import org.springframework.mock.http.server.reactive.MockServerHttpRequest;
@@ -120,7 +119,7 @@ class RateLimitWebFilterTest {
     @Test
     void canonicalizationShouldRunBeforeRateLimiting() {
         assertThat(RateLimitWebFilter.ORDER)
-                .isEqualTo(SecurityProperties.DEFAULT_FILTER_ORDER + 1);
+                .isEqualTo(RateLimitWebFilter.SECURITY_WEB_FILTER_CHAIN_ORDER + 1);
         assertThat(ForwardedHeaderCanonicalizationWebFilter.ORDER)
                 .isLessThan(RateLimitWebFilter.ORDER);
         assertThat(new RateLimitWebFilter(new RateLimitProperties(), mock(RateLimiter.class)))

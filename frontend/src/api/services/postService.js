@@ -4,6 +4,7 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
 import { normalizeCommentPage } from './commentResponse'
+import { writeAttemptConfig } from '../writeAttempt'
 
 export async function listGlobalFeed({ cursor = '', size = 20 } = {}) {
   const params = {}
@@ -24,14 +25,14 @@ export async function listBoardFeed(boardId, { cursor = '', size = 20 } = {}) {
   return { data: normalizeFeedPage(data), traceId }
 }
 
-export async function createPost({ title, blocks, categoryId, tags } = {}) {
+export async function createPost({ title, blocks, categoryId, tags } = {}, { writeAttempt } = {}) {
   const payload = { title, blocks: normalizeBlocks(blocks) }
   {
     const cid = normalizeOpaqueId(categoryId)
     if (cid) payload.categoryId = cid
   }
   if (Array.isArray(tags) && tags.length > 0) payload.tags = tags
-  const resp = await http.post('/api/posts', payload)
+  const resp = await http.post('/api/posts', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '发帖')
   return { data, traceId }
 }
@@ -105,14 +106,14 @@ function normalizeBlocks(blocks) {
   })
 }
 
-export async function addComment(postId, { content, parentCommentId } = {}) {
+export async function addComment(postId, { content, parentCommentId } = {}, { writeAttempt } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
   const payload = { content }
   {
     const normalizedParentCommentId = normalizeOpaqueId(parentCommentId)
     if (normalizedParentCommentId) payload.parentCommentId = normalizedParentCommentId
   }
-  const resp = await http.post(`/api/posts/${pid}/comments`, payload)
+  const resp = await http.post(`/api/posts/${pid}/comments`, payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '发表评论')
   return { data, traceId }
 }

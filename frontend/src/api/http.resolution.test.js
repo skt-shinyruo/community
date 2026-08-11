@@ -38,6 +38,15 @@ describe('http base URL resolution', () => {
     expect(http.defaults.baseURL).toBe('https://api.example.com')
   })
 
+  it('should let an explicit empty runtime value select same-origin over the Vite value', async () => {
+    vi.stubEnv('VITE_API_BASE_URL', 'https://api.example.com')
+    globalThis.__COMMUNITY_RUNTIME_CONFIG__ = { apiBaseUrl: '   ' }
+
+    const { default: http } = await import('./http')
+
+    expect(http.defaults.baseURL).toBe('')
+  })
+
   it('should fall back to same-origin relative API base URL on localhost ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',

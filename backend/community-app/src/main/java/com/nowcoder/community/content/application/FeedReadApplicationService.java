@@ -6,10 +6,7 @@ import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import org.springframework.stereotype.Service;
 
-import java.util.ArrayList;
-import java.util.HashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.UUID;
 
 import static java.util.Objects.requireNonNull;
@@ -61,8 +58,13 @@ public class FeedReadApplicationService {
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
         int requestedLimit = state.size() > 0 ? normalizeRequestedSize(state.size()) : normalizeRequestedSize(size);
         LoadedFeedPage page = loadHotPage(cursor, state, requestedLimit, boardId);
-        String nextCursor = page.hasNext()
-                ? feedCursorCodec.encodeHotPage(nextPage(state.page()), requestedLimit, page.nextBoundary())
+        String nextCursor = page.hasNext() && state.page() < FeedCursorCodec.MAX_CURSOR_PAGE
+                ? feedCursorCodec.encodeHotPage(
+                        nextPage(state.page()),
+                        requestedLimit,
+                        page.nextBoundary(),
+                        page.projectionEpoch()
+                )
                 : "";
         return new FeedPageResult(page.items(), nextCursor, page.rankVersion());
     }
@@ -76,24 +78,15 @@ public class FeedReadApplicationService {
                 .toList();
     }
 
-    private List<UUID> readFeedIds(String cursor, int size, UUID boardId) {
-        if (boardId == null) {
-            List<UUID> ids = postFeedCache.readGlobalHotIds(cursor, size);
-            return ids == null ? List.of() : ids;
-        }
-        List<UUID> ids = postFeedCache.readBoardHotIds(boardId, cursor, size);
-        return ids == null ? List.of() : ids;
+    private PostFeedCache.HotProjectionPage readFeedProjection(String cursor, int size, UUID boardId) {
+        return boardId == null
+                ? postFeedCache.readGlobalHotProjection(cursor, size)
+                : postFeedCache.readBoardHotProjection(boardId, cursor, size);
     }
 
     private LoadedFeedPage loadHotPage(String cursor, FeedCursorCodec.CursorState state, int limit, UUID boardId) {
         String scope = boardId == null ? "global" : "board";
-        String encodedCursor = feedCursorCodec.encodePage(state.page(), limit);
-        CachePageLoad cachePageLoad = loadCachePage(
-                state.page() == 0 ? cursor : encodedCursor,
-                state,
-                limit,
-                boardId
-        );
+        CachePageLoad cachePageLoad = loadCachePage(cursor, limit, boardId);
         if (cachePageLoad.page() != null) {
             hotFeedReadMetrics.record(cachePageLoad.result(), scope);
             return cachePageLoad.page();
@@ -103,139 +96,82 @@ public class FeedReadApplicationService {
 
     private CachePageLoad loadCachePage(
             String cursor,
-            FeedCursorCodec.CursorState state,
             int limit,
             UUID boardId
     ) {
-        List<UUID> ids;
+        PostFeedCache.HotProjectionPage projection;
         try {
-            ids = readFeedIds(cursor, limit, boardId);
+            projection = readFeedProjection(cursor, limit, boardId);
         } catch (RuntimeException ex) {
             return CachePageLoad.degradedMiss();
         }
-        if (ids.isEmpty()) {
+        return projection == null ? CachePageLoad.miss() : loadProjectedCachePage(projection, limit, boardId);
+    }
+
+    private CachePageLoad loadProjectedCachePage(
+            PostFeedCache.HotProjectionPage projection,
+            int limit,
+            UUID boardId
+    ) {
+        if (projection.epoch() <= 0L || projection.entries().isEmpty() || !projection.hasNext()) {
             return CachePageLoad.miss();
         }
+        List<PostFeedCache.HotProjectionEntry> entries = projection.entries().size() <= limit
+                ? projection.entries()
+                : projection.entries().subList(0, limit);
+        List<UUID> ids = entries.stream().map(PostFeedCache.HotProjectionEntry::postId).toList();
         List<PostSummaryResult> items;
         try {
             items = postFeedSummaryLoader.readSummaries(ids);
         } catch (RuntimeException ex) {
             return CachePageLoad.miss();
         }
-        boolean hasNext;
-        try {
-            hasNext = hasNextCachedPage(state.page(), limit, boardId);
-        } catch (RuntimeException ex) {
-            return CachePageLoad.degradedMiss();
+        if (!matchesCompleteProjection(entries, items, boardId)) {
+            return CachePageLoad.miss();
         }
         RankVersionResult rankVersion = safeRankVersion();
         String result = rankVersion.degraded() ? "degraded" : "hit";
-        if (!hasNext && !state.hasHotBoundary()) {
-            return CachePageLoad.page(
-                    new LoadedFeedPage(filterBoardItems(items, boardId), false, rankVersion.value(), null),
-                    result
-            );
-        }
-        AuthoritativeCachePage authoritativePage;
-        try {
-            authoritativePage = authoritativeCachePage(ids, state, limit, boardId);
-        } catch (RuntimeException ex) {
-            return CachePageLoad.degradedMiss();
-        }
-        if (authoritativePage == null || authoritativePage.posts().isEmpty()) {
-            // A cache member can outlive a deleted/moved post. Let the SQL keyset query
-            // reconstruct the page instead of issuing a cursor from stale metadata.
-            return CachePageLoad.miss();
-        }
-        List<DiscussPost> authoritativePosts = authoritativePage.posts();
-        Map<UUID, PostSummaryResult> summariesById = new HashMap<>();
-        for (PostSummaryResult item : items) {
-            if (item != null && item.id() != null) {
-                summariesById.put(item.id(), item);
-            }
-        }
-        List<PostSummaryResult> authoritativeItems = new ArrayList<>(authoritativePosts.size());
-        for (DiscussPost post : authoritativePosts) {
-            PostSummaryResult summary = summariesById.get(post.getId());
-            if (summary == null) {
-                return CachePageLoad.miss();
-            }
-            // Summary content may legitimately be stale, but rank and board fields must
-            // come from the row that produced the cursor.
-            authoritativeItems.add(mergeRankFields(summary, post));
-        }
+        PostFeedCache.HotProjectionEntry last = entries.get(entries.size() - 1);
         return CachePageLoad.page(
                 new LoadedFeedPage(
-                        authoritativeItems,
-                        authoritativePage.hasNext(),
+                        filterBoardItems(items, boardId),
+                        true,
                         rankVersion.value(),
-                        postBoundaryOf(authoritativePosts)
+                        new FeedCursorCodec.HotBoundary(
+                                last.type(),
+                                last.score(),
+                                last.createTime(),
+                                last.postId()
+                        ),
+                        projection.epoch()
                 ),
                 result
         );
     }
 
-    /**
-     * Redis stores a compact score/member projection. Validate that the IDs it returned are
-     * still in the database's complete hot-feed order before trusting a page boundary.
-     */
-    private AuthoritativeCachePage authoritativeCachePage(
-            List<UUID> ids,
-            FeedCursorCodec.CursorState state,
-            int limit,
+    private static boolean matchesCompleteProjection(
+            List<PostFeedCache.HotProjectionEntry> entries,
+            List<PostSummaryResult> items,
             UUID boardId
     ) {
-        List<UUID> distinctIds = ids.stream().filter(id -> id != null).distinct().toList();
-        if (distinctIds.size() != ids.size()) {
-            return null;
+        if (entries == null || items == null || entries.size() != items.size()) {
+            return false;
         }
-        List<DiscussPost> loaded = listFallbackPosts(state, limit, boardId);
-        if (loaded == null || loaded.isEmpty()) {
-            return null;
-        }
-        boolean hasNext = loaded.size() > limit;
-        List<DiscussPost> authoritativePage = hasNext
-                ? List.copyOf(loaded.subList(0, limit))
-                : List.copyOf(loaded);
-        if (authoritativePage.size() != distinctIds.size()) {
-            return null;
-        }
-        for (DiscussPost post : authoritativePage) {
-            if (post == null
-                    || post.getId() == null
-                    || post.getCreateTime() == null
-                    || post.isDeleted()
-                    || !Double.isFinite(post.getScore())) {
-                return null;
-            }
-            if (boardId != null && !boardId.equals(post.getCategoryId())) {
-                return null;
+        for (int index = 0; index < entries.size(); index++) {
+            PostFeedCache.HotProjectionEntry entry = entries.get(index);
+            PostSummaryResult item = items.get(index);
+            if (entry == null || item == null
+                    || !entry.postId().equals(item.id())
+                    || entry.type() != item.type()
+                    || Double.compare(entry.score(), item.score()) != 0
+                    || entry.createTime() == null
+                    || item.createTime() == null
+                    || entry.createTime().getTime() != item.createTime().getTime()
+                    || (boardId != null && !boardId.equals(item.categoryId()))) {
+                return false;
             }
         }
-        List<UUID> authoritativeIds = authoritativePage.stream().map(DiscussPost::getId).toList();
-        return authoritativeIds.equals(distinctIds)
-                ? new AuthoritativeCachePage(authoritativePage, hasNext)
-                : null;
-    }
-
-    private static PostSummaryResult mergeRankFields(PostSummaryResult summary, DiscussPost post) {
-        return new PostSummaryResult(
-                post.getId(),
-                summary.userId() == null ? post.getUserId() : summary.userId(),
-                summary.title(),
-                summary.preview(),
-                post.getType(),
-                post.getStatus(),
-                post.getCreateTime(),
-                post.getCommentCount(),
-                post.getScore(),
-                post.getCategoryId(),
-                summary.tags(),
-                summary.lastReplyUserId(),
-                summary.lastReplyTime(),
-                summary.lastActivityTime(),
-                summary.lastReplyPreview()
-        );
+        return true;
     }
 
     private LoadedFeedPage loadFallbackPage(
@@ -256,7 +192,7 @@ public class FeedReadApplicationService {
                 () -> {
                     RankVersionResult rankVersion = safeRankVersion();
                     hotFeedReadMetrics.record("singleflight_busy", scope);
-                    return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
+                    return new LoadedFeedPage(List.of(), false, rankVersion.value(), null, 0L);
                 }
         );
     }
@@ -271,16 +207,17 @@ public class FeedReadApplicationService {
         if (!policyProperties.isLatestFallbackEnabled()) {
             RankVersionResult rankVersion = safeRankVersion();
             hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
-            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
+            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null, 0L);
         }
         List<DiscussPost> fetchedPosts = listFallbackPosts(state, limit, boardId);
         if (fetchedPosts.isEmpty()) {
             RankVersionResult rankVersion = safeRankVersion();
             hotFeedReadMetrics.record(cacheDegraded || rankVersion.degraded() ? "degraded" : "empty", scope);
-            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null);
+            return new LoadedFeedPage(List.of(), false, rankVersion.value(), null, 0L);
         }
-        boolean hasNext = fetchedPosts.size() > limit;
-        List<DiscussPost> fallbackPosts = hasNext
+        boolean hasLookahead = fetchedPosts.size() > limit;
+        boolean hasNext = state.page() < FeedCursorCodec.MAX_CURSOR_PAGE && hasLookahead;
+        List<DiscussPost> fallbackPosts = hasLookahead
                 ? List.copyOf(fetchedPosts.subList(0, limit))
                 : List.copyOf(fetchedPosts);
         String rankVersion = policyProperties.getHotRankVersion();
@@ -288,16 +225,7 @@ public class FeedReadApplicationService {
         List<PostSummaryResult> items = filterBoardItems(postFeedSummaryLoader.assembleSummaries(fallbackPosts), boardId);
         safePutSummaryCache(fallbackPosts, items);
         hotFeedReadMetrics.record(cacheDegraded ? "degraded" : "fallback", scope);
-        return new LoadedFeedPage(items, hasNext, rankVersion, postBoundaryOf(fallbackPosts));
-    }
-
-    private boolean hasNextCachedPage(int page, int limit, UUID boardId) {
-        if (page >= Integer.MAX_VALUE) {
-            return false;
-        }
-        String nextCursor = feedCursorCodec.encodePage(nextPage(page), limit);
-        List<UUID> nextIds = readFeedIds(nextCursor, limit, boardId);
-        return !nextIds.isEmpty();
+        return new LoadedFeedPage(items, hasNext, rankVersion, postBoundaryOf(fallbackPosts), 0L);
     }
 
     private List<DiscussPost> listFallbackPosts(
@@ -325,17 +253,6 @@ public class FeedReadApplicationService {
                 boardId,
                 null
         );
-    }
-
-    private static FeedCursorCodec.HotBoundary summaryBoundaryOf(List<PostSummaryResult> items) {
-        if (items == null || items.isEmpty()) {
-            return null;
-        }
-        PostSummaryResult last = items.get(items.size() - 1);
-        if (last == null || last.id() == null || last.createTime() == null) {
-            return null;
-        }
-        return new FeedCursorCodec.HotBoundary(last.type(), last.score(), last.createTime(), last.id());
     }
 
     private static FeedCursorCodec.HotBoundary postBoundaryOf(List<DiscussPost> posts) {
@@ -376,8 +293,7 @@ public class FeedReadApplicationService {
             }
             if (boardId == null) {
                 postFeedCache.upsertGlobalHot(
-                        post.getId(),
-                        post.getScore(),
+                        projectionEntry(post),
                         rankVersion,
                         post.getAggregateVersion(),
                         post.getScoreVersion()
@@ -386,8 +302,7 @@ public class FeedReadApplicationService {
             }
             postFeedCache.upsertBoardHot(
                     boardId,
-                    post.getId(),
-                    post.getScore(),
+                    projectionEntry(post),
                     rankVersion,
                     post.getAggregateVersion(),
                     post.getScoreVersion()
@@ -401,6 +316,11 @@ public class FeedReadApplicationService {
         } catch (RuntimeException ignored) {
             // Feed cache warm-up is best-effort for fallback reads.
         }
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionEntry(DiscussPost post) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), post.getScore(), post.getCreateTime());
     }
 
     private void safePutSummaryCache(List<DiscussPost> posts, List<PostSummaryResult> items) {
@@ -437,14 +357,12 @@ public class FeedReadApplicationService {
     private record RankVersionResult(String value, boolean degraded) {
     }
 
-    private record AuthoritativeCachePage(List<DiscussPost> posts, boolean hasNext) {
-    }
-
     private record LoadedFeedPage(
             List<PostSummaryResult> items,
             boolean hasNext,
             String rankVersion,
-            FeedCursorCodec.HotBoundary nextBoundary
+            FeedCursorCodec.HotBoundary nextBoundary,
+            long projectionEpoch
     ) {
     }
 }

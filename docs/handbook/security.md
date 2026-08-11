@@ -51,7 +51,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family。session 保存 `securityVersionAtIssue`；与 user 当前版本不一致时 auth 拒绝续期并撤销 family。refresh 失败响应不写 `Set-Cookie`，只有显式 logout 清 cookie。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
-`GET /api/auth/me` 直接读取已验证 JWT claim，不单独组装数据库用户视图；`community-app` 对所有携带已认证 access JWT 的 `/api/**` 请求校验 `security_version`，版本落后时返回 `401` 并要求 refresh 或重新登录。匿名访问 permitAll 路径时没有 JWT，不执行 freshness 查询。具体 401/403 映射和失败语义见 [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md)。
+`GET /api/auth/me` 直接读取已验证 JWT claim，不单独组装数据库用户视图；`community-app` 对所有携带已认证 access JWT 的 `/api/**` 请求校验 `security_version`，版本落后时返回 `401` 并要求 refresh 或重新登录。`community-im-gateway` 在签发 session ticket 前、`im-core` 在放行浏览器 `/api/**` 前，都把原始 Bearer token 回源该入口做权威 freshness 判定；缺失或非法版本返回 `401`，账号不允许登录返回 `403`，owner 超时或不可用返回 `503`，均不降级放行。匿名访问 permitAll 路径时没有 JWT，不执行 freshness 查询。具体映射、超时和失败语义见 [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md)。
 
 `security_version` 是 user owner 的认证授权版本。角色、密码以及新增或延长活跃账号级封禁会递增该版本；user 不反向调用 auth 删除 refresh rows。账号状态和当前活跃封禁会在 login / refresh 校验中被拒绝，安全版本变化还会让旧 refresh family 在下一次续期时失效。`muteUntil` 只影响发言能力，不影响登录或 refresh。
 

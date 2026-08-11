@@ -1,17 +1,24 @@
 package com.nowcoder.community.oss.infrastructure.config;
 
+import com.nowcoder.community.oss.application.port.ObjectStorageSettings;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
 
 @ConfigurationProperties(prefix = "oss")
-public class OssProperties {
+public class OssProperties implements ObjectStorageSettings {
 
     private String publicBaseUrl = "http://localhost:12880";
     private ObjectStoreProperties objectStore = new ObjectStoreProperties();
 
+    @Override
     public String publicBaseUrl() {
         return publicBaseUrl;
+    }
+
+    @Override
+    public String storageBucket() {
+        return objectStore.bucket();
     }
 
     public void setPublicBaseUrl(String publicBaseUrl) {

@@ -91,6 +91,18 @@ describe('AnalyticsView', () => {
     expect(wrapper.text()).not.toContain('占位图表')
   })
 
+  it('keeps the successful metric visible when the sibling metric fails', async () => {
+    dau.mockRejectedValueOnce(new Error('DAU unavailable'))
+    const wrapper = mountView()
+
+    await wrapper.find('button').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('1234')
+    expect(wrapper.text()).toContain('—')
+    expect(wrapper.text()).toContain('部分统计加载失败：DAU unavailable')
+  })
+
   it('ignores the earlier date-range response after a newer query completes', async () => {
     const staleUv = deferred()
     const staleDau = deferred()

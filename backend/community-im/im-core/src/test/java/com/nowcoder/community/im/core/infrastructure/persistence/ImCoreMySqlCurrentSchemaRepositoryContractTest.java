@@ -24,7 +24,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.core.io.FileSystemResource;
 import org.springframework.core.io.support.EncodedResource;
 import org.springframework.jdbc.core.ConnectionCallback;
@@ -103,7 +103,7 @@ class ImCoreMySqlCurrentSchemaRepositoryContractTest {
     @Autowired
     private JdbcOutboxEventStore outboxEventStore;
 
-    @MockBean
+    @MockitoBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
 
     @DynamicPropertySource

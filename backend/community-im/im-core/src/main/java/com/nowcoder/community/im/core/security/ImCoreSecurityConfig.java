@@ -2,7 +2,9 @@ package com.nowcoder.community.im.core.security;
 
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
+import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
+import org.springframework.boot.web.servlet.FilterRegistrationBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.core.annotation.Order;
@@ -10,6 +12,7 @@ import org.springframework.http.HttpMethod;
 import org.springframework.security.config.Customizer;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.oauth2.server.resource.web.authentication.BearerTokenAuthenticationFilter;
 import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.access.AccessDeniedHandler;
@@ -22,6 +25,19 @@ import java.util.List;
 @Configuration
 @EnableConfigurationProperties(ImCoreCorsProperties.class)
 public class ImCoreSecurityConfig {
+
+    @Bean
+    public FilterRegistrationBean<AccessTokenFreshnessFilter> accessTokenFreshnessFilterRegistration(
+            ObjectProvider<AccessTokenFreshnessFilter> filterProvider
+    ) {
+        FilterRegistrationBean<AccessTokenFreshnessFilter> registration = new FilterRegistrationBean<>();
+        AccessTokenFreshnessFilter filter = filterProvider.getIfAvailable();
+        if (filter != null) {
+            registration.setFilter(filter);
+        }
+        registration.setEnabled(false);
+        return registration;
+    }
 
     @Bean
     @Order(2)
@@ -60,7 +76,8 @@ public class ImCoreSecurityConfig {
     public SecurityFilterChain apiSecurityFilterChain(
             HttpSecurity http,
             AuthenticationEntryPoint authenticationEntryPoint,
-            AccessDeniedHandler accessDeniedHandler
+            AccessDeniedHandler accessDeniedHandler,
+            AccessTokenFreshnessFilter accessTokenFreshnessFilter
     ) throws Exception {
         return http
                 .securityMatcher("/api/**")
@@ -76,6 +93,7 @@ public class ImCoreSecurityConfig {
                         .anyRequest().authenticated()
                 )
                 .oauth2ResourceServer(oauth2 -> oauth2.jwt(Customizer.withDefaults()))
+                .addFilterAfter(accessTokenFreshnessFilter, BearerTokenAuthenticationFilter.class)
                 .build();
     }
 

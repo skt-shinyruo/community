@@ -72,6 +72,50 @@ export function mapConversationMessage(raw) {
   }
 }
 
+export function createPendingConversationMessage({ clientMsgId, fromId, toId, content, createTime = Date.now() } = {}) {
+  const clientId = String(clientMsgId || '').trim()
+  if (!clientId) throw new Error('clientMsgId 缺失')
+  return {
+    id: `pending:${clientId}`,
+    seq: 0,
+    fromId: requireApiOpaqueId(fromId, 'fromUserId'),
+    toId: requireApiOpaqueId(toId, 'toUserId'),
+    content: String(content || ''),
+    clientMsgId: clientId,
+    createTime: Number(createTime || Date.now()),
+    deliveryState: 'pending'
+  }
+}
+
+export function commitPendingConversationMessage(message, frame = {}) {
+  const seq = Number(frame?.seq)
+  if (!Number.isSafeInteger(seq) || seq <= 0) throw new Error('seq 非法')
+  return {
+    ...(message || {}),
+    id: requireApiOpaqueId(frame?.messageId, 'messageId'),
+    seq,
+    clientMsgId: String(frame?.clientMsgId || message?.clientMsgId || '').trim(),
+    deliveryState: 'committed'
+  }
+}
+
+export function failPendingConversationMessage(message) {
+  return { ...(message || {}), deliveryState: 'failed' }
+}
+
+export function advanceConversationSeqWaterline(currentWaterline, messages) {
+  let waterline = Number(currentWaterline)
+  if (!Number.isSafeInteger(waterline) || waterline < 0) waterline = 0
+
+  const availableSeqs = new Set()
+  for (const message of Array.isArray(messages) ? messages : []) {
+    const seq = Number(message?.seq)
+    if (Number.isSafeInteger(seq) && seq > waterline) availableSeqs.add(seq)
+  }
+  while (availableSeqs.has(waterline + 1)) waterline += 1
+  return waterline
+}
+
 function compareConversationMessages(a, b) {
   const aSeq = Number(a?.seq || 0)
   const bSeq = Number(b?.seq || 0)
@@ -102,8 +146,9 @@ function conversationMessageKeys(message) {
   }
 
   const clientMsgId = String(message?.clientMsgId ?? '').trim()
-  if (clientMsgId) {
-    keys.add(`client:${clientMsgId}`)
+  const fromId = normalizeOpaqueId(message?.fromId)
+  if (clientMsgId && fromId) {
+    keys.add(`client:${fromId}:${clientMsgId}`)
   }
 
   if (keys.size === 0) {

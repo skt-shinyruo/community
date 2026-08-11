@@ -2,9 +2,9 @@ package com.nowcoder.community.im.gateway.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
-import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
 import com.nowcoder.community.im.gateway.shard.WorkerDescriptor;
 import com.nowcoder.community.im.gateway.shard.WorkerRegistry;
+import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 

@@ -9,8 +9,9 @@ import { useAuthStore } from '../stores/auth'
 import UiButton from '../components/ui/UiButton.vue'
 import UiFileInput from '../components/ui/UiFileInput.vue'
 
-const { apiMe } = vi.hoisted(() => ({
-  apiMe: vi.fn()
+const { apiMe, uploadTransport } = vi.hoisted(() => ({
+  apiMe: vi.fn(),
+  uploadTransport: { upload: vi.fn() }
 }))
 
 vi.mock('../api/http', () => ({
@@ -25,6 +26,8 @@ vi.mock('../api/http', () => ({
 vi.mock('../api/services/authService', () => ({
   me: apiMe
 }))
+
+vi.mock('../api/uploadTransport', () => ({ uploadTransport }))
 
 import SettingsView from './SettingsView.vue'
 import http from '../api/http'
@@ -107,6 +110,10 @@ describe('SettingsView', () => {
     http.put.mockReset()
     window.localStorage.clear()
     apiMe.mockReset()
+    uploadTransport.upload.mockReset()
+    uploadTransport.upload.mockResolvedValue(okResult({
+      objectId: '00000000-0000-7000-8000-000000000050'
+    }, 'trace-upload'))
     apiMe.mockResolvedValue({
       data: {
         userId: 7,
@@ -166,15 +173,60 @@ describe('SettingsView', () => {
       contentType: 'image/png',
       contentLength: 6,
       checksumSha256: ''
-    })
-    expect(http.post).toHaveBeenCalledWith('/api/oss/objects/00000000-0000-7000-8000-000000000050/complete', expect.any(FormData), {
+    }, expect.objectContaining({ signal: expect.any(Object) }))
+    expect(uploadTransport.upload).toHaveBeenCalledWith(expect.objectContaining({
+      url: '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete',
+      method: 'POST',
+      data: expect.any(FormData),
       headers: {}
-    })
-    const form = http.post.mock.calls.find(([url]) => url === '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete')[1]
+    }))
+    const form = uploadTransport.upload.mock.calls[0][0].data
     expect(form.get('file')).toBe(file)
     expect(form.get('sessionId')).toBe('session-1')
     expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
     expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { objectId: '00000000-0000-7000-8000-000000000050' })
+  })
+
+  it('shows upload progress and aborts the active request when cancelled', async () => {
+    const pendingUpload = deferred()
+    uploadTransport.upload.mockImplementation((config) => {
+      config.onProgress({ loaded: 42, total: 100, percent: 42 })
+      return pendingUpload.promise
+    })
+    const wrapper = mountView()
+    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await nextTick()
+    await findUiButton(wrapper, '上传并保存').trigger('click')
+    await vi.waitFor(() => expect(uploadTransport.upload).toHaveBeenCalledTimes(1))
+
+    const signal = uploadTransport.upload.mock.calls[0][0].signal
+    expect(wrapper.text()).toContain('上传中 42%')
+    await findUiButton(wrapper, '取消上传').trigger('click')
+
+    expect(signal.aborted).toBe(true)
+    expect(wrapper.text()).toContain('上传已取消')
+    pendingUpload.resolve(okResult({ objectId: 'ignored' }))
+    await flushPromises()
+    expect(http.put).not.toHaveBeenCalled()
+  })
+
+  it('switches to a non-cancellable saving state after the file upload completes', async () => {
+    const pendingUpdate = deferred()
+    http.put.mockReturnValue(pendingUpdate.promise)
+    const wrapper = mountView()
+    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
+    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await nextTick()
+    await findUiButton(wrapper, '上传并保存').trigger('click')
+    await vi.waitFor(() => expect(http.put).toHaveBeenCalledTimes(1))
+
+    expect(wrapper.text()).toContain('保存中…')
+    expect(wrapper.findAllComponents(UiButton).some((button) => button.text().includes('取消上传'))).toBe(false)
+
+    pendingUpdate.resolve(okResult({}, 'trace-update'))
+    await flushPromises()
+    expect(wrapper.text()).toContain('头像已更新。')
   })
 
   it('does not expose retired leaderboard copy', () => {

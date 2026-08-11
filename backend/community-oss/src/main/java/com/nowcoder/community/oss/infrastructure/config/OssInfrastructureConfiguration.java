@@ -3,7 +3,7 @@ package com.nowcoder.community.oss.infrastructure.config;
 import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.storage.LocalFilesystemObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.ObservedObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.S3CompatibleObjectStore;
 import org.springframework.beans.factory.ObjectProvider;

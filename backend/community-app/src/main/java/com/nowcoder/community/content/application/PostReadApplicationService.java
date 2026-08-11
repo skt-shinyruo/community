@@ -30,9 +30,12 @@ import java.util.Objects;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZED;
+import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
 public class PostReadApplicationService implements PostScanQueryApi {
+
+    private static final int MAX_BATCH_POST_IDS = 200;
 
     private final PostContentRepository postContentPort;
     private final CommentContentRepository commentContentPort;
@@ -133,6 +136,9 @@ public class PostReadApplicationService implements PostScanQueryApi {
     }
 
     public List<PostSummaryResult> listPostsByIds(List<UUID> postIds) {
+        if (postIds != null && postIds.size() > MAX_BATCH_POST_IDS) {
+            throw new BusinessException(INVALID_ARGUMENT, "postIds cannot exceed " + MAX_BATCH_POST_IDS);
+        }
         return assembleSummaries(readTransactionOperations.listPostsByIds(postIds));
     }
 

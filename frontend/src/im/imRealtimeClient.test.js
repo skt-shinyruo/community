@@ -29,17 +29,19 @@ describe('imRealtimeClient URL resolution', () => {
   let currentClient
 
   async function loadClient() {
-    const [{ imRealtimeClient }, { default: imCoreHttp }] = await Promise.all([
+    const [{ ImRealtimeClient }, { default: imCoreHttp }] = await Promise.all([
       import('./imRealtimeClient'),
       import('../api/imCoreHttp')
     ])
+    const imRealtimeClient = new ImRealtimeClient(imCoreHttp)
     currentClient = imRealtimeClient
     return { imRealtimeClient, imCoreHttp }
   }
 
   async function flushMicrotasks() {
-    await Promise.resolve()
-    await Promise.resolve()
+    for (let index = 0; index < 8; index += 1) {
+      await Promise.resolve()
+    }
   }
 
   beforeEach(() => {
@@ -306,6 +308,32 @@ describe('imRealtimeClient URL resolution', () => {
     })
   })
 
+  it('should emit sendCommitted for persisted command results', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-1' } }
+    })
+    const committed = []
+    imRealtimeClient.on('sendCommitted', (msg) => committed.push(msg))
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+    ws.onmessage?.({ data: JSON.stringify({
+      type: 'committed',
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 9,
+      schemaVersion: 1
+    }) })
+
+    expect(committed).toHaveLength(1)
+    expect(committed[0]).toMatchObject({ clientMsgId: 'client-msg-1', seq: 9 })
+  })
+
   it('should emit stateChanged when websocket auth state changes', async () => {
     const { imRealtimeClient, imCoreHttp } = await loadClient()
     imCoreHttp.post.mockResolvedValue({
@@ -340,6 +368,110 @@ describe('imRealtimeClient URL resolution', () => {
       expect.objectContaining({ connected: true, authed: true, sessionId: 'sess-1' }),
       expect.objectContaining({ connected: false, authed: false, sessionId: '' })
     ])
+  })
+
+  it('should ignore delayed events from a websocket replaced during token rotation', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post
+      .mockResolvedValueOnce({
+        data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-1' } }
+      })
+      .mockResolvedValueOnce({
+        data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-2' } }
+      })
+    const privateMessages = []
+    imRealtimeClient.on('privateMessage', (message) => privateMessages.push(message))
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+    const replacedSocket = FakeWebSocket.instances[0]
+
+    imRealtimeClient.disconnect()
+    await imRealtimeClient.connect('token-2')
+    await flushMicrotasks()
+    const currentSocket = FakeWebSocket.instances[1]
+    currentSocket.readyState = FakeWebSocket.OPEN
+    currentSocket.onopen?.()
+    currentSocket.onmessage?.({ data: JSON.stringify({
+      type: 'connected',
+      sessionId: 'sess-2',
+      schemaVersion: 1
+    }) })
+
+    replacedSocket.onopen?.()
+    replacedSocket.onmessage?.({ data: JSON.stringify({
+      type: 'privateMessage',
+      conversationId: 'conversation-old',
+      schemaVersion: 1
+    }) })
+    replacedSocket.onclose?.()
+
+    expect(privateMessages).toEqual([])
+    expect(imRealtimeClient.ws).toBe(currentSocket)
+    expect(imRealtimeClient.state).toMatchObject({
+      connected: true,
+      authed: true,
+      sessionId: 'sess-2'
+    })
+  })
+
+  it('should isolate every handler when a live websocket is overlapped by a replacement', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-old' } }
+    })
+    const sent = []
+    FakeWebSocket.prototype.send = function (payload) {
+      sent.push({ socket: this, message: JSON.parse(payload) })
+    }
+    const protocolErrors = []
+    const privateMessages = []
+    let currentSocket = null
+    imRealtimeClient.on('protocolError', (error) => protocolErrors.push(error))
+    imRealtimeClient.on('privateMessage', (message) => privateMessages.push(message))
+    imRealtimeClient.on('stateChanged', (state) => {
+      if (!currentSocket && state.connected && !state.authed) {
+        imRealtimeClient._open('wss://edge.example.com/ws/im', 'ticket-current')
+        currentSocket = FakeWebSocket.instances[1]
+        currentSocket.readyState = FakeWebSocket.OPEN
+      }
+    })
+
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+    const overlappedSocket = FakeWebSocket.instances[0]
+
+    overlappedSocket.readyState = FakeWebSocket.OPEN
+    overlappedSocket.onopen?.()
+    expect(currentSocket).toBe(FakeWebSocket.instances[1])
+    currentSocket.onopen?.()
+    currentSocket.onmessage?.({ data: JSON.stringify({
+      type: 'connected',
+      sessionId: 'sess-current',
+      schemaVersion: 1
+    }) })
+
+    overlappedSocket.onmessage?.({ data: JSON.stringify({
+      type: 'privateMessage',
+      conversationId: 'conversation-old',
+      schemaVersion: 1
+    }) })
+    overlappedSocket.onmessage?.({ data: 'not-json' })
+    overlappedSocket.onerror?.()
+    overlappedSocket.onclose?.()
+
+    expect(sent).toEqual([{
+      socket: currentSocket,
+      message: { type: 'connect', ticket: 'ticket-current', schemaVersion: 1 }
+    }])
+    expect(protocolErrors).toEqual([])
+    expect(privateMessages).toEqual([])
+    expect(imRealtimeClient.ws).toBe(currentSocket)
+    expect(imRealtimeClient.state).toMatchObject({
+      connected: true,
+      authed: true,
+      sessionId: 'sess-current'
+    })
   })
 
   it('should reopen a fresh IM session when the browser comes back online or visible', async () => {

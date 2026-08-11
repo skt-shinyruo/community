@@ -5,6 +5,7 @@ export const useAuthStore = defineStore('auth', {
   state: () => ({
     accessToken: '',
     me: null,
+    identityState: 'anonymous',
     tokenGeneration: 0
   }),
   getters: {
@@ -27,6 +28,8 @@ export const useAuthStore = defineStore('auth', {
       }
       if (this.accessToken !== nextToken) {
         this.accessToken = nextToken
+        this.me = null
+        this.identityState = 'unresolved'
         this.tokenGeneration += 1
       }
       setSessionHint()
@@ -39,20 +42,25 @@ export const useAuthStore = defineStore('auth', {
       }
       if (this.accessToken !== nextToken) {
         this.accessToken = nextToken
+        this.me = null
+        this.identityState = 'unresolved'
         this.tokenGeneration += 1
       }
       if (me !== undefined) {
         this.me = me || null
+        this.identityState = this.me ? 'resolved' : 'unresolved'
       }
       setSessionHint()
     },
     setMe(me) {
       this.me = me || null
+      this.identityState = this.accessToken && this.me ? 'resolved' : (this.accessToken ? 'unresolved' : 'anonymous')
     },
     clear() {
       const hadSession = !!this.accessToken || this.me !== null
       this.accessToken = ''
       this.me = null
+      this.identityState = 'anonymous'
       if (hadSession) {
         this.tokenGeneration += 1
       }

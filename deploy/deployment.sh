@@ -15,7 +15,7 @@ Commands:
   config    Render the merged compose config
 
 Options:
-  --topology <single|cluster>  Choose topology (default: cluster)
+  --topology <single|cluster>  Choose topology (default: single)
   --scope <full|infra>         Choose compose scope (default: full)
   --no-observability  Disable deploy/compose.observability.yml
   --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
@@ -30,7 +30,7 @@ Examples:
   ./deploy/deployment.sh up --topology single
   ./deploy/deployment.sh up --topology single --scope infra
   ./deploy/deployment.sh config --topology single -p community-single-smoke --env-file deploy/.env.single.smoke
-  ./deploy/deployment.sh logs --no-observability community-app-1
+  ./deploy/deployment.sh logs --no-observability community-app
   ./deploy/deployment.sh down --no-observability
   ./deploy/deployment.sh reset-mysql --topology single
   ./deploy/deployment.sh config --topology single
@@ -295,7 +295,7 @@ COMMAND="$1"
 shift
 
 OBSERVABILITY=1
-TOPOLOGY="cluster"
+TOPOLOGY="single"
 SCOPE="full"
 ENV_FILE=""
 PROJECT_NAME=""

@@ -6,7 +6,10 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.context.TestConfiguration;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
 import org.springframework.cloud.gateway.filter.headers.ForwardedHeadersFilter;
+import org.springframework.cloud.gateway.filter.headers.RemoveForwardedHeadersFilter;
+import org.springframework.cloud.gateway.filter.headers.RemoveXForwardedHeadersFilter;
 import org.springframework.cloud.gateway.filter.headers.XForwardedHeadersFilter;
 import org.springframework.context.ApplicationContext;
 import org.springframework.context.annotation.Bean;
@@ -29,6 +32,7 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+@AutoConfigureWebTestClient
 @SpringBootTest(
         classes = {
                 CommunityGatewayApplication.class,
@@ -63,8 +67,8 @@ class ForwardedHeaderRoutingIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 ForwardedHeaderRoutingIntegrationTest::downstreamBaseUrl);
         registry.add("spring.cloud.gateway.discovery.locator.enabled", () -> "false");
-        registry.add("spring.cloud.gateway.forwarded.enabled", () -> "false");
-        registry.add("spring.cloud.gateway.x-forwarded.enabled", () -> "false");
+        registry.add("spring.cloud.gateway.server.webflux.forwarded.enabled", () -> "false");
+        registry.add("spring.cloud.gateway.server.webflux.x-forwarded.enabled", () -> "false");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
         registry.add("gateway.trusted-proxy.enabled", () -> "true");
@@ -112,6 +116,14 @@ class ForwardedHeaderRoutingIntegrationTest {
     void shouldDisableGatewayBuiltInForwardingHeaderFilters() {
         assertThat(applicationContext.getBeansOfType(ForwardedHeadersFilter.class)).isEmpty();
         assertThat(applicationContext.getBeansOfType(XForwardedHeadersFilter.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(RemoveForwardedHeadersFilter.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(RemoveXForwardedHeadersFilter.class)).hasSize(1);
+
+        CanonicalForwardedForHttpHeadersFilter canonicalFilter =
+                applicationContext.getBean(CanonicalForwardedForHttpHeadersFilter.class);
+        assertThat(canonicalFilter.getOrder())
+                .isGreaterThan(applicationContext.getBean(RemoveForwardedHeadersFilter.class).getOrder())
+                .isGreaterThan(applicationContext.getBean(RemoveXForwardedHeadersFilter.class).getOrder());
     }
 
     private static synchronized String downstreamBaseUrl() {

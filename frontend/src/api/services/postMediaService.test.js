@@ -1,6 +1,9 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
+
+const uploadTransport = vi.hoisted(() => ({ upload: vi.fn() }))
+vi.mock('../uploadTransport', () => ({ uploadTransport }))
 
 import http from '../http'
 import { inferMediaKind, preparePostMediaUpload, uploadPostMediaFile } from './postMediaService'
@@ -16,9 +19,12 @@ describe('api/services/postMediaService', () => {
 
   it('prepares and executes post media upload sessions', async () => {
     mock = new MockAdapter(http)
+    uploadTransport.upload.mockReset()
     const assetId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const controller = new AbortController()
     const uploadResponse = { assetId, status: 'UPLOADED' }
     mock.onPost('/api/posts/media/upload-sessions').reply((config) => {
+      expect(config.signal).toBe(controller.signal)
       expect(JSON.parse(config.data)).toMatchObject({
         fileName: 'demo.png',
         contentType: 'image/png',
@@ -44,16 +50,12 @@ describe('api/services/postMediaService', () => {
         traceId: 'trace-session'
       }]
     })
-    mock.onPost(`/api/posts/media/${assetId}/upload`).reply((config) => {
-      expect(config.data).toBeInstanceOf(FormData)
-      expect(config.data.get('uploadToken')).toBe('upload-1')
-      expect(config.data.get('mediaFile')).toBe(file)
-      expect(config.headers).toMatchObject({ 'X-Upload-Token': 'token-1' })
-      return [200, { code: 0, message: '', data: uploadResponse, traceId: 'trace-upload' }]
+    uploadTransport.upload.mockResolvedValue({
+      data: { code: 0, message: '', data: uploadResponse, traceId: 'trace-upload' }
     })
 
     const file = new File(['demo'], 'demo.png', { type: 'image/png' })
-    const session = await preparePostMediaUpload({ file, mediaKind: 'IMAGE' })
+    const session = await preparePostMediaUpload({ file, mediaKind: 'IMAGE', signal: controller.signal })
     const uploaded = await uploadPostMediaFile({ session: session.data, file })
 
     expect(session).toEqual({
@@ -73,6 +75,13 @@ describe('api/services/postMediaService', () => {
       traceId: 'trace-session'
     })
     expect(uploaded).toEqual({ data: uploadResponse, traceId: 'trace-upload' })
+    expect(uploadTransport.upload).toHaveBeenCalledWith(expect.objectContaining({
+      url: `/api/posts/media/${assetId}/upload`,
+      method: 'POST',
+      headers: { 'X-Upload-Token': 'token-1' },
+      data: expect.any(FormData)
+    }))
+    expect(uploadTransport.upload.mock.calls[0][0].data.get('mediaFile')).toBe(file)
   })
 
   it('infers media kind from file content type', () => {

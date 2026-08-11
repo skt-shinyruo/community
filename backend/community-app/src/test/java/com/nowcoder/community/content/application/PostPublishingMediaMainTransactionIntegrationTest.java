@@ -21,8 +21,8 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -68,46 +68,46 @@ class PostPublishingMediaMainTransactionIntegrationTest {
     @Autowired
     private PostPublishingApplicationService applicationService;
 
-    @MockBean
+    @MockitoBean
     private ContentSanitizer sanitizer;
 
-    @MockBean
+    @MockitoBean
     private IdempotencyGuard idempotencyGuard;
 
-    @MockBean
+    @MockitoBean
     private UserModerationGuard moderationGuard;
 
-    @MockBean
+    @MockitoBean
     private PostPublishingDomainService domainService;
 
-    @MockBean
+    @MockitoBean
     private PostContentBlockPolicy blockPolicy;
 
-    @MockBean
+    @MockitoBean
     private PostRepository postRepository;
 
-    @MockBean
+    @MockitoBean
     private PostContentBlockRepository blockRepository;
 
-    @MockBean
+    @MockitoBean
     private CategoryRepository categoryRepository;
 
-    @MockBean
+    @MockitoBean
     private PostTagRepository tagRepository;
 
-    @MockBean
+    @MockitoBean
     private PostIntegrationEventPublisher integrationEventPublisher;
 
-    @MockBean
+    @MockitoBean
     private PostMediaReferenceScheduler mediaReferenceScheduler;
 
-    @MockBean
+    @MockitoBean
     private PostMediaStoragePort storagePort;
 
-    @MockBean
+    @MockitoBean
     private ClientIpResolver clientIpResolver;
 
-    @SpyBean
+    @MockitoSpyBean
     private PostMediaReferenceCommandPublisher commandPublisher;
 
     @BeforeEach

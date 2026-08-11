@@ -9,6 +9,7 @@ unset IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_A
 
 help_output="$(./deploy/deployment.sh --help 2>&1)"
 printf '%s\n' "${help_output}" | grep -F -- '--topology <single|cluster>'
+printf '%s\n' "${help_output}" | grep -F -- 'Choose topology (default: single)'
 printf '%s\n' "${help_output}" | grep -F -- 'Custom project names require an independent network topology'
 if printf '%s\n' "${help_output}" | grep -F -- '--topology <dev|ha>' >/dev/null 2>&1; then
   echo "old topology help text is still visible" >&2
@@ -17,6 +18,7 @@ fi
 
 single_infra="$(mktemp)"
 single_full="$(mktemp)"
+default_full="$(mktemp)"
 cluster_infra="$(mktemp)"
 cluster_full="$(mktemp)"
 single_ticket_override_full="$(mktemp)"
@@ -41,7 +43,7 @@ rm -f "${compose_invocation}" "${sentinel}"
 fake_bin="$(mktemp -d)"
 dev_err="$(mktemp)"
 ha_err="$(mktemp)"
-trap 'rm -rf "${fake_bin}"; rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}" "${single_ticket_override_full}" "${cluster_ticket_override_full}" "${single_missing_ticket_env}" "${cluster_missing_ticket_env}" "${single_missing_ticket_err}" "${cluster_missing_ticket_err}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${dev_err}" "${ha_err}"' EXIT
+trap 'rm -rf "${fake_bin}"; rm -f "${single_infra}" "${single_full}" "${default_full}" "${cluster_infra}" "${cluster_full}" "${single_ticket_override_full}" "${cluster_ticket_override_full}" "${single_missing_ticket_env}" "${cluster_missing_ticket_env}" "${single_missing_ticket_err}" "${cluster_missing_ticket_err}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${dev_err}" "${ha_err}"' EXIT
 
 service_environment_value() {
   local rendered_config="$1"
@@ -426,8 +428,10 @@ rendered_service_ipv4_address() {
 
 ./deploy/deployment.sh config --topology single --scope infra --env-file deploy/.env.single.example >"${single_infra}"
 ./deploy/deployment.sh config --topology single --scope full --env-file deploy/.env.single.example >"${single_full}"
+./deploy/deployment.sh config --scope full --env-file deploy/.env.single.example >"${default_full}"
 ./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/.env.cluster.example >"${cluster_infra}"
 ./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/.env.cluster.example >"${cluster_full}"
+cmp -s "${default_full}" "${single_full}"
 
 single_access_public_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PUBLIC_KEY)"
 single_access_private_key="$(environment_file_value deploy/.env.single.example JWT_ACCESS_PRIVATE_KEY)"
@@ -479,7 +483,6 @@ assert_environment_absent_for_services "${cluster_full}" JWT_SERVICE_HMAC_SECRET
 assert_environment_value_for_services "${cluster_full}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
   "${cluster_password_reset_identifier_secret}" deploy/.env.cluster.example \
   community-app-1 community-app-2 community-app-3
-test "$(grep -Fc 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:' "${cluster_full}")" -eq 3
 if grep -E '(^|[^A-Z0-9_])JWT_HMAC_SECRET([^A-Z0-9_]|$)' \
   "${single_full}" "${cluster_full}" >/dev/null; then
   echo "rendered service topologies must not expose the retired JWT_HMAC_SECRET" >&2
@@ -694,6 +697,10 @@ for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BA
   grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway-1:$' "${cluster_full}"
+grep -F 'x-community-app-environment: &community-app-environment' \
+  deploy/compose.runtime.services.cluster.yml
+grep -F '<<: *community-app-environment' deploy/compose.runtime.services.cluster.yml
+test "$(wc -l < deploy/compose.runtime.services.cluster.yml)" -lt 900
 grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'

@@ -2,6 +2,7 @@ package com.nowcoder.community.auth.infrastructure.web;
 
 import com.nowcoder.community.auth.application.TokenFreshnessApplicationService;
 import com.nowcoder.community.auth.application.TokenFreshnessApplicationService.TokenFreshnessResult;
+import com.nowcoder.community.common.security.jwt.AccessTokenClaims;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -35,8 +36,7 @@ public class TokenFreshnessFilter extends OncePerRequestFilter {
         }
 
         UUID userId = parseSubject(jwt);
-        Number versionClaim = jwt.getClaim("security_version");
-        long version = versionClaim == null ? 0L : versionClaim.longValue();
+        long version = AccessTokenClaims.securityVersion(jwt).orElse(0L);
         TokenFreshnessResult result = tokenFreshnessApplicationService.verify(userId, version);
         if (result.status() == TokenFreshnessResult.Status.ACCEPTED) {
             filterChain.doFilter(request, response);

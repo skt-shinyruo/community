@@ -10,6 +10,7 @@ import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAcc
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -24,6 +25,16 @@ public class MyBatisWalletAccountRepository implements WalletAccountRepository {
     @Override
     public WalletAccount findByAccountId(UUID accountId) {
         return toDomain(mapper.selectByAccountId(accountId));
+    }
+
+    @Override
+    public List<WalletAccount> findAllByAccountIdsForUpdate(List<UUID> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            return List.of();
+        }
+        return mapper.selectByAccountIdsForUpdate(accountIds).stream()
+                .map(this::toDomain)
+                .toList();
     }
 
     @Override

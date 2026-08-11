@@ -80,7 +80,10 @@ vi.mock('../api/services/blockService', () => ({
   unblockUser
 }))
 
-vi.mock('../ui/toastService', () => ({ showToast }))
+vi.mock('../ui/toastService', () => ({
+  showToast,
+  showErrorToast: (_error, payload) => showToast(payload)
+}))
 
 vi.mock('../utils/time', () => ({
   formatTime: vi.fn(() => ''),

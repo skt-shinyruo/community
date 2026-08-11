@@ -5,6 +5,8 @@ import { requestCurrentUser } from './refreshTransport'
 import { hasSessionHint } from './sessionHint'
 
 let pendingSessionPromise = null
+let pendingSessionAuth = null
+let pendingSessionGeneration = null
 
 function setTraceId(traceId) {
   if (!traceId) return
@@ -27,7 +29,8 @@ async function doEnsureSessionReady(auth) {
       if (!auth.accessToken) return { state: 'anonymous' }
       return refreshed.profileLoaded || auth.me ? { state: 'ready' } : { state: 'error' }
     } catch (error) {
-      if (!auth.accessToken) return { state: 'anonymous' }
+      if (error?.sessionRefreshState === 'terminal' && !auth.accessToken) return { state: 'anonymous' }
+      if (!auth.accessToken) return { state: 'error', error }
       return auth.me ? { state: 'ready' } : { state: 'error', error }
     }
   }
@@ -55,7 +58,7 @@ async function doEnsureSessionReady(auth) {
       if (!auth.accessToken) return { state: 'anonymous' }
       return auth.me ? { state: 'ready' } : { state: 'error', error }
     }
-    if (Number(error?.response?.status || 0) === 401) {
+    if ([401, 403].includes(Number(error?.response?.status || 0))) {
       try {
         await recoverUnauthorized({ auth, requestGeneration })
         if (!auth.accessToken) return { state: 'anonymous' }
@@ -78,10 +81,21 @@ export async function ensureSessionReady({ auth } = {}) {
     return { state: 'ready' }
   }
 
-  if (!pendingSessionPromise) {
-    pendingSessionPromise = doEnsureSessionReady(authStore).finally(() => {
-      pendingSessionPromise = null
+  const generation = authStore.tokenGeneration
+  const canShare = pendingSessionPromise
+    && pendingSessionAuth === authStore
+    && pendingSessionGeneration === generation
+  if (!canShare) {
+    const sessionPromise = doEnsureSessionReady(authStore).finally(() => {
+      if (pendingSessionPromise === sessionPromise) {
+        pendingSessionPromise = null
+        pendingSessionAuth = null
+        pendingSessionGeneration = null
+      }
     })
+    pendingSessionPromise = sessionPromise
+    pendingSessionAuth = authStore
+    pendingSessionGeneration = generation
   }
   return pendingSessionPromise
 }

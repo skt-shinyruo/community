@@ -121,6 +121,8 @@ IM 使用 Kafka 连接 realtime 与 core：
 
 Contract code lives in `backend/community-im/im-common` and is shared by `community-im-gateway` / `im-realtime` / `im-core`. It is a deployable boundary, not an internal DTO bag.
 
+Session ticket signing/validation code lives in the sibling `backend/community-im/im-session-ticket` module and is shared by `community-im-gateway` and `im-realtime`. It owns the HS256 issuer/audience/type/claim protocol; the JSON command/event/frame inventory remains in `im-common`.
+
 Command topics：
 
 - `im.command.private-text`
@@ -231,10 +233,12 @@ Idempotency-Key: <unique-key>
 - API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12890` / `12888` 场景推断 `localhost:12880`。
 - access token 只保存在内存；refresh token 由 HttpOnly cookie 承载。业务请求 `401` 后前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - 全局错误展示优先使用后端 `Result.message` 和 `traceId`。
-- 当前前端通用 axios interceptor 为发帖、评论、钱包写接口和市场下单自动附加 `Idempotency-Key`。
+- 通用 axios interceptor 不生成 `Idempotency-Key`；发帖、评论、钱包写接口和市场下单由页面级 `WriteAttempt` 显式提供，同一次人工重试复用 key。
 
 字段约定：
 
+- content 批量摘要：`POST /api/posts/batch-summary` 的 `postIds` 最多 `200` 个；超过上限返回 `400`，同一限制也由 application entry 执行。
+- social 公共关注列表：SPA 默认使用 `/api/follows/{userId}/followees/page` 或 `/followers/page` 的 opaque `cursor`，响应包含 `items`、`nextCursor`、`hasNext`，并保存游标历史支持前后翻页；旧 `page/size` 数组响应仅作兼容且 `page > 100` 返回 `400`。
 - notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。
 - market 地址：创建/更新只使用 `defaultAddress`。
 - market 订单：物理商品下单需要 active `addressId`，服务端保存地址快照；订单成功后可能处于资金 pending 状态。

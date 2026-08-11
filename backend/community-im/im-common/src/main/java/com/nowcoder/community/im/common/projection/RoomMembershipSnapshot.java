@@ -15,7 +15,7 @@ public record RoomMembershipSnapshot(
         boolean hasMore,
         Long snapshotHighWatermark,
         @ImSchemaVersion
-        int schemaVersion
+        Integer schemaVersion
 ) {
 
     public RoomMembershipSnapshot {

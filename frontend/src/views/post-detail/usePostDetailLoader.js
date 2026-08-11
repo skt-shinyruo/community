@@ -9,7 +9,8 @@ import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { markPostRead } from '../../utils/readTracker'
 import { scrollToAnchor } from '../../utils/scrollToAnchor'
 import { normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
-import { showToast } from '../../ui/toastService'
+import { showErrorToast, showToast } from '../../ui/toastService'
+import { createWriteAttempt } from '../../api/writeAttempt'
 import { getUserProfile } from '../../api/services/userService'
 import { setLike, followUser, unfollowUser, getFollowStatus } from '../../api/services/socialService'
 import { bookmarkPost, unbookmarkPost } from '../../api/services/bookmarkService'
@@ -180,14 +181,54 @@ export function usePostDetailLoader(emit) {
   const newComment = ref('')
   const commenting = ref(false)
   const commentError = ref('')
+  const commentAttempt = createWriteAttempt()
+  const replyAttempts = new Map()
   const {
     safeStorageGet,
     safeStorageSet,
     commentDraftKey,
     replyDraftKey,
     setNewComment,
-    setReplyDraft
+    setReplyDraft: persistReplyDraft
   } = usePostDetailDrafts(postId, newComment, meUserId)
+
+  function replyAttemptKey(comment) {
+    return [meUserId.value, postId.value, normalizeOpaqueId(comment?.id)].join(':')
+  }
+
+  function replyAttemptRecord(comment) {
+    const key = replyAttemptKey(comment)
+    let record = replyAttempts.get(key)
+    if (!record) {
+      record = { attempt: createWriteAttempt(), signature: '' }
+      replyAttempts.set(key, record)
+    }
+    return record
+  }
+
+  function bindReplyAttempt(comment, content, parentCommentId) {
+    const record = replyAttemptRecord(comment)
+    const signature = JSON.stringify([
+      normalizeOpaqueId(parentCommentId),
+      String(content || '')
+    ])
+    if (record.signature && record.signature !== signature) {
+      record.attempt.changeIntent()
+    }
+    record.signature = signature
+    return record.attempt
+  }
+
+  function changeReplyIntent(comment) {
+    const record = replyAttemptRecord(comment)
+    record.attempt.changeIntent()
+    record.signature = ''
+  }
+
+  function setReplyDraft(comment, value) {
+    changeReplyIntent(comment)
+    persistReplyDraft(comment, value)
+  }
 
   function commentAnchorId(id) {
     return `c-${normalizeOpaqueId(id)}`
@@ -547,7 +588,7 @@ export function usePostDetailLoader(emit) {
       }
     } catch (e) {
       if (!isCurrentViewScope(scope)) return
-      showToast({ type: 'error', text: e?.message || '保存失败' })
+      showErrorToast(e, { type: 'error', text: e?.message || '保存失败' })
     } finally {
       if (isCurrentViewScope(scope)) actionLoading.value = false
     }
@@ -776,6 +817,9 @@ export function usePostDetailLoader(emit) {
 
   function cancelReply(c) {
     if (!c) return
+    const record = replyAttemptRecord(c)
+    record.attempt.cancel()
+    record.signature = ''
     c._replying = false
     c._replyError = ''
     c._replySubmitting = false
@@ -796,13 +840,17 @@ export function usePostDetailLoader(emit) {
     const parentCommentId = normalizeOpaqueId(c._replyParentCommentId)
     c._replySubmitting = true
     try {
+      const record = replyAttemptRecord(c)
+      const attempt = bindReplyAttempt(c, content, parentCommentId)
       const resp = await apiAddComment(scope.postId, {
         content,
         parentCommentId
-      })
+      }, { writeAttempt: attempt })
       if (!isCurrentViewScope(scope)) return
       emit('trace', resp?.traceId || '')
       c._replyDraft = ''
+      attempt.succeed()
+      record.signature = ''
       safeStorageSet(replyDraftKey(c.id), '')
       c._replying = false
       c._replyParentCommentId = ''
@@ -890,10 +938,11 @@ export function usePostDetailLoader(emit) {
     const content = String(newComment.value)
     commenting.value = true
     try {
-      const resp = await apiAddComment(scope.postId, { content })
+      const resp = await apiAddComment(scope.postId, { content }, { writeAttempt: commentAttempt })
       if (!isCurrentViewScope(scope)) return
       emit('trace', resp?.traceId || '')
       setNewComment('')
+      commentAttempt.succeed()
       await loadComments(0, { reset: true })
       await loadPost()
     } catch (e) {
@@ -944,6 +993,7 @@ export function usePostDetailLoader(emit) {
   watch(
     () => auth.tokenGeneration,
     () => {
+      commentAttempt.cancel()
       postRequestTracker.invalidate()
       commentsRequestTracker.invalidate()
       followStatusRequestTracker.invalidate()
@@ -978,6 +1028,7 @@ export function usePostDetailLoader(emit) {
   watch(
     () => route.params.postId,
     () => {
+      commentAttempt.cancel()
       postRequestTracker.invalidate()
       commentsRequestTracker.invalidate()
       followStatusRequestTracker.invalidate()
@@ -998,7 +1049,10 @@ export function usePostDetailLoader(emit) {
     }
   )
 
+  watch(newComment, () => commentAttempt.changeIntent())
+
   onBeforeUnmount(() => {
+    commentAttempt.cancel()
     postRequestTracker.invalidate()
     commentsRequestTracker.invalidate()
     followStatusRequestTracker.invalidate()

@@ -12,11 +12,12 @@
 
     <artifactId>community-im</artifactId>
     <name>community-im</name>
-    <description>IM aggregate: common + core + realtime</description>
+    <description>IM aggregate: common + session ticket protocol + core + realtime</description>
     <packaging>pom</packaging>
 
     <modules>
         <module>im-common</module>
+        <module>im-session-ticket</module>
         <module>im-core</module>
         <module>im-realtime</module>
     </modules>

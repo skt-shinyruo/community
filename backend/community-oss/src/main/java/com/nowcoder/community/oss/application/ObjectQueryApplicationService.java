@@ -13,10 +13,10 @@ import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
-import com.nowcoder.community.oss.infrastructure.config.OssProperties;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
-import com.nowcoder.community.oss.infrastructure.storage.StoredObject;
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.ObjectStorageSettings;
+import com.nowcoder.community.oss.application.port.StoredObject;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
@@ -43,7 +43,7 @@ public class ObjectQueryApplicationService {
             OssObjectVersionRepository versionRepository,
             OssAccessGrantRepository grantRepository,
             ObjectStore objectStore,
-            OssProperties properties,
+            ObjectStorageSettings settings,
             Clock clock,
             OssObjectAccessPolicy accessPolicy
     ) {
@@ -51,7 +51,7 @@ public class ObjectQueryApplicationService {
         this.versionRepository = versionRepository;
         this.grantRepository = grantRepository;
         this.objectStore = objectStore;
-        this.publicBaseUrl = normalizeBaseUrl(properties.publicBaseUrl());
+        this.publicBaseUrl = normalizeBaseUrl(settings.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.accessPolicy = accessPolicy;
     }
@@ -61,10 +61,10 @@ public class ObjectQueryApplicationService {
             OssObjectVersionRepository versionRepository,
             OssAccessGrantRepository grantRepository,
             ObjectStore objectStore,
-            OssProperties properties,
+            ObjectStorageSettings settings,
             Clock clock
     ) {
-        this(objectRepository, versionRepository, grantRepository, objectStore, properties, clock,
+        this(objectRepository, versionRepository, grantRepository, objectStore, settings, clock,
                 new OssObjectAccessPolicy());
     }
 

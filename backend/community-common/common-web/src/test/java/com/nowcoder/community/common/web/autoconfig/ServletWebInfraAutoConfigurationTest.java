@@ -8,7 +8,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import org.junit.jupiter.api.Test;
 import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -24,7 +24,7 @@ class ServletWebInfraAutoConfigurationTest {
         try {
             new WebApplicationContextRunner()
                     .withConfiguration(AutoConfigurations.of(
-                            JacksonAutoConfiguration.class,
+                            Jackson2AutoConfiguration.class,
                             WebInfraAutoConfiguration.class,
                             ServletWebInfraAutoConfiguration.class
                     ))

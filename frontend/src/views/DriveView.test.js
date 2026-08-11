@@ -4,10 +4,12 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getDriveDownloadUrl, listDriveEntries, listDriveShares } = vi.hoisted(() => ({
+const { createDriveUploadSession, getDriveDownloadUrl, listDriveEntries, listDriveShares, uploadDriveFile } = vi.hoisted(() => ({
+  createDriveUploadSession: vi.fn(),
   getDriveDownloadUrl: vi.fn(),
   listDriveEntries: vi.fn(),
-  listDriveShares: vi.fn()
+  listDriveShares: vi.fn(),
+  uploadDriveFile: vi.fn()
 }))
 
 vi.mock('../api/services/driveService', () => ({
@@ -17,8 +19,8 @@ vi.mock('../api/services/driveService', () => ({
   listDriveTrash: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
   searchDriveEntries: vi.fn().mockResolvedValue({ data: [], traceId: '' }),
   createDriveFolder: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
-  createDriveUploadSession: vi.fn().mockResolvedValue({ data: { upload: { url: '/u', method: 'POST', fileField: 'file', fields: {} } }, traceId: '' }),
-  uploadDriveFile: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
+  createDriveUploadSession,
+  uploadDriveFile,
   renameDriveEntry: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
   moveDriveEntry: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
   trashDriveEntry: vi.fn().mockResolvedValue({ data: {}, traceId: '' }),
@@ -74,6 +76,8 @@ describe('DriveView', () => {
       tokenGeneration: 1
     })
     getDriveDownloadUrl.mockResolvedValue({ data: { url: 'https://cdn.example.test/file' }, traceId: '' })
+    createDriveUploadSession.mockResolvedValue({ data: { upload: { url: '/u', method: 'POST', fileField: 'file', fields: {} } }, traceId: '' })
+    uploadDriveFile.mockResolvedValue({ data: {}, traceId: '' })
     listDriveEntries.mockResolvedValue({ data: [], traceId: '' })
     listDriveShares.mockResolvedValue({ data: { items: [], hasNext: false, page: 0, size: 20 }, traceId: '' })
   })
@@ -176,6 +180,22 @@ describe('DriveView', () => {
 
     expect(listDriveShares).toHaveBeenCalledWith({ page: 0, size: 20 })
     expect(wrapper.text()).toContain('retained.txt')
+  })
+
+  it('keeps file results visible when the share section fails', async () => {
+    listDriveEntries.mockResolvedValue({
+      data: [{ entryId: 'file-1', name: 'available.txt', type: 'FILE', status: 'ACTIVE' }],
+      traceId: ''
+    })
+    listDriveShares.mockRejectedValueOnce(new Error('shares unavailable'))
+    const wrapper = mountDrive(pinia)
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === '分享管理').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('available.txt')
+    expect(wrapper.text()).toContain('部分网盘数据加载失败：shares unavailable')
   })
 
   it('keeps persisted shares and retries the same page after load-more fails', async () => {
@@ -301,5 +321,38 @@ describe('DriveView', () => {
 
     expect(open).not.toHaveBeenCalled()
     open.mockRestore()
+  })
+
+  it('keeps every file in a multi-file upload bound to the starting folder', async () => {
+    listDriveEntries.mockResolvedValue({
+      data: [{ entryId: 'folder-a', name: 'Folder A', type: 'FOLDER', status: 'ACTIVE' }],
+      traceId: ''
+    })
+    const firstUpload = deferred()
+    uploadDriveFile
+      .mockReturnValueOnce(firstUpload.promise)
+      .mockResolvedValueOnce({ data: {}, traceId: '' })
+    const wrapper = mountDrive(pinia)
+    await flushPromises()
+    const fileInput = wrapper.get('input[type="file"]')
+    Object.defineProperty(fileInput.element, 'files', {
+      configurable: true,
+      value: [
+        new File(['one'], 'one.txt', { type: 'text/plain' }),
+        new File(['two'], 'two.txt', { type: 'text/plain' })
+      ]
+    })
+
+    const upload = fileInput.trigger('change')
+    await vi.waitFor(() => expect(uploadDriveFile).toHaveBeenCalledTimes(1))
+    const enterButton = wrapper.findAll('button').find((button) => button.text() === '进入')
+    expect(enterButton.attributes('disabled')).toBeDefined()
+    await enterButton.trigger('click')
+
+    firstUpload.resolve({ data: {}, traceId: '' })
+    await vi.waitFor(() => expect(createDriveUploadSession).toHaveBeenCalledTimes(2))
+    await upload
+
+    expect(createDriveUploadSession.mock.calls.map(([request]) => request.parentId)).toEqual(['', ''])
   })
 })

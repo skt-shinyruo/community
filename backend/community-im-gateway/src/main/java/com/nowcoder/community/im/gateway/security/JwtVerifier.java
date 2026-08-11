@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.gateway.security;
 
+import com.nowcoder.community.common.security.jwt.AccessTokenClaims;
 import com.nowcoder.community.common.security.jwt.JwtSubjects;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
@@ -22,6 +23,8 @@ public class JwtVerifier {
         }
         Jwt jwt = jwtDecoder.decode(accessToken.trim());
         UUID userId = JwtSubjects.userUuidOrThrow(jwt);
+        AccessTokenClaims.securityVersion(jwt)
+                .orElseThrow(() -> new IllegalArgumentException("missing or invalid security_version"));
         return new VerifiedJwt(userId, jwt);
     }
 

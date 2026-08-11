@@ -28,9 +28,9 @@
     </div>
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-else-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
+    <div v-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
 
-    <div v-else class="wallet-layout">
+    <div v-if="ready" class="wallet-layout">
       <UiCard class="wallet-panel">
         <UiPageHeader>
           <template #title>钱包动作</template>
@@ -46,7 +46,7 @@
           <section v-if="testCredits.grant.enabled" class="wallet-action-card">
             <h2>领取测试积分</h2>
             <p>本账号剩余 {{ testCredits.grant.remainingAmount }}，单次最多 {{ testCredits.grant.maxAmountPerRequest }}。</p>
-            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" />
+            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.grant.remainingAmount <= 0" @click="submitRecharge">
               {{ submittingKey === 'recharge' ? '领取中…' : '领取测试积分' }}
             </UiButton>
@@ -55,7 +55,7 @@
           <section v-if="testCredits.discard.enabled" class="wallet-action-card">
             <h2>销毁测试积分</h2>
             <p>本账号剩余配额 {{ testCredits.discard.remainingAmount }}；该操作不会产生外部出款。</p>
-            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" />
+            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="submitWithdrawal">
               {{ submittingKey === 'withdraw' ? '销毁中…' : '销毁测试积分' }}
             </UiButton>
@@ -64,8 +64,8 @@
           <section class="wallet-action-card">
             <h2>转账</h2>
             <p>直接把积分转给另一位成员。</p>
-            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" />
-            <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" />
+            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
+            <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== ''" @click="submitTransfer">
               {{ submittingKey === 'transfer' ? '转账中…' : '发起转账' }}
             </UiButton>
@@ -110,6 +110,7 @@ import {
   getWalletSummary,
   getWalletTransactions
 } from '../api/services/walletService'
+import { createWriteAttempt } from '../api/writeAttempt'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
@@ -119,6 +120,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import { buildWalletState } from './walletState'
+import { settleNamedRequests } from '../utils/settledRequests'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -132,6 +134,11 @@ const capabilities = ref({})
 const rechargeForm = ref({ amount: '' })
 const withdrawForm = ref({ amount: '' })
 const transferForm = ref({ toUserId: '', amount: '' })
+const writeAttempts = {
+  recharge: createWriteAttempt(),
+  withdraw: createWriteAttempt(),
+  transfer: createWriteAttempt()
+}
 let reloadGeneration = 0
 let actionGeneration = 0
 
@@ -201,19 +208,22 @@ async function reload() {
   loading.value = true
   error.value = ''
   try {
-    const [summaryResp, txnsResp, capabilitiesResp] = await Promise.all([
-      getWalletSummary(),
-      getWalletTransactions(12),
-      getWalletCapabilities()
-    ])
+    const outcome = await settleNamedRequests({
+      summary: () => getWalletSummary(),
+      transactions: () => getWalletTransactions(12),
+      capabilities: () => getWalletCapabilities()
+    })
     if (generation !== reloadGeneration || scope !== sessionScope.value) return
-    summary.value = normalizeSummary(summaryResp.data)
-    txns.value = normalizeTxns(txnsResp.data)
-    capabilities.value = normalizeCapabilities(capabilitiesResp.data)
-    ready.value = true
-  } catch (e) {
-    if (generation !== reloadGeneration || scope !== sessionScope.value) return
-    error.value = e?.message || '加载钱包失败'
+    if (outcome.results.summary.ok) summary.value = normalizeSummary(outcome.results.summary.value?.data)
+    if (outcome.results.transactions.ok) txns.value = normalizeTxns(outcome.results.transactions.value?.data)
+    if (outcome.results.capabilities.ok) capabilities.value = normalizeCapabilities(outcome.results.capabilities.value?.data)
+    ready.value = ready.value || outcome.anySucceeded
+    if (!outcome.allSucceeded) {
+      const firstError = outcome.results[outcome.failedKeys[0]]?.error
+      error.value = outcome.anySucceeded
+        ? `部分钱包数据加载失败：${firstError?.message || '请稍后重试'}`
+        : (firstError?.message || '加载钱包失败')
+    }
   } finally {
     if (generation === reloadGeneration && scope === sessionScope.value) {
       loading.value = false
@@ -223,6 +233,25 @@ async function reload() {
 
 function isCurrentAction(generation, scope) {
   return generation === actionGeneration && scope === sessionScope.value
+}
+
+function rechargeIntent() {
+  return JSON.stringify([Number(rechargeForm.value.amount || 0)])
+}
+
+function withdrawalIntent() {
+  return JSON.stringify([Number(withdrawForm.value.amount || 0)])
+}
+
+function transferIntent() {
+  return JSON.stringify([
+    normalizeOpaqueId(transferForm.value.toUserId),
+    Number(transferForm.value.amount || 0)
+  ])
+}
+
+function isCurrentActionIntent(generation, scope, requestedIntent, currentIntent) {
+  return isCurrentAction(generation, scope) && requestedIntent === currentIntent()
 }
 
 async function submitRecharge() {
@@ -236,15 +265,17 @@ async function submitRecharge() {
 
   const generation = ++actionGeneration
   const scope = sessionScope.value
+  const requestedIntent = rechargeIntent()
   submittingKey.value = 'recharge'
   error.value = ''
   try {
-    await createRecharge({ amount })
-    if (!isCurrentAction(generation, scope)) return
+    await createRecharge({ amount }, { writeAttempt: writeAttempts.recharge })
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
     rechargeForm.value.amount = ''
+    writeAttempts.recharge.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
     error.value = e?.message || '领取测试积分失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
@@ -262,15 +293,17 @@ async function submitWithdrawal() {
 
   const generation = ++actionGeneration
   const scope = sessionScope.value
+  const requestedIntent = withdrawalIntent()
   submittingKey.value = 'withdraw'
   error.value = ''
   try {
-    await createWithdrawal({ amount })
-    if (!isCurrentAction(generation, scope)) return
+    await createWithdrawal({ amount }, { writeAttempt: writeAttempts.withdraw })
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
     withdrawForm.value.amount = ''
+    writeAttempts.withdraw.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
     error.value = e?.message || '销毁测试积分失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
@@ -292,16 +325,18 @@ async function submitTransfer() {
 
   const generation = ++actionGeneration
   const scope = sessionScope.value
+  const requestedIntent = transferIntent()
   submittingKey.value = 'transfer'
   error.value = ''
   try {
-    await createTransfer({ toUserId, amount })
-    if (!isCurrentAction(generation, scope)) return
+    await createTransfer({ toUserId, amount }, { writeAttempt: writeAttempts.transfer })
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
     transferForm.value.toUserId = ''
     transferForm.value.amount = ''
+    writeAttempts.transfer.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
     error.value = e?.message || '转账失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
@@ -319,6 +354,7 @@ function resetPrivateState() {
   ready.value = false
   error.value = ''
   submittingKey.value = ''
+  Object.values(writeAttempts).forEach((attempt) => attempt.cancel())
 }
 
 onMounted(() => {
@@ -330,9 +366,13 @@ watch(sessionScope, () => {
   resetPrivateState()
   if (auth.authed) reload()
 })
+watch(rechargeForm, () => writeAttempts.recharge.changeIntent(), { deep: true })
+watch(withdrawForm, () => writeAttempts.withdraw.changeIntent(), { deep: true })
+watch(transferForm, () => writeAttempts.transfer.changeIntent(), { deep: true })
 onBeforeUnmount(() => {
   reloadGeneration += 1
   actionGeneration += 1
+  Object.values(writeAttempts).forEach((attempt) => attempt.cancel())
 })
 </script>
 

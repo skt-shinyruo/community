@@ -1,6 +1,7 @@
 package com.nowcoder.community.oss.infrastructure.storage;
 
 import com.nowcoder.community.oss.application.port.ObjectDeletePort;
+import com.nowcoder.community.oss.application.port.ObjectStore;
 import org.springframework.stereotype.Component;
 
 import java.util.Objects;

@@ -454,7 +454,7 @@ describe('Unified market views', () => {
       listingId: LISTING_A,
       quantity: 1,
       addressId: undefined
-    })
+    }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(wrapper.text()).toContain('订单已创建')
     expect(wrapper.text()).toContain(orderId)
     expect(routerPush).toHaveBeenCalledWith({
@@ -484,6 +484,33 @@ describe('Unified market views', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Shared public listing')
+    expect(wrapper.text()).not.toContain('99999999-9999-7999-8999-999999999999')
+    expect(routerPush).not.toHaveBeenCalled()
+    expect(findOrderButton(wrapper).attributes('disabled')).toBeUndefined()
+  })
+
+  it('does not let an old order response commit after the quantity intent changes', async () => {
+    authenticate('token-a')
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Intent guarded listing')
+    })
+    const pendingOrder = deferred()
+    createMarketOrder.mockReturnValueOnce(pendingOrder.promise)
+    const wrapper = mount(MarketDetailView, mountOptions())
+    await flushPromises()
+
+    await findOrderButton(wrapper).trigger('click')
+    await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
+    const quantityInput = wrapper.get('input')
+    expect(quantityInput.attributes('disabled')).toBeDefined()
+    quantityInput.element.disabled = false
+    await quantityInput.setValue('2')
+    pendingOrder.resolve({
+      data: { orderId: '99999999-9999-7999-8999-999999999999', status: 'ESCROWED' }
+    })
+    await flushPromises()
+
+    expect(quantityInput.element.value).toBe('2')
     expect(wrapper.text()).not.toContain('99999999-9999-7999-8999-999999999999')
     expect(routerPush).not.toHaveBeenCalled()
     expect(findOrderButton(wrapper).attributes('disabled')).toBeUndefined()

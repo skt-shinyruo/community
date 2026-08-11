@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.gateway.session;
+package com.nowcoder.community.im.ticket;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;

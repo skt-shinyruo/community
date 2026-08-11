@@ -4,12 +4,18 @@ import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.CommunityImGatewayApplication;
 import com.nowcoder.community.im.gateway.TestJwtKeys;
+import com.nowcoder.community.im.gateway.security.AccessTokenFreshnessVerifier;
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.test.web.server.LocalServerPort;
+import org.springframework.boot.webtestclient.autoconfigure.AutoConfigureWebTestClient;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Primary;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
@@ -20,14 +26,16 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.reactive.server.WebTestClient;
 
 import java.time.Instant;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest(
-        classes = CommunityImGatewayApplication.class,
+        classes = {CommunityImGatewayApplication.class, ImSessionApiIntegrationTest.FreshnessTestConfig.class},
         webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT
 )
+@AutoConfigureWebTestClient
 class ImSessionApiIntegrationTest {
 
     private static final String SECRET = "im-gateway-session-test-secret-please-change-123456";
@@ -39,8 +47,16 @@ class ImSessionApiIntegrationTest {
     @Autowired
     MeterRegistry meterRegistry;
 
+    @Autowired
+    StubAccessTokenFreshnessVerifier accessTokenFreshnessVerifier;
+
     @LocalServerPort
     int localPort;
+
+    @BeforeEach
+    void resetFreshness() {
+        accessTokenFreshnessVerifier.reset();
+    }
 
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
@@ -112,6 +128,24 @@ class ImSessionApiIntegrationTest {
     }
 
     @Test
+    void shouldRejectAccessTokenWithoutSecurityVersionBeforeOwnerLookup() {
+        webTestClient.post()
+                .uri("/api/im/sessions")
+                .header("Authorization", "Bearer " + accessTokenWithoutSecurityVersion())
+                .exchange()
+                .expectStatus().isUnauthorized();
+
+        assertThat(accessTokenFreshnessVerifier.invocations()).isZero();
+    }
+
+    @Test
+    void shouldRejectStaleAndDisabledTokensAndFailClosedWhenOwnerIsUnavailable() {
+        assertFreshnessDecision(AccessTokenFreshnessVerifier.Decision.STALE, 401);
+        assertFreshnessDecision(AccessTokenFreshnessVerifier.Decision.DENIED, 403);
+        assertFreshnessDecision(AccessTokenFreshnessVerifier.Decision.UNAVAILABLE, 503);
+    }
+
+    @Test
     void shouldPermitConfiguredWsPathThroughSecurity() {
         webTestClient.get()
                 .uri("/custom/ws/im")
@@ -120,20 +154,75 @@ class ImSessionApiIntegrationTest {
     }
 
     private static String accessToken() {
+        return accessToken(true);
+    }
+
+    private static String accessTokenWithoutSecurityVersion() {
+        return accessToken(false);
+    }
+
+    private static String accessToken(boolean includeSecurityVersion) {
         JwtProperties properties = TestJwtKeys.accessProperties();
         JwtEncoder encoder = JwtCodecs.accessTokenEncoder(properties);
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer("community-auth")
                 .subject("00000000-0000-7000-8000-000000000123")
                 .audience(java.util.List.of("community-api"))
                 .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(300))
-                .build();
+                .expiresAt(Instant.now().plusSeconds(300));
+        if (includeSecurityVersion) {
+            claims.claim("security_version", 7L);
+        }
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
                 .type(JwtCodecs.ACCESS_TOKEN_TYPE)
                 .build();
-        return encoder.encode(JwtEncoderParameters.from(header, claims))
+        return encoder.encode(JwtEncoderParameters.from(header, claims.build()))
                 .getTokenValue();
+    }
+
+    private void assertFreshnessDecision(AccessTokenFreshnessVerifier.Decision decision, int expectedStatus) {
+        accessTokenFreshnessVerifier.decision(decision);
+
+        webTestClient.post()
+                .uri("/api/im/sessions")
+                .header("Authorization", "Bearer " + accessToken())
+                .exchange()
+                .expectStatus().isEqualTo(expectedStatus);
+    }
+
+    @TestConfiguration(proxyBeanMethods = false)
+    static class FreshnessTestConfig {
+
+        @Bean
+        @Primary
+        StubAccessTokenFreshnessVerifier stubAccessTokenFreshnessVerifier() {
+            return new StubAccessTokenFreshnessVerifier();
+        }
+    }
+
+    static final class StubAccessTokenFreshnessVerifier implements AccessTokenFreshnessVerifier {
+
+        private final AtomicReference<Decision> decision = new AtomicReference<>(Decision.FRESH);
+        private final AtomicInteger invocations = new AtomicInteger();
+
+        @Override
+        public reactor.core.publisher.Mono<Decision> verify(String accessToken) {
+            invocations.incrementAndGet();
+            return reactor.core.publisher.Mono.just(decision.get());
+        }
+
+        void decision(Decision next) {
+            decision.set(next);
+        }
+
+        int invocations() {
+            return invocations.get();
+        }
+
+        void reset() {
+            decision.set(Decision.FRESH);
+            invocations.set(0);
+        }
     }
 
     private double counterValue(String name, String... tags) {

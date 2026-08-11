@@ -278,8 +278,8 @@ Main path: read public feed：
 
 1. public homepage 和板块页分别走 `GET /api/feed/global`、`GET /api/boards/{boardId}/feed`。
 2. `FeedController` 进入 `FeedReadApplicationService`，使用 opaque cursor 分页。
-3. application 先从 Redis hot feed projection 读取帖子 ID：全站 `post:feed:global:hot`，板块 `post:feed:board:hot:{boardId}`。
-4. application 批量读取 `post:summary:{postId}`；缺失时回源 content owner 组装摘要并回填 Redis。需要返回下一页时，以 owner repository 的 `type + score + createTime + postId` 总序校验缓存候选并生成 opaque cursor，summary 中的过期排序字段不参与边界。
+3. application 先从 Redis hot feed projection 按 `type + score + createTime + postId` 完整总序做 lex keyset 读取；每个 scope 维护 projection epoch，opaque cursor 携带上一页完整边界与读取时 epoch。
+4. application 批量读取 `post:summary:{postId}`。投影有一行 lookahead、epoch 稳定且 summary 的完整排序元组逐项一致时，当前页零 SQL 返回；epoch 变化、summary 缺失/过期或到达缓存尾时按 cursor 边界回源 content owner。缓存尾不能被当作 owner 数据尾，回源仍使用一行 lookahead 决定 `nextCursor`。
 5. 响应返回摘要列表、`nextCursor` 和 `rankVersion`。
 6. 旧 posts list route 已退休；public feed 只使用上述两个 feed 入口。
 

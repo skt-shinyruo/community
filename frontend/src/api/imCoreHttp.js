@@ -2,7 +2,7 @@ import axios from 'axios'
 import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { useAuthStore } from '../stores/auth'
 import { resolveImHttpBaseUrl } from '../config/endpointResolution'
-import { showToast } from '../ui/toastService'
+import { showErrorToast } from '../ui/toastService'
 
 const imCoreHttp = axios.create({
   baseURL: resolveImHttpBaseUrl(),
@@ -21,9 +21,9 @@ function setAuthorization(config, accessToken) {
 
 imCoreHttp.interceptors.request.use((config) => {
   const auth = useAuthStore()
+  config._authTokenGeneration = auth.tokenGeneration
   if (auth.accessToken) {
     setAuthorization(config, auth.accessToken)
-    config._authTokenGeneration = auth.tokenGeneration
   }
   return config
 })
@@ -54,7 +54,7 @@ imCoreHttp.interceptors.response.use(
 
     if (status >= 400) {
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
-      showToast({
+      showErrorToast(error, {
         type: 'error',
         title: status === 401 ? '未登录或登录失效' : '请求失败',
         text: `${msg}${traceSuffix}`

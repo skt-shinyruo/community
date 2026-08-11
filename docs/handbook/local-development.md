@@ -23,7 +23,7 @@
 
 默认值：
 
-- `--topology cluster`
+- `--topology single`
 - `--scope full`
 - observability overlay 默认启用，使用 `--no-observability` 关闭
 - project name：`community-single` 或 `community-cluster`

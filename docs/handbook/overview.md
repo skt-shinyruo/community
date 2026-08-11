@@ -14,6 +14,8 @@
 - `backend/community-oss`：对象存储服务，拥有 OSS metadata、版本、签名 URL 和 `/files/**` 下载。
 - `backend/community-oss-client`：业务服务调用 OSS 的 typed client。
 - `backend/community-im`：独立 IM 子系统，包含：
+  - `im-common`：IM 内部共享错误码、消息类型和基础契约。
+  - `im-session-ticket`：gateway、core 与 realtime 共用的短期 session ticket 编解码契约。
   - `im-realtime`：WebSocket 接入、在线连接、Kafka command 生产、在线推送。
   - `im-core`：消息持久化、历史查询、未读状态、房间和成员权威状态。
 - `backend/community-common/*`：共享错误协议、trace、JWT、安全、HTTP 幂等、outbox、Web 基础设施。

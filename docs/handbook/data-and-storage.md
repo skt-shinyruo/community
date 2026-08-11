@@ -185,6 +185,9 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 | HTTP 幂等 Redis 方案 | `idem:<operation>:<userId>:<Idempotency-Key>` |
 | 全站热门流 | `post:feed:global:hot` |
 | 板块热门流 | `post:feed:board:hot:<boardId>` |
+| Hot-feed 完整排序投影 | `post:feed:projection:{<完整 feed zset key>}`（72 字符 lex member：`type + score + createTime + postId`） |
+| Hot-feed 投影成员索引 | `post:feed:projection-member:{<完整 feed zset key>}:<postId>`（活跃成员无 TTL，更新/删除时原子替换或删除） |
+| Hot-feed 投影 epoch | `post:feed:projection-epoch:{<完整 feed zset key>}`（仅成员增删或排序 tuple 变化时原子递增；相同投影的预热/版本 floor 刷新不递增） |
 | 帖子摘要缓存 | `post:summary:<postId>` |
 | 帖子详情缓存 | `post:detail:<postId>` |
 | 帖子计数 legacy 基线（升级期只读） | `post:counter:<postId>` 与 `post:counter:{post:counter:dirty}:<postId>` |
@@ -214,7 +217,7 @@ legacy String 的真实旧格式是没有 hash tag 的 `auth:regcode:<userId>`�
 
 guard tombstone 之外，每个 Redis sink 同时保留 terminal fence 和 aggregate-version floor，两者 TTL 都是 7 天。terminal fence 无条件拒绝普通回填，aggregate floor 保存该 sink 最小可接受的 Post `aggregateVersion`。hot-feed 和 summary 另外保存 `scoreVersion`：更大的 aggregate version 可替换当前值，同一 aggregate version 只有不小于当前 score version 的写入可更新；较小 aggregate version 即使携带更大 score version 也会被拒绝。feed upsert 与 summary put/evict 分别在同一个 Lua 中写 payload 并刷新各自的二元版本 marker，避免旧 score 在同一 aggregate version 下回填；detail 不缓存最终 score，只按 aggregate version 保护。帖子普通变更的 `remove/evict` 会删除当前 sink，将版本 floor 提升到当前值与传入值的字典序最大值并刷新 TTL；终态删除还会写 terminal fence。
 
-feed 的删除覆盖全站 feed、事件 payload board 以及当时 category repository 返回的所有 board，并按 board ID 去重。每组 feed zset/terminal fence/version floor 都把完整 feed key 放入第一组 `{...}`；summary/detail 也把完整 cache key 放入对应 fence/floor 的第一组 `{...}`。因此每个 sink 的检查、删除和写入共享 Redis Cluster slot。
+feed 的删除覆盖全站 feed、事件 payload board 以及当时 category repository 返回的所有 board，并按 board ID 去重。每组 legacy feed zset、完整排序 zset、成员索引、epoch、terminal fence 和 version floor 都把完整 feed key 放入第一组 `{...}`；一次 Lua 写入会删除旧排序成员、写入新成员并推进 epoch。成员索引在帖子仍位于该 scope 时不能过期，否则后续 rank 更新无法删除旧 lex member；显式 remove/terminal remove 会连同索引一起删除。summary/detail 也把完整 cache key 放入对应 fence/floor 的第一组 `{...}`，因此每个 sink 的检查、删除和写入共享 Redis Cluster slot。
 
 counter v2 按 `postId.hashCode()` 分成 32 个 Redis Cluster slot；每个 slot 内的 counter hash、viewer 去重 key、dirty zset 和 sequence 共用 `{post-counter-<00..1f>}` hash tag，因此浏览去重、浏览增量与 dirty revision 可在同一 Lua 中原子完成。点赞、评论、收藏和 score 均以 owner 数据库为事实源：写路径只标记 dirty，读取/flush 时回源重建，不再把乱序到达的绝对值或增量当作事实。首次初始化会原子清理初始化前的派生 overlay，防止已包含新事实的数据库基线再次叠加；持久 snapshot 不可读时禁止写入已初始化标记。若 `initialized` 或 `base*` 损坏，修复脚本把 `deltaViewCount` 原子移入内部 `recoveryViewDelta`，恢复持久基线后再移回增量字段；该内部字段存在期间不得作为零基线完成初始化。
 

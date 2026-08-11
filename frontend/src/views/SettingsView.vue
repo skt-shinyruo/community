@@ -75,8 +75,9 @@
                 class="settings-avatar-file-input"
               />
               <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
-                {{ loading ? '上传中…' : '上传并保存' }}
+                {{ uploadActionText }}
               </UiButton>
+              <UiButton v-if="canCancelUpload" variant="secondary" @click="cancelUpload">取消上传</UiButton>
             </div>
           </div>
 
@@ -125,8 +126,11 @@ const successMsg = ref('')
 const uploadSession = reactive(normalizeUploadSession())
 
 const pickedFile = ref(null)
+const uploadProgress = ref(null)
+const uploadPhase = ref('idle')
 const selectedPreviewUrl = ref('')
 let uploadGeneration = 0
+let uploadController = null
 
 const sessionScope = computed(() => [
   auth.tokenGeneration,
@@ -139,6 +143,14 @@ const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim()
 const previewUrl = computed(() => selectedPreviewUrl.value)
 
 const displayAvatarUrl = computed(() => previewUrl.value || currentAvatarUrl.value)
+
+const canCancelUpload = computed(() => loading.value && ['creating', 'uploading'].includes(uploadPhase.value))
+
+const uploadActionText = computed(() => {
+  if (!loading.value) return '上传并保存'
+  if (uploadPhase.value === 'saving') return '保存中…'
+  return uploadProgress.value == null ? '上传中…' : `上传中 ${uploadProgress.value}%`
+})
 
 watch(pickedFile, (file, _previousFile, onCleanup) => {
   if (selectedPreviewUrl.value && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
@@ -157,13 +169,13 @@ watch(pickedFile, (file, _previousFile, onCleanup) => {
   })
 })
 
-async function createUploadSession(file, userId) {
+async function createUploadSession(file, userId, signal) {
   const resp = await http.post(`/api/users/${userId}/avatar/upload-sessions`, {
     fileName: file?.name || 'avatar',
     contentType: file?.type || 'application/octet-stream',
     contentLength: file?.size || 0,
     checksumSha256: ''
-  })
+  }, { signal })
   const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
   return {
     session: normalizeUploadSession(data || {}),
@@ -190,18 +202,26 @@ async function uploadAndUpdate() {
 
   const generation = ++uploadGeneration
   const scope = sessionScope.value
+  const controller = new AbortController()
+  uploadController = controller
+  uploadProgress.value = null
+  uploadPhase.value = 'creating'
   loading.value = true
   try {
-    const created = await createUploadSession(file, userId)
+    const created = await createUploadSession(file, userId, controller.signal)
     if (!isCurrentUpload(generation, scope)) return
     emit('trace', created.traceId || '')
     Object.assign(uploadSession, created.session)
 
+    uploadPhase.value = 'uploading'
     const { data, traceId } = await executeUploadSession({
-      http,
       session: created.session,
       file,
-      operation: 'Upload Avatar'
+      operation: 'Upload Avatar',
+      signal: controller.signal,
+      onProgress: ({ percent }) => {
+        if (isCurrentUpload(generation, scope) && percent != null) uploadProgress.value = percent
+      }
     })
     if (!isCurrentUpload(generation, scope)) return
     emit('trace', traceId || '')
@@ -210,6 +230,7 @@ async function uploadAndUpdate() {
     if (!objectId) {
       throw new Error('头像对象缺失，请重新上传')
     }
+    uploadPhase.value = 'saving'
     const updateTraceId = await updateAvatar(objectId, userId)
     if (!isCurrentUpload(generation, scope)) return
     emit('trace', updateTraceId || '')
@@ -228,12 +249,31 @@ async function uploadAndUpdate() {
     if (!isCurrentUpload(generation, scope)) return
     error.value = e?.message || '更新失败'
   } finally {
-    if (isCurrentUpload(generation, scope)) loading.value = false
+    if (isCurrentUpload(generation, scope)) {
+      loading.value = false
+      uploadPhase.value = 'idle'
+      uploadController = null
+    }
   }
+}
+
+function cancelUpload() {
+  if (!canCancelUpload.value) return
+  uploadGeneration += 1
+  uploadController?.abort()
+  uploadController = null
+  uploadProgress.value = null
+  uploadPhase.value = 'idle'
+  loading.value = false
+  error.value = '上传已取消'
 }
 
 watch(sessionScope, () => {
   uploadGeneration += 1
+  uploadController?.abort()
+  uploadController = null
+  uploadProgress.value = null
+  uploadPhase.value = 'idle'
   loading.value = false
   error.value = ''
   successMsg.value = ''
@@ -242,6 +282,9 @@ watch(sessionScope, () => {
 })
 onBeforeUnmount(() => {
   uploadGeneration += 1
+  uploadController?.abort()
+  uploadController = null
+  uploadPhase.value = 'idle'
 })
 </script>
 

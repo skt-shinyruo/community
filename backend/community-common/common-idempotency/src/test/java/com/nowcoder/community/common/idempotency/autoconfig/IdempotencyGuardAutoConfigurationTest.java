@@ -9,8 +9,8 @@ import com.nowcoder.community.common.web.autoconfig.ServletWebInfraAutoConfigura
 import com.nowcoder.community.common.web.autoconfig.WebInfraAutoConfiguration;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
-import org.springframework.boot.autoconfigure.jackson.JacksonAutoConfiguration;
-import org.springframework.boot.autoconfigure.jdbc.JdbcTemplateAutoConfiguration;
+import org.springframework.boot.jackson2.autoconfigure.Jackson2AutoConfiguration;
+import org.springframework.boot.jdbc.autoconfigure.JdbcTemplateAutoConfiguration;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.boot.test.context.runner.WebApplicationContextRunner;
 import org.springframework.context.annotation.Bean;
@@ -103,7 +103,7 @@ class IdempotencyGuardAutoConfigurationTest {
                         RedisIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class,
-                        JacksonAutoConfiguration.class,
+                        Jackson2AutoConfiguration.class,
                         WebInfraAutoConfiguration.class,
                         ServletWebInfraAutoConfiguration.class
                 ))

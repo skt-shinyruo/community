@@ -6,6 +6,7 @@ import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.social.application.FollowApplicationService;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowCommand;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationPageResult;
 import com.nowcoder.community.social.application.FollowApplicationService.UnfollowCommand;
 import com.nowcoder.community.social.controller.dto.FollowRequest;
 import jakarta.validation.Valid;
@@ -89,6 +90,28 @@ public class FollowController {
         int p = page == null ? 0 : page;
         int s = size == null ? 10 : size;
         return Result.ok(followApplicationService.listFollowers(t, userId, p, s));
+    }
+
+    @GetMapping("/{userId}/followees/page")
+    public Result<FollowRelationPageResult> followeePage(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) Integer entityType,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size
+    ) {
+        int t = entityType == null ? ENTITY_TYPE_USER : entityType;
+        return Result.ok(followApplicationService.listFolloweePage(userId, t, cursor, size == null ? 10 : size));
+    }
+
+    @GetMapping("/{userId}/followers/page")
+    public Result<FollowRelationPageResult> followerPage(
+            @PathVariable UUID userId,
+            @RequestParam(required = false) Integer entityType,
+            @RequestParam(required = false) String cursor,
+            @RequestParam(required = false) Integer size
+    ) {
+        int t = entityType == null ? ENTITY_TYPE_USER : entityType;
+        return Result.ok(followApplicationService.listFollowerPage(t, userId, cursor, size == null ? 10 : size));
     }
 
     @GetMapping("/{userId}/followees/count")

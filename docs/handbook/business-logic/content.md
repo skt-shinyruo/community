@@ -74,7 +74,7 @@ feed HTTP 列表使用 opaque cursor：`FeedReadApplicationService` 读全局/�
 8. 帖子详情返回 `blocks`，正文由 `paragraph`、`code`、`image`、`video`、`file` 组成。
 9. 媒体 block 会带出可展示的媒体视图；视频允许以处理中状态展示。
 10. `listPostsByUser(...)` 用于用户主页最近帖子。
-11. `listPostsByIds(...)` 用于批量摘要。
+11. `listPostsByIds(...)` 用于批量摘要；HTTP request DTO 和 ApplicationService 都显式限制为最多 `200` 个 post ID，绕过 HTTP 的内部调用也不能放大查询。
 
 匿名用户可读公开帖子，但订阅流和收藏状态需要当前用户。
 
@@ -82,10 +82,10 @@ feed HTTP 列表使用 opaque cursor：`FeedReadApplicationService` 读全局/�
 
 全局和版块 hot feed 的读取顺序：
 
-1. `FeedReadApplicationService` 解码 opaque cursor，并把 page size 约束在 `1..50`。
-2. 优先从 `PostFeedCache` 读取全局或版块帖子 ID，再由 `PostFeedSummaryLoader` 读取/回填摘要；返回值携带当前 rank version。需要发出下一页游标时，application 用 repository 的同一条 hot-order 查询校验整页候选，并只用 owner row 的 `type + score + createTime + postId` 生成边界；过期 summary 只能影响短期展示内容，不能改变排序、版块归属或 fallback 边界。
-3. cache miss、Redis 异常或缓存候选与 owner hot order 不一致时进入跨节点 `HotPathSingleFlight`。同一 scope/page/size/boundary 只有一个请求回源，其他请求返回空的 degraded-safe 页面并记录 `singleflight_busy`，避免并发打满 repository。
-4. `content.feed.latest-fallback-enabled=true` 时，leader 从 content repository 按 hot order 回源，best-effort 回填 feed 和 summary cache；关闭 fallback 时 miss 返回空页。
+1. `FeedReadApplicationService` 解码 opaque cursor，把 page size 约束在 `1..50`，并拒绝游标中越过服务端页码/大小上限的伪造值。生产 Redis 投影按 `type + score + createTime + postId` 完整总序做 lex keyset 读取，后续页使用上一页边界，不使用 `page * limit` offset。
+2. 每个投影页携带 scope epoch。只有 epoch 稳定、存在一行 lookahead 且版本化 summary 的 `id/type/score/createTime` 与完整投影逐项一致时，application 才直接返回且不查询 repository；opaque cursor 同时携带完整边界与 epoch。页间投影发生写入或删除时，epoch 不匹配会 fail closed 到 SQL keyset 回源。
+3. 投影没有 lookahead 只说明到达当前缓存尾，不代表 owner 数据结束；该页必须用同一边界回源确认。cache miss、Redis 异常、坏成员或 summary 排序元组不一致同样进入跨节点 `HotPathSingleFlight`。同一 scope/page/size/boundary 只有一个请求回源，其他请求返回空的 degraded-safe 页面并记录 `singleflight_busy`，避免并发打满 repository。
+4. `content.feed.latest-fallback-enabled=true` 时，leader 从 content repository 按同一完整 hot order 做一行 lookahead，best-effort 回填 feed 和 summary cache；关闭 fallback 时 miss 返回空页。
 5. Redis 读取、rank version、回填失败不会把缓存当主事实；路径记录 `hit`、`fallback`、`empty`、`degraded` 或 `singleflight_busy` 指标。
 
 关注流由 `FollowFeedReadApplicationService` 处理：必须登录，最多向 social 查询 `200` 个 followee，以 `createTime + postId` 游标读取最近可见帖子；页面缓存不是关注关系或帖子事实。

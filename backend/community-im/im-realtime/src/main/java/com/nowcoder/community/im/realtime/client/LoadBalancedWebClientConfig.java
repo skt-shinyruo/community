@@ -2,11 +2,11 @@ package com.nowcoder.community.im.realtime.client;
 
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
-import com.nowcoder.community.im.realtime.session.ImSessionTicketProperties;
-import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
+import com.nowcoder.community.im.ticket.ImSessionTicketProperties;
+import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
-import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
+import org.springframework.boot.webclient.WebClientCustomizer;
 import org.springframework.cloud.client.loadbalancer.LoadBalanced;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

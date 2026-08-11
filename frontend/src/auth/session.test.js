@@ -63,15 +63,16 @@ describe('session bootstrap', () => {
     expect(refreshTransport.requestCurrentUser).toHaveBeenCalledTimes(1)
   })
 
-  it('clears auth state and returns anonymous when refresh fails', async () => {
+  it('returns a retryable error without clearing the session hint when refresh is temporarily unavailable', async () => {
     refreshTransport.requestRefreshToken.mockRejectedValue(new Error('refresh failed'))
     globalThis.localStorage.setItem('community.session.hint', '1')
 
     const result = await ensureSessionReady()
 
-    expect(result).toEqual({ state: 'anonymous' })
+    expect(result.state).toBe('error')
     expect(useAuthStore().accessToken).toBe('')
     expect(useAuthStore().me).toBeNull()
+    expect(globalThis.localStorage.getItem('community.session.hint')).toBe('1')
     expect(refreshTransport.requestCurrentUser).not.toHaveBeenCalled()
   })
 

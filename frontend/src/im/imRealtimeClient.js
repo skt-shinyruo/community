@@ -66,8 +66,9 @@ class Emitter {
   }
 }
 
-class ImRealtimeClient {
-  constructor() {
+export class ImRealtimeClient {
+  constructor(sessionHttp = imCoreHttp) {
+    this.sessionHttp = sessionHttp
     this.ws = null
     this.accessToken = ''
     this.connectAttempt = 0
@@ -117,10 +118,11 @@ class ImRealtimeClient {
     this.accessToken = ''
     this.connectAttempt += 1
     this._clearReconnect()
-    try {
-      if (this.ws) this.ws.close()
-    } catch {}
+    const socket = this.ws
     this.ws = null
+    try {
+      socket?.close?.()
+    } catch {}
     this.state = createInitialState()
     this._emitStateChanged()
   }
@@ -159,7 +161,7 @@ class ImRealtimeClient {
 
   async _connectWithSession(token, attempt) {
     try {
-      const response = await imCoreHttp.post('/api/im/sessions', null, {
+      const response = await this.sessionHttp.post('/api/im/sessions', null, {
         headers: {
           Authorization: `Bearer ${token}`
         }
@@ -178,32 +180,39 @@ class ImRealtimeClient {
   }
 
   _open(url, ticket) {
+    let socket
     try {
-      this.ws = new WebSocket(url)
+      socket = new WebSocket(url)
     } catch {
       this._scheduleReconnect()
       return
     }
+    this.ws = socket
 
-    this.ws.onopen = () => {
+    const isCurrentSocket = () => this.ws === socket
+
+    socket.onopen = () => {
+      if (!isCurrentSocket()) return
       this.state.connected = true
       this.state.authed = false
       this.state.userId = ''
       this.state.sessionId = ''
       this.reconnectAttempts = 0
       this._emitStateChanged()
+      if (!isCurrentSocket()) return
       try {
-        this._send({ type: 'connect', ticket })
+        this._sendOnSocket(socket, { type: 'connect', ticket })
       } catch {
-        try { this.ws?.close?.() } catch {}
+        try { socket.close?.() } catch {}
       }
     }
 
-    this.ws.onmessage = (evt) => {
+    socket.onmessage = (evt) => {
+      if (!isCurrentSocket()) return
       const msg = safeJsonParse(evt?.data)
       if (!msg || typeof msg !== 'object' || Array.isArray(msg) || msg.schemaVersion !== IM_SCHEMA_VERSION) {
         this.emitter.emit('protocolError', { reasonCode: 'unsupported_schema_version' })
-        this.ws?.close?.(1002, 'unsupported_schema_version')
+        socket.close?.(1002, 'unsupported_schema_version')
         return
       }
       const type = String(msg?.type || '')
@@ -218,11 +227,14 @@ class ImRealtimeClient {
         this._emitStateChanged()
       } else if (type === 'reject' && this._isSendCommand(msg?.cmd)) {
         this.emitter.emit('sendRejected', msg)
+      } else if (type === 'committed' && this._isSendCommand(msg?.cmd)) {
+        this.emitter.emit('sendCommitted', msg)
       }
-      this.emitter.emit(type, msg)
+      if (isCurrentSocket()) this.emitter.emit(type, msg)
     }
 
-    this.ws.onclose = () => {
+    socket.onclose = () => {
+      if (!isCurrentSocket()) return
       this.state.connected = false
       this.state.authed = false
       this.state.userId = ''
@@ -232,16 +244,21 @@ class ImRealtimeClient {
       if (this.accessToken) this._scheduleReconnect()
     }
 
-    this.ws.onerror = () => {
+    socket.onerror = () => {
+      if (!isCurrentSocket()) return
       // Let onclose handle reconnect
     }
   }
 
-  _send(obj) {
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+  _sendOnSocket(socket, obj) {
+    if (this.ws !== socket || socket?.readyState !== WebSocket.OPEN) {
       throw new Error('IM 未连接')
     }
-    this.ws.send(JSON.stringify({ ...(obj || {}), schemaVersion: IM_SCHEMA_VERSION }))
+    socket.send(JSON.stringify({ ...(obj || {}), schemaVersion: IM_SCHEMA_VERSION }))
+  }
+
+  _send(obj) {
+    this._sendOnSocket(this.ws, obj)
   }
 
   _sendCommand(obj) {

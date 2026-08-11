@@ -2,8 +2,8 @@ package com.nowcoder.community.im.gateway.security;
 
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
-import com.nowcoder.community.im.gateway.session.ImSessionTicketProperties;
-import com.nowcoder.community.im.gateway.session.SessionTicketCodec;
+import com.nowcoder.community.im.ticket.ImSessionTicketProperties;
+import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;

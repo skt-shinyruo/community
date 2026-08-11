@@ -21,7 +21,9 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
@@ -120,6 +122,7 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
 
             private final URI uri;
             private final HttpHeaders headers = new HttpHeaders();
+            private final Map<String, Object> attributes = new HashMap<>();
 
             private RecordingClientHttpRequest(URI uri) {
                 this.uri = uri;
@@ -136,6 +139,11 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
             }
 
             @Override
+            public Map<String, Object> getAttributes() {
+                return attributes;
+            }
+
+            @Override
             public HttpMethod getMethod() {
                 return HttpMethod.GET;
             }
@@ -147,7 +155,7 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
 
             @Override
             public ClientHttpResponse execute() throws IOException {
-                requests.add(new RecordedRequest(uri, HttpHeaders.writableHttpHeaders(headers)));
+                requests.add(new RecordedRequest(uri, HttpHeaders.copyOf(headers)));
                 int index = Math.min(requests.size() - 1, responseBodies.size() - 1);
                 MockClientHttpResponse response = new MockClientHttpResponse(
                         responseBodies.get(index).getBytes(),

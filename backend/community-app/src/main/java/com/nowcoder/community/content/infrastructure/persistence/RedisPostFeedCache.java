@@ -6,6 +6,8 @@ import com.nowcoder.community.content.application.result.HotFeedDegradationSigna
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.data.domain.Range;
+import org.springframework.data.redis.connection.Limit;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -14,8 +16,10 @@ import org.springframework.util.StringUtils;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.LinkedHashSet;
 import java.util.List;
+import java.util.Locale;
 import java.util.Objects;
 import java.util.Set;
 import java.util.UUID;
@@ -24,9 +28,13 @@ import java.util.UUID;
 @ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostFeedCache implements PostFeedCache {
 
+    private static final int MAX_PAGE_SIZE = 50;
     private static final String GLOBAL_HOT_KEY = "post:feed:global:hot";
     private static final String GLOBAL_HOT_RANK_VERSION_KEY = GLOBAL_HOT_KEY + ":rank-version";
     private static final String BOARD_HOT_KEY_PREFIX = "post:feed:board:hot:";
+    private static final String PROJECTION_KEY_PREFIX = "post:feed:projection:";
+    private static final String PROJECTION_MEMBER_KEY_PREFIX = "post:feed:projection-member:";
+    private static final String PROJECTION_EPOCH_KEY_PREFIX = "post:feed:projection-epoch:";
     private static final String TERMINAL_MEMBER_KEY_PREFIX = "post:feed:terminal-members:";
     private static final String VERSION_MEMBER_KEY_PREFIX = "post:feed:version-members:";
     private static final String SCORE_VERSION_MEMBER_KEY_PREFIX = "post:feed:score-version-members:";
@@ -35,9 +43,17 @@ public class RedisPostFeedCache implements PostFeedCache {
     private static final String HOT_DEGRADATION_REASON_KEY = "post:feed:hot:degradation:reason";
     private static final String HOT_DEGRADATION_UPDATED_AT_KEY = "post:feed:hot:degradation:updated-at";
     private static final String LAST_PREWARM_KEY_PREFIX = "post:feed:hot:prewarm:last:";
-    private static final DefaultRedisScript<Long> UPSERT_SCRIPT = new DefaultRedisScript<>("""
+    private static final DefaultRedisScript<Long> UPSERT_PROJECTION_SCRIPT = new DefaultRedisScript<>("""
             if redis.call('EXISTS', KEYS[2]) == 1 then
               redis.call('ZREM', KEYS[1], ARGV[1])
+              local fencedMember = redis.call('GET', KEYS[6])
+              if fencedMember then
+                local removed = redis.call('ZREM', KEYS[5], fencedMember)
+                redis.call('DEL', KEYS[6])
+                if removed > 0 then
+                  redis.call('INCR', KEYS[7])
+                end
+              end
               return 0
             end
             local minimumVersion = tonumber(redis.call('GET', KEYS[3]) or '0')
@@ -53,9 +69,19 @@ public class RedisPostFeedCache implements PostFeedCache {
             if aggregateVersion == minimumVersion and scoreVersion < minimumScoreVersion then
               return 0
             end
+            local oldMember = redis.call('GET', KEYS[6])
+            local removed = 0
+            if oldMember and oldMember ~= ARGV[6] then
+              removed = redis.call('ZREM', KEYS[5], oldMember)
+            end
             redis.call('ZADD', KEYS[1], ARGV[2], ARGV[1])
+            local added = redis.call('ZADD', KEYS[5], 'CH', 0, ARGV[6])
+            redis.call('SET', KEYS[6], ARGV[6])
             redis.call('SET', KEYS[3], ARGV[3], 'EX', ARGV[5])
             redis.call('SET', KEYS[4], ARGV[4], 'EX', ARGV[5])
+            if removed > 0 or added > 0 then
+              redis.call('INCR', KEYS[7])
+            end
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> REMOVE_SCRIPT = new DefaultRedisScript<>("""
@@ -67,6 +93,14 @@ public class RedisPostFeedCache implements PostFeedCache {
               redis.call('EXPIRE', KEYS[2], ARGV[3])
             end
             redis.call('ZREM', KEYS[1], ARGV[1])
+            local oldMember = redis.call('GET', KEYS[4])
+            if oldMember then
+              local removed = redis.call('ZREM', KEYS[3], oldMember)
+              redis.call('DEL', KEYS[4])
+              if removed > 0 then
+                redis.call('INCR', KEYS[5])
+              end
+            end
             return 1
             """, Long.class);
     private static final DefaultRedisScript<Long> TERMINAL_REMOVE_SCRIPT = new DefaultRedisScript<>("""
@@ -77,6 +111,14 @@ public class RedisPostFeedCache implements PostFeedCache {
               redis.call('SET', KEYS[3], ARGV[3], 'EX', ARGV[2])
             end
             redis.call('ZREM', KEYS[1], ARGV[1])
+            local oldMember = redis.call('GET', KEYS[5])
+            if oldMember then
+              local removed = redis.call('ZREM', KEYS[4], oldMember)
+              redis.call('DEL', KEYS[5])
+              if removed > 0 then
+                redis.call('INCR', KEYS[6])
+              end
+            end
             return 1
             """, Long.class);
 
@@ -99,65 +141,36 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     @Override
-    public List<UUID> readGlobalHotIds(String cursor, int size) {
-        return readIds(GLOBAL_HOT_KEY, cursor, size);
+    public HotProjectionPage readGlobalHotProjection(String cursor, int size) {
+        return readProjection(GLOBAL_HOT_KEY, cursor, size);
     }
 
     @Override
-    public List<UUID> readBoardHotIds(UUID boardId, String cursor, int size) {
-        if (boardId == null) {
-            return List.of();
-        }
-        return readIds(boardKey(boardId), cursor, size);
-    }
-
-    @Override
-    public void upsertGlobalHot(UUID postId, double score, String rankVersion) {
-        upsertGlobalHot(postId, score, rankVersion, 0L);
-    }
-
-    @Override
-    public void upsertGlobalHot(UUID postId, double score, String rankVersion, long sourceVersion) {
-        upsertGlobalHot(postId, score, rankVersion, sourceVersion, 0L);
+    public HotProjectionPage readBoardHotProjection(UUID boardId, String cursor, int size) {
+        return boardId == null ? null : readProjection(boardKey(boardId), cursor, size);
     }
 
     @Override
     public void upsertGlobalHot(
-            UUID postId,
-            double score,
+            HotProjectionEntry entry,
             String rankVersion,
             long aggregateVersion,
             long scoreVersion
     ) {
-        if (postId == null) {
-            return;
-        }
-        upsert(GLOBAL_HOT_KEY, postId, score, aggregateVersion, scoreVersion);
-    }
-
-    @Override
-    public void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion) {
-        upsertBoardHot(boardId, postId, score, rankVersion, 0L);
-    }
-
-    @Override
-    public void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion, long sourceVersion) {
-        upsertBoardHot(boardId, postId, score, rankVersion, sourceVersion, 0L);
+        upsertProjection(GLOBAL_HOT_KEY, entry, aggregateVersion, scoreVersion);
     }
 
     @Override
     public void upsertBoardHot(
             UUID boardId,
-            UUID postId,
-            double score,
+            HotProjectionEntry entry,
             String rankVersion,
             long aggregateVersion,
             long scoreVersion
     ) {
-        if (boardId == null || postId == null) {
-            return;
+        if (boardId != null) {
+            upsertProjection(boardKey(boardId), entry, aggregateVersion, scoreVersion);
         }
-        upsert(boardKey(boardId), postId, score, aggregateVersion, scoreVersion);
     }
 
     @Override
@@ -233,20 +246,7 @@ public class RedisPostFeedCache implements PostFeedCache {
 
     @Override
     public void remove(UUID postId, UUID boardId) {
-        if (postId == null) {
-            return;
-        }
-        redisTemplate.opsForZSet().remove(GLOBAL_HOT_KEY, postId.toString());
-        if (boardId != null) {
-            redisTemplate.opsForZSet().remove(boardKey(boardId), postId.toString());
-            return;
-        }
-        for (Category category : categoryContentRepository.listCategories()) {
-            if (category == null || category.getId() == null) {
-                continue;
-            }
-            redisTemplate.opsForZSet().remove(boardKey(category.getId()), postId.toString());
-        }
+        remove(postId, boardId, 0L);
     }
 
     @Override
@@ -298,33 +298,47 @@ public class RedisPostFeedCache implements PostFeedCache {
         }
     }
 
-    private void upsert(
+    private void upsertProjection(
             String feedKey,
-            UUID postId,
-            double score,
+            HotProjectionEntry entry,
             long aggregateVersion,
             long scoreVersion
     ) {
+        if (!validProjectionEntry(entry)) {
+            return;
+        }
+        UUID postId = entry.postId();
+        String member = projectionMember(entry);
         redisTemplate.execute(
-                UPSERT_SCRIPT,
+                UPSERT_PROJECTION_SCRIPT,
                 List.of(
                         feedKey,
                         terminalMemberKey(feedKey, postId),
                         versionMemberKey(feedKey, postId),
-                        scoreVersionMemberKey(feedKey, postId)
+                        scoreVersionMemberKey(feedKey, postId),
+                        projectionKey(feedKey),
+                        projectionMemberKey(feedKey, postId),
+                        projectionEpochKey(feedKey)
                 ),
                 postId.toString(),
-                Double.toString(score),
+                Double.toString(entry.score()),
                 Long.toString(Math.max(0L, aggregateVersion)),
                 Long.toString(Math.max(0L, scoreVersion)),
-                TERMINAL_FENCE_TTL_SECONDS
+                TERMINAL_FENCE_TTL_SECONDS,
+                member
         );
     }
 
     private void removeFromScope(String feedKey, UUID postId, long minimumVersion) {
         redisTemplate.execute(
                 REMOVE_SCRIPT,
-                List.of(feedKey, versionMemberKey(feedKey, postId)),
+                List.of(
+                        feedKey,
+                        versionMemberKey(feedKey, postId),
+                        projectionKey(feedKey),
+                        projectionMemberKey(feedKey, postId),
+                        projectionEpochKey(feedKey)
+                ),
                 postId.toString(),
                 Long.toString(Math.max(0L, minimumVersion)),
                 TERMINAL_FENCE_TTL_SECONDS
@@ -337,7 +351,10 @@ public class RedisPostFeedCache implements PostFeedCache {
                 List.of(
                         feedKey,
                         terminalMemberKey(feedKey, postId),
-                        versionMemberKey(feedKey, postId)
+                        versionMemberKey(feedKey, postId),
+                        projectionKey(feedKey),
+                        projectionMemberKey(feedKey, postId),
+                        projectionEpochKey(feedKey)
                 ),
                 postId.toString(),
                 TERMINAL_FENCE_TTL_SECONDS,
@@ -350,85 +367,170 @@ public class RedisPostFeedCache implements PostFeedCache {
         }
     }
 
-    private List<UUID> readIds(String key, String cursor, int size) {
-        int limit = limit(cursor, size);
+    private HotProjectionPage readProjection(String feedKey, String cursor, int size) {
+        int pageSize = limit(cursor, size);
         FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
-        long start = (long) Math.max(0, state.page()) * limit;
-        long targetCount = safeAdd(start, limit);
-        long end = Math.max(0L, targetCount - 1L);
-        List<UUID> ids = new ArrayList<>();
-        while (true) {
-            Set<String> rawIds = redisTemplate.opsForZSet().reverseRange(key, 0L, end);
-            if (rawIds == null || rawIds.isEmpty()) {
-                break;
+        if (state.page() > 0 && !state.hasHotBoundary()) {
+            return new HotProjectionPage(List.of(), 0L, false);
+        }
+        Range<String> range = state.hasHotBoundary()
+                ? Range.leftUnbounded(Range.Bound.exclusive(projectionMember(state.hotBoundary())))
+                : Range.unbounded();
+        String projectionKey = projectionKey(feedKey);
+        String epochKey = projectionEpochKey(feedKey);
+        for (int attempt = 0; attempt < 2; attempt++) {
+            long beforeEpoch = readProjectionEpoch(epochKey);
+            if (beforeEpoch <= 0L || (state.projectionEpoch() > 0L && state.projectionEpoch() != beforeEpoch)) {
+                return new HotProjectionPage(List.of(), 0L, false);
             }
-            ids.clear();
+            Set<String> rawMembers = redisTemplate.opsForZSet().reverseRangeByLex(
+                    projectionKey,
+                    range,
+                    Limit.limit().count(pageSize + 1)
+            );
+            long afterEpoch = readProjectionEpoch(epochKey);
+            if (beforeEpoch != afterEpoch) {
+                continue;
+            }
+            if (rawMembers == null || rawMembers.isEmpty()) {
+                return new HotProjectionPage(List.of(), beforeEpoch, false);
+            }
+            List<HotProjectionEntry> entries = new ArrayList<>(Math.min(pageSize, rawMembers.size()));
             List<String> poisonMembers = new ArrayList<>();
-            for (String rawId : rawIds) {
-                UUID parsed = parseUuid(rawId);
-                if (parsed == null) {
-                    if (rawId != null) {
-                        poisonMembers.add(rawId);
+            for (String rawMember : rawMembers) {
+                HotProjectionEntry entry = parseProjectionMember(rawMember);
+                if (entry == null) {
+                    if (rawMember != null) {
+                        poisonMembers.add(rawMember);
                     }
                     continue;
                 }
-                ids.add(parsed);
+                entries.add(entry);
             }
             if (!poisonMembers.isEmpty()) {
-                // Remove poison before calculating the page offset. Otherwise a bad
-                // member in an earlier page permanently shifts every later page.
-                redisTemplate.opsForZSet().remove(key, poisonMembers.toArray(Object[]::new));
+                redisTemplate.opsForZSet().remove(projectionKey, poisonMembers.toArray(Object[]::new));
+                redisTemplate.opsForValue().increment(epochKey);
+                continue;
             }
-            if (ids.size() >= targetCount || rawIds.size() < requestedWindow(end)) {
-                break;
-            }
-            long nextEnd = safeAdd(end, Math.max(1, limit));
-            if (nextEnd <= end) {
-                break;
-            }
-            end = nextEnd;
+            boolean hasNext = entries.size() > pageSize;
+            List<HotProjectionEntry> pageEntries = hasNext
+                    ? List.copyOf(entries.subList(0, pageSize))
+                    : List.copyOf(entries);
+            return new HotProjectionPage(pageEntries, beforeEpoch, hasNext);
         }
-        if (start >= ids.size()) {
-            return List.of();
-        }
-        int from = (int) Math.min(Integer.MAX_VALUE, start);
-        int to = (int) Math.min((long) ids.size(), targetCount);
-        if (from >= to) {
-            return List.of();
-        }
-        return List.copyOf(ids.subList(from, to));
+        return new HotProjectionPage(List.of(), 0L, false);
     }
 
-    private long requestedWindow(long end) {
-        return end == Long.MAX_VALUE ? Long.MAX_VALUE : end + 1L;
-    }
-
-    private long safeAdd(long left, long right) {
-        if (right > 0L && left > Long.MAX_VALUE - right) {
-            return Long.MAX_VALUE;
-        }
-        return Math.max(0L, left + Math.max(0L, right));
-    }
-
-    private int limit(String cursor, int size) {
-        FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
-        int preferred = state.size() > 0 ? state.size() : size;
-        return Math.max(1, preferred);
-    }
-
-    private UUID parseUuid(String value) {
+    private long readProjectionEpoch(String epochKey) {
+        String value = redisTemplate.opsForValue().get(epochKey);
         if (!StringUtils.hasText(value)) {
+            return 0L;
+        }
+        try {
+            return Math.max(0L, Long.parseLong(value.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0L;
+        }
+    }
+
+    private static boolean validProjectionEntry(HotProjectionEntry entry) {
+        return entry != null
+                && entry.postId() != null
+                && Double.isFinite(entry.score())
+                && entry.createTime() != null;
+    }
+
+    static String projectionMember(HotProjectionEntry entry) {
+        if (!validProjectionEntry(entry)) {
+            throw new IllegalArgumentException("complete hot feed projection entry is required");
+        }
+        return sortableInt(entry.type())
+                + sortableDouble(entry.score())
+                + sortableLong(entry.createTime().getTime())
+                + uuidHex(entry.postId());
+    }
+
+    private static String projectionMember(FeedCursorCodec.HotBoundary boundary) {
+        return projectionMember(new HotProjectionEntry(
+                boundary.postId(),
+                boundary.type(),
+                boundary.score(),
+                boundary.createTime()
+        ));
+    }
+
+    static HotProjectionEntry parseProjectionMember(String member) {
+        if (member == null || member.length() != 72) {
             return null;
         }
         try {
-            return UUID.fromString(value.trim());
+            int type = Integer.parseUnsignedInt(member.substring(0, 8), 16) ^ Integer.MIN_VALUE;
+            long sortableScore = Long.parseUnsignedLong(member.substring(8, 24), 16);
+            long scoreBits = (sortableScore & Long.MIN_VALUE) != 0L
+                    ? sortableScore ^ Long.MIN_VALUE
+                    : ~sortableScore;
+            double score = Double.longBitsToDouble(scoreBits);
+            long createTime = Long.parseUnsignedLong(member.substring(24, 40), 16) ^ Long.MIN_VALUE;
+            long mostSignificantBits = Long.parseUnsignedLong(member.substring(40, 56), 16);
+            long leastSignificantBits = Long.parseUnsignedLong(member.substring(56, 72), 16);
+            if (!Double.isFinite(score)) {
+                return null;
+            }
+            return new HotProjectionEntry(
+                    new UUID(mostSignificantBits, leastSignificantBits),
+                    type,
+                    score,
+                    new Date(createTime)
+            );
         } catch (IllegalArgumentException ex) {
             return null;
         }
     }
 
+    private static String sortableInt(int value) {
+        return String.format(Locale.ROOT, "%08x", value ^ Integer.MIN_VALUE);
+    }
+
+    private static String sortableDouble(double value) {
+        double normalized = value == 0.0d ? 0.0d : value;
+        long bits = Double.doubleToRawLongBits(normalized);
+        long sortable = bits < 0L ? ~bits : bits ^ Long.MIN_VALUE;
+        return String.format(Locale.ROOT, "%016x", sortable);
+    }
+
+    private static String sortableLong(long value) {
+        return String.format(Locale.ROOT, "%016x", value ^ Long.MIN_VALUE);
+    }
+
+    private static String uuidHex(UUID value) {
+        return String.format(
+                Locale.ROOT,
+                "%016x%016x",
+                value.getMostSignificantBits(),
+                value.getLeastSignificantBits()
+        );
+    }
+
+    private int limit(String cursor, int size) {
+        FeedCursorCodec.CursorState state = feedCursorCodec.decode(cursor);
+        int preferred = state.size() > 0 ? state.size() : size;
+        return Math.min(MAX_PAGE_SIZE, Math.max(1, preferred));
+    }
+
     private String boardKey(UUID boardId) {
         return BOARD_HOT_KEY_PREFIX + boardId;
+    }
+
+    private String projectionKey(String feedKey) {
+        return PROJECTION_KEY_PREFIX + "{" + feedKey + "}";
+    }
+
+    private String projectionMemberKey(String feedKey, UUID postId) {
+        return PROJECTION_MEMBER_KEY_PREFIX + "{" + feedKey + "}:" + postId;
+    }
+
+    private String projectionEpochKey(String feedKey) {
+        return PROJECTION_EPOCH_KEY_PREFIX + "{" + feedKey + "}";
     }
 
     private String terminalMemberKey(String feedKey, UUID postId) {

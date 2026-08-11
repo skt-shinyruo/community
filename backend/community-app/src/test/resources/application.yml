@@ -10,7 +10,7 @@ spring:
       discovery:
         enabled: false
   datasource:
-    url: jdbc:h2:mem:community;MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=USER
+    url: jdbc:h2:mem:community-${random.uuid};MODE=MySQL;DATABASE_TO_LOWER=TRUE;DEFAULT_NULL_ORDERING=HIGH;NON_KEYWORDS=USER
     driver-class-name: org.h2.Driver
     username: sa
     password:

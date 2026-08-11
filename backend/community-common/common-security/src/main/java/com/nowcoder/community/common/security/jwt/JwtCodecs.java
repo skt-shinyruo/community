@@ -15,6 +15,8 @@ import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jose.jws.SignatureAlgorithm;
 import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
+import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTypeValidator;
 import org.springframework.security.oauth2.jwt.JwtValidators;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
@@ -33,14 +35,14 @@ public final class JwtCodecs {
     public static NimbusJwtDecoder accessTokenDecoder(JwtProperties properties) {
         NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withPublicKey(JwtRsaKeys.accessPublicKeyOrThrow(properties))
+                .validateType(false)
                 .signatureAlgorithm(SignatureAlgorithm.RS256)
                 .jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
                         new DefaultJOSEObjectTypeVerifier<>(new JOSEObjectType(ACCESS_TOKEN_TYPE))
                 ))
                 .build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(resolvedIssuer(properties)),
-                tokenTypeValidator(ACCESS_TOKEN_TYPE),
+                defaultValidators(resolvedIssuer(properties), ACCESS_TOKEN_TYPE),
                 audienceValidator(resolvedAccessTokenAudience(properties))
         ));
         return decoder;
@@ -55,14 +57,14 @@ public final class JwtCodecs {
         String audience = requireText("service token audience", expectedAudience);
         NimbusJwtDecoder decoder = NimbusJwtDecoder
                 .withSecretKey(JwtSecretKeys.serviceHmacSha256OrThrow(properties))
+                .validateType(false)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .jwtProcessorCustomizer(processor -> processor.setJWSTypeVerifier(
                         new DefaultJOSEObjectTypeVerifier<>(new JOSEObjectType(SERVICE_TOKEN_TYPE))
                 ))
                 .build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                JwtValidators.createDefaultWithIssuer(issuer),
-                tokenTypeValidator(SERVICE_TOKEN_TYPE),
+                defaultValidators(issuer, SERVICE_TOKEN_TYPE),
                 audienceValidator(audience)
         ));
         return decoder;
@@ -102,11 +104,11 @@ public final class JwtCodecs {
         return audience.trim();
     }
 
-    private static OAuth2TokenValidator<Jwt> tokenTypeValidator(String expectedType) {
-        return jwt -> expectedType.equals(jwt.getHeaders().get("typ"))
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token", "The required token type is missing or invalid", null));
+    private static OAuth2TokenValidator<Jwt> defaultValidators(String issuer, String expectedType) {
+        return JwtValidators.createDefaultWithValidators(
+                new JwtIssuerValidator(issuer),
+                new JwtTypeValidator(expectedType)
+        );
     }
 
     private static OAuth2TokenValidator<Jwt> audienceValidator(String expectedAudience) {

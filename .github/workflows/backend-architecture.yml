@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: backend-architecture-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   community-app-ddd-guardrails:
     name: community-app DDD guardrails
@@ -26,11 +30,4 @@ jobs:
 
       - name: Run DDD architecture tests
         working-directory: backend
-        run: >
-          mvn -pl community-app -am
-          -Dtest=DddLayeringArchTest,DomainBoundaryArchTest,InfraBoundaryArchTest,ControllerBoundaryArchTest,DtoBoundaryArchTest,ListenerBoundaryArchTest
-          test
-
-      - name: Run community-app full test suite
-        working-directory: backend
-        run: mvn -pl community-app -am test
+        run: mvn -pl :community-app -am -Dtest='*ArchTest' test

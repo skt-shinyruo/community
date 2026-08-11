@@ -128,9 +128,12 @@ public class PostHotFeedProjectionApplicationService {
             postCounterCache.markDirty(postId);
             postFeedCache.writeRankVersion(rankVersion);
             postFeedCache.remove(postId, null, aggregateVersion);
-            postFeedCache.upsertGlobalHot(postId, score, rankVersion, aggregateVersion, scoreVersion);
+            PostFeedCache.HotProjectionEntry projectionEntry = new PostFeedCache.HotProjectionEntry(
+                    postId, post.getType(), score, post.getCreateTime());
+            postFeedCache.upsertGlobalHot(projectionEntry, rankVersion, aggregateVersion, scoreVersion);
             if (boardId != null) {
-                postFeedCache.upsertBoardHot(boardId, postId, score, rankVersion, aggregateVersion, scoreVersion);
+                postFeedCache.upsertBoardHot(
+                        boardId, projectionEntry, rankVersion, aggregateVersion, scoreVersion);
             }
             postSummaryCache.evictAll(List.of(postId), aggregateVersion, scoreVersion);
             postDetailCache.evict(postId, aggregateVersion);

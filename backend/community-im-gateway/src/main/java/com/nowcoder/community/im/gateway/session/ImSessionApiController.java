@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+import reactor.core.publisher.Mono;
 
 @RestController
 @RequestMapping("/api/im/sessions")
@@ -20,10 +21,10 @@ public class ImSessionApiController {
     }
 
     @PostMapping
-    public Result<OpenImSessionResponse> openSession(
+    public Mono<Result<OpenImSessionResponse>> openSession(
             @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
             ServerHttpRequest request
     ) {
-        return Result.ok(imSessionService.openSession(authorizationHeader, request));
+        return imSessionService.openSession(authorizationHeader, request).map(Result::ok);
     }
 }

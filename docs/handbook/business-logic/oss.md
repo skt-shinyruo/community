@@ -96,9 +96,9 @@ Recovery 代码级默认启用。Nacos seed `community-oss.yaml` 使用 batch `1
 5. blob 删除后把 version 标记 purged，再把 object 标记 `PURGED`。
 6. 目前删除只处理 current version；旧版本生命周期需要以后按版本清理能力扩展。
 
-## Storage Backends
+## ObjectStore Boundary
 
-`community-oss` 只依赖 `ObjectStore` port：
+`community-oss` application 只依赖 `oss.application.port.ObjectStore`；metadata、stored stream 和 presigned URL 也属于该 application port 的语义值。local/S3/observability 实现留在 `oss.infrastructure.storage`：
 
 - local filesystem：dev / tests。
 - S3-compatible：Garage 首版生产后端，也可替换为 Ceph RGW。
@@ -129,7 +129,10 @@ S3-compatible 后端的整个 SDK API call timeout（包含 retry）由 `oss.obj
 - `oss.application.ObjectPermissionApplicationService`
 - `oss.application.ObjectLifecycleApplicationService`
 - `oss.domain.model.*`
-- `oss.infrastructure.storage.ObjectStore`
+- `oss.application.port.ObjectStore`
+- `oss.application.port.ObjectStoreObject`
+- `oss.application.port.StoredObject`
+- `oss.application.port.PresignedObjectUrl`
 - `oss.infrastructure.storage.LocalFilesystemObjectStore`
 - `oss.infrastructure.storage.S3CompatibleObjectStore`
 - `oss.infrastructure.job.ObjectUploadRecoveryJob`

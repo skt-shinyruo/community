@@ -1,6 +1,7 @@
 package com.nowcoder.community.notice.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
+import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeTopicSummaryDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -19,6 +20,11 @@ public interface NoticeMapper {
     int selectNoticeCount(@Param("userId") UUID userId, @Param("topic") String topic);
 
     int selectNoticeUnreadCount(@Param("userId") UUID userId, @Param("topic") String topic);
+
+    List<NoticeTopicSummaryDataObject> selectTopicSummaries(
+            @Param("userId") UUID userId,
+            @Param("topics") List<String> topics
+    );
 
     int updateNoticesStatusForRecipient(
             @Param("ids") List<UUID> ids,

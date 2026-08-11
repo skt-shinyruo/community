@@ -13,6 +13,7 @@ public class SocialSecurityRules implements ApiSecurityRules {
     public void apply(org.springframework.security.config.annotation.web.configurers.AuthorizeHttpRequestsConfigurer<?>.AuthorizationManagerRequestMatcherRegistry auth) {
         auth.requestMatchers(HttpMethod.GET, "/api/likes/count", "/api/likes/counts").permitAll();
         auth.requestMatchers(HttpMethod.GET, "/api/follows/*/followees", "/api/follows/*/followers").permitAll();
+        auth.requestMatchers(HttpMethod.GET, "/api/follows/*/followees/page", "/api/follows/*/followers/page").permitAll();
         auth.requestMatchers(HttpMethod.GET, "/api/follows/*/followees/count", "/api/follows/*/followers/count").permitAll();
     }
 }

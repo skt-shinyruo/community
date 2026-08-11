@@ -145,6 +145,42 @@ public class MyBatisFollowRepository implements FollowRepository {
         return mapRows(mapper.listFollowersExcludingBlocked(entityType, entityId, offset, limit));
     }
 
+    @Override
+    public List<FollowRelation> listFolloweesAfterExcludingBlocked(
+            UUID userId,
+            int entityType,
+            BlockRepository blockRepository,
+            Instant beforeTime,
+            UUID beforeTargetId,
+            int limit
+    ) {
+        return mapRows(mapper.listFolloweesAfterExcludingBlocked(
+                userId,
+                entityType,
+                beforeTime == null ? null : Date.from(beforeTime),
+                beforeTargetId,
+                limit
+        ));
+    }
+
+    @Override
+    public List<FollowRelation> listFollowersAfterExcludingBlocked(
+            int entityType,
+            UUID entityId,
+            BlockRepository blockRepository,
+            Instant beforeTime,
+            UUID beforeTargetId,
+            int limit
+    ) {
+        return mapRows(mapper.listFollowersAfterExcludingBlocked(
+                entityType,
+                entityId,
+                beforeTime == null ? null : Date.from(beforeTime),
+                beforeTargetId,
+                limit
+        ));
+    }
+
     private List<FollowRelation> mapRows(List<FollowRelationDataObject> rows) {
         if (rows == null || rows.isEmpty()) {
             return List.of();

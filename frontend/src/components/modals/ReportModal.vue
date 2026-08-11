@@ -2,6 +2,7 @@
 <template>
   <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
     <div
+      ref="dialogRef"
       class="modal-card card"
       style="max-width: 560px"
       role="dialog"
@@ -65,6 +66,7 @@ import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { showToast } from '../../ui/toastService'
+import { useModalFocus } from '../../composables/useModalFocus'
 
 const props = defineProps({
   targetType: { type: String, required: true }, // post | comment | user
@@ -76,6 +78,8 @@ const auth = useAuthStore()
 const uid = useId()
 const titleId = `report-modal-title-${uid}`
 const descriptionId = `report-modal-description-${uid}`
+const dialogRef = ref(null)
+useModalFocus(dialogRef)
 
 const reasonOptions = [
   { label: '垃圾广告', value: '垃圾广告' },

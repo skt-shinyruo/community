@@ -36,6 +36,11 @@ public class EdgeConfig {
     }
 
     @Bean
+    CanonicalForwardedForHttpHeadersFilter canonicalForwardedForHttpHeadersFilter() {
+        return new CanonicalForwardedForHttpHeadersFilter();
+    }
+
+    @Bean
     TrafficPolicyEvaluator trafficPolicyEvaluator(TrafficPolicyProperties properties) {
         return new TrafficPolicyEvaluator(properties);
     }

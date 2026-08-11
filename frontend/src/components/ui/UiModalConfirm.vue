@@ -2,6 +2,7 @@
 <template>
   <div class="modal-mask" @click.self="$emit('cancel')" @keydown.esc.stop.prevent="$emit('cancel')">
     <div
+      ref="dialogRef"
       class="modal-card card"
       role="dialog"
       aria-modal="true"
@@ -22,8 +23,9 @@
 </template>
 
 <script setup>
-import { useId } from 'vue'
+import { ref, useId } from 'vue'
 import UiButton from './UiButton.vue'
+import { useModalFocus } from '../../composables/useModalFocus'
 
 defineProps({
   title: { type: String, default: '确认操作' },
@@ -37,4 +39,6 @@ defineEmits(['confirm', 'cancel'])
 const uid = useId()
 const titleId = `ui-modal-confirm-title-${uid}`
 const descriptionId = `ui-modal-confirm-description-${uid}`
+const dialogRef = ref(null)
+useModalFocus(dialogRef)
 </script>

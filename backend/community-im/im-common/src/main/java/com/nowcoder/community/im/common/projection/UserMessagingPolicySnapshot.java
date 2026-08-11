@@ -14,7 +14,7 @@ public record UserMessagingPolicySnapshot(
         boolean hasMore,
         Long snapshotHighWatermark,
         @ImSchemaVersion
-        int schemaVersion
+        Integer schemaVersion
 ) {
 
     public UserMessagingPolicySnapshot {

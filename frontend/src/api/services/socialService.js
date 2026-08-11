@@ -123,16 +123,26 @@ export async function getFollowStatuses(entityType, entityIds, { force = false }
   }
 }
 
-export async function listFollowees(userId, { page = 0, size = 10, entityType = 3 } = {}) {
-  const resp = await http.get(`/api/follows/${userId}/followees`, { params: { page, size, entityType } })
+export async function listFollowees(userId, { cursor = '', size = 10, entityType = 3 } = {}) {
+  const resp = await http.get(`/api/follows/${userId}/followees/page`, { params: { cursor, size, entityType } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询关注列表')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { data: normalizeFollowRelationPage(data), traceId }
 }
 
-export async function listFollowers(userId, { page = 0, size = 10, entityType = 3 } = {}) {
-  const resp = await http.get(`/api/follows/${userId}/followers`, { params: { page, size, entityType } })
+export async function listFollowers(userId, { cursor = '', size = 10, entityType = 3 } = {}) {
+  const resp = await http.get(`/api/follows/${userId}/followers/page`, { params: { cursor, size, entityType } })
   const { data, traceId } = unwrapResultBody(resp.data, '查询粉丝列表')
-  return { data: Array.isArray(data) ? data : [], traceId }
+  return { data: normalizeFollowRelationPage(data), traceId }
+}
+
+function normalizeFollowRelationPage(data) {
+  const page = data && typeof data === 'object' && !Array.isArray(data) ? data : {}
+  const nextCursor = page.nextCursor == null ? '' : String(page.nextCursor)
+  return {
+    items: Array.isArray(page.items) ? page.items : [],
+    nextCursor,
+    hasNext: page.hasNext === true && nextCursor.length > 0
+  }
 }
 
 function normalizeEntityIds(entityIds, { max = 200 } = {}) {

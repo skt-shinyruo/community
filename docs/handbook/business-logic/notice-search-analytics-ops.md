@@ -41,7 +41,7 @@ HTTP：
 - `createNotice(...)` 校验 toUserId、topic 和 contentJson 后写 unread notice。
 - `listNoticeItems(...)` 按用户和 topic 分页查询。
 - `unreadCount(...)` 返回未读数。
-- `topicSummary(...)` 对默认 topic 返回最新通知、总数和未读数。
+- `topicSummary(...)` 对默认 topic 返回最新通知、总数和未读数；MyBatis owner repository 用一条 window query 同时完成各 topic 的 latest/count/unread 聚合，撤销通知不参与统计，缺失 topic 由 application 补零，不再逐 topic 发出三条查询。
 - `markRead(...)` 对 ids 去重并限制每批最多 100 个，只允许当前用户的 unread notice 转成 read；revoked notice 不可被重新激活。
 
 `NoticeProjectionApplicationService`：

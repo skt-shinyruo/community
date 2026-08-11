@@ -17,7 +17,7 @@
 | --- | --- |
 | `im.gateway.session.ImSessionService` | JWT 校验、worker 选择和 session ticket 签发。 |
 | `im.gateway.session.PublicWsUrlFactory` | 对外公开 wsUrl 的显式校验。 |
-| `im.gateway.session.SessionTicketCodec` | session ticket 编解码。 |
+| `im.ticket.SessionTicketCodec` | gateway / realtime 共享的 session ticket 编解码协议。 |
 | `im.gateway.shard.RendezvousWorkerSelector` | 稳定 worker 选择。 |
 | `im.gateway.shard.WorkerRegistry` | 健康 worker 注册表。 |
 | `im.gateway.ws.ConnectTicketRouter` | 首帧 ticket 路由到 worker。 |
@@ -48,7 +48,6 @@
 | `im.realtime.fanout.RealtimeWorkerDirectory` | 校验 worker ID、inbox slot 和 discovery metadata。 |
 | `im.realtime.fanout.RoomFanoutTargetConsumer` | 只消费本 worker 固定 partition 的 target command。 |
 | `im.realtime.fanout.RoomFanoutTargetService` | target 校验、本地 state fanout 和进程内 sourceEventId 去重。 |
-| `im.realtime.session.SessionTicketCodec` | realtime 侧 session ticket 校验。 |
 | `im.realtime.push.PrivatePushService` | 私信在线 fanout。 |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected push。 |
 | `im.realtime.push.RoomFanoutCoalescer` | 房间状态更新 fanout。 |

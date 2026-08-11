@@ -15,9 +15,9 @@ import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.context.TestPropertySource;
@@ -26,6 +26,8 @@ import org.springframework.test.web.servlet.MockMvc;
 import java.util.List;
 import java.util.Date;
 import java.util.UUID;
+import java.util.stream.Collectors;
+import java.util.stream.IntStream;
 
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyList;
@@ -50,34 +52,34 @@ class PublicReadEndpointSecurityTest {
     @Autowired
     private MockMvc mockMvc;
 
-    @MockBean
+    @MockitoBean
     private PostReadApplicationService postReadApplicationService;
 
-    @MockBean
+    @MockitoBean
     private FeedReadApplicationService feedReadApplicationService;
 
-    @MockBean
+    @MockitoBean
     private CommentReadApplicationService commentReadApplicationService;
 
-    @MockBean
+    @MockitoBean
     private PostPublishingApplicationService postPublishingApplicationService;
 
-    @MockBean
+    @MockitoBean
     private PostModerationApplicationService postModerationApplicationService;
 
-    @MockBean
+    @MockitoBean
     private CommentApplicationService commentApplicationService;
 
-    @MockBean
+    @MockitoBean
     private BookmarkApplicationService bookmarkApplicationService;
 
-    @MockBean
+    @MockitoBean
     private UserReadApplicationService userReadApplicationService;
 
-    @MockBean
+    @MockitoBean
     private UserProfileQueryApplicationService userProfileApplicationService;
 
-    @MockBean
+    @MockitoBean
     private AvatarStoragePort avatarStoragePort;
 
     @Test
@@ -92,6 +94,18 @@ class PublicReadEndpointSecurityTest {
                                 }
                                 """.formatted(uuid(1), uuid(2))))
                 .andExpect(status().isOk());
+    }
+
+    @Test
+    void batchPostSummaryShouldRejectMoreThanTwoHundredIds() throws Exception {
+        String postIds = IntStream.rangeClosed(1, 201)
+                .mapToObj(index -> "\"" + uuid(index) + "\"")
+                .collect(Collectors.joining(","));
+
+        mockMvc.perform(post("/api/posts/batch-summary")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"postIds\":[" + postIds + "]}"))
+                .andExpect(status().isBadRequest());
     }
 
     @Test

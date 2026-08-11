@@ -32,7 +32,7 @@
 1. 登录 / 注册 / 密码重置页面走 auth service，成功后前端保存 access token 到内存，refresh token 由浏览器 cookie 自动携带。
 2. 内容类页面的发帖、评论、收藏、举报和审核动作都走 content service，页面状态要区分主事实和 owner Kafka 驱动的 notice / search 等最终一致结果。
 3. 社交、钱包、市场、网盘和 IM 页面分别对应各自 service；前端只负责收集 request、展示状态和按 result 更新视图，不自己推导业务事实。
-4. 发帖、钱包和市场下单等高风险写操作都要带 `Idempotency-Key`，重试时依赖前端的 key cache 或浏览器重发机制避免重复业务事实。
+4. 发帖、评论、钱包和市场下单等高风险写操作都要带 `Idempotency-Key`；页面持有明确的 `WriteAttempt`，同一次人工重试复用 key，成功、取消或业务意图变化后结束旧 attempt。
 5. IM 页面把 `sendAccepted` 视为 command 已接收，不视为消息落库；搜索和通知页面也要接受短暂的最终一致延迟。
 
 ## 路由到业务域
@@ -85,8 +85,8 @@
 ## 前端幂等和重试口径
 
 - 高风险写接口使用 `Idempotency-Key`。
-- `idempotencyKeyCache.js` 用于复用同一次业务尝试的 key。
-- 发帖、评论、钱包、市场下单等写请求要避免刷新或重试时产生重复业务事实。
+- `writeAttempt.js` 建模一次业务尝试；通用 HTTP 层不按 URL、payload 或单次 axios 调用生成 key。
+- 发帖、评论、钱包、市场下单等写请求在传输失败和人工重试时复用 attempt，成功、取消、切换上下文或修改业务意图后再生成新 key。
 - IM 发送使用 `clientMsgId`，它和 HTTP `Idempotency-Key` 不是同一语义。
 
 ## 业务状态展示注意事项

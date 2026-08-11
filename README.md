@@ -1,7 +1,7 @@
 # Community
 
 一个覆盖社区内容、社交互动、实时 IM、搜索、成长体系、钱包与交易场景的全栈项目。仓库采用
-monorepo，包含 Vue 3 SPA、Java 17 / Spring Boot 3 后端、开发工具、测试套件，以及 single / cluster
+monorepo，包含 Vue 3 SPA、Java 17 / Spring Boot 4 后端、开发工具、测试套件，以及 single / cluster
 两套 Docker Compose 本地拓扑。
 
 根 README 只提供项目入口。当前行为与维护约定以 [开发者手册](docs/handbook/readme.md)、代码、部署配置和
@@ -33,7 +33,7 @@ owner ApplicationService
 | `backend/community-app/` | 主站业务 owner，采用轻量领域分层。 |
 | `backend/community-gateway/` | 浏览器 HTTP / WebSocket 统一入口。 |
 | `backend/community-im-gateway/` | IM session bootstrap 与稳定 `/ws/im` edge。 |
-| `backend/community-im/` | `im-core`、`im-realtime` 与共享 IM contract。 |
+| `backend/community-im/` | `im-core`、`im-realtime`、共享 IM contract 与 session ticket 协议。 |
 | `backend/community-oss/` | 对象存储 owner；typed client 位于 `backend/community-oss-client/`。 |
 | `backend/community-common/` | 错误协议、安全、Web、幂等、outbox、可观测性等共享基础设施。 |
 | `backend/yierloom/` | 可选的短时 JVM 诊断 Agent 与插件 SDK。 |
@@ -48,7 +48,7 @@ owner ApplicationService
 运行完整本地拓扑需要 Docker Engine 与 Docker Compose plugin。直接开发各工程时还需要：
 
 - JDK 17、Maven 3.8+
-- Node.js 20 与 npm（与 CI 环境一致）
+- Node.js >= 20.19（或 >= 22.12）与 npm（与 Vite 8、CI 环境一致）
 - k6（仅运行性能场景时需要）
 
 ## 快速开始

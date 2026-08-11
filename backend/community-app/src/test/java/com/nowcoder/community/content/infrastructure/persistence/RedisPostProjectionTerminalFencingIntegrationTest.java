@@ -6,6 +6,7 @@ import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
+import com.nowcoder.community.content.application.PostFeedCache;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Category;
@@ -178,8 +179,8 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
             summaryCache.evictAll(List.of(postId), 11L);
             detailCache.evict(postId, 11L);
 
-            feedCache.upsertGlobalHot(postId, 99.0, "hot-v2", 10L);
-            feedCache.upsertBoardHot(boardId, postId, 98.0, "hot-v2", 10L);
+            feedCache.upsertGlobalHot(projection(postId, 99.0), "hot-v2", 10L, 0L);
+            feedCache.upsertBoardHot(boardId, projection(postId, 98.0), "hot-v2", 10L, 0L);
             summaryCache.putVersioned(List.of(new com.nowcoder.community.content.application.PostSummaryCache.VersionedSummary(
                     summary(postId),
                     10L
@@ -193,8 +194,8 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
             assertBoundedVersionMarker(redisTemplate, summaryScoreVersionKey(postId), 0L);
             assertBoundedVersionMarker(redisTemplate, detailVersionKey(postId), 11L);
 
-            feedCache.upsertGlobalHot(postId, 99.0, "hot-v2", 11L);
-            feedCache.upsertBoardHot(boardId, postId, 98.0, "hot-v2", 11L);
+            feedCache.upsertGlobalHot(projection(postId, 99.0), "hot-v2", 11L, 0L);
+            feedCache.upsertBoardHot(boardId, projection(postId, 98.0), "hot-v2", 11L, 0L);
             summaryCache.putVersioned(List.of(new com.nowcoder.community.content.application.PostSummaryCache.VersionedSummary(
                     summary(postId),
                     11L
@@ -221,22 +222,56 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 mock(CategoryContentRepository.class)
         );
         try {
-            feedCache.upsertGlobalHot(postId, 10.0, "hot-v2", 7L, 3L);
-            feedCache.upsertGlobalHot(postId, 99.0, "hot-v2", 7L, 2L);
+            feedCache.upsertGlobalHot(projection(postId, 10.0), "hot-v2", 7L, 3L);
+            feedCache.upsertGlobalHot(projection(postId, 99.0), "hot-v2", 7L, 2L);
 
             assertThat(redisTemplate.opsForZSet().score(globalFeedKey(), postId.toString())).isEqualTo(10.0);
 
-            feedCache.upsertGlobalHot(postId, 20.0, "hot-v2", 8L, 1L);
-            feedCache.upsertGlobalHot(postId, 88.0, "hot-v2", 7L, 4L);
+            feedCache.upsertGlobalHot(projection(postId, 20.0), "hot-v2", 8L, 1L);
+            feedCache.upsertGlobalHot(projection(postId, 88.0), "hot-v2", 7L, 4L);
 
             assertThat(redisTemplate.opsForZSet().score(globalFeedKey(), postId.toString())).isEqualTo(20.0);
 
-            feedCache.upsertGlobalHot(postId, 30.0, "hot-v2", 8L, 2L);
+            feedCache.upsertGlobalHot(projection(postId, 30.0), "hot-v2", 8L, 2L);
 
             assertThat(redisTemplate.opsForZSet().score(globalFeedKey(), postId.toString())).isEqualTo(30.0);
             assertThat(redisTemplate.opsForValue().get(feedVersionKey(globalFeedKey(), postId))).isEqualTo("8");
             assertThat(redisTemplate.opsForValue().get(feedScoreVersionKey(globalFeedKey(), postId)))
                     .isEqualTo("2");
+        } finally {
+            connectionFactory.destroy();
+        }
+    }
+
+    @Test
+    void identicalProjectionUpsertShouldRefreshVersionFloorsWithoutAdvancingEpoch() {
+        LettuceConnectionFactory connectionFactory = connectionFactory();
+        StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
+        UUID postId = UUID.randomUUID();
+        UUID boardId = UUID.randomUUID();
+        RedisPostFeedCache feedCache = newCache(
+                redisTemplate,
+                new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
+                mock(CategoryContentRepository.class)
+        );
+        PostFeedCache.HotProjectionEntry unchanged = projection(postId, 10.0);
+        try {
+            feedCache.upsertBoardHot(boardId, unchanged, "hot-v2", 7L, 3L);
+            long initialEpoch = feedCache.readBoardHotProjection(boardId, "", 50).epoch();
+
+            feedCache.upsertBoardHot(boardId, unchanged, "hot-v2", 8L, 1L);
+
+            assertThat(feedCache.readBoardHotProjection(boardId, "", 50).epoch()).isEqualTo(initialEpoch);
+            assertThat(redisTemplate.opsForValue().get(feedVersionKey(boardFeedKey(boardId), postId)))
+                    .isEqualTo("8");
+            assertThat(redisTemplate.opsForValue().get(feedScoreVersionKey(boardFeedKey(boardId), postId)))
+                    .isEqualTo("1");
+            assertThat(redisTemplate.opsForZSet().score(boardFeedKey(boardId), postId.toString()))
+                    .isEqualTo(10.0);
+
+            feedCache.upsertBoardHot(boardId, projection(postId, 20.0), "hot-v2", 8L, 2L);
+
+            assertThat(feedCache.readBoardHotProjection(boardId, "", 50).epoch()).isEqualTo(initialEpoch + 1L);
         } finally {
             connectionFactory.destroy();
         }
@@ -369,9 +404,9 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
             UUID postId,
             List<UUID> boardIds
     ) {
-        feedCache.upsertGlobalHot(postId, 99.0, "hot-v2");
+        feedCache.upsertGlobalHot(projection(postId, 99.0), "hot-v2", 0L, 0L);
         for (UUID boardId : boardIds) {
-            feedCache.upsertBoardHot(boardId, postId, 98.0, "hot-v2");
+            feedCache.upsertBoardHot(boardId, projection(postId, 98.0), "hot-v2", 0L, 0L);
         }
         summaryCache.putAll(List.of(summary(postId)));
         detailCache.put(postId, detail(postId));
@@ -512,6 +547,10 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 false,
                 false
         );
+    }
+
+    private static PostFeedCache.HotProjectionEntry projection(UUID postId, double score) {
+        return new PostFeedCache.HotProjectionEntry(postId, 0, score, new Date(1_000));
     }
 
     private static String globalFeedKey() {

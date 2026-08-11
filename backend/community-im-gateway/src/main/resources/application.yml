@@ -75,6 +75,9 @@ management:
         include: health,info,prometheus
 
 im:
+  access-token-freshness:
+    community-service-id: ${IM_ACCESS_TOKEN_FRESHNESS_COMMUNITY_SERVICE_ID:community-app}
+    request-timeout: ${IM_ACCESS_TOKEN_FRESHNESS_REQUEST_TIMEOUT:500ms}
   session-ticket:
     hmac-secret: ${IM_SESSION_TICKET_HMAC_SECRET:}
     issuer: ${IM_SESSION_TICKET_ISSUER:community-im-gateway}

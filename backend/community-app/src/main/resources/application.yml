@@ -289,6 +289,9 @@ market:
     auto-confirm-batch-size: ${MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE:100}
 
 wallet:
+  deadlock-retry:
+    max-attempts: ${WALLET_DEADLOCK_RETRY_MAX_ATTEMPTS:3}
+    backoff: ${WALLET_DEADLOCK_RETRY_BACKOFF:10ms}
   test-credits:
     enabled: ${WALLET_TEST_CREDITS_ENABLED:false}
     grant-enabled: ${WALLET_TEST_CREDIT_GRANT_ENABLED:false}

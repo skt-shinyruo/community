@@ -5,6 +5,7 @@ import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
+import com.nowcoder.community.notice.domain.model.NoticeTopicSummary;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.notice.domain.service.NoticeDomainService;
 import org.springframework.stereotype.Service;
@@ -12,6 +13,9 @@ import org.springframework.stereotype.Service;
 import java.time.Clock;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -82,15 +86,32 @@ public class NoticeApplicationService {
     }
 
     public List<NoticeTopicSummaryResult> topicSummary(UUID userId) {
-        return NoticeTopic.DEFAULT_TOPICS.stream().map(noticeTopic -> {
-            List<NoticeRecord> latest = noticeRepository.findByUserAndTopic(userId, noticeTopic, 0, 1);
-            return new NoticeTopicSummaryResult(
-                    noticeTopic,
-                    latest == null || latest.isEmpty() ? null : toNoticeItemResult(latest.get(0)),
-                    noticeRepository.count(userId, noticeTopic),
-                    noticeRepository.unreadCount(userId, noticeTopic)
-            );
-        }).toList();
+        Map<String, NoticeTopicSummary> summaries = noticeRepository
+                .summarizeByUserAndTopics(userId, NoticeTopic.DEFAULT_TOPICS)
+                .stream()
+                .filter(summary -> summary != null
+                        && summary.latest() != null
+                        && summary.latest().getTopic() != null)
+                .collect(Collectors.toMap(
+                        summary -> summary.latest().getTopic(),
+                        Function.identity(),
+                        (first, ignored) -> first
+                ));
+        return NoticeTopic.DEFAULT_TOPICS.stream()
+                .map(topic -> toTopicSummaryResult(topic, summaries.get(topic)))
+                .toList();
+    }
+
+    private NoticeTopicSummaryResult toTopicSummaryResult(String topic, NoticeTopicSummary summary) {
+        if (summary == null) {
+            return new NoticeTopicSummaryResult(topic, null, 0, 0);
+        }
+        return new NoticeTopicSummaryResult(
+                topic,
+                toNoticeItemResult(summary.latest()),
+                summary.noticeCount(),
+                summary.unreadCount()
+        );
     }
 
     public void markRead(UUID userId, List<UUID> ids) {

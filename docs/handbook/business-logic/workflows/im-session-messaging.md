@@ -16,11 +16,12 @@
 ## Session bootstrap
 
 1. 浏览器带 Bearer access token 调 `POST /api/im/sessions`。
-2. `community-im-gateway` 校验 JWT。
-3. gateway 解析 userId。
-4. gateway 根据 userId 或连接策略选择 realtime worker。
-5. gateway 生成短期 session ticket，包含 userId、workerId、过期时间等。
-6. gateway 返回稳定外部 `wsUrl` 和 ticket。
+2. `community-im-gateway` 校验 JWT 签名、issuer、audience、token type、subject 和正整数 `security_version`。
+3. gateway 把原始 Bearer token 回源 community-app 的 `/api/auth/me`，确认 user owner 当前版本仍匹配且账号允许登录；stale / denied 分别返回 `401` / `403`，owner 不可用返回 `503`。
+4. gateway 解析 userId。
+5. gateway 根据 userId 或连接策略选择 realtime worker。
+6. gateway 生成短期 session ticket，包含 userId、workerId、过期时间等。
+7. gateway 返回稳定外部 `wsUrl` 和 ticket。
 
 `wsUrl` 是客户端访问 gateway 的地址，不是直接访问 worker 的内部地址。`PublicWsUrlFactory` 只使用显式配置的绝对 `ws` / `wss` 地址，不从请求 Host 或 forwarded header 派生，避免把 ticket 泄到非预期域名。
 
@@ -82,7 +83,7 @@ user 处罚、social 拉黑和 im-core 房间成员变化通过 snapshot + outbo
 
 | 现象 | 先查哪里 |
 | --- | --- |
-| session 打不开 | access token、gateway session ticket、worker 选择。 |
+| session 打不开 | access token 的 `security_version`、community-app freshness 回源、gateway session ticket、worker 选择。 |
 | WS 连接失败 | ticket 是否过期、gateway bridge、realtime worker。 |
 | 发送 accepted 但没消息 | im-core persisted/rejected event 和 history。 |
 | 拉黑后仍短暂能发 | user/social 主事实和 realtime policy projection 延迟。 |

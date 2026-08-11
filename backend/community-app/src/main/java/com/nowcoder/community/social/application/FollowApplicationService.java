@@ -32,6 +32,9 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 public class FollowApplicationService implements SocialFollowQueryApi {
 
     private static final int MAX_BATCH_ENTITY_IDS = 200;
+    private static final int MAX_LEGACY_PAGE = 100;
+    private static final int MAX_PAGE_SIZE = 50;
+    private static final FollowCursorCodec CURSOR_CODEC = new FollowCursorCodec();
 
     private final FollowRepository followRepository;
     private final BlockRepository blockRepository;
@@ -137,8 +140,8 @@ public class FollowApplicationService implements SocialFollowQueryApi {
 
     public List<FollowRelationResult> listFollowees(UUID userId, int entityType, int page, int size) {
         validateFollowUserQuery(userId, entityType);
-        int p = Math.max(0, page);
-        int s = Math.min(50, Math.max(1, size));
+        int p = legacyPage(page);
+        int s = normalizePageSize(size);
         return followRepository.listFolloweesExcludingBlocked(userId, entityType, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
@@ -147,12 +150,84 @@ public class FollowApplicationService implements SocialFollowQueryApi {
 
     public List<FollowRelationResult> listFollowers(int entityType, UUID entityId, int page, int size) {
         validateFollowTargetQuery(entityType, entityId);
-        int p = Math.max(0, page);
-        int s = Math.min(50, Math.max(1, size));
+        int p = legacyPage(page);
+        int s = normalizePageSize(size);
         return followRepository.listFollowersExcludingBlocked(entityType, entityId, blockRepository, Pagination.safeOffset(p, s), s)
                 .stream()
                 .map(this::toResult)
                 .toList();
+    }
+
+    public FollowRelationPageResult listFolloweePage(
+            UUID userId,
+            int entityType,
+            String cursor,
+            int size
+    ) {
+        validateFollowUserQuery(userId, entityType);
+        int limit = normalizePageSize(size);
+        FollowCursorCodec.Boundary boundary = decodeBoundary(cursor);
+        List<FollowRelation> relations = followRepository.listFolloweesAfterExcludingBlocked(
+                userId,
+                entityType,
+                blockRepository,
+                boundary == null ? null : boundary.followTime(),
+                boundary == null ? null : boundary.targetId(),
+                limit + 1
+        );
+        return toPage(relations, limit);
+    }
+
+    public FollowRelationPageResult listFollowerPage(
+            int entityType,
+            UUID entityId,
+            String cursor,
+            int size
+    ) {
+        validateFollowTargetQuery(entityType, entityId);
+        int limit = normalizePageSize(size);
+        FollowCursorCodec.Boundary boundary = decodeBoundary(cursor);
+        List<FollowRelation> relations = followRepository.listFollowersAfterExcludingBlocked(
+                entityType,
+                entityId,
+                blockRepository,
+                boundary == null ? null : boundary.followTime(),
+                boundary == null ? null : boundary.targetId(),
+                limit + 1
+        );
+        return toPage(relations, limit);
+    }
+
+    private FollowRelationPageResult toPage(List<FollowRelation> relations, int limit) {
+        List<FollowRelation> safeRelations = relations == null ? List.of() : relations;
+        boolean hasNext = safeRelations.size() > limit;
+        List<FollowRelation> page = hasNext
+                ? List.copyOf(safeRelations.subList(0, limit))
+                : List.copyOf(safeRelations);
+        String nextCursor = hasNext && !page.isEmpty()
+                ? CURSOR_CODEC.encode(page.get(page.size() - 1).followTime(), page.get(page.size() - 1).targetId())
+                : "";
+        return new FollowRelationPageResult(page.stream().map(this::toResult).toList(), nextCursor, hasNext);
+    }
+
+    private FollowCursorCodec.Boundary decodeBoundary(String cursor) {
+        try {
+            return CURSOR_CODEC.decode(cursor).orElse(null);
+        } catch (IllegalArgumentException exception) {
+            throw new BusinessException(INVALID_ARGUMENT, "follow cursor is invalid");
+        }
+    }
+
+    private int legacyPage(int page) {
+        int normalized = Math.max(0, page);
+        if (normalized > MAX_LEGACY_PAGE) {
+            throw new BusinessException(INVALID_ARGUMENT, "page exceeds legacy limit; use cursor pagination");
+        }
+        return normalized;
+    }
+
+    private int normalizePageSize(int size) {
+        return Math.min(MAX_PAGE_SIZE, Math.max(1, size));
     }
 
     private void validateFollowRelationQuery(UUID actorUserId, int entityType, UUID entityId) {
@@ -216,6 +291,17 @@ public class FollowApplicationService implements SocialFollowQueryApi {
     }
 
     public record FollowRelationResult(UUID targetId, Instant followTime) {
+    }
+
+    public record FollowRelationPageResult(
+            List<FollowRelationResult> items,
+            String nextCursor,
+            boolean hasNext
+    ) {
+        public FollowRelationPageResult {
+            items = items == null ? List.of() : List.copyOf(items);
+            nextCursor = nextCursor == null ? "" : nextCursor;
+        }
     }
 
 }

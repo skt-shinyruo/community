@@ -22,10 +22,10 @@ import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUsagePolicyRepository;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
-import com.nowcoder.community.oss.infrastructure.storage.PresignedObjectUrl;
-import com.nowcoder.community.oss.infrastructure.storage.StoredObject;
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
+import com.nowcoder.community.oss.application.port.StoredObject;
 import org.junit.jupiter.api.Test;
 
 import java.io.ByteArrayInputStream;

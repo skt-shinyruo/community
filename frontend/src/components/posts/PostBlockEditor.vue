@@ -88,9 +88,9 @@ function createClientId() {
 
 function defaultBlock(type) {
   if (type === 'code') return { clientId: createClientId(), type: 'code', text: '', language: '' }
-  if (type === 'image') return { clientId: createClientId(), type: 'image', assetId: '', caption: '', uploadState: 'idle' }
-  if (type === 'video') return { clientId: createClientId(), type: 'video', assetId: '', caption: '', uploadState: 'idle' }
-  if (type === 'file') return { clientId: createClientId(), type: 'file', assetId: '', displayName: '', uploadState: 'idle' }
+  if (type === 'image') return { clientId: createClientId(), type: 'image', assetId: '', caption: '', uploadState: 'idle', uploadProgress: null }
+  if (type === 'video') return { clientId: createClientId(), type: 'video', assetId: '', caption: '', uploadState: 'idle', uploadProgress: null }
+  if (type === 'file') return { clientId: createClientId(), type: 'file', assetId: '', displayName: '', uploadState: 'idle', uploadProgress: null }
   return { clientId: createClientId(), type: 'paragraph', text: '' }
 }
 
@@ -98,6 +98,13 @@ function clientFields(source) {
   return {
     clientId: String(source.clientId || createClientId())
   }
+}
+
+function normalizeUploadProgress(value) {
+  if (value == null || value === '') return null
+  const progress = Number(value)
+  if (!Number.isFinite(progress)) return null
+  return Math.min(100, Math.max(0, Math.round(progress)))
 }
 
 function normalizeBlock(block) {
@@ -117,7 +124,8 @@ function normalizeBlock(block) {
       type: 'image',
       assetId: String(source.assetId || ''),
       caption: String(source.caption || ''),
-      uploadState: String(source.uploadState || 'idle')
+      uploadState: String(source.uploadState || 'idle'),
+      uploadProgress: normalizeUploadProgress(source.uploadProgress)
     }
   }
   if (type === 'video') {
@@ -126,7 +134,8 @@ function normalizeBlock(block) {
       type: 'video',
       assetId: String(source.assetId || ''),
       caption: String(source.caption || ''),
-      uploadState: String(source.uploadState || 'idle')
+      uploadState: String(source.uploadState || 'idle'),
+      uploadProgress: normalizeUploadProgress(source.uploadProgress)
     }
   }
   if (type === 'file') {
@@ -135,7 +144,8 @@ function normalizeBlock(block) {
       type: 'file',
       assetId: String(source.assetId || ''),
       displayName: String(source.displayName || ''),
-      uploadState: String(source.uploadState || 'idle')
+      uploadState: String(source.uploadState || 'idle'),
+      uploadProgress: normalizeUploadProgress(source.uploadProgress)
     }
   }
   return { ...clientFields(source), type: 'paragraph', text: String(source.text || '') }

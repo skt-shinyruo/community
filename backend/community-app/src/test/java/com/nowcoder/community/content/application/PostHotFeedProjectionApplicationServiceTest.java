@@ -13,6 +13,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
@@ -61,8 +62,8 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         verify(postFeedCache).writeRankVersion("hot-v2");
         verify(postContentRepository).updateScore(uuid(200), 88.5, 7L);
-        verify(postFeedCache).upsertGlobalHot(uuid(200), 88.5, "hot-v2", 7L, 8L);
-        verify(postFeedCache).upsertBoardHot(uuid(10), uuid(200), 88.5, "hot-v2", 7L, 8L);
+        verifyGlobalProjection(postFeedCache, uuid(200), 0, 88.5);
+        verifyBoardProjection(postFeedCache, uuid(10), uuid(200), 0, 88.5);
         verify(postCounterCache).markDirty(uuid(200));
         verify(postSummaryCache).evictAll(List.of(uuid(200)), 7L, 8L);
         verify(postDetailCache).evict(uuid(200), 7L);
@@ -356,7 +357,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 false
         ));
 
-        verify(postFeedCache).upsertGlobalHot(uuid(211), 14.0, "hot-v2", 7L, 8L);
+        verifyGlobalProjection(postFeedCache, uuid(211), 0, 14.0);
         verify(projectionGuard).commit(attempt);
     }
 
@@ -408,7 +409,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         service.project(new ProjectPostHotFeedCommand(
                 uuid(230), uuid(30), "evt-old", 10L, PostProjectionVersionLane.POST, false));
 
-        verify(postFeedCache).upsertGlobalHot(uuid(230), 14.0, "hot-v2", 7L, 8L);
+        verifyGlobalProjection(postFeedCache, uuid(230), 0, 14.0);
         verify(postHotnessDomainService, times(1)).recomputeScore(post, 2L);
         verify(projectionGuard).commit(accepted);
         verify(projectionGuard, never()).commit(stale);
@@ -506,7 +507,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         ));
 
         verify(postFeedCache).remove(uuid(203), null, 7L);
-        verify(postFeedCache).upsertBoardHot(uuid(13), uuid(203), 18.0, "hot-v2", 7L, 8L);
+        verifyBoardProjection(postFeedCache, uuid(13), uuid(203), 0, 18.0);
     }
 
     @Test
@@ -791,8 +792,8 @@ class PostHotFeedProjectionApplicationServiceTest {
                 false
         ));
 
-        verify(postFeedCache).upsertGlobalHot(uuid(202), 31.0, "hot-v2", 7L, 8L);
-        verify(postFeedCache).upsertBoardHot(uuid(12), uuid(202), 31.0, "hot-v2", 7L, 8L);
+        verifyGlobalProjection(postFeedCache, uuid(202), 0, 31.0);
+        verifyBoardProjection(postFeedCache, uuid(12), uuid(202), 0, 31.0);
     }
 
     @Test
@@ -831,7 +832,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         ));
 
         verify(postFeedCache).remove(uuid(204), null, 7L);
-        verify(postFeedCache).upsertBoardHot(uuid(14), uuid(204), 25.0, "hot-v2", 7L, 8L);
+        verifyBoardProjection(postFeedCache, uuid(14), uuid(204), 0, 25.0);
     }
 
     @Test
@@ -871,8 +872,8 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         verify(postFeedCache).writeRankVersion("hot-v2");
         verify(postFeedCache).remove(uuid(205), null, 7L);
-        verify(postFeedCache).upsertGlobalHot(uuid(205), 51.0, "hot-v2", 7L, 8L);
-        verify(postFeedCache).upsertBoardHot(uuid(15), uuid(205), 51.0, "hot-v2", 7L, 8L);
+        verifyGlobalProjection(postFeedCache, uuid(205), 0, 51.0);
+        verifyBoardProjection(postFeedCache, uuid(15), uuid(205), 0, 51.0);
         verify(postCounterCache).markDirty(uuid(205));
     }
 
@@ -992,6 +993,49 @@ class PostHotFeedProjectionApplicationServiceTest {
         public void afterTransaction(Runnable committedAction, Runnable rolledBackAction) {
             committedAction.run();
         }
+    }
+
+    private static void verifyGlobalProjection(
+            PostFeedCache cache,
+            UUID postId,
+            int type,
+            double score
+    ) {
+        verify(cache).upsertGlobalHot(
+                argThat(entry -> projectionMatches(entry, postId, type, score)),
+                eq("hot-v2"),
+                eq(7L),
+                eq(8L)
+        );
+    }
+
+    private static void verifyBoardProjection(
+            PostFeedCache cache,
+            UUID boardId,
+            UUID postId,
+            int type,
+            double score
+    ) {
+        verify(cache).upsertBoardHot(
+                eq(boardId),
+                argThat(entry -> projectionMatches(entry, postId, type, score)),
+                eq("hot-v2"),
+                eq(7L),
+                eq(8L)
+        );
+    }
+
+    private static boolean projectionMatches(
+            PostFeedCache.HotProjectionEntry entry,
+            UUID postId,
+            int type,
+            double score
+    ) {
+        return entry != null
+                && postId.equals(entry.postId())
+                && entry.type() == type
+                && Double.compare(entry.score(), score) == 0
+                && entry.createTime() != null;
     }
 
     private enum AllowAllProjectionGuard implements HotFeedProjectionGuard {

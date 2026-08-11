@@ -72,7 +72,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { blockUser, unblockUser } from '../../api/services/blockService'
 import { getUserProfile } from '../../api/services/userService'
-import { showToast } from '../../ui/toastService'
+import { showErrorToast, showToast } from '../../ui/toastService'
 import UiAvatar from './UiAvatar.vue'
 import UiButton from './UiButton.vue'
 import UiRoleBadge from './UiRoleBadge.vue'
@@ -215,7 +215,7 @@ async function toggleBlock() {
     await prefs.ensureBlocked(true)
   } catch (e) {
     if (!isCurrentAction(requestId, targetId, authGeneration)) return
-    showToast({ type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
+    showErrorToast(e, { type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
   } finally {
     if (isCurrentAction(requestId, targetId, authGeneration)) actionLoading.value = false
   }

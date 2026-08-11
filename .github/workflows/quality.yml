@@ -9,6 +9,10 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: repository-quality-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   backend:
     name: Backend reactor
@@ -37,6 +41,9 @@ jobs:
       - name: Install dependencies
         working-directory: frontend
         run: npm ci
+      - name: Audit production dependencies
+        working-directory: frontend
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Run unit tests
         working-directory: frontend
         run: npm test
@@ -60,6 +67,9 @@ jobs:
       - name: Install Mock Data Studio dependencies
         working-directory: tools/mock-data-studio
         run: npm ci
+      - name: Audit Mock Data Studio production dependencies
+        working-directory: tools/mock-data-studio
+        run: npm audit --omit=dev --audit-level=moderate
       - name: Run Mock Data Studio tests
         working-directory: tools/mock-data-studio
         run: npm test

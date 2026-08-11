@@ -100,6 +100,7 @@
   <!-- Action Modal -->
   <div v-if="actionModalOpen" class="modal-mask" @click.self="closeActionModal" @keydown.esc.stop.prevent="closeActionModal">
     <div
+      ref="actionDialogRef"
       class="modal-card card moderation-modal"
       role="dialog"
       aria-modal="true"
@@ -183,6 +184,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import { useModalFocus } from '../composables/useModalFocus'
 import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
@@ -346,6 +348,8 @@ async function loadMoreActions() {
 
 // action modal
 const actionModalOpen = ref(false)
+const actionDialogRef = ref(null)
+useModalFocus(actionDialogRef, { active: actionModalOpen })
 const selectedReport = ref(null)
 const actionLoading = ref(false)
 const actionError = ref('')

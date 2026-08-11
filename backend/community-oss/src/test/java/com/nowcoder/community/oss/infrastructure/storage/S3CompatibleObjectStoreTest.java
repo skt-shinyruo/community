@@ -1,5 +1,6 @@
 package com.nowcoder.community.oss.infrastructure.storage;
 
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;

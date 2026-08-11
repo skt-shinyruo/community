@@ -65,8 +65,8 @@ class HotPathPrewarmApplicationServiceTest {
         assertThat(result.summaries()).isEqualTo(2);
         assertThat(result.details()).isEqualTo(2);
         verify(feedCache).writeRankVersion("hot-v2");
-        verify(feedCache).upsertGlobalHot(globalPost.getId(), 100.0, "hot-v2", 7L, 3L);
-        verify(feedCache).upsertBoardHot(boardId, boardPost.getId(), 90.0, "hot-v2", 7L, 3L);
+        verify(feedCache).upsertGlobalHot(projectionOf(globalPost), "hot-v2", 7L, 3L);
+        verify(feedCache).upsertBoardHot(boardId, projectionOf(boardPost), "hot-v2", 7L, 3L);
         verify(summaryLoader).cacheSummaries(List.of(globalPost), List.of(globalSummary));
         verify(summaryLoader).cacheSummaries(List.of(boardPost), List.of(boardSummary));
         verify(postReadApplicationService).getPostDetail(null, globalPost.getId());
@@ -93,6 +93,11 @@ class HotPathPrewarmApplicationServiceTest {
         post.setAggregateVersion(7L);
         post.setScoreVersion(3L);
         return post;
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionOf(DiscussPost post) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), post.getScore(), post.getCreateTime());
     }
 
     private static Category category(UUID boardId) {

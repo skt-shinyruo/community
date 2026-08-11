@@ -16,6 +16,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
+import java.util.Optional;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -162,12 +163,12 @@ class TraceRecordInterceptorTest {
                 offset,
                 0L,
                 TimestampType.CREATE_TIME,
-                (Long) null,
                 0,
                 0,
                 "key",
                 "value",
-                headers
+                headers,
+                Optional.empty()
         );
     }
 }

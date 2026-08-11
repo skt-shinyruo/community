@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowCommand;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationPageResult;
 import com.nowcoder.community.social.application.FollowApplicationService.UnfollowCommand;
 import com.nowcoder.community.social.domain.event.BlockRelationChangedDomainEvent;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
@@ -372,6 +373,56 @@ class FollowApplicationServiceTest {
     }
 
     @Test
+    void legacyFollowListsShouldRejectDeepPages() {
+        FollowApplicationService service = newService(
+                mock(FollowRepository.class),
+                mock(BlockRepository.class),
+                mock(SocialDomainEventPublisher.class)
+        );
+
+        assertThatThrownBy(() -> service.listFollowees(uuid(1), USER, 101, 10))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("use cursor pagination");
+        assertThatThrownBy(() -> service.listFollowers(USER, uuid(1), Integer.MAX_VALUE, 10))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("use cursor pagination");
+    }
+
+    @Test
+    void cursorFollowPageShouldUseStableRepositoryBoundary() {
+        FollowRepository repository = mock(FollowRepository.class);
+        BlockRepository blockRepository = mock(BlockRepository.class);
+        FollowApplicationService service = newService(
+                repository,
+                blockRepository,
+                mock(SocialDomainEventPublisher.class)
+        );
+        UUID ownerId = uuid(1);
+        FollowRelation newest = new FollowRelation(uuid(11), Instant.ofEpochMilli(3_000L));
+        FollowRelation boundary = new FollowRelation(uuid(12), Instant.ofEpochMilli(2_000L));
+        FollowRelation extra = new FollowRelation(uuid(13), Instant.ofEpochMilli(1_000L));
+        when(repository.listFolloweesAfterExcludingBlocked(
+                ownerId, USER, blockRepository, null, null, 3))
+                .thenReturn(List.of(newest, boundary, extra));
+        when(repository.listFolloweesAfterExcludingBlocked(
+                ownerId, USER, blockRepository, boundary.followTime(), boundary.targetId(), 3))
+                .thenReturn(List.of(extra));
+
+        FollowRelationPageResult first = service.listFolloweePage(ownerId, USER, "", 2);
+        FollowRelationPageResult second = service.listFolloweePage(ownerId, USER, first.nextCursor(), 2);
+
+        assertThat(first.items()).extracting(FollowRelationResult::targetId)
+                .containsExactly(newest.targetId(), boundary.targetId());
+        assertThat(first.hasNext()).isTrue();
+        assertThat(first.nextCursor()).isNotBlank();
+        assertThat(second.items()).extracting(FollowRelationResult::targetId)
+                .containsExactly(extra.targetId());
+        assertThat(second.hasNext()).isFalse();
+        verify(repository).listFolloweesAfterExcludingBlocked(
+                ownerId, USER, blockRepository, boundary.followTime(), boundary.targetId(), 3);
+    }
+
+    @Test
     void statusesShouldDeduplicateTargetsAndUseOneRepositoryBatchQuery() {
         FollowRepository followRepository = mock(FollowRepository.class);
         UUID actorUserId = uuid(1);
@@ -503,13 +554,72 @@ class FollowApplicationServiceTest {
                     .toList();
         }
 
+        @Override
+        public List<FollowRelation> listFolloweesAfterExcludingBlocked(
+                UUID userId,
+                int entityType,
+                BlockRepository blockRepository,
+                Instant beforeTime,
+                UUID beforeTargetId,
+                int limit
+        ) {
+            return listAfter(
+                    followees.get(followeeKey(userId, entityType)),
+                    userId,
+                    blockRepository,
+                    beforeTime,
+                    beforeTargetId,
+                    limit
+            );
+        }
+
+        @Override
+        public List<FollowRelation> listFollowersAfterExcludingBlocked(
+                int entityType,
+                UUID entityId,
+                BlockRepository blockRepository,
+                Instant beforeTime,
+                UUID beforeTargetId,
+                int limit
+        ) {
+            return listAfter(
+                    followers.get(followerKey(entityType, entityId)),
+                    entityId,
+                    blockRepository,
+                    beforeTime,
+                    beforeTargetId,
+                    limit
+            );
+        }
+
+        private List<FollowRelation> listAfter(
+                Map<UUID, Long> relations,
+                UUID ownerId,
+                BlockRepository blockRepository,
+                Instant beforeTime,
+                UUID beforeTargetId,
+                int limit
+        ) {
+            return list(relations, 0, Integer.MAX_VALUE).stream()
+                    .filter(relation -> beforeTime == null || beforeTargetId == null
+                            || relation.followTime().isBefore(beforeTime)
+                            || (relation.followTime().equals(beforeTime)
+                            && relation.targetId().compareTo(beforeTargetId) < 0))
+                    .filter(relation -> blockRepository == null
+                            || (!blockRepository.hasBlocked(ownerId, relation.targetId())
+                            && !blockRepository.hasBlocked(relation.targetId(), ownerId)))
+                    .limit(Math.max(0, limit))
+                    .toList();
+        }
+
         private List<FollowRelation> list(Map<UUID, Long> map, int offset, int limit) {
             if (map == null || map.isEmpty()) {
                 return List.of();
             }
             List<Map.Entry<UUID, Long>> entries = new ArrayList<>(map.entrySet());
-            entries.sort(Map.Entry.comparingByValue(Comparator.reverseOrder()));
-            int from = Math.max(0, offset);
+            entries.sort(Map.Entry.<UUID, Long>comparingByValue(Comparator.reverseOrder())
+                    .thenComparing(Map.Entry.comparingByKey(Comparator.reverseOrder())));
+            int from = Math.min(entries.size(), Math.max(0, offset));
             int to = Math.min(entries.size(), from + Math.max(0, limit));
             return entries.subList(from, to).stream()
                     .map(entry -> new FollowRelation(entry.getKey(), Instant.ofEpochMilli(entry.getValue())))

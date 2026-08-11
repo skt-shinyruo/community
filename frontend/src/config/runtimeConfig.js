@@ -8,7 +8,9 @@ function readRuntimeConfigObject() {
 }
 
 export function readRuntimeConfigString(key) {
-  if (typeof key !== 'string' || key.trim() === '') return ''
-  const value = readRuntimeConfigObject()[key]
-  return typeof value === 'string' && value.trim() ? value.trim() : ''
+  if (typeof key !== 'string' || key.trim() === '') return undefined
+  const config = readRuntimeConfigObject()
+  if (!Object.prototype.hasOwnProperty.call(config, key)) return undefined
+  const value = config[key]
+  return typeof value === 'string' ? value.trim() : undefined
 }

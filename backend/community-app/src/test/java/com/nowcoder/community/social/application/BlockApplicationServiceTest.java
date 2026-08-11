@@ -355,6 +355,30 @@ class BlockApplicationServiceTest {
             return set.stream().limit(Math.max(0, limit)).toList();
         }
 
+        @Override
+        public List<FollowRelation> listFolloweesAfterExcludingBlocked(
+                UUID userId,
+                int entityType,
+                BlockRepository blockRepository,
+                java.time.Instant beforeTime,
+                UUID beforeTargetId,
+                int limit
+        ) {
+            return List.of();
+        }
+
+        @Override
+        public List<FollowRelation> listFollowersAfterExcludingBlocked(
+                int entityType,
+                UUID entityId,
+                BlockRepository blockRepository,
+                java.time.Instant beforeTime,
+                UUID beforeTargetId,
+                int limit
+        ) {
+            return List.of();
+        }
+
         private String followeeKey(UUID userId, int entityType) {
             return "followee:" + userId + ":" + entityType;
         }

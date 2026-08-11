@@ -15,7 +15,10 @@ vi.mock('../api/http', () => ({
   default: { get: httpGet }
 }))
 
-vi.mock('../ui/toastService', () => ({ showToast }))
+vi.mock('../ui/toastService', () => ({
+  showToast,
+  showErrorToast: (_error, payload) => showToast(payload)
+}))
 
 import HomeView from './HomeView.vue'
 
@@ -165,6 +168,19 @@ describe('HomeView request lifecycle', () => {
     expect(wrapper.vm.followerCount).toBe(23)
     expect(showToast).toHaveBeenCalledTimes(1)
     expect(showToast).toHaveBeenCalledWith({ type: 'success', text: '已刷新开发检查项' })
+  })
+
+  it('commits successful count sections when one request fails', async () => {
+    const load = queueCountLoad()
+    const wrapper = mountView()
+    load.unread.resolve(countResponse(7))
+    load.following.reject(new Error('following unavailable'))
+    load.followers.resolve(countResponse(9))
+    await flushPromises()
+
+    expect(wrapper.vm.unreadCount).toBe(7)
+    expect(wrapper.vm.followerCount).toBe(9)
+    expect(showToast).toHaveBeenCalledWith({ type: 'error', text: '部分开发检查项加载失败' })
   })
 
   it('does not commit data or show notifications after unmount', async () => {

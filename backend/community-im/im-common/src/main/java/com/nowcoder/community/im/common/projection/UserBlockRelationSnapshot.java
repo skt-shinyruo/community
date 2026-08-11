@@ -15,7 +15,7 @@ public record UserBlockRelationSnapshot(
         boolean hasMore,
         Long snapshotHighWatermark,
         @ImSchemaVersion
-        int schemaVersion
+        Integer schemaVersion
 ) {
 
     public UserBlockRelationSnapshot {

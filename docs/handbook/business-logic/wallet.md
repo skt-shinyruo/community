@@ -47,7 +47,7 @@ owner API：
 - `statusOfUser(userId)`：查询用户钱包状态。
 - `requireUserWalletActive(userId)`：校验用户钱包可主动出账。
 - `setStatus(accountId, nextStatus)`：设置账户状态。
-- `lock(accountId)`：事务内锁定账户。
+- `lock(accountId)` / `lockAll(accountIds)`：事务内用 `FOR UPDATE` 锁定单个或一组账户；批量结果按数据库 `account_id` 顺序返回。
 - `apply(account, delta)`：条件更新余额。
 
 账户状态：
@@ -64,14 +64,14 @@ owner API：
 
 1. 校验 command、requestId、txnType 和 postings。
 2. 校验 bizType、bizId 非空。
-3. `WalletLedgerDomainService.validateBalancedPostings(...)` 要求借贷平衡。
-4. 按 requestId 查询已有交易。
-5. 已存在时校验 txnType、bizType、bizId、金额和分录指纹一致；一致返回已有结果，不一致返回 replay conflict。
-6. 创建 `wallet_txn`，初始 `PENDING`。
-7. 逐个锁定账户。
-8. 根据账户类型和分录方向计算余额 delta。
-9. 更新账户余额。
-10. 写 `wallet_entry`，记录 balanceAfter。
+3. `WalletLedgerDomainService.validateBalancedPostings(...)` 要求借贷平衡，再按账户聚合同方向金额、抵消相反方向金额；净额为零的账户不产生分录，每个有效账户最多保留一条 posting。
+4. 对聚合结果再次校验借贷平衡，并以聚合后的金额和分录指纹作为 requestId replay 语义。
+5. 按 requestId 查询已有交易。
+6. 已存在时校验 txnType、bizType、bizId、金额和分录指纹一致；一致返回已有结果，不一致返回 replay conflict。
+7. 创建 `wallet_txn`，初始 `PENDING`。
+8. 一次查询全部唯一账户，并由数据库按二进制 `account_id` 顺序执行 `ORDER BY account_id FOR UPDATE`；调用方 posting 顺序不改变锁顺序。
+9. 严格按查询返回顺序，根据账户类型和聚合分录方向计算余额 delta；每个账户只做一次 version 条件更新。
+10. 每个账户写一条 `wallet_entry`，记录 balanceAfter。
 11. 标记交易 `SUCCEEDED`。
 
 总账 requestId 必须全局唯一，代表资金事实幂等键。
@@ -190,6 +190,9 @@ Kafka consumer 的配置键仍沿用 `user.reward.kafka.consumer.*` 以保持部
 - 分录不平衡直接拒绝。
 - 金额必须为正且不超过 `WalletAmountPolicy` 上限。
 - 账户余额更新使用锁和条件更新防止并发覆盖。
+- 所有带 `@Transactional` 的 wallet application 入口由 wallet deadlock retry advisor 从事务外层包裹。数据库死锁或悲观锁获取失败会回滚当前完整事务，再重新进入 transaction advisor；默认最多 `3` 次、退避 `10ms`，上限分别钳制为 `5` 次和 `1s`。
+- 已在 wallet 事务内部的嵌套 application 调用不自行重试，异常必须传播到最外层 wallet 事务边界，避免只重放总账子步骤。非锁异常不重试；次数耗尽后传播最后一次锁异常。
+- 重试参数由 `wallet.deadlock-retry.max-attempts` 和 `wallet.deadlock-retry.backoff` 配置。requestId / 业务订单幂等仍是安全重放的前提，重试不会绕过 replay fingerprint。
 
 ## 关键代码
 
@@ -205,5 +208,6 @@ Kafka consumer 的配置键仍沿用 `user.reward.kafka.consumer.*` 以保持部
 - `wallet.application.WalletRewardProjectionApplicationService`
 - `wallet.application.WalletAdminOpsApplicationService`
 - `wallet.infrastructure.event.WalletRewardKafkaListener`
+- `wallet.infrastructure.retry.WalletDeadlockRetryConfiguration`
 - `wallet.domain.service.*`
 - `wallet.infrastructure.api.*`

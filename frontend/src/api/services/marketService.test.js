@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
+import { createWriteAttempt } from '../writeAttempt'
 import * as marketService from './marketService'
 
 describe('api/services/marketService', () => {
@@ -82,7 +83,7 @@ describe('api/services/marketService', () => {
       listingId: '22222222-2222-7222-8222-222222222222',
       quantity: 1,
       addressId: '33333333-3333-7333-8333-333333333333'
-    })
+    }, { writeAttempt: createWriteAttempt() })
 
     expect(resp.traceId).toBe('trace-create-order')
     expect(resp.data.orderId).toBe(31)

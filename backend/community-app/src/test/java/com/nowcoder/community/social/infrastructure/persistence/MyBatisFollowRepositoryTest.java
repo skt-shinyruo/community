@@ -78,4 +78,20 @@ class MyBatisFollowRepositoryTest {
         );
         assertThat(createdAt.getValue()).isEqualTo(Date.from(TEST_NOW));
     }
+
+    @Test
+    void cursorQueryShouldPassStableTimeAndTargetBoundaryToMapper() {
+        FollowMapper mapper = mock(FollowMapper.class);
+        MyBatisFollowRepository repository = new MyBatisFollowRepository(mapper, TEST_CLOCK);
+        UUID ownerId = uuid(1);
+        UUID boundaryId = uuid(9);
+        when(mapper.listFolloweesAfterExcludingBlocked(
+                ownerId, USER, Date.from(TEST_NOW), boundaryId, 21)).thenReturn(List.of());
+
+        assertThat(repository.listFolloweesAfterExcludingBlocked(
+                ownerId, USER, null, TEST_NOW, boundaryId, 21)).isEmpty();
+
+        verify(mapper).listFolloweesAfterExcludingBlocked(
+                ownerId, USER, Date.from(TEST_NOW), boundaryId, 21);
+    }
 }

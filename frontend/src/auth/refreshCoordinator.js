@@ -1,6 +1,8 @@
 import { requestCurrentUser, requestRefreshToken } from './refreshTransport'
 
 let inFlightRefresh = null
+let inFlightAuth = null
+let inFlightGeneration = null
 
 function refreshError(cause, state, fallbackMessage) {
   const error = cause instanceof Error ? cause : new Error(fallbackMessage, { cause })
@@ -22,8 +24,8 @@ function currentSessionIfChanged(auth, startGeneration, cause) {
   throw refreshError(cause, 'session-changed', 'Session changed while refreshing')
 }
 
-function terminalFailure(auth, startGeneration, cause) {
-  const currentSession = currentSessionIfChanged(auth, startGeneration, cause)
+function terminalFailure(auth, expectedGeneration, cause) {
+  const currentSession = currentSessionIfChanged(auth, expectedGeneration, cause)
   if (currentSession) {
     return currentSession
   }
@@ -31,8 +33,17 @@ function terminalFailure(auth, startGeneration, cause) {
   throw refreshError(cause, 'terminal', 'Session refresh failed')
 }
 
-function isUnauthorized(error) {
-  return Number(error?.response?.status || 0) === 401
+function retryableFailure(auth, expectedGeneration, cause) {
+  const currentSession = currentSessionIfChanged(auth, expectedGeneration, cause)
+  if (currentSession) {
+    return currentSession
+  }
+  throw refreshError(cause, 'retryable', 'Session refresh is temporarily unavailable')
+}
+
+function isAuthoritativeAuthenticationFailure(error) {
+  const status = Number(error?.response?.status || 0)
+  return status === 401 || status === 403
 }
 
 async function performRefresh(auth, startGeneration, requireProfile) {
@@ -40,7 +51,9 @@ async function performRefresh(auth, startGeneration, requireProfile) {
   try {
     refreshResponse = await requestRefreshToken()
   } catch (error) {
-    return terminalFailure(auth, startGeneration, error)
+    return isAuthoritativeAuthenticationFailure(error)
+      ? terminalFailure(auth, startGeneration, error)
+      : retryableFailure(auth, startGeneration, error)
   }
 
   const afterRefresh = currentSessionIfChanged(auth, startGeneration)
@@ -50,44 +63,33 @@ async function performRefresh(auth, startGeneration, requireProfile) {
 
   const accessToken = refreshResponse?.data?.accessToken || ''
   if (!accessToken) {
-    return terminalFailure(auth, startGeneration, new Error('Refresh response did not include an access token'))
+    return retryableFailure(auth, startGeneration, new Error('Refresh response did not include an access token'))
   }
 
-  let profile
-  let profileLoaded = false
+  auth.installSession({ accessToken, me: null })
+  const installedGeneration = auth.tokenGeneration
   let traceId = refreshResponse?.traceId || ''
-  if (requireProfile) {
-    try {
-      const profileResponse = await requestCurrentUser(accessToken)
-      const afterProfile = currentSessionIfChanged(auth, startGeneration)
-      if (afterProfile) {
-        return afterProfile
-      }
-      traceId = profileResponse?.traceId || traceId
-      if (profileResponse?.data != null) {
-        profile = profileResponse.data
-        profileLoaded = true
-      }
-    } catch (error) {
-      const afterProfileFailure = currentSessionIfChanged(auth, startGeneration, error)
-      if (afterProfileFailure) {
-        return afterProfileFailure
-      }
-      if (isUnauthorized(error)) {
-        return terminalFailure(auth, startGeneration, error)
-      }
-    }
+  if (!requireProfile) {
+    return { accessToken, profileLoaded: false, traceId }
   }
 
-  const beforeInstall = currentSessionIfChanged(auth, startGeneration)
-  if (beforeInstall) {
-    return beforeInstall
+  try {
+    const profileResponse = await requestCurrentUser(accessToken)
+    const afterProfile = currentSessionIfChanged(auth, installedGeneration)
+    if (afterProfile) return afterProfile
+    if (profileResponse?.data == null) {
+      return retryableFailure(auth, installedGeneration, new Error('Profile response did not include an identity'))
+    }
+    traceId = profileResponse?.traceId || traceId
+    auth.setMe(profileResponse.data)
+    return { accessToken, profileLoaded: true, traceId }
+  } catch (error) {
+    const afterProfileFailure = currentSessionIfChanged(auth, installedGeneration, error)
+    if (afterProfileFailure) return afterProfileFailure
+    return isAuthoritativeAuthenticationFailure(error)
+      ? terminalFailure(auth, installedGeneration, error)
+      : retryableFailure(auth, installedGeneration, error)
   }
-  auth.installSession({
-    accessToken,
-    me: profileLoaded ? profile : undefined
-  })
-  return { accessToken, profileLoaded, traceId }
 }
 
 export function refreshSession({ auth, expectedGeneration, requireProfile = true } = {}) {
@@ -104,13 +106,20 @@ export function refreshSession({ auth, expectedGeneration, requireProfile = true
     return Promise.reject(error)
   }
 
-  if (!inFlightRefresh) {
+  const canShare = inFlightRefresh
+    && inFlightAuth === auth
+    && inFlightGeneration === startGeneration
+  if (!canShare) {
     const sharedRefresh = performRefresh(auth, startGeneration, requireProfile).finally(() => {
       if (inFlightRefresh === sharedRefresh) {
         inFlightRefresh = null
+        inFlightAuth = null
+        inFlightGeneration = null
       }
     })
     inFlightRefresh = sharedRefresh
+    inFlightAuth = auth
+    inFlightGeneration = startGeneration
   }
   return inFlightRefresh
 }

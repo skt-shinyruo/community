@@ -4,7 +4,7 @@ These instructions apply to the whole repository.
 
 ## Repository Map And Sources Of Truth
 
-- `backend/` is the Java 17 / Spring Boot 3 Maven reactor. Run backend build and test commands from this directory.
+- `backend/` is the Java 17 / Spring Boot 4 Maven reactor. Run backend build and test commands from this directory.
 - `frontend/` is the Vue 3 / Vite SPA. Run frontend npm commands from this directory.
 - `deploy/` owns the supported local Compose topologies, schema snapshots, forward migrations, Nacos seeds,
   observability assets, and deployment contract tests.

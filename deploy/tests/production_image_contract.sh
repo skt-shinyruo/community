@@ -15,6 +15,11 @@ grep -Fq 'COPY --from=frontend-build /workspace/frontend/dist /usr/share/nginx/h
 grep -Fq 'USER 101:101' deploy/Dockerfile.frontend
 grep -Fq 'USER 10001:10001' deploy/Dockerfile.backend-service
 grep -Fq 'ENV HOME=/tmp/community-runtime/home' deploy/Dockerfile.backend-service
+grep -Fq -- '-pl :community-app,:community-gateway,:community-im-gateway,:community-oss,:im-core,:im-realtime,:yierloom-agent' deploy/Dockerfile.backend-service
+if rg -n 'mvn[^\n]*\$\{MODULE|rm -rf /root/\.m2' deploy/Dockerfile.backend-service; then
+  echo 'backend image builds must share one module-independent reactor layer and preserve the Maven cache on failures' >&2
+  exit 1
+fi
 grep -Fq 'runtime_dir="/tmp/community-runtime"' backend/scripts/run-backend-service.sh
 if rg -n 'vite preview|npm run preview|node scripts/renderRuntimeConfig' deploy/Dockerfile.frontend; then
   echo 'frontend runtime image must not use the Vite development preview server' >&2

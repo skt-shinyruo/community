@@ -5,6 +5,7 @@ import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
 
+import java.util.List;
 import java.util.UUID;
 
 @Repository
@@ -12,6 +13,8 @@ import java.util.UUID;
 public interface WalletAccountMapper {
 
     WalletAccountDataObject selectByAccountId(@Param("accountId") UUID accountId);
+
+    List<WalletAccountDataObject> selectByAccountIdsForUpdate(@Param("accountIds") List<UUID> accountIds);
 
     WalletAccountDataObject selectByOwner(@Param("ownerType") String ownerType,
                                 @Param("ownerId") UUID ownerId,

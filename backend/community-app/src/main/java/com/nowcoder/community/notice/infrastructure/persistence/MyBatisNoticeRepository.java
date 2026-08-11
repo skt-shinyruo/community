@@ -1,6 +1,7 @@
 package com.nowcoder.community.notice.infrastructure.persistence;
 
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
+import com.nowcoder.community.notice.domain.model.NoticeTopicSummary;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.notice.domain.service.NoticeDomainService;
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
@@ -38,6 +39,16 @@ public class MyBatisNoticeRepository implements NoticeRepository {
     @Override
     public int unreadCount(UUID userId, String topic) {
         return noticeMapper.selectNoticeUnreadCount(userId, topic);
+    }
+
+    @Override
+    public List<NoticeTopicSummary> summarizeByUserAndTopics(UUID userId, List<String> topics) {
+        if (topics == null || topics.isEmpty()) {
+            return List.of();
+        }
+        return noticeMapper.selectTopicSummaries(userId, topics).stream()
+                .map(row -> row.toDomainSummary())
+                .toList();
     }
 
     @Override

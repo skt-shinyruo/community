@@ -10,12 +10,13 @@ import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxn
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.service.WalletAmountPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
@@ -41,10 +42,10 @@ class WalletLedgerApplicationServiceTest {
     @Autowired
     private WalletLedgerApplicationService service;
 
-    @SpyBean
+    @MockitoSpyBean
     private WalletAccountMapper walletAccountMapper;
 
-    @MockBean
+    @MockitoBean
     private ClientIpResolver clientIpResolver;
 
     @BeforeEach
@@ -74,6 +75,50 @@ class WalletLedgerApplicationServiceTest {
         assertThat(result.txnId().version()).isEqualTo(7);
         assertThat(service.balanceOfUser(userId)).isEqualTo(500);
         assertThat(service.entriesOfTxn(result.txnId())).hasSize(2);
+    }
+
+    @Test
+    void postShouldAggregateRepeatedAccountsAndAdvanceEachAccountOnce() {
+        UUID userId = uuid(101);
+        UUID userAccountId = service.ensureUserWallet(userId);
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+
+        WalletTxnResult result = service.post(
+                "reward:101:aggregated",
+                WalletTxnType.REWARD_ISSUE,
+                List.of(
+                        WalletPosting.debit(systemAccountId, 200),
+                        WalletPosting.credit(userAccountId, 500),
+                        WalletPosting.debit(systemAccountId, 300)
+                )
+        );
+
+        assertThat(service.entriesOfTxn(result.txnId()))
+                .extracting(entry -> entry.getAccountId() + ":" + entry.getDirection() + ":" + entry.getAmount())
+                .containsExactlyInAnyOrder(
+                        systemAccountId + ":DEBIT:500",
+                        userAccountId + ":CREDIT:500"
+                );
+        assertThat(accountVersion(systemAccountId)).isEqualTo(1L);
+        assertThat(accountVersion(userAccountId)).isEqualTo(1L);
+    }
+
+    @Test
+    void postShouldEnforceTheAmountLimitBeforeNettingRepeatedAccounts() {
+        UUID userAccountId = service.ensureUserWallet(uuid(101));
+        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+
+        assertThatThrownBy(() -> service.post(
+                "reward:101:oversized-netting",
+                WalletTxnType.REWARD_ISSUE,
+                List.of(
+                        WalletPosting.debit(systemAccountId, WalletAmountPolicy.MAX_AMOUNT + 1),
+                        WalletPosting.credit(systemAccountId, WalletAmountPolicy.MAX_AMOUNT),
+                        WalletPosting.credit(userAccountId, 1)
+                )
+        )).isInstanceOf(BusinessException.class)
+                .satisfies(exception -> assertThat(((BusinessException) exception).getErrorCode())
+                        .isEqualTo(WalletErrorCode.INVALID_REQUEST));
     }
 
     @Test
@@ -354,6 +399,15 @@ class WalletLedgerApplicationServiceTest {
     private int entryCount() {
         Integer count = jdbcTemplate.queryForObject("select count(*) from wallet_entry", Integer.class);
         return count == null ? 0 : count;
+    }
+
+    private long accountVersion(UUID accountId) {
+        Long version = jdbcTemplate.queryForObject(
+                "select version from wallet_account where account_id = ?",
+                Long.class,
+                BinaryUuidCodec.toBytes(accountId)
+        );
+        return version == null ? -1L : version;
     }
 
     private int systemUserWalletCount() {

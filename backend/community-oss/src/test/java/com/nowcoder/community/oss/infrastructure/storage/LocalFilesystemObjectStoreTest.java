@@ -1,5 +1,8 @@
 package com.nowcoder.community.oss.infrastructure.storage;
 
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
+import com.nowcoder.community.oss.application.port.StoredObject;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 

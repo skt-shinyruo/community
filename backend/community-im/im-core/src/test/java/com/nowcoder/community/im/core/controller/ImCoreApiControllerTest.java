@@ -12,16 +12,18 @@ import com.nowcoder.community.im.core.application.result.ConversationResults;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
+import com.nowcoder.community.im.core.application.AccessTokenFreshnessApplicationService;
+import com.nowcoder.community.im.core.application.AccessTokenFreshnessApplicationService.Decision;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import com.nowcoder.community.im.core.support.TestJwtKeys;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.autoconfigure.web.servlet.AutoConfigureMockMvc;
+import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
-import org.springframework.boot.test.mock.mockito.SpyBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
+import org.springframework.test.context.bean.override.mockito.MockitoSpyBean;
 import org.springframework.http.MediaType;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
@@ -42,6 +44,7 @@ import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.c
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.doReturn;
+import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -79,20 +82,24 @@ class ImCoreApiControllerTest {
     @Autowired
     private PrivateMessageApplicationService privateMessageApplicationService;
 
-    @SpyBean
+    @MockitoSpyBean
     private ConversationApplicationService conversationApplicationService;
 
     @Autowired
     private JwtProperties jwtProperties;
 
-    @MockBean
+    @MockitoBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
+
+    @MockitoBean
+    private AccessTokenFreshnessApplicationService accessTokenFreshnessApplicationService;
 
     @BeforeEach
     void setUp() {
         cleanAll(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
+        when(accessTokenFreshnessApplicationService.verify(any(String.class))).thenReturn(Decision.FRESH);
     }
 
     @AfterEach
@@ -104,6 +111,22 @@ class ImCoreApiControllerTest {
     void api_should_require_authentication() throws Exception {
         mockMvc.perform(get("/api/im/unread/summary"))
                 .andExpect(status().isUnauthorized());
+    }
+
+    @Test
+    void api_shouldRejectMissingSecurityVersionBeforeOwnerLookup() throws Exception {
+        mockMvc.perform(get("/api/im/unread/summary")
+                        .header("Authorization", bearer(uuid(101), false)))
+                .andExpect(status().isUnauthorized());
+
+        verify(accessTokenFreshnessApplicationService, never()).verify(any(String.class));
+    }
+
+    @Test
+    void api_shouldRejectStaleAndDisabledTokensAndFailClosedWhenOwnerIsUnavailable() throws Exception {
+        assertFreshnessDecision(Decision.STALE, 401);
+        assertFreshnessDecision(Decision.DENIED, 403);
+        assertFreshnessDecision(Decision.UNAVAILABLE, 503);
     }
 
     @Test
@@ -529,21 +552,36 @@ class ImCoreApiControllerTest {
     }
 
     private String bearer(UUID userId) throws Exception {
+        return bearer(userId, true);
+    }
+
+    private String bearer(UUID userId, boolean includeSecurityVersion) throws Exception {
         Instant issuedAt = Instant.now();
-        JwtClaimsSet claims = JwtClaimsSet.builder()
+        JwtClaimsSet.Builder claims = JwtClaimsSet.builder()
                 .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
                 .audience(List.of(JwtCodecs.resolvedAccessTokenAudience(jwtProperties)))
                 .subject(String.valueOf(userId))
                 .issuedAt(issuedAt)
-                .expiresAt(issuedAt.plusSeconds(120))
-                .build();
+                .expiresAt(issuedAt.plusSeconds(120));
+        if (includeSecurityVersion) {
+            claims.claim("security_version", 7L);
+        }
         JwsHeader header = JwsHeader.with(SignatureAlgorithm.RS256)
                 .type(JwtCodecs.ACCESS_TOKEN_TYPE)
                 .build();
         String token = JwtCodecs.accessTokenEncoder(TestJwtKeys.signingProperties(jwtProperties))
-                .encode(JwtEncoderParameters.from(header, claims))
+                .encode(JwtEncoderParameters.from(header, claims.build()))
                 .getTokenValue();
         return "Bearer " + token;
+    }
+
+    private void assertFreshnessDecision(Decision decision, int expectedStatus)
+            throws Exception {
+        when(accessTokenFreshnessApplicationService.verify(any(String.class))).thenReturn(decision);
+
+        mockMvc.perform(get("/api/im/unread/summary")
+                        .header("Authorization", bearer(uuid(101))))
+                .andExpect(status().is(expectedStatus));
     }
 
     private static UUID uuid(long suffix) {

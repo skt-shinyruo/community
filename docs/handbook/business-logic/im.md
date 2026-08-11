@@ -51,6 +51,7 @@ Kafka command/event：
 契约版本：
 
 - `im-common` 下 command、event、projection snapshot 和 WebSocket frame 都是跨 deployable JSON contract。
+- `im-session-ticket` 独立承载 gateway/realtime 共享的 session ticket codec 与配置语义；两端使用同一实现和 issuer/audience/claim 校验契约，不再各自维护副本。
 - command、event、projection 和 WebSocket frame 都显式写出数值型 `schemaVersion: 1`。
 - 读取时只接受 JSON integer `1`；字段缺失、`null`、非数值、非正数或未来版本都会失败。
 - v1 consumer 忽略未知 JSON 字段；必填字段、字段名、字段类型或语义变化必须设计新的显式契约。
@@ -71,13 +72,16 @@ IM 的数据流分成 session、command、消息事实 event、发送结果 even
 `ImSessionApiController.openSession(...)`：
 
 1. 浏览器带 Bearer access token 调 `POST /api/im/sessions`。
-2. `ImSessionService.openSession(...)` 校验 JWT。
-3. 解析 userId。
-4. 根据 userId 或连接策略选择 realtime worker。
-5. 生成 session ticket，包含 userId、workerId、过期时间等。
-6. 返回 `OpenImSessionResponse`，包含稳定外部 `wsUrl` 和 ticket。
+2. `ImSessionService.openSession(...)` 校验 JWT 以及正整数 `security_version`。
+3. 把原始 Bearer token 回源 community-app 的 `/api/auth/me` 做权威 freshness 判定；stale / denied 分别返回 `401` / `403`，owner 超时或不可用返回 `503`。
+4. 解析 userId。
+5. 根据 userId 或连接策略选择 realtime worker。
+6. 生成 session ticket，包含 userId、workerId、过期时间等。
+7. 返回 `OpenImSessionResponse`，包含稳定外部 `wsUrl` 和 ticket。
 
 `wsUrl` 是客户端访问 gateway 的地址，不是直接访问 worker 的内部地址。`PublicWsUrlFactory` 只接受显式配置的绝对 `ws` / `wss` URI 且必须带 authority；它不会根据请求 Host 或 `X-Forwarded-*` 拼接 URL，避免 Host header 注入把 ticket 引到非预期域名。
+
+ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。gateway 与 realtime 分别创建 codec 实例，但共享完全相同的 HS256、issuer、audience、`typ=im-session-ticket` 和必填 claim 契约；跨服务契约测试验证 gateway 签发结果可由独立 realtime 实例读取。
 
 ## WebSocket 连接
 
@@ -221,6 +225,7 @@ projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构�
 
 ## 失败语义
 
+- gateway 只在 access token freshness 回源成功后签发 session ticket；im-core 的浏览器 `/api/**` 也执行同一校验。两者都不缓存 freshness，也不会在 community-app 不可用时降级放行。
 - session ticket 过期或 worker 不可用会导致 WS 连接失败。
 - realtime policy projection 不允许发送时，私信在进入 Kafka 前被拒绝。
 - im-core 校验失败时，发布 rejected event，realtime 推送发送失败。
@@ -237,12 +242,16 @@ IM gateway：
 - `im.gateway.session.ImSessionApiController`
 - `im.gateway.session.ImSessionService`
 - `im.gateway.session.PublicWsUrlFactory`
-- `im.gateway.session.SessionTicketCodec`
 - `im.gateway.shard.RendezvousWorkerSelector`
 - `im.gateway.ws.ExternalImEdgeWebSocketHandler`
 - `im.gateway.ws.ConnectTicketRouter`
 - `im.gateway.ws.InternalWorkerBridgeFactory`
 - `im.gateway.ws.ImGatewayFrameCodec`
+
+共享 session ticket：
+
+- `im.ticket.SessionTicketCodec`
+- `im.ticket.ImSessionTicketProperties`
 
 Realtime：
 

@@ -15,6 +15,9 @@ events:
     worker-fixed-delay-ms: 1000
 
 im:
+  access-token-freshness:
+    community-service-id: ${IM_ACCESS_TOKEN_FRESHNESS_COMMUNITY_SERVICE_ID:community-app}
+    request-timeout: ${IM_ACCESS_TOKEN_FRESHNESS_REQUEST_TIMEOUT:500ms}
   policy:
     community-service-id: ${IM_POLICY_COMMUNITY_SERVICE_ID:community-app}
     internal-scope: ${IM_INTERNAL_SCOPE:im.realtime.internal}

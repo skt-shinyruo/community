@@ -157,4 +157,58 @@ public interface FollowMapper {
             @Param("offset") int offset,
             @Param("limit") int limit
     );
+
+    @Select("""
+            <script>
+            select f.entity_id as targetId, f.created_at as followTime
+            from social_follow f
+            where f.user_id = #{userId, jdbcType=BINARY}
+              and f.entity_type = #{entityType}
+              and not exists (
+                select 1 from social_block b
+                where (b.user_id = #{userId, jdbcType=BINARY} and b.target_user_id = f.entity_id)
+                   or (b.user_id = f.entity_id and b.target_user_id = #{userId, jdbcType=BINARY})
+              )
+              <if test="beforeTime != null and beforeTargetId != null">
+                and (f.created_at &lt; #{beforeTime}
+                  or (f.created_at = #{beforeTime} and f.entity_id &lt; #{beforeTargetId, jdbcType=BINARY}))
+              </if>
+            order by f.created_at desc, f.entity_id desc
+            limit #{limit}
+            </script>
+            """)
+    List<FollowRelationDataObject> listFolloweesAfterExcludingBlocked(
+            @Param("userId") UUID userId,
+            @Param("entityType") int entityType,
+            @Param("beforeTime") Date beforeTime,
+            @Param("beforeTargetId") UUID beforeTargetId,
+            @Param("limit") int limit
+    );
+
+    @Select("""
+            <script>
+            select f.user_id as targetId, f.created_at as followTime
+            from social_follow f
+            where f.entity_type = #{entityType}
+              and f.entity_id = #{entityId, jdbcType=BINARY}
+              and not exists (
+                select 1 from social_block b
+                where (b.user_id = #{entityId, jdbcType=BINARY} and b.target_user_id = f.user_id)
+                   or (b.user_id = f.user_id and b.target_user_id = #{entityId, jdbcType=BINARY})
+              )
+              <if test="beforeTime != null and beforeTargetId != null">
+                and (f.created_at &lt; #{beforeTime}
+                  or (f.created_at = #{beforeTime} and f.user_id &lt; #{beforeTargetId, jdbcType=BINARY}))
+              </if>
+            order by f.created_at desc, f.user_id desc
+            limit #{limit}
+            </script>
+            """)
+    List<FollowRelationDataObject> listFollowersAfterExcludingBlocked(
+            @Param("entityType") int entityType,
+            @Param("entityId") UUID entityId,
+            @Param("beforeTime") Date beforeTime,
+            @Param("beforeTargetId") UUID beforeTargetId,
+            @Param("limit") int limit
+    );
 }

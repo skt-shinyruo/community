@@ -11,8 +11,8 @@ import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.autoconfigure.EnableAutoConfiguration;
-import org.springframework.boot.test.autoconfigure.web.servlet.WebMvcTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.boot.webmvc.test.autoconfigure.WebMvcTest;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.context.annotation.Import;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.test.web.servlet.MockMvc;
@@ -46,10 +46,10 @@ class ProjectionOpsControllerTest {
     @Autowired
     private ProjectionOpsController controller;
 
-    @MockBean
+    @MockitoBean
     private ProjectionLagQuery projectionLagQuery;
 
-    @MockBean
+    @MockitoBean
     private JwtDecoder jwtDecoder;
 
     @SpringBootConfiguration

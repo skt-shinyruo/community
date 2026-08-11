@@ -6,6 +6,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   listeners,
   listImConversationHistory,
+  listImConversationMessages,
   markImConversationRead,
   sendPrivateText,
   imRealtimeClient
@@ -23,6 +24,7 @@ const {
   return {
     listeners: listenersLocal,
     listImConversationHistory: vi.fn(),
+    listImConversationMessages: vi.fn(),
     markImConversationRead: vi.fn(),
     sendPrivateText: client.sendPrivateText,
     imRealtimeClient: client
@@ -31,6 +33,7 @@ const {
 
 vi.mock('../api/services/imCoreChatService', () => ({
   listImConversationHistory,
+  listImConversationMessages,
   markImConversationRead
 }))
 
@@ -114,6 +117,7 @@ describe('ConversationDetailView', () => {
       hasMore: true,
       lastReadSeq: 0
     })
+    listImConversationMessages.mockResolvedValue({ items: [] })
     markImConversationRead.mockResolvedValue({})
     sendPrivateText.mockClear()
   })
@@ -398,6 +402,232 @@ describe('ConversationDetailView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('实时已就绪')
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 8, limit: 100 })
+  })
+
+  it('shows a pending send and replaces it with HTTP backfill on reconnect', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    listImConversationMessages.mockResolvedValueOnce({
+      items: [{
+        messageId: '99999999-9999-7999-8999-999999999999',
+        seq: 9,
+        fromUserId: '11111111-1111-7111-8111-111111111111',
+        toUserId: '22222222-2222-7222-8222-222222222222',
+        content: '已持久化消息',
+        clientMsgId: 'client-msg-1',
+        createdAtEpochMs: 1774060187920
+      }]
+    })
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('待提交消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('待提交消息')
+    expect(wrapper.text()).toContain('发送中')
+
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    await flushPromises()
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 8, limit: 100 })
+    expect(wrapper.text()).toContain('已持久化消息')
+    expect(wrapper.text()).not.toContain('待提交消息')
+    expect(wrapper.text()).not.toContain('发送中')
+  })
+
+  it('backfills a pending send even when a later realtime frame already advanced the visible tail', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    listImConversationMessages.mockResolvedValueOnce({
+      items: [
+        {
+          messageId: '99999999-9999-7999-8999-999999999999',
+          seq: 9,
+          fromUserId: '11111111-1111-7111-8111-111111111111',
+          toUserId: '22222222-2222-7222-8222-222222222222',
+          content: 'pending 的持久化结果',
+          clientMsgId: 'client-msg-1',
+          createdAtEpochMs: 1774060187920
+        },
+        {
+          messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+          seq: 10,
+          fromUserId: '22222222-2222-7222-8222-222222222222',
+          toUserId: '11111111-1111-7111-8111-111111111111',
+          content: '实时尾消息的持久化结果',
+          clientMsgId: 'client-live-10',
+          createdAtEpochMs: 1774060188920
+        }
+      ]
+    })
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('等待 committed 的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await listeners.privateMessage({
+      conversationId,
+      messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      seq: 10,
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '实时尾消息',
+      clientMsgId: 'client-live-10',
+      createdAtEpochMs: 1774060188920
+    })
+    await flushPromises()
+
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 8, limit: 100 })
+    expect(wrapper.text()).toContain('pending 的持久化结果')
+    expect(wrapper.text()).not.toContain('等待 committed 的消息')
+    expect(wrapper.text()).not.toContain('发送中')
+    expect(wrapper.findAll('.message-row')).toHaveLength(4)
+  })
+
+  it('keeps the backfill checkpoint before an internal sequence gap', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    listImConversationMessages
+      .mockResolvedValueOnce({
+        items: [
+          {
+            messageId: '99999999-9999-7999-8999-999999999999',
+            seq: 9,
+            fromUserId: '22222222-2222-7222-8222-222222222222',
+            toUserId: '11111111-1111-7111-8111-111111111111',
+            content: '连续消息 9',
+            clientMsgId: 'client-9',
+            createdAtEpochMs: 1774060187920
+          },
+          {
+            messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+            seq: 11,
+            fromUserId: '22222222-2222-7222-8222-222222222222',
+            toUserId: '11111111-1111-7111-8111-111111111111',
+            content: '越过缺口的消息 11',
+            clientMsgId: 'client-11',
+            createdAtEpochMs: 1774060189920
+          }
+        ]
+      })
+      .mockResolvedValueOnce({
+        items: [
+          {
+            messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+            seq: 10,
+            fromUserId: '11111111-1111-7111-8111-111111111111',
+            toUserId: '22222222-2222-7222-8222-222222222222',
+            content: '补回缺口 10',
+            clientMsgId: 'client-10',
+            createdAtEpochMs: 1774060188920
+          },
+          {
+            messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+            seq: 11,
+            fromUserId: '22222222-2222-7222-8222-222222222222',
+            toUserId: '11111111-1111-7111-8111-111111111111',
+            content: '消息 11',
+            clientMsgId: 'client-11',
+            createdAtEpochMs: 1774060189920
+          }
+        ]
+      })
+    mountView(conversationId)
+    await flushPromises()
+
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-1', userId: '' })
+    await flushPromises()
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenNthCalledWith(1, conversationId, { afterSeq: 8, limit: 100 })
+    expect(listImConversationMessages).toHaveBeenNthCalledWith(2, conversationId, { afterSeq: 9, limit: 100 })
+  })
+
+  it('queues one more backfill pass when reconnect happens during an in-flight pass', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    let resolveFirstBackfill
+    listImConversationMessages
+      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstBackfill = resolve }))
+      .mockResolvedValueOnce({
+        items: [{
+          messageId: '99999999-9999-7999-8999-999999999999',
+          seq: 9,
+          fromUserId: '22222222-2222-7222-8222-222222222222',
+          toUserId: '11111111-1111-7111-8111-111111111111',
+          content: '第二次恢复补回的消息',
+          clientMsgId: 'client-rerun-9',
+          createdAtEpochMs: 1774060187920
+        }]
+      })
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-1', userId: '' })
+    await flushPromises()
+    expect(listImConversationMessages).toHaveBeenCalledTimes(1)
+
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+    expect(listImConversationMessages).toHaveBeenCalledTimes(1)
+
+    resolveFirstBackfill({ items: [] })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenCalledTimes(2)
+    expect(listImConversationMessages).toHaveBeenNthCalledWith(2, conversationId, { afterSeq: 8, limit: 100 })
+    expect(wrapper.text()).toContain('第二次恢复补回的消息')
+  })
+
+  it('waits for the initial latest-history baseline before reconnect backfill', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    let resolveInitialHistory
+    listImConversationHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveInitialHistory = resolve }))
+    mountView(conversationId)
+    await flushPromises()
+
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-1', userId: '' })
+    await flushPromises()
+
+    expect(listImConversationHistory).toHaveBeenCalledTimes(1)
+    expect(listImConversationHistory).toHaveBeenCalledWith(conversationId, { limit: 50 })
+    expect(listImConversationMessages).not.toHaveBeenCalled()
+
+    resolveInitialHistory({
+      items: [{
+        messageId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+        seq: 80,
+        fromUserId: '22222222-2222-7222-8222-222222222222',
+        toUserId: '11111111-1111-7111-8111-111111111111',
+        content: '最近 50 条中的尾消息',
+        clientMsgId: 'client-history-80',
+        createdAtEpochMs: 1774060187920
+      }],
+      nextBeforeSeq: 31,
+      hasMore: true,
+      lastReadSeq: 0
+    })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenCalledTimes(1)
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 80, limit: 100 })
   })
 
   it('rejects realtime private messages that miss persisted timestamps', async () => {

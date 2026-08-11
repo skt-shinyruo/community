@@ -23,7 +23,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.transaction.PlatformTransactionManager;
@@ -83,34 +83,34 @@ class CommentCreateConcurrencySpringTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @MockBean
+    @MockitoBean
     private IdempotencyGuard idempotencyGuard;
 
-    @MockBean
+    @MockitoBean
     private ContentSanitizer contentSanitizer;
 
-    @MockBean
+    @MockitoBean
     private UserModerationGuard moderationGuard;
 
-    @MockBean
+    @MockitoBean
     private PostContentRepository postContentRepository;
 
-    @MockBean
+    @MockitoBean
     private PostCounterCache postCounterCache;
 
-    @MockBean
+    @MockitoBean
     private CommentPageCache commentPageCache;
 
-    @MockBean
+    @MockitoBean
     private PostCacheAfterCommit postCacheAfterCommit;
 
-    @MockBean
+    @MockitoBean
     private BlockApplicationService blockApplicationService;
 
-    @MockBean(extraInterfaces = ModerationNoticePublisher.class)
+    @MockitoBean(extraInterfaces = ModerationNoticePublisher.class)
     private ContentEventPublisher eventPublisher;
 
-    @MockBean
+    @MockitoBean
     private ClientIpResolver clientIpResolver;
 
     private ExecutorService executor;

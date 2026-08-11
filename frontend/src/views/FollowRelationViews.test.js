@@ -44,6 +44,17 @@ function relation(index) {
   }
 }
 
+function relationPage(items, nextCursor = '', traceId = '') {
+  return {
+    data: {
+      items,
+      nextCursor,
+      hasNext: Boolean(nextCursor)
+    },
+    traceId
+  }
+}
+
 function deferred() {
   let resolve
   let reject
@@ -107,9 +118,9 @@ describe('follow relation pagination', () => {
     const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
     const secondPage = [relation(10)]
     listRelations
-      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
+      .mockResolvedValueOnce(relationPage(firstPage, 'cursor-page-1', 'trace-page-0'))
       .mockRejectedValueOnce(new Error('temporary relation failure'))
-      .mockResolvedValueOnce({ data: secondPage, traceId: 'trace-page-1' })
+      .mockResolvedValueOnce(relationPage(secondPage, '', 'trace-page-1'))
 
     const wrapper = mountView(component)
     await flushPromises()
@@ -120,7 +131,11 @@ describe('follow relation pagination', () => {
     expect(wrapper.text()).toContain('temporary relation failure')
 
     await wrapper.vm.nextPage()
-    expect(listRelations.mock.calls.map(([, request]) => request.page)).toEqual([0, 1, 1])
+    expect(listRelations.mock.calls.map(([, request]) => request.cursor)).toEqual([
+      '',
+      'cursor-page-1',
+      'cursor-page-1'
+    ])
     expect(wrapper.vm.page).toBe(1)
     expect(wrapper.vm.items).toHaveLength(1)
   })
@@ -142,11 +157,11 @@ describe('follow relation pagination', () => {
     await flushPromises()
     expect(listRelations).toHaveBeenCalledTimes(2)
 
-    currentProfileRequest.resolve({ data: [relation(20)], traceId: 'trace-current-profile' })
+    currentProfileRequest.resolve(relationPage([relation(20)], '', 'trace-current-profile'))
     await flushPromises()
     expect(wrapper.vm.items[0].targetId).toBe(relation(20).targetId)
 
-    previousProfileRequest.resolve({ data: [relation(0)], traceId: 'trace-previous-profile' })
+    previousProfileRequest.resolve(relationPage([relation(0)], '', 'trace-previous-profile'))
     await flushPromises()
     expect(wrapper.vm.items[0].targetId).toBe(relation(20).targetId)
     expect(batchUserSummary).toHaveBeenCalledTimes(1)
@@ -161,7 +176,7 @@ describe('follow relation pagination', () => {
     const refreshRequest = deferred()
     const initialPage = Array.from({ length: 10 }, (_, index) => relation(index))
     listRelations
-      .mockResolvedValueOnce({ data: initialPage, traceId: 'trace-initial' })
+      .mockResolvedValueOnce(relationPage(initialPage, 'cursor-page-1', 'trace-initial'))
       .mockImplementationOnce(() => pageRequest.promise)
       .mockImplementationOnce(() => refreshRequest.promise)
 
@@ -170,11 +185,15 @@ describe('follow relation pagination', () => {
 
     const pendingPage = wrapper.vm.load(1)
     const pendingRefresh = wrapper.vm.refresh()
-    refreshRequest.resolve({ data: [{ ...relation(30), followTime: '2026-08-02T00:00:00Z' }], traceId: 'trace-refresh' })
+    refreshRequest.resolve(relationPage(
+      [{ ...relation(30), followTime: '2026-08-02T00:00:00Z' }],
+      'cursor-refreshed',
+      'trace-refresh'
+    ))
     await pendingRefresh
     await flushPromises()
 
-    pageRequest.resolve({ data: [relation(10)], traceId: 'trace-page' })
+    pageRequest.resolve(relationPage([relation(10)], '', 'trace-page'))
     await pendingPage
     await flushPromises()
     expect(wrapper.vm.page).toBe(0)
@@ -192,9 +211,9 @@ describe('follow relation pagination', () => {
       .mockImplementationOnce(() => previousHydration.promise)
       .mockImplementation(async (ids) => ({ data: ids.map((id) => ({ id, username: 'current viewer' })) }))
     listRelations
-      .mockResolvedValueOnce({ data: [relation(0)], traceId: 'trace-previous-viewer' })
-      .mockResolvedValueOnce({ data: [relation(1)], traceId: 'trace-current-viewer' })
-      .mockResolvedValueOnce({ data: [relation(1)], traceId: 'trace-third-viewer' })
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-previous-viewer'))
+      .mockResolvedValueOnce(relationPage([relation(1)], '', 'trace-current-viewer'))
+      .mockResolvedValueOnce(relationPage([relation(1)], '', 'trace-third-viewer'))
     followUser.mockImplementation(() => followRequest.promise)
 
     const wrapper = mountView(component)
@@ -235,8 +254,8 @@ describe('follow relation pagination', () => {
   ])('applies a pending %s mutation to the refreshed item for the same viewer', async (_label, component, listRelations) => {
     const followRequest = deferred()
     listRelations
-      .mockResolvedValueOnce({ data: [relation(0)], traceId: 'trace-initial' })
-      .mockResolvedValueOnce({ data: [relation(0)], traceId: 'trace-refresh' })
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-refresh'))
     followUser.mockImplementation(() => followRequest.promise)
 
     const wrapper = mountView(component)
@@ -253,5 +272,50 @@ describe('follow relation pagination', () => {
     await flushPromises()
     expect(wrapper.vm.items[0].hasFollowed).toBe(true)
     expect(wrapper.vm.isMutating(relation(0).targetId)).toBe(false)
+  })
+
+  it.each([
+    ['followees', FolloweesView, listFollowees],
+    ['followers', FollowersView, listFollowers]
+  ])('uses the saved %s cursor for forward and backward navigation', async (_label, component, listRelations) => {
+    listRelations
+      .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1', 'trace-page-0'))
+      .mockResolvedValueOnce(relationPage([relation(1)], 'cursor-page-2', 'trace-page-1'))
+      .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1-new', 'trace-back'))
+
+    const wrapper = mountView(component)
+    await flushPromises()
+    await wrapper.vm.nextPage()
+    await wrapper.vm.prevPage()
+
+    expect(listRelations.mock.calls.map(([, request]) => request.cursor)).toEqual([
+      '',
+      'cursor-page-1',
+      ''
+    ])
+    expect(wrapper.vm.page).toBe(0)
+    expect(wrapper.vm.cursorHistory).toEqual(['', 'cursor-page-1-new'])
+  })
+
+  it.each([
+    ['followees', FolloweesView, listFollowees],
+    ['followers', FollowersView, listFollowers]
+  ])('can load %s pages beyond the legacy page-100 limit by cursor', async (_label, component, listRelations) => {
+    listRelations
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
+      .mockResolvedValueOnce(relationPage([relation(101)], '', 'trace-page-101'))
+
+    const wrapper = mountView(component)
+    await flushPromises()
+    wrapper.vm.cursorHistory[101] = 'cursor-page-101'
+
+    await wrapper.vm.load(101)
+
+    expect(listRelations).toHaveBeenLastCalledWith(PROFILE_ID, {
+      cursor: 'cursor-page-101',
+      size: 10
+    })
+    expect(wrapper.vm.page).toBe(101)
+    expect(wrapper.vm.items[0].targetId).toBe(relation(101).targetId)
   })
 })

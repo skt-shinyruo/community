@@ -5,6 +5,8 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
+import com.nowcoder.community.notice.domain.model.NoticeTopic;
+import com.nowcoder.community.notice.domain.model.NoticeTopicSummary;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.notice.domain.service.NoticeDomainService;
 import com.nowcoder.community.notice.infrastructure.persistence.MyBatisNoticeRepository;
@@ -32,6 +34,8 @@ import static org.assertj.core.api.Assertions.tuple;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoMoreInteractions;
+import static org.mockito.Mockito.when;
 
 @SpringBootTest(
         classes = NoticeApplicationServiceTest.MapperOnlyTestConfig.class,
@@ -138,6 +142,57 @@ class NoticeApplicationServiceTest {
         assertThatThrownBy(() -> noticeService.listNoticeItems(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void topicSummaryShouldReturnLatestCountsAndEmptyDefaultTopicsFromOneOwnerQuery() {
+        UUID recipientUserId = uuid(19);
+        insertNotice(NOTICE_ID_1, uuid(1), recipientUserId, NoticeTopic.COMMENT,
+                "{\"eventId\":\"comment-1\"}", NoticeApplicationService.STATUS_READ);
+        insertNotice(NOTICE_ID_2, uuid(2), recipientUserId, NoticeTopic.COMMENT,
+                "{\"eventId\":\"comment-2\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_3, uuid(3), recipientUserId, NoticeTopic.LIKE,
+                "{\"eventId\":\"like-revoked\"}", NoticeApplicationService.STATUS_REVOKED);
+        insertNotice(NOTICE_ID_4, uuid(4), recipientUserId, NoticeTopic.LIKE,
+                "{\"eventId\":\"like-1\"}", NoticeApplicationService.STATUS_UNREAD);
+
+        List<NoticeApplicationService.NoticeTopicSummaryResult> summaries =
+                noticeService.topicSummary(recipientUserId);
+
+        assertThat(summaries).extracting(NoticeApplicationService.NoticeTopicSummaryResult::noticeTopic)
+                .containsExactlyElementsOf(NoticeTopic.DEFAULT_TOPICS);
+        assertThat(summaries.get(0)).satisfies(summary -> {
+            assertThat(summary.latest().id()).isEqualTo(NOTICE_ID_2);
+            assertThat(summary.noticeCount()).isEqualTo(2);
+            assertThat(summary.unreadCount()).isEqualTo(1);
+        });
+        assertThat(summaries.get(1)).satisfies(summary -> {
+            assertThat(summary.latest().id()).isEqualTo(NOTICE_ID_4);
+            assertThat(summary.noticeCount()).isEqualTo(1);
+            assertThat(summary.unreadCount()).isEqualTo(1);
+        });
+        assertThat(summaries.get(2).latest()).isNull();
+        assertThat(summaries.get(2).noticeCount()).isZero();
+        assertThat(summaries.get(3).latest()).isNull();
+    }
+
+    @Test
+    void topicSummaryShouldSpendOneRepositoryQuery() {
+        UUID recipientUserId = uuid(29);
+        NoticeRepository repository = mock(NoticeRepository.class);
+        NoticeRecord latest = new NoticeRecord();
+        latest.setId(NOTICE_ID_1);
+        latest.setRecipientUserId(recipientUserId);
+        latest.setTopic(NoticeTopic.COMMENT);
+        when(repository.summarizeByUserAndTopics(recipientUserId, NoticeTopic.DEFAULT_TOPICS))
+                .thenReturn(List.of(new NoticeTopicSummary(latest, 3, 2)));
+        NoticeApplicationService service = new NoticeApplicationService(
+                repository, new UuidV7Generator(), Clock.systemUTC());
+
+        assertThat(service.topicSummary(recipientUserId)).hasSize(NoticeTopic.DEFAULT_TOPICS.size());
+
+        verify(repository).summarizeByUserAndTopics(recipientUserId, NoticeTopic.DEFAULT_TOPICS);
+        verifyNoMoreInteractions(repository);
     }
 
     @Test

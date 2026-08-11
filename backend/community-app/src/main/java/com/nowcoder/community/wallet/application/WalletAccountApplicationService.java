@@ -13,8 +13,12 @@ import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.springframework.stereotype.Service;
 
+import java.util.LinkedHashSet;
+import java.util.List;
 import java.util.Objects;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 @Service
 public class WalletAccountApplicationService {
@@ -107,11 +111,21 @@ public class WalletAccountApplicationService {
     }
 
     public WalletAccount lock(UUID accountId) {
-        WalletAccount account = walletAccountRepository.findByAccountId(accountId);
-        if (account == null) {
-            throw new BusinessException(WalletErrorCode.ACCOUNT_NOT_FOUND, "wallet account not found: accountId=" + accountId);
+        return lockAll(List.of(accountId)).get(0);
+    }
+
+    public List<WalletAccount> lockAll(List<UUID> accountIds) {
+        if (accountIds == null || accountIds.isEmpty()) {
+            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "accountIds must not be empty");
         }
-        return account;
+        List<UUID> uniqueIds = List.copyOf(new LinkedHashSet<>(accountIds));
+        List<WalletAccount> accounts = walletAccountRepository.findAllByAccountIdsForUpdate(uniqueIds);
+        if (accounts.size() != uniqueIds.size()) {
+            Set<UUID> found = accounts.stream().map(WalletAccount::getAccountId).collect(Collectors.toSet());
+            UUID missing = uniqueIds.stream().filter(id -> !found.contains(id)).findFirst().orElse(uniqueIds.get(0));
+            throw new BusinessException(WalletErrorCode.ACCOUNT_NOT_FOUND, "wallet account not found: accountId=" + missing);
+        }
+        return accounts;
     }
 
     public long deltaOf(WalletAccount account, WalletPosting posting) {

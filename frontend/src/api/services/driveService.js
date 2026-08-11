@@ -32,7 +32,7 @@ export async function searchDriveEntries({ keyword = '' } = {}) {
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
-export async function createDriveUploadSession({ parentId = '', file, checksumSha256 = '' } = {}) {
+export async function createDriveUploadSession({ parentId = '', file, checksumSha256 = '', signal } = {}) {
   const payload = {
     parentId,
     fileName: String(file?.name || ''),
@@ -40,13 +40,13 @@ export async function createDriveUploadSession({ parentId = '', file, checksumSh
     contentLength: Number(file?.size || 0),
     checksumSha256
   }
-  const resp = await http.post('/api/drive/uploads', payload)
+  const resp = await http.post('/api/drive/uploads', payload, { signal })
   const { data, traceId } = unwrapResultBody(resp.data, '创建网盘上传会话')
   return { data: normalizeUploadSession(data || {}), traceId }
 }
 
-export async function uploadDriveFile({ session, file } = {}) {
-  const { data, traceId } = await executeUploadSession({ http, session, file, operation: '上传网盘文件' })
+export async function uploadDriveFile({ session, file, signal, onProgress } = {}) {
+  const { data, traceId } = await executeUploadSession({ session, file, signal, onProgress, operation: '上传网盘文件' })
   return { data: data || {}, traceId }
 }
 

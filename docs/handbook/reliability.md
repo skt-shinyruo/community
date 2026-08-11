@@ -75,8 +75,9 @@ operation + userId + Idempotency-Key
 
 当前仓库前端状态：
 
-- `frontend/src/api/http.js` 自动为发帖、评论、钱包写接口和市场下单注入 `Idempotency-Key`。
-- 修改前端重试策略时，必须保证同一次业务尝试复用同一个 key，不能在 axios retry 或按钮重复点击时生成新值。
+- `frontend/src/api/http.js` 不生成 `Idempotency-Key`；发帖、评论、钱包写接口和市场下单由页面持有 `WriteAttempt` 并把 key 显式传给 API service。
+- 首次发送激活 attempt；传输失败和用户人工重试保留同一个 key，成功、取消、切换账号 / 页面或修改业务意图后结束旧 attempt。
+- 高风险 API service 缺少 `WriteAttempt` 时直接报错，避免 axios retry 或按钮重复点击静默变成新的业务尝试。
 
 ## 请求指纹
 

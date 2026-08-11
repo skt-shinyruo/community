@@ -54,4 +54,13 @@ class FeedCursorCodecTest {
 
         assertThat(codec.decode(malformed)).isEqualTo(FeedCursorCodec.CursorState.initial());
     }
+
+    @Test
+    void forgedCursorOutsideServerBoundsShouldResetToInitialState() {
+        String forged = java.util.Base64.getUrlEncoder().withoutPadding()
+                .encodeToString(("{\"page\":2147483647,\"size\":2147483647}")
+                        .getBytes(java.nio.charset.StandardCharsets.UTF_8));
+
+        assertThat(codec.decode(forged)).isEqualTo(FeedCursorCodec.CursorState.initial());
+    }
 }

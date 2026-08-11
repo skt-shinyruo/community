@@ -17,4 +17,14 @@ public final class ImContractVersions {
         }
         return schemaVersion;
     }
+
+    /**
+     * A missing version is an invalid protocol version, rather than a JSON
+     * decoding failure. Keeping that distinction lets callers return the
+     * contract-level unsupported-version error consistently across Jackson
+     * versions.
+     */
+    public static int requireSupportedSchemaVersion(Integer schemaVersion) {
+        return requireSupportedSchemaVersion(schemaVersion == null ? 0 : schemaVersion);
+    }
 }

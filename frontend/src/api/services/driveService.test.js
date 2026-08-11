@@ -87,6 +87,7 @@ describe('driveService', () => {
 
   it('createDriveUploadSession should send file metadata and normalize upload instruction', async () => {
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
+    const controller = new AbortController()
     http.post.mockResolvedValue({
       data: {
         code: 0,
@@ -100,7 +101,7 @@ describe('driveService', () => {
       }
     })
 
-    const result = await createDriveUploadSession({ parentId: '', file })
+    const result = await createDriveUploadSession({ parentId: '', file, signal: controller.signal })
 
     expect(http.post).toHaveBeenCalledWith('/api/drive/uploads', {
       parentId: '',
@@ -108,7 +109,7 @@ describe('driveService', () => {
       contentType: 'text/plain',
       contentLength: 5,
       checksumSha256: ''
-    })
+    }, { signal: controller.signal })
     expect(result.data.uploadId).toBe('upload-1')
     expect(result.data.upload.url).toBe('/api/drive/uploads/upload-1/complete')
   })
@@ -119,7 +120,13 @@ describe('driveService', () => {
 
     const result = await uploadDriveFile({ session: { upload: { url: '/u', method: 'POST' } }, file })
 
-    expect(executeUploadSession).toHaveBeenCalledWith({ http, session: { upload: { url: '/u', method: 'POST' } }, file, operation: '上传网盘文件' })
+    expect(executeUploadSession).toHaveBeenCalledWith({
+      session: { upload: { url: '/u', method: 'POST' } },
+      file,
+      signal: undefined,
+      onProgress: undefined,
+      operation: '上传网盘文件'
+    })
     expect(result.data.entryId).toBe('entry-1')
   })
 

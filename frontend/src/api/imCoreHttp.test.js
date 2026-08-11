@@ -49,6 +49,15 @@ describe('imCoreHttp base URL resolution', () => {
     expect(imCoreHttp.defaults.baseURL).toBe('https://im.example.com')
   })
 
+  it('should let an explicit empty runtime value select same-origin over the Vite value', async () => {
+    vi.stubEnv('VITE_IM_CORE_BASE_URL', 'https://im.example.com')
+    globalThis.__COMMUNITY_RUNTIME_CONFIG__ = { imHttpBaseUrl: '' }
+
+    const { default: imCoreHttp } = await import('./imCoreHttp')
+
+    expect(imCoreHttp.defaults.baseURL).toBe('')
+  })
+
   it('should fall back to same-origin relative IM HTTP base URL on localhost ports', async () => {
     vi.stubGlobal('location', {
       protocol: 'http:',

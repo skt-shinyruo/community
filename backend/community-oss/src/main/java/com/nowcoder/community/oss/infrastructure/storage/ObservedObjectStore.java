@@ -1,6 +1,10 @@
 package com.nowcoder.community.oss.infrastructure.storage;
 
 import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
+import com.nowcoder.community.oss.application.port.StoredObject;
 
 import java.io.InputStream;
 import java.time.Duration;

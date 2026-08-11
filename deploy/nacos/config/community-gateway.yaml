@@ -1,10 +1,12 @@
 spring:
   cloud:
     gateway:
-      forwarded:
-        enabled: false
-      x-forwarded:
-        enabled: false
+      server:
+        webflux:
+          forwarded:
+            enabled: false
+          x-forwarded:
+            enabled: false
 
 security:
   jwt:

@@ -5,6 +5,7 @@ import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.social.application.FollowApplicationService;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowCommand;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
+import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationPageResult;
 import com.nowcoder.community.social.application.FollowApplicationService.UnfollowCommand;
 import com.nowcoder.community.social.controller.dto.FollowRequest;
 import org.junit.jupiter.api.Test;
@@ -121,6 +122,28 @@ class FollowControllerTest {
         verify(followApplicationService).listFollowers(EntityTypes.POST, userId, 1, 20);
         verify(followApplicationService).followeeCount(userId, EntityTypes.POST);
         verify(followApplicationService).followerCount(EntityTypes.POST, userId);
+    }
+
+    @Test
+    void cursorListEndpointsShouldPreserveExistingPublicRelationShape() {
+        FollowApplicationService followApplicationService = mock(FollowApplicationService.class);
+        FollowController controller = new FollowController(followApplicationService);
+        UUID userId = uuid(7);
+        UUID targetId = uuid(8);
+        FollowRelationPageResult page = new FollowRelationPageResult(
+                List.of(new FollowRelationResult(targetId, Instant.EPOCH)),
+                "next-cursor",
+                true
+        );
+        when(followApplicationService.listFolloweePage(userId, EntityTypes.USER, "cursor", 20))
+                .thenReturn(page);
+        when(followApplicationService.listFollowerPage(EntityTypes.USER, userId, "cursor", 20))
+                .thenReturn(page);
+
+        assertThat(controller.followeePage(userId, null, "cursor", 20).getData()).isEqualTo(page);
+        assertThat(controller.followerPage(userId, null, "cursor", 20).getData()).isEqualTo(page);
+        verify(followApplicationService).listFolloweePage(userId, EntityTypes.USER, "cursor", 20);
+        verify(followApplicationService).listFollowerPage(EntityTypes.USER, userId, "cursor", 20);
     }
 
     private Authentication authentication(UUID userId) {

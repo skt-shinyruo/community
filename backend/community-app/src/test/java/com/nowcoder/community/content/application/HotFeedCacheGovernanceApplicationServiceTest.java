@@ -94,8 +94,8 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         assertThat(result.warmedCount()).isEqualTo(2);
         assertThat(result.rankVersion()).isEqualTo("hot-v2");
         verify(postFeedCache).writeRankVersion("hot-v2");
-        verify(postFeedCache).upsertGlobalHot(firstPostId, 91.0, "hot-v2", 7L, 3L);
-        verify(postFeedCache).upsertGlobalHot(secondPostId, 88.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(projectionOf(first), "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(projectionOf(second), "hot-v2", 7L, 3L);
         verify(postFeedSummaryLoader).cacheSummaries(posts, summaries);
         verify(postFeedCache).writeLastPrewarmAt(org.mockito.ArgumentMatchers.eq("global"), org.mockito.ArgumentMatchers.isNull(), any(Instant.class));
     }
@@ -115,7 +115,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         assertThat(result.scope()).isEqualTo("board");
         assertThat(result.boardId()).isEqualTo(boardId);
         assertThat(result.loadedCount()).isEqualTo(1);
-        verify(postFeedCache).upsertBoardHot(boardId, postId, 77.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertBoardHot(boardId, projectionOf(post), "hot-v2", 7L, 3L);
         verify(postFeedSummaryLoader).cacheSummaries(posts, summaries);
     }
 
@@ -154,6 +154,11 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         post.setAggregateVersion(7L);
         post.setScoreVersion(3L);
         return post;
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionOf(DiscussPost post) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), post.getScore(), post.getCreateTime());
     }
 
     private static PostSummaryResult summary(UUID id) {

@@ -32,9 +32,7 @@ class DddLayeringArchTest {
                     .that().resideInAnyPackage("..application..")
                     .should().dependOnClassesThat().resideInAnyPackage(
                             "..controller..",
-                            "..infrastructure.persistence..",
-                            "..infrastructure.persistence.mapper..",
-                            "..infrastructure.persistence.dataobject..",
+                            "..infrastructure..",
                             "org.springframework.web..",
                             "org.springframework.http..",
                             "org.springframework.web.multipart..",

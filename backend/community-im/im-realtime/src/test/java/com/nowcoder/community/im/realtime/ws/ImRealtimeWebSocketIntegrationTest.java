@@ -16,7 +16,7 @@ import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
 import com.nowcoder.community.im.realtime.security.TestJwtKeys;
-import com.nowcoder.community.im.realtime.session.SessionTicketCodec;
+import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import org.apache.kafka.clients.consumer.Consumer;

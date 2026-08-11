@@ -76,11 +76,12 @@ import { useAuthStore } from '../stores/auth'
 import { useAppStore } from '../stores/app'
 import http from '../api/http'
 import { createLatestRequestTracker } from '../utils/latestRequest'
-import { showToast } from '../ui/toastService'
+import { showErrorToast, showToast } from '../ui/toastService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
+import { settleNamedRequests } from '../utils/settledRequests'
 
 const auth = useAuthStore()
 const app = useAppStore()
@@ -115,22 +116,24 @@ async function loadCounts() {
   const userId = auth.userId
   loading.value = true
   try {
-    const [unreadResp, followingResp, followerResp] = await Promise.all([
-      http.get('/api/notices/unread-count'),
-      userId ? http.get(`/api/follows/${userId}/followees/count`) : Promise.resolve(null),
-      userId ? http.get(`/api/follows/${userId}/followers/count`) : Promise.resolve(null)
-    ])
+    const outcome = await settleNamedRequests({
+      unread: () => http.get('/api/notices/unread-count'),
+      following: () => userId ? http.get(`/api/follows/${userId}/followees/count`) : null,
+      followers: () => userId ? http.get(`/api/follows/${userId}/followers/count`) : null
+    })
     if (!isCurrentRequest(token, identityScope)) return false
 
-    unreadCount.value = unreadResp?.data?.data ?? 0
-    followingCount.value = followingResp?.data?.data ?? 0
-    followerCount.value = followerResp?.data?.data ?? 0
-    return true
-  } catch (e) {
-    if (!isCurrentRequest(token, identityScope)) return false
-    console.error('Failed to load dev stats', e)
-    showToast({ type: 'error', text: '加载开发检查项失败' })
-    return false
+    if (outcome.results.unread.ok) unreadCount.value = outcome.results.unread.value?.data?.data ?? 0
+    if (outcome.results.following.ok) followingCount.value = outcome.results.following.value?.data?.data ?? 0
+    if (outcome.results.followers.ok) followerCount.value = outcome.results.followers.value?.data?.data ?? 0
+    if (!outcome.allSucceeded) {
+      const firstError = outcome.results[outcome.failedKeys[0]]?.error
+      showErrorToast(firstError, {
+        type: 'error',
+        text: outcome.anySucceeded ? '部分开发检查项加载失败' : '加载开发检查项失败'
+      })
+    }
+    return outcome.allSucceeded
   } finally {
     if (isCurrentRequest(token, identityScope)) {
       loading.value = false

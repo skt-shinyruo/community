@@ -19,9 +19,10 @@
           {{ creatingFolder ? '收起新建' : '新建文件夹' }}
         </UiButton>
         <label v-if="mode !== 'trash'" class="btn drive-upload-label" :class="{ 'is-disabled': isBusy }">
-          上传
+          {{ busyAction === 'upload' && uploadProgress != null ? `上传 ${uploadProgress}%` : '上传' }}
           <input class="sr-only" type="file" multiple :disabled="isBusy" @change="handleUploadChange">
         </label>
+        <UiButton v-if="busyAction === 'upload'" variant="secondary" @click="cancelUpload">取消上传</UiButton>
       </template>
     </UiPageHeader>
 
@@ -51,13 +52,13 @@
       <UiCard class="drive-panel drive-main-panel">
         <div class="drive-toolbar">
           <div class="drive-tabs" role="tablist" aria-label="网盘模式">
-            <button type="button" class="drive-tab" :class="{ active: mode === 'files' }" @click="switchMode('files')">
+            <button type="button" class="drive-tab" :class="{ active: mode === 'files' }" :disabled="isBusy" @click="switchMode('files')">
               我的文件
             </button>
-            <button type="button" class="drive-tab" :class="{ active: mode === 'shares' }" @click="switchMode('shares')">
+            <button type="button" class="drive-tab" :class="{ active: mode === 'shares' }" :disabled="isBusy" @click="switchMode('shares')">
               分享管理
             </button>
-            <button type="button" class="drive-tab" :class="{ active: mode === 'trash' }" @click="switchMode('trash')">
+            <button type="button" class="drive-tab" :class="{ active: mode === 'trash' }" :disabled="isBusy" @click="switchMode('trash')">
               回收站
             </button>
           </div>
@@ -93,6 +94,7 @@
             type="button"
             class="drive-breadcrumb-item"
             :class="{ active: index === breadcrumbItems.length - 1 }"
+            :disabled="isBusy"
             @click="goBreadcrumb(index)"
           >
             {{ item.name }}
@@ -134,6 +136,7 @@
               <UiButton
                 v-if="mode === 'files' && entry.isFolder"
                 variant="ghost"
+                :disabled="isBusy"
                 @click.stop="enterFolder(entry)"
               >
                 进入
@@ -292,7 +295,9 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-import { buildDriveBreadcrumb, formatDriveBytes, normalizeCreatedDriveShare, normalizeDriveEntry, normalizeDriveQuota, reduceDriveSelection, validateShareForm } from './driveState'
+import { formatDriveBytes, normalizeCreatedDriveShare, normalizeDriveEntry, normalizeDriveQuota, validateShareForm } from './driveState'
+import { useDriveWorkspaceState } from './drive/useDriveWorkspaceState'
+import { settleNamedRequests } from '../utils/settledRequests'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
 const DEFAULT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
@@ -307,28 +312,34 @@ const busyAction = ref('')
 const error = ref('')
 const statusMessage = ref('')
 const shareError = ref('')
-const mode = ref('files')
-const entries = ref([])
-const trashEntries = ref([])
-const selectedEntryId = ref('')
 const space = ref(defaultDriveSpace())
-const folderTrail = ref([{ entryId: '', name: '我的文件' }])
 const folderNameDraft = ref('')
 const creatingFolder = ref(false)
-const searchKeyword = ref('')
-const renameDraft = ref('')
 const sharePassword = ref('')
 const shareExpiresAt = ref(toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS)))
 const createdShares = ref([])
 const sharePage = ref(0)
 const shareSize = 20
 const sharesHasNext = ref(false)
+const uploadProgress = ref(null)
+let uploadController = null
+
+const workspace = useDriveWorkspaceState()
+const {
+  mode,
+  entries,
+  trashEntries,
+  selectedEntryId,
+  searchKeyword,
+  renameDraft,
+  currentFolderId,
+  currentFolderLabel,
+  breadcrumbItems,
+  visibleEntries,
+  selectedEntry
+} = workspace
 
 const quota = computed(() => normalizeDriveQuota(space.value))
-const currentFolderLabel = computed(() => folderTrail.value.map((item) => item.name).join(' / '))
-const breadcrumbItems = computed(() => buildDriveBreadcrumb(folderTrail.value.slice(1)))
-const visibleEntries = computed(() => (mode.value === 'trash' ? trashEntries.value : entries.value))
-const selectedEntry = computed(() => visibleEntries.value.find((item) => item.entryId === selectedEntryId.value) || null)
 const isBusy = computed(() => loading.value || busyAction.value !== '')
 
 function defaultDriveSpace() {
@@ -356,16 +367,10 @@ function resetOwnerState() {
   error.value = ''
   statusMessage.value = ''
   shareError.value = ''
-  mode.value = 'files'
-  entries.value = []
-  trashEntries.value = []
-  selectedEntryId.value = ''
+  workspace.reset()
   space.value = defaultDriveSpace()
-  folderTrail.value = [{ entryId: '', name: '我的文件' }]
   folderNameDraft.value = ''
   creatingFolder.value = false
-  searchKeyword.value = ''
-  renameDraft.value = ''
   sharePassword.value = ''
   shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
   createdShares.value = []
@@ -416,14 +421,11 @@ function setBusy(label, fn) {
 }
 
 function selectEntry(entry) {
-  selectedEntryId.value = String(entry?.entryId || '')
-  renameDraft.value = String(entry?.name || '')
+  workspace.selectEntry(entry)
 }
 
 function commitEntries(target, list) {
-  target.value = list
-  selectedEntryId.value = reduceDriveSelection(selectedEntryId.value, list) || (list[0]?.entryId || '')
-  renameDraft.value = selectedEntryId.value ? String(list.find((item) => item.entryId === selectedEntryId.value)?.name || '') : ''
+  workspace.commitEntries(target, list)
 }
 
 async function reload() {
@@ -437,27 +439,40 @@ async function reload() {
   error.value = ''
   try {
     const entryRequest = requestedMode === 'trash'
-      ? listDriveTrash()
+      ? () => listDriveTrash()
       : requestedKeyword
-        ? searchDriveEntries({ keyword: requestedKeyword })
-        : listDriveEntries({ parentId: requestedFolderId })
+        ? () => searchDriveEntries({ keyword: requestedKeyword })
+        : () => listDriveEntries({ parentId: requestedFolderId })
     const shareRequest = requestedMode === 'shares'
-      ? listDriveShares({ page: 0, size: shareSize })
-      : Promise.resolve(null)
-    const [spaceResponse, entryResponse, shareResponse] = await Promise.all([
-      getDriveSpace(),
-      entryRequest,
-      shareRequest
-    ])
+      ? () => listDriveShares({ page: 0, size: shareSize })
+      : () => null
+    const outcome = await settleNamedRequests({
+      space: () => getDriveSpace(),
+      entries: entryRequest,
+      shares: shareRequest
+    })
     if (!isCurrentRequest(reloadRequestTracker, token, scope)) return
 
-    space.value = spaceResponse?.data || {}
-    const list = Array.isArray(entryResponse?.data) ? entryResponse.data.map(normalizeDriveEntry) : []
-    commitEntries(requestedMode === 'trash' ? trashEntries : entries, list)
-    if (requestedMode === 'shares') {
+    if (outcome.results.space.ok) space.value = outcome.results.space.value?.data || {}
+    if (outcome.results.entries.ok) {
+      const entryResponse = outcome.results.entries.value
+      const list = Array.isArray(entryResponse?.data) ? entryResponse.data.map(normalizeDriveEntry) : []
+      commitEntries(requestedMode === 'trash' ? trashEntries : entries, list)
+    }
+    if (requestedMode === 'shares' && outcome.results.shares.ok) {
+      const shareResponse = outcome.results.shares.value
       createdShares.value = (Array.isArray(shareResponse?.data?.items) ? shareResponse.data.items : []).map(normalizeCreatedShare)
       sharePage.value = 0
       sharesHasNext.value = shareResponse?.data?.hasNext === true
+    }
+    const relevantFailures = outcome.failedKeys.filter((key) => requestedMode === 'shares' || key !== 'shares')
+    if (relevantFailures.length > 0) {
+      const firstError = outcome.results[relevantFailures[0]]?.error
+      const relevantSuccessCount = ['space', 'entries', ...(requestedMode === 'shares' ? ['shares'] : [])]
+        .filter((key) => outcome.results[key]?.ok).length
+      error.value = relevantSuccessCount > 0
+        ? `部分网盘数据加载失败：${firstError?.message || '请稍后重试'}`
+        : (firstError?.message || '加载网盘失败')
     }
   } catch (e) {
     if (isCurrentRequest(reloadRequestTracker, token, scope)) {
@@ -470,23 +485,14 @@ async function reload() {
   }
 }
 
-const currentFolderId = computed(() => folderTrail.value[folderTrail.value.length - 1]?.entryId || '')
-
 async function switchMode(next) {
-  if (mode.value === next) {
-    return
-  }
-  if (next !== 'files') {
-    searchKeyword.value = ''
-  }
-  mode.value = next
-  selectedEntryId.value = ''
+  if (isBusy.value) return
+  if (!workspace.switchMode(next)) return
   await reload()
 }
 
 async function runSearch() {
-  mode.value = 'files'
-  selectedEntryId.value = ''
+  workspace.beginSearch()
   await reload()
 }
 
@@ -496,25 +502,14 @@ async function clearSearch() {
 }
 
 async function enterFolder(entry) {
-  if (!entry?.isFolder) return
-  mode.value = 'files'
-  searchKeyword.value = ''
-  folderTrail.value = [...folderTrail.value, { entryId: String(entry.entryId), name: String(entry.name || '') }]
-  selectedEntryId.value = ''
+  if (isBusy.value) return
+  if (!workspace.enterFolder(entry)) return
   await reload()
 }
 
 async function goBreadcrumb(index) {
-  if (index < 0 || index >= breadcrumbItems.value.length) return
-  mode.value = 'files'
-  searchKeyword.value = ''
-  if (index === 0) {
-    folderTrail.value = [{ entryId: '', name: '我的文件' }]
-  } else {
-    const path = folderTrail.value.slice(0, index + 1)
-    folderTrail.value = path.length > 0 ? path : [{ entryId: '', name: '我的文件' }]
-  }
-  selectedEntryId.value = ''
+  if (isBusy.value) return
+  if (!workspace.goBreadcrumb(index)) return
   await reload()
 }
 
@@ -549,19 +544,55 @@ async function createFolder() {
 async function handleUploadChange(event) {
   const files = Array.from(event?.target?.files || [])
   if (files.length === 0) return
-  await setBusy('upload', async (request) => {
-    for (const file of files) {
-      const session = await createDriveUploadSession({ parentId: currentFolderId.value, file })
-      if (!request.isCurrent()) return
-      await uploadDriveFile({ session: session.data, file })
-      if (!request.isCurrent()) return
+  const targetParentId = currentFolderId.value
+  const controller = new AbortController()
+  uploadController = controller
+  uploadProgress.value = 0
+  try {
+    await setBusy('upload', async (request) => {
+      for (const file of files) {
+        const session = await createDriveUploadSession({
+          parentId: targetParentId,
+          file,
+          signal: controller.signal
+        })
+        if (!request.isCurrent()) return
+        await uploadDriveFile({
+          session: session.data,
+          file,
+          signal: controller.signal,
+          onProgress: ({ percent }) => {
+            if (request.isCurrent() && percent != null) uploadProgress.value = percent
+          }
+        })
+        if (!request.isCurrent()) return
+        uploadProgress.value = 0
+      }
+      statusMessage.value = `已上传 ${files.length} 个文件`
+      await reload()
+    })
+  } catch {
+    // setBusy owns the visible error for non-cancelled uploads.
+  } finally {
+    if (uploadController === controller) {
+      uploadController = null
+      uploadProgress.value = null
     }
-    statusMessage.value = `已上传 ${files.length} 个文件`
-    await reload()
-  }).catch(() => {})
+  }
   if (event?.target) {
     event.target.value = ''
   }
+}
+
+function cancelUpload() {
+  if (!uploadController) return
+  actionRequestTracker.invalidate()
+  uploadController.abort()
+  uploadController = null
+  uploadProgress.value = null
+  busyAction.value = ''
+  error.value = ''
+  statusMessage.value = '上传已取消'
 }
 
 async function renameSelected() {
@@ -744,6 +775,9 @@ watch(
     reloadRequestTracker.invalidate()
     shareRequestTracker.invalidate()
     actionRequestTracker.invalidate()
+    uploadController?.abort()
+    uploadController = null
+    uploadProgress.value = null
     loading.value = false
     busyAction.value = ''
 
@@ -763,6 +797,8 @@ onBeforeUnmount(() => {
   reloadRequestTracker.invalidate()
   shareRequestTracker.invalidate()
   actionRequestTracker.invalidate()
+  uploadController?.abort()
+  uploadController = null
 })
 </script>
 

@@ -222,7 +222,7 @@ const rendered = computed(() => {
   padding: 2px 4px;
   border-radius: 4px;
 }
-:deep(pre) :deep(code) {
+:deep(pre code) {
   background: none;
   padding: 0;
 }

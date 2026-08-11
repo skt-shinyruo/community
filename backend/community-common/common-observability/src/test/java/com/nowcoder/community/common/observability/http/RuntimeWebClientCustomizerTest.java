@@ -4,7 +4,7 @@ import com.nowcoder.community.common.observability.logging.RuntimeLogFields;
 import com.nowcoder.community.common.observability.logging.RuntimeLogTestSupport;
 import com.nowcoder.community.common.observability.logging.RuntimeLoggingProperties;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
+import org.springframework.boot.webclient.WebClientCustomizer;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.reactive.function.client.ClientResponse;
 import org.springframework.web.reactive.function.client.WebClient;

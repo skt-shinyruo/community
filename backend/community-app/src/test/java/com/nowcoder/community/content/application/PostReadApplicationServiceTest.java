@@ -32,6 +32,7 @@ import java.util.UUID;
 import static com.nowcoder.community.content.support.CommentTestBuilder.aComment;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.ArgumentMatchers.eq;
@@ -743,6 +744,38 @@ class PostReadApplicationServiceTest {
         assertThat(items.get(0).userId()).isEqualTo(firstAuthorId);
         assertThat(items.get(0).lastReplyUserId()).isEqualTo(lastReplyUserId);
         assertThat(items.get(1).userId()).isEqualTo(secondAuthorId);
+    }
+
+    @Test
+    void listPostsByIdsShouldRejectOversizedBatchAtApplicationBoundary() {
+        PostContentRepository postService = mock(PostContentRepository.class);
+        CommentContentRepository commentService = mock(CommentContentRepository.class);
+        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        TagContentRepository tagService = mock(TagContentRepository.class);
+        BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
+        SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
+        PostContentBlockRepository blockRepository = mock(PostContentBlockRepository.class);
+        PostMediaAssetRepository mediaAssetRepository = mock(PostMediaAssetRepository.class);
+        PostDetailCache postDetailCache = mock(PostDetailCache.class);
+        PostReadApplicationService service = service(
+                postService,
+                commentService,
+                likeQueryService,
+                tagService,
+                bookmarkService,
+                subscriptionService,
+                blockRepository,
+                mediaAssetRepository,
+                postDetailCache
+        );
+        List<UUID> oversized = java.util.stream.IntStream.rangeClosed(1, 201)
+                .mapToObj(com.nowcoder.community.support.TestUuids::uuid)
+                .toList();
+
+        assertThatThrownBy(() -> service.listPostsByIds(oversized))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("postIds cannot exceed 200");
+        verifyNoInteractions(postService);
     }
 
     private static ContentTextCodec textCodec() {

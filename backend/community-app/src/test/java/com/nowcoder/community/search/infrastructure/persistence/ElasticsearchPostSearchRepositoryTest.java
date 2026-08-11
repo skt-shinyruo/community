@@ -12,7 +12,6 @@ import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
-import org.springframework.data.elasticsearch.core.query.ScriptType;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 
 import java.time.Instant;
@@ -56,7 +55,7 @@ class ElasticsearchPostSearchRepositoryTest {
                 .contains("ctx.op = 'noop'");
         assertThat(update.getScript().indexOf("if (ctx.op == 'create')"))
                 .isLessThan(update.getScript().indexOf("params.aggregateVersion > ctx._source.aggregateVersion"));
-        assertThat(update.getScriptType()).isEqualTo(ScriptType.INLINE);
+        assertThat(update.getScriptName()).isNull();
         assertThat(update.getLang()).isEqualTo("painless");
         assertThat(update.getRetryOnConflict()).isEqualTo(5);
         assertThat(update.getScriptedUpsert()).isTrue();

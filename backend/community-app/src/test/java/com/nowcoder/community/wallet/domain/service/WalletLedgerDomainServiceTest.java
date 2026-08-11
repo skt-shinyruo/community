@@ -38,6 +38,40 @@ class WalletLedgerDomainServiceTest {
     }
 
     @Test
+    void canonicalizePostingsShouldNetEachAccountWithoutChangingDoubleEntryBalance() {
+        UUID debitAccount = uuid(1);
+        UUID creditAccount = uuid(2);
+
+        List<WalletPosting> canonical = service.canonicalizePostings(List.of(
+                WalletPosting.debit(debitAccount, 70),
+                WalletPosting.credit(creditAccount, 100),
+                WalletPosting.debit(debitAccount, 50),
+                WalletPosting.credit(debitAccount, 20)
+        ));
+
+        assertThat(canonical).containsExactly(
+                WalletPosting.debit(debitAccount, 100),
+                WalletPosting.credit(creditAccount, 100)
+        );
+        assertThatCode(() -> service.validateBalancedPostings(canonical)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void canonicalizePostingsShouldDropAccountsWhoseDebitAndCreditCancel() {
+        UUID cancelledAccount = uuid(1);
+
+        assertThat(service.canonicalizePostings(List.of(
+                WalletPosting.debit(cancelledAccount, 100),
+                WalletPosting.credit(cancelledAccount, 100),
+                WalletPosting.debit(uuid(2), 50),
+                WalletPosting.credit(uuid(3), 50)
+        ))).containsExactly(
+                WalletPosting.debit(uuid(2), 50),
+                WalletPosting.credit(uuid(3), 50)
+        );
+    }
+
+    @Test
     void newTxnShouldCreatePendingTransaction() {
         UUID txnId = uuid(11);
         Date createdAt = new Date(1000);

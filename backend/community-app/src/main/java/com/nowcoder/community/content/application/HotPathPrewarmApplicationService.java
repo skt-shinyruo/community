@@ -108,8 +108,7 @@ public class HotPathPrewarmApplicationService {
         for (DiscussPost post : validPosts) {
             if (boardId == null) {
                 feedCache.upsertGlobalHot(
-                        post.getId(),
-                        post.getScore(),
+                        projectionEntry(post),
                         rankVersion,
                         post.getAggregateVersion(),
                         post.getScoreVersion()
@@ -117,8 +116,7 @@ public class HotPathPrewarmApplicationService {
             } else {
                 feedCache.upsertBoardHot(
                         boardId,
-                        post.getId(),
-                        post.getScore(),
+                        projectionEntry(post),
                         rankVersion,
                         post.getAggregateVersion(),
                         post.getScoreVersion()
@@ -140,6 +138,11 @@ public class HotPathPrewarmApplicationService {
             }
         }
         return new WarmCounts(summaryResults.size(), details);
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionEntry(DiscussPost post) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), post.getScore(), post.getCreateTime());
     }
 
     private static List<DiscussPost> safePosts(List<DiscussPost> posts) {

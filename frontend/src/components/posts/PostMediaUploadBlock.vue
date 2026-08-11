@@ -33,6 +33,9 @@
     />
 
     <div class="post-media-upload-actions">
+      <UiButton v-if="isUploading" variant="secondary" @click="cancelUpload">
+        取消上传
+      </UiButton>
       <UiButton v-if="isFailed" variant="secondary" :disabled="disabled || isUploading || !selectedFile" @click="retryUpload">
         重试
       </UiButton>
@@ -44,7 +47,7 @@
 </template>
 
 <script setup>
-import { computed, ref } from 'vue'
+import { computed, onBeforeUnmount, ref } from 'vue'
 import UiButton from '../ui/UiButton.vue'
 import UiFileInput from '../ui/UiFileInput.vue'
 import UiInput from '../ui/UiInput.vue'
@@ -59,12 +62,14 @@ const props = defineProps({
 const emit = defineEmits(['update:block', 'remove'])
 
 const selectedFile = ref(null)
+let uploadController = null
+let uploadRun = 0
 
 const mediaType = computed(() => String(props.block?.type || 'file').toLowerCase())
 const isFile = computed(() => mediaType.value === 'file')
 const hasAsset = computed(() => !!String(props.block?.assetId || '').trim())
 const isUploading = computed(() => props.block?.uploadState === 'uploading')
-const isFailed = computed(() => props.block?.uploadState === 'failed')
+const isFailed = computed(() => ['failed', 'cancelled'].includes(props.block?.uploadState))
 const caption = computed(() => String(props.block?.caption || ''))
 const displayName = computed(() => String(props.block?.displayName || selectedFile.value?.name || ''))
 const accept = computed(() => {
@@ -78,7 +83,11 @@ const mediaKind = computed(() => {
   return inferMediaKind(selectedFile.value)
 })
 const statusText = computed(() => {
-  if (props.block?.uploadState === 'uploading') return '上传中'
+  if (props.block?.uploadState === 'uploading') {
+    const progress = Number(props.block?.uploadProgress)
+    return Number.isFinite(progress) ? `上传中 ${progress}%` : '上传中'
+  }
+  if (props.block?.uploadState === 'cancelled') return '上传已取消'
   if (props.block?.uploadState === 'completed') return '上传完成'
   if (props.block?.uploadState === 'failed') return '上传失败'
   return '等待选择文件'
@@ -98,6 +107,7 @@ function updateBlock(patch) {
 }
 
 async function onFilePicked(file) {
+  cancelUpload({ silent: true })
   selectedFile.value = file || null
   if (!file) {
     updateBlock({ assetId: '', uploadState: 'idle' })
@@ -113,26 +123,64 @@ async function retryUpload() {
 }
 
 async function uploadFile(file) {
+  const run = ++uploadRun
+  const controller = new AbortController()
+  uploadController = controller
   updateBlock({
     assetId: '',
     uploadState: 'uploading',
+    uploadProgress: 0,
     ...(isFile.value && !props.block?.displayName ? { displayName: file.name || '' } : {})
   })
 
   try {
-    const session = await preparePostMediaUpload({ file, mediaKind: mediaKind.value })
+    const session = await preparePostMediaUpload({
+      file,
+      mediaKind: mediaKind.value,
+      signal: controller.signal
+    })
+    if (run !== uploadRun) return
     const assetId = String(session?.data?.assetId || '').trim()
     if (!assetId) {
       throw new Error('missing asset id')
     }
-    await uploadPostMediaFile({ session: session?.data, file })
+    await uploadPostMediaFile({
+      session: session?.data,
+      file,
+      signal: controller.signal,
+      onProgress: ({ percent }) => {
+        if (run !== uploadRun || percent == null) return
+        updateBlock({ uploadProgress: percent })
+      }
+    })
+    if (run !== uploadRun) return
     updateBlock({
       assetId,
       uploadState: 'completed',
+      uploadProgress: 100,
       ...(isFile.value && !props.block?.displayName ? { displayName: file.name || '' } : {})
     })
   } catch {
-    updateBlock({ assetId: '', uploadState: 'failed' })
+    if (run !== uploadRun) return
+    updateBlock({
+      assetId: '',
+      uploadState: controller.signal.aborted ? 'cancelled' : 'failed',
+      uploadProgress: null
+    })
+  } finally {
+    if (run === uploadRun) uploadController = null
   }
 }
+
+function cancelUpload({ silent = false } = {}) {
+  if (!uploadController) return
+  uploadRun += 1
+  uploadController.abort()
+  uploadController = null
+  if (!silent) {
+    updateBlock({ assetId: '', uploadState: 'cancelled', uploadProgress: null })
+  }
+}
+
+onBeforeUnmount(() => cancelUpload({ silent: true }))
 </script>

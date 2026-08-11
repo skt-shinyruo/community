@@ -10,11 +10,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.boot.test.mock.mockito.MockBean;
+import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.reflect.Method;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -36,7 +37,7 @@ class WalletAccountMapperPersistenceTest {
     @Autowired
     private WalletAccountMapper walletAccountMapper;
 
-    @MockBean
+    @MockitoBean
     private ClientIpResolver clientIpResolver;
 
     @BeforeEach
@@ -103,6 +104,18 @@ class WalletAccountMapperPersistenceTest {
         assertThat(version()).isEqualTo(8L);
     }
 
+    @Test
+    void selectByAccountIdsForUpdateShouldReturnUniqueRowsInDatabaseAccountOrder() {
+        UUID lower = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID higher = UUID.fromString("00000000-0000-7000-8000-000000000002");
+        seedAccount(higher, uuid(202));
+        seedAccount(lower, uuid(101));
+
+        assertThat(walletAccountMapper.selectByAccountIdsForUpdate(List.of(higher, lower, higher)))
+                .extracting(account -> account.getAccountId())
+                .containsExactly(lower, higher);
+    }
+
     private void seed(long balance, long version) {
         jdbcTemplate.update(
                 "insert into wallet_account(account_id, owner_type, owner_id, account_type, balance, status, version) values (?, ?, ?, ?, ?, ?, ?)",
@@ -113,6 +126,19 @@ class WalletAccountMapperPersistenceTest {
                 balance,
                 "ACTIVE",
                 version
+        );
+    }
+
+    private void seedAccount(UUID accountId, UUID ownerId) {
+        jdbcTemplate.update(
+                "insert into wallet_account(account_id, owner_type, owner_id, account_type, balance, status, version) values (?, ?, ?, ?, ?, ?, ?)",
+                BinaryUuidCodec.toBytes(accountId),
+                "USER",
+                BinaryUuidCodec.toBytes(ownerId),
+                "USER_WALLET",
+                0L,
+                "ACTIVE",
+                0L
         );
     }
 

@@ -11,6 +11,7 @@ import com.nowcoder.community.content.infrastructure.persistence.MyBatisModerati
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisPostContentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisReportContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
+import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
@@ -31,11 +32,13 @@ import java.util.UUID;
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class PaginationOffsetOverflowTest {
@@ -71,10 +74,9 @@ class PaginationOffsetOverflowTest {
     }
 
     @Test
-    void followServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
+    void followServiceShouldRejectHugeLegacyPageBeforeRepositoryAccess() {
         FollowRepository followRepository = mock(FollowRepository.class);
         BlockRepository blockRepository = mock(BlockRepository.class);
-        when(followRepository.listFollowersExcludingBlocked(anyInt(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
         UUID userId = uuid(2);
 
         FollowApplicationService service = new FollowApplicationService(
@@ -87,11 +89,10 @@ class PaginationOffsetOverflowTest {
                 Clock.systemUTC()
         );
 
-        service.listFollowers(USER, userId, Integer.MAX_VALUE, 50);
-
-        ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(followRepository).listFollowersExcludingBlocked(eq(USER), eq(userId), eq(blockRepository), offsetCaptor.capture(), eq(50));
-        assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
+        assertThatThrownBy(() -> service.listFollowers(USER, userId, Integer.MAX_VALUE, 50))
+                .isInstanceOf(BusinessException.class)
+                .hasMessageContaining("use cursor pagination");
+        verifyNoInteractions(followRepository);
     }
 
     @Test

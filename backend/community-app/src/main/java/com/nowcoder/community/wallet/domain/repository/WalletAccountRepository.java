@@ -3,6 +3,7 @@ package com.nowcoder.community.wallet.domain.repository;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 
+import java.util.List;
 import java.util.UUID;
 
 public interface WalletAccountRepository {
@@ -15,6 +16,8 @@ public interface WalletAccountRepository {
     }
 
     WalletAccount findByAccountId(UUID accountId);
+
+    List<WalletAccount> findAllByAccountIdsForUpdate(List<UUID> accountIds);
 
     WalletAccount findByOwner(String ownerType, UUID ownerId, String accountType);
 

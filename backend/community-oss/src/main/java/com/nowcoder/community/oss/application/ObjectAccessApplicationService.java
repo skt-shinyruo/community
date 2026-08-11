@@ -12,8 +12,8 @@ import com.nowcoder.community.oss.domain.repository.OssAccessGrantRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.PresignedObjectUrl;
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 

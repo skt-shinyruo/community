@@ -1,6 +1,6 @@
 # backend
 
-本目录是后端工程根目录（Java 17 + Spring Boot 3 + Maven 多模块）。
+本目录是后端工程根目录（Java 17 + Spring Boot 4 + Maven 多模块）。
 仓库根目录同时包含前端工程：`../frontend/`。
 
 > 约定：仓库级入口（部署/文档）从仓库根目录执行；后端构建/测试从 `backend/` 执行。
@@ -30,7 +30,7 @@
 - `community-app/`：主业务单体与 deployable
 - `community-gateway/`：统一 HTTP / WS edge
 - `community-im-gateway/`：IM session bootstrap 与稳定 `/ws/im` WebSocket edge
-- `community-im/`：IM 聚合模块（下含 `im-common`、`im-core`、`im-realtime`）
+- `community-im/`：IM 聚合模块（下含 `im-common`、`im-session-ticket`、`im-core`、`im-realtime`）
 
 ## 仓库级入口
 - 部署与 compose：`../deploy/`

@@ -87,16 +87,14 @@ public class HotFeedCacheGovernanceApplicationService
             if (SCOPE_BOARD.equals(c.scope())) {
                 postFeedCache.upsertBoardHot(
                         c.boardId(),
-                        post.getId(),
-                        post.getScore(),
+                        projectionEntry(post, post.getScore()),
                         rankVersion,
                         post.getAggregateVersion(),
                         post.getScoreVersion()
                 );
             } else {
                 postFeedCache.upsertGlobalHot(
-                        post.getId(),
-                        post.getScore(),
+                        projectionEntry(post, post.getScore()),
                         rankVersion,
                         post.getAggregateVersion(),
                         post.getScoreVersion()
@@ -120,6 +118,11 @@ public class HotFeedCacheGovernanceApplicationService
                 signal.reason(),
                 prewarmAt
         );
+    }
+
+    private static PostFeedCache.HotProjectionEntry projectionEntry(DiscussPost post, double score) {
+        return new PostFeedCache.HotProjectionEntry(
+                post.getId(), post.getType(), score, post.getCreateTime());
     }
 
     @Override

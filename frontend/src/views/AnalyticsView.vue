@@ -11,9 +11,10 @@
     </UiCard>
 
     <UiState v-if="!auth.isAdminOrModerator" variant="error" class="analytics-state">无权限访问</UiState>
-    <UiState v-else-if="error" variant="error" class="analytics-state">{{ error }}</UiState>
+    <template v-else>
+    <UiState v-if="error" variant="error" class="analytics-state">{{ error }}</UiState>
 
-    <div v-else class="analytics-layout">
+    <div class="analytics-layout">
       <UiCard class="analytics-filter-card">
         <div class="analytics-filter-head">
           <div>
@@ -64,6 +65,7 @@
         </div>
       </UiCard>
     </div>
+    </template>
   </div>
 </template>
 
@@ -77,6 +79,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import { settleNamedRequests } from '../utils/settledRequests'
 
 const emit = defineEmits(['trace'])
 const auth = useAuthStore()
@@ -116,16 +119,20 @@ async function query() {
   error.value = ''
   loading.value = true
   try {
-    const [uvResp, dauResp] = await Promise.all([uv(request), dau(request)])
+    const outcome = await settleNamedRequests({ uv: () => uv(request), dau: () => dau(request) })
     if (!isCurrentQuery(generation, scope, range)) return
-    uResult.value = uvResp?.data ?? 0
-    dResult.value = dauResp?.data ?? 0
-    emit('trace', uvResp?.traceId || dauResp?.traceId || '')
-  } catch (e) {
-    if (!isCurrentQuery(generation, scope, range)) return
-    error.value = e?.message || '加载统计失败'
-    uResult.value = '—'
-    dResult.value = '—'
+    if (outcome.results.uv.ok) uResult.value = outcome.results.uv.value?.data ?? 0
+    else uResult.value = '—'
+    if (outcome.results.dau.ok) dResult.value = outcome.results.dau.value?.data ?? 0
+    else dResult.value = '—'
+    if (!outcome.allSucceeded) {
+      const firstError = outcome.results[outcome.failedKeys[0]]?.error
+      error.value = outcome.anySucceeded
+        ? `部分统计加载失败：${firstError?.message || '请稍后重试'}`
+        : (firstError?.message || '加载统计失败')
+    }
+    const traceResult = outcome.results.uv.ok ? outcome.results.uv.value : outcome.results.dau.value
+    if (traceResult?.traceId) emit('trace', traceResult.traceId)
   } finally {
     if (isCurrentQuery(generation, scope, range)) loading.value = false
   }

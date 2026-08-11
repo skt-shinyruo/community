@@ -2,6 +2,9 @@ import { describe, expect, it } from 'vitest'
 
 import {
   buildCanonicalConversationId,
+  advanceConversationSeqWaterline,
+  commitPendingConversationMessage,
+  createPendingConversationMessage,
   findLatestConversationSeq,
   mapConversationMessage,
   mergeConversations,
@@ -117,6 +120,7 @@ describe('conversationDetailState', () => {
     const base = {
       id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       seq: 8,
+      fromId: '11111111-1111-7111-8111-111111111111',
       clientMsgId: 'client-a',
       createTime: 80,
       content: 'base'
@@ -131,22 +135,56 @@ describe('conversationDetailState', () => {
   })
 
   it('transfers all aliases when one incoming message bridges two active records', () => {
-    const first = { id: 'first-id', seq: 1, clientMsgId: 'first-client', createTime: 100, content: 'first' }
-    const second = { id: 'second-id', seq: 2, clientMsgId: 'second-client', createTime: 200, content: 'second' }
-    const bridge = { id: ' second-id ', seq: 1, clientMsgId: 'bridge-client', createTime: 150, content: 'bridge' }
-    const followUp = { id: 'follow-up-id', seq: 3, clientMsgId: 'second-client', createTime: 300, content: 'follow-up' }
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const first = { id: 'first-id', seq: 1, fromId, clientMsgId: 'first-client', createTime: 100, content: 'first' }
+    const second = { id: 'second-id', seq: 2, fromId, clientMsgId: 'second-client', createTime: 200, content: 'second' }
+    const bridge = { id: ' second-id ', seq: 1, fromId, clientMsgId: 'bridge-client', createTime: 150, content: 'bridge' }
+    const followUp = { id: 'follow-up-id', seq: 3, fromId, clientMsgId: 'second-client', createTime: 300, content: 'follow-up' }
 
     expect(mergeConversationMessages([first, second], [bridge, followUp])).toEqual([followUp])
   })
 
   it('retains replaced identities across separate merge calls', () => {
-    const current = { id: 'message-a', seq: 8, clientMsgId: 'client-a', createTime: 100, content: 'current' }
-    const replacementById = { id: ' message-a ', seq: 7, clientMsgId: 'client-b', createTime: 200, content: 'by id' }
-    const replacementByOldClient = { id: 'message-c', seq: 6, clientMsgId: 'client-a', createTime: 300, content: 'by old client' }
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const current = { id: 'message-a', seq: 8, fromId, clientMsgId: 'client-a', createTime: 100, content: 'current' }
+    const replacementById = { id: ' message-a ', seq: 7, fromId, clientMsgId: 'client-b', createTime: 200, content: 'by id' }
+    const replacementByOldClient = { id: 'message-c', seq: 6, fromId, clientMsgId: 'client-a', createTime: 300, content: 'by old client' }
 
     const firstMerge = mergeConversationMessages([current], [replacementById])
 
     expect(mergeConversationMessages(firstMerge, [replacementByOldClient])).toEqual([replacementByOldClient])
+  })
+
+  it('scopes client message identity by sender', () => {
+    const sharedClientMsgId = 'shared-client-id'
+    const localPending = {
+      id: 'pending:shared-client-id',
+      seq: 0,
+      fromId: '11111111-1111-7111-8111-111111111111',
+      clientMsgId: sharedClientMsgId,
+      createTime: 100,
+      content: 'local pending'
+    }
+    const peerMessage = {
+      id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 9,
+      fromId: '22222222-2222-7222-8222-222222222222',
+      clientMsgId: sharedClientMsgId,
+      createTime: 200,
+      content: 'peer committed'
+    }
+    const localCommitted = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      seq: 10,
+      fromId: localPending.fromId,
+      clientMsgId: sharedClientMsgId,
+      createTime: 300,
+      content: 'local committed'
+    }
+
+    const withPeer = mergeConversationMessages([localPending], [peerMessage])
+    expect(withPeer).toEqual([localPending, peerMessage])
+    expect(mergeConversationMessages(withPeer, [localCommitted])).toEqual([peerMessage, localCommitted])
   })
 
   it('does not treat whitespace-only client message ids as an identity', () => {
@@ -178,5 +216,36 @@ describe('conversationDetailState', () => {
       { id: 'b', seq: 4, createTime: 2 },
       { id: 'c', seq: 17, createTime: 3 }
     ])).toBe(17)
+  })
+
+  it('replaces a pending send with its committed identity through clientMsgId', () => {
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-pending',
+      fromId: '11111111-1111-7111-8111-111111111111',
+      toId: '22222222-2222-7222-8222-222222222222',
+      content: 'pending message',
+      createTime: 100
+    })
+    const committed = commitPendingConversationMessage(pending, {
+      clientMsgId: 'client-pending',
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 9
+    })
+
+    expect(mergeConversationMessages([pending], [committed])).toEqual([committed])
+    expect(committed).toMatchObject({ seq: 9, deliveryState: 'committed' })
+  })
+
+  it('only advances an HTTP waterline through contiguous message sequences', () => {
+    expect(advanceConversationSeqWaterline(8, [
+      { seq: 11 },
+      { seq: 9 },
+      { seq: 9 },
+      { seq: 0 }
+    ])).toBe(9)
+    expect(advanceConversationSeqWaterline(9, [
+      { seq: 11 },
+      { seq: 10 }
+    ])).toBe(11)
   })
 })

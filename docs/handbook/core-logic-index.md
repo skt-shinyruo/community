@@ -91,6 +91,7 @@
 | `community-oss.application.ObjectPermissionApplicationService` | OSS deployable grant / revoke object access | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.application.ObjectLifecycleApplicationService` | OSS deployable delete pending / purge lifecycle | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.application.ObjectUploadRecoveryApplicationService` | stale upload claim 的 head 校验、reset 或 fenced finalize | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `community-oss.application.port.ObjectStore` | application-owned blob storage contract；local / S3 / observability adapter 实现该端口 | [OSS 对象存储业务逻辑](business-logic/oss.md#objectstore-boundary) | Covered |
 | `community-oss.infrastructure.job.ObjectUploadRecoveryJob` | OSS stale upload recovery 调度入口 | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `community-oss.domain.model.OssUsagePolicy` | usage max size, MIME, TTL, cache and lifecycle policy | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
 | `oss.controller.OssObjectController` | `/api/oss/**` HTTP binding | [OSS 对象存储业务逻辑](business-logic/oss.md) | IndexOnly |
@@ -293,10 +294,11 @@
 | `wallet.infrastructure.event.WalletRewardKafkaListener` | owner Kafka event 到 wallet reward projection application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `wallet.application.WalletAdminOpsApplicationService` | freeze / reverse 管理操作和审计 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAccountDomainService` | 账户类型、冻结状态和分录方向规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.domain.service.WalletLedgerDomainService` | 双分录平衡、金额上限和交易创建规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.domain.service.WalletLedgerDomainService` | 双分录平衡、按账户净额聚合、金额上限和交易创建规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletOrderDomainService` | 测试积分发放 / 销毁 / 转账订单金额和转账规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAdminDomainService` | 管理员钱包操作 actor / reason 规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAmountPolicy` | 单次资金动作金额上限 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
+| `wallet.infrastructure.retry.WalletDeadlockRetryConfiguration` | wallet 完整事务的有界悲观锁 / 死锁重试 | [Wallet 钱包业务逻辑](business-logic/wallet.md#失败和幂等) | Covered |
 
 ## Drive
 
@@ -350,8 +352,9 @@
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.gateway.session.ImSessionService` | JWT validation, worker selection and session ticket issuance | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.gateway.security.OwnerAccessTokenFreshnessVerifier` | session 签发前回源 user owner 校验 access token freshness | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `im.gateway.session.PublicWsUrlFactory` | configured absolute public `wsUrl` validation | [IM 消息业务逻辑](business-logic/im.md#session-bootstrap) | Covered |
-| `im.gateway.session.SessionTicketCodec` | IM gateway ticket encode / decode | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.ticket.SessionTicketCodec` | gateway/realtime 共享的 IM session ticket 签发与校验协议 | [IM 消息业务逻辑](business-logic/im.md#session-bootstrap) | Covered |
 | `im.gateway.shard.RendezvousWorkerSelector` | stable worker selection by user/session key | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.shard.WorkerRegistry` | configured healthy realtime worker registry | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.ws.ConnectTicketRouter` | route first connect ticket to realtime worker | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -387,7 +390,6 @@
 | `im.realtime.fanout.RealtimeWorkerDirectory` | worker ID / inbox slot discovery validation | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.RoomFanoutTargetConsumer` | consume local worker inbox partition | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.RoomFanoutTargetService` | target validation and state-idempotent local fanout | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
-| `im.realtime.session.SessionTicketCodec` | realtime ticket validation | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.PrivatePushService` | online private message fanout | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.SendResultPushService` | accepted / committed / rejected send result push | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.push.RoomFanoutCoalescer` | coalesced room update fanout | [IM 消息业务逻辑](business-logic/im.md) | Covered |
@@ -412,6 +414,9 @@
 | `im.core.domain.service.UnreadDomainService` | unread query limit normalization | [IM Core Runtime](core-logic/im-core-runtime.md) | IndexOnly |
 | `im.core.policy.PrivateMessagePolicyVerifier` | owner policy decision 端口与 fail-closed rejection 映射 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.policy.OwnerApiPrivateMessagePolicyVerifier` | internal JWT owner API 调用与仅拒绝结果短 TTL 缓存 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.core.application.AccessTokenFreshnessApplicationService` | im-core access token freshness 的同域应用入口与 fail-closed 策略 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
+| `im.core.security.AccessTokenFreshnessFilter` | im-core 浏览器 API 的 access token freshness 过滤器 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
+| `im.core.security.OwnerAccessTokenFreshnessVerifier` | im-core 回源 user owner 的 fail-closed freshness 客户端 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `im.core.kafka.CommandConsumers` | consume IM command topics and publish persisted/rejected events | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.kafka.KafkaRoomMemberChangePublisher` | publish room membership changes via outbox | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.core.domain.event.RoomMemberChangePublisher` | room membership event publisher port | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |

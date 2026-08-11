@@ -29,6 +29,9 @@ events:
     enabled: false
 
 im:
+  access-token-freshness:
+    community-service-id: community-app
+    request-timeout: 500ms
   policy:
     rejection-cache-ttl: 0ms
   room:

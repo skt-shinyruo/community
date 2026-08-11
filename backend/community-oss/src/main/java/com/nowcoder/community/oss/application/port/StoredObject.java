@@ -1,4 +1,4 @@
-package com.nowcoder.community.oss.infrastructure.storage;
+package com.nowcoder.community.oss.application.port;
 
 import java.io.InputStream;
 import java.util.Objects;

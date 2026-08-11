@@ -21,9 +21,9 @@ import com.nowcoder.community.oss.domain.repository.OssObjectRepository;
 import com.nowcoder.community.oss.domain.repository.OssObjectVersionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUploadSessionRepository;
 import com.nowcoder.community.oss.domain.repository.OssUsagePolicyRepository;
-import com.nowcoder.community.oss.infrastructure.config.OssProperties;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.ObjectStorageSettings;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Service;
 
@@ -64,7 +64,7 @@ public class ObjectUploadApplicationService {
             OssUploadSessionRepository uploadSessionRepository,
             OssUsagePolicyRepository policyRepository,
             ObjectStore objectStore,
-            OssProperties properties,
+            ObjectStorageSettings settings,
             Clock clock,
             UploadPolicyDecisions uploadPolicyDecisions,
             FeatureFlagDecisions featureFlags,
@@ -76,8 +76,8 @@ public class ObjectUploadApplicationService {
                 uploadSessionRepository,
                 policyRepository,
                 objectStore,
-                properties.objectStore().bucket(),
-                properties.publicBaseUrl(),
+                settings.storageBucket(),
+                settings.publicBaseUrl(),
                 clock,
                 uploadPolicyDecisions,
                 featureFlags,

@@ -11,7 +11,7 @@
 - `backend/community-app`：主业务 owner，是按包边界治理的 package-scoped monolith。
 - `backend/community-oss`：独立 OSS deployable，负责对象元数据、版本、签名和公有文件访问。
 - `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
-- `backend/community-im`：IM 聚合模块，包含 `im-common`、`im-core`、`im-realtime`。
+- `backend/community-im`：IM 聚合模块，包含 `im-common`、共享 session ticket 协议模块 `im-session-ticket`、`im-core`、`im-realtime`。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
 - `deploy/`：本地 single / cluster 拓扑、三个业务 schema 的空库快照、community 前向迁移和默认启用的 observability overlay。
 

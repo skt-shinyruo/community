@@ -3,9 +3,9 @@
     <UiBreadcrumb />
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-else-if="loading" class="muted">正在加载商品详情…</div>
+    <div v-if="loading && !hasListing" class="muted">正在加载商品详情…</div>
 
-    <div v-else class="market-detail-shell">
+    <div v-if="hasListing" class="market-detail-shell">
       <UiPageHeader>
         <template #title>{{ detail.title || '市场商品详情' }}</template>
         <template #subtitle>{{ detail.description || '查看价格、库存和履约方式。' }}</template>
@@ -28,7 +28,7 @@
           <div class="market-form-grid">
             <label class="market-field">
               <span>购买数量</span>
-              <UiInput v-model.number="quantity" type="number" min="1" placeholder="输入购买数量" />
+              <UiInput v-model.number="quantity" type="number" min="1" placeholder="输入购买数量" :disabled="submitting" />
             </label>
             <label v-if="detail.goodsType === 'PHYSICAL' && auth.authed" class="market-field">
               <span>收货地址</span>
@@ -39,6 +39,7 @@
                 v-model="selectedAddressId"
                 class="market-select"
                 data-test="market-address-select"
+                :disabled="submitting"
               >
                 <option value="">请选择收货地址</option>
                 <option v-for="item in addressOptions" :key="item.addressId" :value="String(item.addressId)">
@@ -105,6 +106,7 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
+import { createWriteAttempt } from '../api/writeAttempt'
 
 const route = useRoute()
 const router = useRouter()
@@ -123,8 +125,10 @@ const selectedAddressId = ref('')
 let listingSequence = 0
 let addressSequence = 0
 let orderSequence = 0
+const orderAttempt = createWriteAttempt()
 
 const detail = computed(() => buildMarketState({ listings: [listing.value] }).listings[0] || {})
+const hasListing = computed(() => Object.keys(listing.value || {}).length > 0)
 const addressOptions = computed(() => (Array.isArray(addresses.value) ? addresses.value : []))
 const authScope = computed(() => [
   auth.tokenGeneration,
@@ -157,6 +161,22 @@ function isCurrentOrderRequest(sequence, listingId, requestedAuthScope) {
     normalizeOpaqueId(route.params.listingId) === listingId &&
     authScope.value === requestedAuthScope &&
     auth.authed
+}
+
+function orderIntent(listingId = normalizeOpaqueId(route.params.listingId)) {
+  const addressId = detail.value.goodsType === 'PHYSICAL'
+    ? normalizeOpaqueId(selectedAddressId.value)
+    : ''
+  return JSON.stringify([
+    listingId,
+    Math.max(1, Number(quantity.value || 1)),
+    addressId
+  ])
+}
+
+function isCurrentOrderIntent(sequence, listingId, requestedAuthScope, requestedIntent) {
+  return isCurrentOrderRequest(sequence, listingId, requestedAuthScope)
+    && requestedIntent === orderIntent(listingId)
 }
 
 function signalStaleAddressResponse() {
@@ -254,6 +274,7 @@ async function submitOrder() {
   }
   const sequence = ++orderSequence
   const requestedAuthScope = authScope.value
+  const requestedIntent = orderIntent(listingId)
   submitting.value = true
   error.value = ''
   addressError.value = ''
@@ -264,9 +285,10 @@ async function submitOrder() {
       listingId,
       quantity: Math.max(1, Number(quantity.value || 1)),
       addressId
-    })
-    if (!isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) return
+    }, { writeAttempt: orderAttempt })
+    if (!isCurrentOrderIntent(sequence, listingId, requestedAuthScope, requestedIntent)) return
     const orderId = normalizeOpaqueId(data?.orderId)
+    orderAttempt.succeed()
     createdOrderId.value = orderId
     orderMessage.value = orderId ? `订单已创建：${orderId}` : '订单已创建，请到我的购买中查看。'
     if (orderId) {
@@ -275,7 +297,7 @@ async function submitOrder() {
     }
     await loadDetail()
   } catch (e) {
-    if (!isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) return
+    if (!isCurrentOrderIntent(sequence, listingId, requestedAuthScope, requestedIntent)) return
     error.value = e?.message || '下单失败'
   } finally {
     if (isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) submitting.value = false
@@ -296,6 +318,7 @@ watch(
   ([listingId, requestedAuthScope], previous = []) => {
     const [previousListingId] = previous
     orderSequence += 1
+    orderAttempt.cancel()
     submitting.value = false
     orderMessage.value = ''
     createdOrderId.value = ''
@@ -313,9 +336,12 @@ watch(
   { immediate: true }
 )
 
+watch([quantity, selectedAddressId], () => orderAttempt.changeIntent())
+
 onBeforeUnmount(() => {
   listingSequence += 1
   addressSequence += 1
   orderSequence += 1
+  orderAttempt.cancel()
 })
 </script>

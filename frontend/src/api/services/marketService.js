@@ -1,5 +1,6 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { writeAttemptConfig } from '../writeAttempt'
 
 function marketPage(data) {
   if (Array.isArray(data)) {
@@ -31,8 +32,8 @@ export async function createMarketListing(payload) {
   return { data: data || {}, traceId }
 }
 
-export async function createMarketOrder(payload) {
-  const resp = await http.post('/api/market/orders', payload)
+export async function createMarketOrder(payload, { writeAttempt } = {}) {
+  const resp = await http.post('/api/market/orders', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '创建市场订单')
   return { data: data || {}, traceId }
 }

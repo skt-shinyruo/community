@@ -3,47 +3,30 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 
 import java.time.Instant;
+import java.util.Date;
 import java.util.List;
 import java.util.UUID;
 
 public interface PostFeedCache {
 
-    List<UUID> readGlobalHotIds(String cursor, int size);
+    HotProjectionPage readGlobalHotProjection(String cursor, int size);
 
-    List<UUID> readBoardHotIds(UUID boardId, String cursor, int size);
+    HotProjectionPage readBoardHotProjection(UUID boardId, String cursor, int size);
 
-    void upsertGlobalHot(UUID postId, double score, String rankVersion);
-
-    default void upsertGlobalHot(UUID postId, double score, String rankVersion, long sourceVersion) {
-        upsertGlobalHot(postId, score, rankVersion);
-    }
-
-    default void upsertGlobalHot(
-            UUID postId,
-            double score,
+    void upsertGlobalHot(
+            HotProjectionEntry entry,
             String rankVersion,
             long aggregateVersion,
             long scoreVersion
-    ) {
-        upsertGlobalHot(postId, score, rankVersion, aggregateVersion);
-    }
+    );
 
-    void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion);
-
-    default void upsertBoardHot(UUID boardId, UUID postId, double score, String rankVersion, long sourceVersion) {
-        upsertBoardHot(boardId, postId, score, rankVersion);
-    }
-
-    default void upsertBoardHot(
+    void upsertBoardHot(
             UUID boardId,
-            UUID postId,
-            double score,
+            HotProjectionEntry entry,
             String rankVersion,
             long aggregateVersion,
             long scoreVersion
-    ) {
-        upsertBoardHot(boardId, postId, score, rankVersion, aggregateVersion);
-    }
+    );
 
     void writeRankVersion(String rankVersion);
 
@@ -78,5 +61,25 @@ public interface PostFeedCache {
 
     default void terminalRemove(UUID postId, UUID boardId, long minimumVersion) {
         terminalRemove(postId, boardId);
+    }
+
+    record HotProjectionPage(List<HotProjectionEntry> entries, long epoch, boolean hasNext) {
+
+        public HotProjectionPage {
+            entries = entries == null ? List.of() : List.copyOf(entries);
+            epoch = Math.max(0L, epoch);
+        }
+    }
+
+    record HotProjectionEntry(UUID postId, int type, double score, Date createTime) {
+
+        public HotProjectionEntry {
+            createTime = createTime == null ? null : new Date(createTime.getTime());
+        }
+
+        @Override
+        public Date createTime() {
+            return createTime == null ? null : new Date(createTime.getTime());
+        }
     }
 }

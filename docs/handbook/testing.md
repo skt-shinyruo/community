@@ -26,8 +26,10 @@
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn test`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
 | 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
+| 前端依赖更新 | `cd frontend && npm audit --omit=dev --audit-level=moderate` | 前述审计 + `npm test && npm run build` |
 | tests/k6 压测脚本 | `cd tests/k6 && npm test` | 在本地 cluster 启动后运行 `npm run smoke`，再按目标运行 profile。 |
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
+| tools/mock-data-studio 依赖更新 | `npm --prefix tools/mock-data-studio audit --omit=dev --audit-level=moderate` | 前述审计 + 全量 mock-data-studio 测试 |
 
 ## 后端测试
 

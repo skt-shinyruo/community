@@ -24,14 +24,15 @@ describe('auth store session generations', () => {
     expect(auth.tokenGeneration).toBe(2)
   })
 
-  it('keeps the current profile while a refreshed token is being installed', () => {
+  it('clears the current profile when a different token is installed', () => {
     const auth = useAuthStore()
     const currentProfile = { userId: 7, username: 'alice' }
     auth.setMe(currentProfile)
 
     auth.setAccessToken('refreshed-token')
 
-    expect(auth.me).toEqual(currentProfile)
+    expect(auth.me).toBeNull()
+    expect(auth.identityState).toBe('unresolved')
   })
 
   it('installs token and profile together with explicit profile semantics', () => {
@@ -45,6 +46,7 @@ describe('auth store session generations', () => {
 
     expect(auth.accessToken).toBe('token-2')
     expect(auth.me).toEqual(newProfile)
+    expect(auth.identityState).toBe('resolved')
     expect(auth.tokenGeneration).toBe(2)
     expect(window.localStorage.getItem('community.session.hint')).toBe('1')
 
@@ -54,6 +56,7 @@ describe('auth store session generations', () => {
 
     auth.installSession({ accessToken: 'token-2', me: null })
     expect(auth.me).toBeNull()
+    expect(auth.identityState).toBe('unresolved')
     expect(auth.tokenGeneration).toBe(2)
   })
 
@@ -68,6 +71,7 @@ describe('auth store session generations', () => {
 
     expect(auth.accessToken).toBe('')
     expect(auth.me).toBeNull()
+    expect(auth.identityState).toBe('anonymous')
     expect(auth.tokenGeneration).toBe(2)
     expect(window.localStorage.getItem('community.session.hint')).toBeNull()
 

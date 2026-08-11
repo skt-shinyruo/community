@@ -403,7 +403,7 @@ describe('PostDetailView', () => {
     expect(addComment).toHaveBeenNthCalledWith(1, routeState.params.postId, {
       content: expect.any(String),
       parentCommentId: root.id
-    })
+    }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(root._replyParentCommentId).toBe('')
 
     wrapper.vm.startReply(root, nested)
@@ -413,7 +413,7 @@ describe('PostDetailView', () => {
     expect(addComment).toHaveBeenNthCalledWith(2, routeState.params.postId, {
       content: expect.any(String),
       parentCommentId: nested.id
-    })
+    }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(root._replyParentCommentId).toBe('')
   })
 
@@ -435,6 +435,43 @@ describe('PostDetailView', () => {
 
     expect(root._replyParentCommentId).toBe('')
     expect(addComment).not.toHaveBeenCalled()
+  })
+
+  it('reuses the reply idempotency key after comments reload for the same persisted draft', async () => {
+    const rootPayload = {
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      content: 'root content'
+    }
+    listComments.mockResolvedValue({ data: { items: [rootPayload], nextCursor: '' } })
+    const keys = []
+    addComment
+      .mockImplementationOnce((_postId, _payload, { writeAttempt }) => {
+        keys.push(writeAttempt.begin())
+        return Promise.reject(new Error('response lost'))
+      })
+      .mockImplementationOnce((_postId, _payload, { writeAttempt }) => {
+        keys.push(writeAttempt.begin())
+        return Promise.resolve({ data: { commentId: 'reply-1' }, traceId: 'trace-retry' })
+      })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    const firstRoot = wrapper.vm.comments[0]
+    wrapper.vm.startReply(firstRoot)
+    wrapper.vm.setReplyDraft(firstRoot, 'same reply draft')
+    await wrapper.vm.submitReply(firstRoot)
+
+    await wrapper.vm.reloadComments()
+    const reloadedRoot = wrapper.vm.comments[0]
+    expect(reloadedRoot).not.toBe(firstRoot)
+    wrapper.vm.startReply(reloadedRoot)
+    expect(reloadedRoot._replyDraft).toBe('same reply draft')
+    await wrapper.vm.submitReply(reloadedRoot)
+
+    expect(keys).toHaveLength(2)
+    expect(keys[1]).toBe(keys[0])
   })
 
   function replyableRootComment() {

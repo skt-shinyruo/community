@@ -1,5 +1,9 @@
 package com.nowcoder.community.oss.infrastructure.storage;
 
+import com.nowcoder.community.oss.application.port.ObjectStore;
+import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
+import com.nowcoder.community.oss.application.port.StoredObject;
 import software.amazon.awssdk.core.ResponseInputStream;
 import software.amazon.awssdk.core.sync.RequestBody;
 import software.amazon.awssdk.services.s3.S3Client;

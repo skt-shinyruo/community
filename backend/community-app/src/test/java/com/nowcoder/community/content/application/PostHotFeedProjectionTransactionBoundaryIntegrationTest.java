@@ -24,7 +24,6 @@ import java.util.UUID;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyDouble;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.mock;
@@ -93,7 +92,12 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
 
         verify(postContentRepository).updateScore(postId, 51.0, 7L);
         verify(contentEventPublisher).publishPostScoreUpdated(new PostScorePayload(postId, 7L, 3L, 51.0));
-        verify(postFeedCache).upsertGlobalHot(postId, 51.0, "hot-v2", 7L, 3L);
+        verify(postFeedCache).upsertGlobalHot(
+                new PostFeedCache.HotProjectionEntry(postId, post.getType(), 51.0, post.getCreateTime()),
+                "hot-v2",
+                7L,
+                3L
+        );
         assertOutsideTransaction();
     }
 
@@ -113,11 +117,11 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         doAnswer(ignored -> {
             assertOutsideTransaction();
             return null;
-        }).when(postFeedCache).upsertGlobalHot(any(), anyDouble(), any(), anyLong(), anyLong());
+        }).when(postFeedCache).upsertGlobalHot(any(), any(), anyLong(), anyLong());
         doAnswer(ignored -> {
             assertOutsideTransaction();
             return null;
-        }).when(postFeedCache).upsertBoardHot(any(), any(), anyDouble(), any(), anyLong(), anyLong());
+        }).when(postFeedCache).upsertBoardHot(any(), any(), any(), anyLong(), anyLong());
         doAnswer(ignored -> {
             assertOutsideTransaction();
             return null;

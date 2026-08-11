@@ -14,6 +14,7 @@ import imCoreHttp from './imCoreHttp'
 import { ensureSessionReady } from '../auth/session'
 import { useAuthStore } from '../stores/auth'
 import { setToastHandler } from '../ui/toastService'
+import { createWriteAttempt, writeAttemptConfig } from './writeAttempt'
 
 const IDEMPOTENCY_HEADER = 'Idempotency-Key'
 
@@ -86,7 +87,7 @@ describe('http', () => {
     expect(globalThis.location.href).toBe('')
   })
 
-  it('should redirect to login when refresh fails', async () => {
+  it('keeps the current session and avoids redirect when refresh is temporarily unavailable', async () => {
     const auth = useAuthStore()
     auth.setAccessToken('old-token')
 
@@ -94,7 +95,18 @@ describe('http', () => {
     mock.onGet('/api/protected').replyOnce(401)
 
     await expect(http.get('/api/protected')).rejects.toBeTruthy()
-    expect(useAuthStore().accessToken).toBe('')
+    expect(useAuthStore().accessToken).toBe('old-token')
+    expect(globalThis.location.href).toBe('')
+  })
+
+  it('clears the session and redirects only when refresh is explicitly unauthorized', async () => {
+    const auth = useAuthStore()
+    auth.setAccessToken('old-token')
+    refreshTransport.requestRefreshToken.mockRejectedValueOnce({ response: { status: 401 } })
+    mock.onGet('/api/terminal').replyOnce(401)
+
+    await expect(http.get('/api/terminal')).rejects.toMatchObject({ sessionRefreshState: 'terminal' })
+    expect(auth.accessToken).toBe('')
     expect(globalThis.location.href).toBe('/#/auth/login')
   })
 
@@ -254,17 +266,22 @@ describe('http', () => {
     ['market order', '/api/market/orders', { listingId: 1, quantity: 1 }],
     ['post', '/api/posts', { title: 'title', content: 'content' }],
     ['comment', '/api/posts/1/comments', { content: 'comment' }]
-  ])('should assign a fresh Idempotency-Key to each new %s invocation', async (_name, url, body) => {
+  ])('reuses the explicit WriteAttempt key when a %s invocation is manually retried', async (_name, url, body) => {
     mock.onPost(url).reply((config) => {
       return [200, { idem: config.headers?.[IDEMPOTENCY_HEADER] || '' }]
     })
 
-    const first = await http.post(url, body)
-    const second = await http.post(url, body)
+    const attempt = createWriteAttempt()
+    const first = await http.post(url, body, writeAttemptConfig(attempt))
+    const second = await http.post(url, body, writeAttemptConfig(attempt))
 
     expect(first.data.idem).toBeTruthy()
     expect(second.data.idem).toBeTruthy()
-    expect(second.data.idem).not.toBe(first.data.idem)
+    expect(second.data.idem).toBe(first.data.idem)
+
+    attempt.changeIntent()
+    const changed = await http.post(url, body, writeAttemptConfig(attempt))
+    expect(changed.data.idem).not.toBe(first.data.idem)
   })
 
   it('should preserve Idempotency-Key when retrying the same Axios config after a network failure', async () => {
@@ -273,7 +290,8 @@ describe('http', () => {
 
     let originalConfig
     try {
-      await http.post(url, { amount: 10 })
+      const attempt = createWriteAttempt()
+      await http.post(url, { amount: 10 }, writeAttemptConfig(attempt))
     } catch (error) {
       originalConfig = error.config
     }
@@ -304,6 +322,7 @@ describe('http', () => {
 
   it.each([
     ['unprotected POST', 'post', '/api/users/batch-summary', { userIds: ['u1'] }],
+    ['high-risk POST without an attempt', 'post', '/api/wallet/recharges', { amount: 10 }],
     ['GET', 'get', '/api/wallet/recharges', undefined],
     ['auth refresh', 'post', '/api/auth/refresh', null]
   ])('should not attach Idempotency-Key to %s requests', async (_name, method, url, data) => {
@@ -316,7 +335,7 @@ describe('http', () => {
     expect(response.data.idem).toBe('')
   })
 
-  it('should not derive Idempotency-Key from requestId fields for wallet and market writes', async () => {
+  it('uses caller-owned keys instead of deriving Idempotency-Key from requestId fields', async () => {
     mock.onPost('/api/wallet/recharges').reply((config) => {
       return [200, { idem: config.headers?.[IDEMPOTENCY_HEADER] || '' }]
     })
@@ -324,8 +343,18 @@ describe('http', () => {
       return [200, { idem: config.headers?.[IDEMPOTENCY_HEADER] || '' }]
     })
 
-    const recharge = await http.post('/api/wallet/recharges', { requestId: 'wallet:req-1', amount: 10 })
-    const order = await http.post('/api/market/orders', { requestId: 'market:req-2', listingId: 1, quantity: 1 })
+    const rechargeAttempt = createWriteAttempt()
+    const orderAttempt = createWriteAttempt()
+    const recharge = await http.post(
+      '/api/wallet/recharges',
+      { requestId: 'wallet:req-1', amount: 10 },
+      writeAttemptConfig(rechargeAttempt)
+    )
+    const order = await http.post(
+      '/api/market/orders',
+      { requestId: 'market:req-2', listingId: 1, quantity: 1 },
+      writeAttemptConfig(orderAttempt)
+    )
 
     expect(recharge.data.idem).toBeTruthy()
     expect(order.data.idem).toBeTruthy()

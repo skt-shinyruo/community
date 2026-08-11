@@ -7,11 +7,14 @@ import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.web.reactive.function.client.WebClientCustomizer;
+import org.springframework.boot.webclient.WebClientCustomizer;
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration(after = RuntimeObservabilityAutoConfiguration.class)
-@ConditionalOnClass(name = "org.springframework.web.reactive.function.client.WebClient")
+@ConditionalOnClass(name = {
+        "org.springframework.web.reactive.function.client.WebClient",
+        "org.springframework.boot.webclient.WebClientCustomizer"
+})
 public class RuntimeWebClientObservabilityAutoConfiguration {
 
     private static final String PREFIX = "community.observability.runtime-logging";

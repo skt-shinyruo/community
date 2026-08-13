@@ -13,7 +13,7 @@
 - `backend/community-oss-client`：给业务服务调用 OSS 的 typed client。
 - `backend/community-im`：IM 聚合模块，包含 `im-common`、共享 session ticket 协议模块 `im-session-ticket`、`im-core`、`im-realtime`。
 - `backend/community-common/*`：共享 Web、安全、幂等、outbox、错误协议、trace 等横切能力。
-- `deploy/`：本地 single / cluster 拓扑、三个业务 schema 的空库快照、community 前向迁移和默认启用的 observability overlay。
+- `deploy/`：本地 infra / single / cluster Stack、三个业务 schema 的空库快照、community 前向迁移和按 Stack 选择的 observability overlay。
 
 默认对外业务入口为 `community-gateway`，本地通过 NGINX / gateway 暴露在 `12880`。对外 API 前缀稳定为 `/api/**`，静态文件前缀稳定为 `/files/**`，其中 `/files/**` 由 `community-oss` 承担 canonical 对象读取；IM WebSocket 前缀稳定为 `/ws/im`；session bootstrap 由 `community-im-gateway` 负责，返回稳定的 `/ws/im`，worker 选择和内部桥接对客户端不可见。
 
@@ -217,7 +217,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `interaction`：点赞写入同步编排，先解析 user/content 目标，再进入 social owner action。
 - `content`：帖子、评论、回复、收藏、分类订阅、标签、举报和内容治理动作。
 - `social`：点赞、关注、拉黑。
-- `social` 严格互动链默认要求 `social.storage=db`；Redis-backed social storage 不是支持的 correctness runtime。
+- `social` 严格互动链固定使用数据库作为 correctness runtime。
 - `notice`：站内通知投影、列表、未读、摘要、已读。
 - `search`：帖子搜索、搜索投影、ES alias/index。
 - `analytics`：UV / DAU / 请求采集与查询。
@@ -242,8 +242,8 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `infra`：独立单节点基础设施 Stack，供宿主机后端开发。
 - `single`：独立完整单机 Stack。
 - `cluster`：独立完整多副本 / 集群演练 Stack。
-- `--scope infra`：保留给部署契约和兼容调用；日常开发使用 `--stack infra`。
-- `--no-observability`：关闭 observability overlay。
+- `infra` 只通过 `--stack infra` 选择，不存在独立的 topology/scope 兼容入口。
+- `single` 默认关闭、`cluster` 默认开启 observability；`--observability` / `--no-observability` 提供显式覆盖，infra 不支持开启完整 overlay。
 
 MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deploy/database/business/current-state/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。`community` 已有数据通过 app 启动前的独立 one-shot 向前升级，runtime 账号只保留 DML 权限，不在应用启动代码中建表。详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
 

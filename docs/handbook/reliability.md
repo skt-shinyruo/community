@@ -576,7 +576,7 @@ Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调
 - 通知投影失败：不回滚已提交的 owner 事务，交给 owner Kafka consumer retry / `.dlq`，不是本地 best-effort listener。
 - 帖子详情缓存读 / 写失败：fail-open 到 content 源数据，响应仍叠加 counter 和 viewer state。
 - 热榜 fallback 读路径的 feed cache warm-up / summary cache backfill 失败：fail-open，返回源数据 fallback 结果和 rank version。
-- analytics 采集失败：filter 只在请求链正常完成后采集，并捕获 classifier、publish 或同步 ingest 异常；失败只节流记录日志，不改变已经完成的 HTTP status/body。
+- analytics 采集失败：filter 只在请求链正常完成后采集，并捕获 classifier 或 Kafka publish 异常；失败只节流记录日志，不改变已经完成的 HTTP status/body。
 - 市场钱包 release / refund 失败：优先保留 pending / retryable 状态，不把订单静默完成。
 - 市场钱包 escrow 业务失败：订单进入失败或无退款取消路径，并恢复 market 侧库存 / 预加载库存。
 

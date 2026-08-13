@@ -46,7 +46,6 @@
 | --- | --- |
 | `auth.infrastructure.jwt.JwtTokenService` | RS256 access token 签发、JOSE type/audience 和 claims 组装。 |
 | `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | DB refresh session、rotation、family 撤销和清理。 |
-| `auth.infrastructure.persistence.RedisRefreshTokenRepository` | 可选 Redis refresh session 实现。 |
 | `auth.infrastructure.web.AuthOriginGuardFilter` | unsafe HTTP method 的 OriginGuard。 |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | 定时清理过期 refresh session。 |
 

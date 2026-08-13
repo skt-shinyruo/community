@@ -98,12 +98,11 @@ Analytics 请求采集使用独立技术 topic `analytics.request`，不属于 o
 ```text
 AnalyticsRequestCaptureFilter
   -> AnalyticsRequestCaptureApplicationService
-      -> async: AnalyticsRequestEventPublisher -> analytics.request
+      -> AnalyticsRequestEventPublisher -> analytics.request
           -> AnalyticsRequestKafkaListener -> AnalyticsIngestApplicationService
-      -> sync fallback: AnalyticsIngestApplicationService
 ```
 
-filter 先让业务 filter chain 完成，再在 `finally` 中采集；采集异常由 filter 捕获并限频记录，不能改写已经产生的 HTTP 响应。只有 `analytics.ingest.enabled=true` 且 `async-enabled=true` 时才创建 publisher/listener；否则 application 走同步 ingest fallback。
+filter 先让业务 filter chain 完成，再在 `finally` 中采集；采集异常由 filter 捕获并限频记录，不能改写已经产生的 HTTP 响应。采集只有 Kafka 一条写入路径；`analytics.ingest.enabled=false` 让 classifier 停止发布新事件，常驻 listener 仍可排空已有消息。
 
 ## 重试和 DLQ
 

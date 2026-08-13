@@ -348,10 +348,7 @@ owner-domain async contracts：
 
 ## Elasticsearch
 
-搜索存储：
-
-- `search.storage=es`：Elasticsearch 实现。
-- 运行时不提供内存搜索实现；本地测试和开发也使用共享持久化依赖或显式 mock。
+搜索固定使用 Elasticsearch；运行时不提供内存搜索实现，本地测试和开发也使用共享持久化依赖或显式 mock。
 
 索引约定：
 

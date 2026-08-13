@@ -46,8 +46,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 - 前端开启 `withCredentials: true`，由浏览器自动携带 cookie。
 - 当非 `/api/auth/**` 业务请求返回 `401`，前端调用 `/api/auth/refresh` 获取新 access token 后重试原请求；auth 自身入口的 `401` 不触发 refresh 重试，避免循环和误刷新。
 - refresh token 和 registration token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成并使用 base64url 无填充编码；password reset token 从随机 delivery ID 和独立 HMAC 密钥确定性派生，outbox 无需保存 bearer token。
-- refresh token store 支持 `redis` / `db`，当前默认 `db`；不提供进程内存实现。
-- DB store 使用 `community.auth_refresh_token`，仅保存 token hash。
+- refresh session 固定使用数据库持久化，不提供 Redis 或进程内存实现；`community.auth_refresh_token` 仅保存 token hash。
 - refresh 支持 recoverable rotation：刷新时先把旧 session 转入 `PENDING_ROTATION`，再回源校验用户仍允许 refresh，成功后 finish rotation 使旧 session 变为 `CONSUMED` tombstone、同 family replacement 变为 `ACTIVE`；临时失败会 rollback，无法安全恢复或用户不存在、账号被禁用、`refreshAllowed=false` 时撤销 family。session 保存 `securityVersionAtIssue`；与 user 当前版本不一致时 auth 拒绝续期并撤销 family。refresh 失败响应不写 `Set-Cookie`，只有显式 logout 清 cookie。
 - token family 支持族撤销，复用旧 token 可触发 family revoke。
 
@@ -63,7 +62,7 @@ JWT 签发仍由 `community-app` 的 auth 模块负责。
 
 - 请求重置必须通过验证码；验证码通过后在查询 user owner 前，按客户端 IP 和规范化邮箱分别做请求限流。
 - IP / 邮箱 Redis key 只包含使用独立 `AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET` 计算的 HMAC 标识，不存储原始标识符；该密钥不得回退或复用 `JWT_SERVICE_HMAC_SECRET`，生产值至少 32 字节。
-- 生产 refresh session 必须使用数据库 store；启动校验拒绝 `auth.refresh.store=redis`，避免单 Redis Cluster slot 热点和不兼容的 session key 滚动切换。
+- refresh session 只有数据库实现，避免形成没有生产用途的可切换存储协议和单 Redis Cluster slot 热点。
 - 邮箱不存在、未激活或状态不可用时也消耗相同 quota，并写 dummy reset token 与空收件地址 outbox；worker 不调用 SMTP，HTTP 返回相同受理结果，避免通过响应和内部处理时序差异枚举账号。
 - reset link 只通过邮件下发，HTTP 响应体不返回链接或 token。
 - token 是从随机 delivery ID 与独立 HMAC 密钥派生的 256-bit base64url 值；Redis key 只包含 SHA-256 token ID，记录绑定签发时 `securityVersion` 和 generation。邮件 outbox payload 不包含 bearer token，只携带不可逆 derivation key ID；轮换期间 worker 可从受控旧密钥 keyring 派生原链接，成功后 outbox 原子清空 payload。

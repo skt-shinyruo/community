@@ -8,7 +8,7 @@
 
 1. Notice：content / social owner event 经 `content.events` / `social.events` 到 `NoticeProjectionKafkaListener`，再由 `NoticeProjectionApplicationService` 计算收件人、topic 和内容快照。读取列表、未读数和摘要时只读 notice 自己的读模型。
 2. Search：content owner event 经 `content.events` 到 `SearchPostProjectionKafkaListener`，listener 进入 `SearchPostProjectionApplicationService` 回源 content 当前状态后决定 ES upsert 还是 delete。重建索引使用 single-flight 和 alias 原子切换。
-3. Analytics：请求链成功完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU；`AnalyticsRequestCaptureApplicationService` 按开关选择 Kafka 或同步 ingest，登录成功也可通过 action API 计入 DAU。
+3. Analytics：请求链成功完成后由 `AnalyticsRequestCaptureFilter` 采集，classifier 决定是否记录 UV / DAU；`AnalyticsRequestCaptureApplicationService` 固定发布到 Kafka，登录成功也可通过 action API 计入 DAU。
 4. Ops：`ProjectionOpsController` 只进入同域纯读 `ProjectionLagQuery`，通过 application-owned query 汇总 projection outbox backlog，不直接修改 owner 数据。
 
 ## Notice 通知
@@ -47,10 +47,9 @@ HTTP：
 `NoticeProjectionApplicationService`：
 
 1. `NoticeProjectionKafkaListener` 从 `content.events` / `social.events` 接收 contract event。
-2. 根据事件类型解析收件人、topic 和 content JSON。
-3. `NoticeProjectionDomainService.shouldProject(...)` 判断是否应投影。
-4. 先按 source event ID 去重，再写 notice。
-5. 点赞通知额外按稳定 `relationKey` 持久化投影状态。social owner 在关系写入与 outbox 的同一事务内从 `social_like_relation_version` 分配单调版本，notice 只按该版本拒绝乱序事件。`relationInstanceId` 作为不透明生命周期身份随 payload 保留，不比较 UUID 版本或数值，因此历史 UUIDv1 回填也可正常撤销。新持久化版本使用高位协议区间，必然高于旧事件的 epoch-millisecond 版本。
+2. 根据事件类型解析并校验收件人、topic 和 content JSON。
+3. 有效投影先按 source event ID 去重，再写 notice；缺少收件人、topic 或 content 的事件不会占用幂等身份。
+4. 点赞通知额外按稳定 `relationKey` 持久化投影状态。social owner 在关系写入与 outbox 的同一事务内从 `social_like_relation_version` 分配单调版本，notice 只按该版本拒绝乱序事件。`relationInstanceId` 作为不透明生命周期身份随 payload 保留，不比较 UUID 版本或数值，因此历史 UUIDv1 回填也可正常撤销。新持久化版本使用高位协议区间，必然高于旧事件的 epoch-millisecond 版本。
 
 语义：
 
@@ -75,7 +74,7 @@ HTTP：
 后台：
 
 - `content.events -> SearchPostProjectionKafkaListener -> SearchPostProjectionApplicationService`。
-- XXL-JOB `searchReindex -> SearchReindexHandler -> SearchReindexApplicationService`，仅在 `search.storage=es` 时装配。
+- XXL-JOB `searchReindex -> SearchReindexHandler -> SearchReindexApplicationService`；搜索运行时固定使用 Elasticsearch。
 
 ### 查询流程
 
@@ -159,9 +158,9 @@ HTTP：
 采集编排：
 
 1. filter 只在下游 filter chain 正常完成后调用采集；请求本身抛出异常时不追加统计动作。
-2. `AnalyticsRequestCaptureApplicationService.capture(...)` 在 `analytics.ingest.async-enabled=true` 且 `AnalyticsRequestCapturePort` 可用时发布到默认 topic `analytics.request`；publisher 不可用或 async 关闭时同步调用 ingest。
-3. `AnalyticsRequestKafkaListener` 只在 `analytics.ingest.enabled=true` 且 async 开启时注册，默认 group `analytics-request`、concurrency `2`；收到 `null` 直接忽略，其余 payload 映射回 `RecordRequestCommand`。
-4. async publish、同步 ingest 或 classifier 的运行时异常都由 filter 捕获并节流记录；它们不能改写已经完成的 HTTP status/body，也不会重新抛给客户端。
+2. `AnalyticsRequestCaptureApplicationService.capture(...)` 通过必需的 `AnalyticsRequestCapturePort` 发布到默认 topic `analytics.request`，请求线程不直接写 Redis。
+3. `AnalyticsRequestKafkaListener` 常驻消费该 topic，默认 group `analytics-request`、concurrency `2`；收到 `null` 直接忽略，其余 payload 映射回 `RecordRequestCommand`。`analytics.ingest.enabled=false` 只让 classifier 停止发布新事件，不阻止已有消息排空。
+4. publish 或 classifier 的运行时异常都由 filter 捕获并节流记录；它们不能改写已经完成的 HTTP status/body，也不会重新抛给客户端。
 
 查询：
 
@@ -192,7 +191,6 @@ Notice：
 - `notice.application.NoticeApplicationService`
 - `notice.application.NoticeProjectionApplicationService`
 - `notice.domain.service.NoticeDomainService`
-- `notice.domain.service.NoticeProjectionDomainService`
 - `notice.infrastructure.event.NoticeProjectionKafkaListener`
 
 Search：

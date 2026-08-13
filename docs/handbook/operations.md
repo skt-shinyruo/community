@@ -15,11 +15,11 @@ deploy/compose/overlays/observability.yml
 启动：
 
 ```bash
-./deploy/deployment.sh up --stack single
+./deploy/deployment.sh up --stack single --observability
 ./deploy/deployment.sh up --stack cluster
 ```
 
-observability 默认启用；如需关闭整个 overlay，追加 `--no-observability`。
+single 默认关闭 observability，需用 `--observability` 开启；cluster 默认开启，可用 `--no-observability` 关闭。infra 不支持完整 overlay。
 
 默认端口：
 
@@ -40,9 +40,9 @@ backend structured logs (JSON stdout / OTLP logs)
 traces / metrics：
 
 - 继续通过 OTLP -> EDOT collector -> Elastic。
-- 普通启动默认加载 observability overlay，并由 `deployment.sh` 设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
-- 如需关闭整个 overlay，使用 `./deploy/deployment.sh up --stack single --no-observability`。
-- 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --stack single`。
+- 启用 observability overlay 时，`deployment.sh` 默认设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
+- single 使用 `./deploy/deployment.sh up --stack single --observability`；cluster 普通启动即启用。
+- 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --stack single --observability`。
 
 Kibana saved objects：
 
@@ -368,7 +368,7 @@ Runtime toggles for the high-traffic content platform:
 - `CONTENT_FEED_LATEST_FALLBACK_ENABLED=true` keeps global and board feeds available when hot ranking lags.
 - `SEARCH_PROJECTION_ENABLED=false` stops search projection writes without blocking owner writes.
 - `NOTICE_PROJECTION_ENABLED=false` pauses in-app projection while content and social writes continue.
-- `ANALYTICS_INGEST_ASYNC_ENABLED=true` keeps request latency off the analytics path and allows independent throttling.
+- Analytics request capture always publishes to Kafka, keeping Redis writes off the request path and allowing independent consumer throttling.
 
 Dual-region failover order:
 
@@ -534,12 +534,12 @@ http://localhost:12887/xxl-job-admin
 1. 备份 `community`，确认可恢复；涉及数据清理或与旧写路径互斥时，先停止 `community-app` 和 Mock Data Studio 写入。V016 执行前必须停止并排空所有旧 refresh rotation writer，禁止旧二进制跨迁移恢复并改写带 lease 的 pending session。V022 必须在旧版收藏 writer 全部停止并排空后执行，直到全部实例切换到事务内 durable marker 版本前不得恢复收藏写入。
 2. 为本次发布准备独立强口令 `COMMUNITY_MIGRATION_PASSWORD`，确认迁移用户名与 `MYSQL_USER` 不同。不要把这两个迁移变量注入 runtime service。
 3. 修改当前态快照最终定义，同时追加新的、不可变的 `VNNN__description.sql`；同步 H2 fixture 和 schema / migration 契约。
-4. 执行 `./deploy/deployment.sh up --topology <single|cluster>`。账号 bootstrap 先收敛权限；cluster 再建立 GTID 复制；随后 one-shot 执行迁移。`community-app` 只会在迁移退出码为 0 后启动。
+4. 执行 `./deploy/deployment.sh up --stack <single|cluster>`。账号 bootstrap 先收敛权限；cluster 再建立 GTID 复制；随后 one-shot 执行迁移。`community-app` 只会在迁移退出码为 0 后启动。
 5. 检查 `community-db-migrations` 日志和 `community_forward_schema_history` 的 version、script、SHA-256、installed_by。cluster 还要确认 replica 已追上迁移 GTID，再恢复业务写入。
 
 迁移只向前，不提供 down migration。发布失败时保持 runtime 停止，修复尚未成功登记的迁移，使其仍可从任一部分完成状态重跑；不要手工插入 history，不要修改已登记文件，也不要把 DDL 权限临时授给 application 账号。需要回退应用镜像时，必须先确认旧版本与已前向升级的 schema 兼容。
 
-`reset-mysql` 仍是可丢弃环境的破坏性 clean break，只支持 `--scope full`，并永久删除目标拓扑 MySQL 数据。保留数据的环境不得使用。
+`reset-mysql` 仍是可丢弃环境的破坏性 clean break，并永久删除目标 Stack 的 MySQL 数据。保留数据的环境不得使用。
 
 ### Development Seed
 
@@ -724,7 +724,7 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 
 检查：
 
-- 启动命令是否没有带 `--no-observability`。
+- single 启动命令是否带了 `--observability`，或 cluster 是否没有带 `--no-observability`。
 - backend 是否在 `docker compose logs <service>` 中输出 JSON stdout（包含 `service.name`、`trace.id` 等字段）。
 - EDOT collector 是否正常运行，并挂载了 `/var/lib/docker/containers`。
 - Kibana saved objects 是否已导入。

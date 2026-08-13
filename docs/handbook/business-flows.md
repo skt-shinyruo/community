@@ -493,10 +493,9 @@ Projection path：
 
 1. 上游 content / social / moderation 发布 contract event。
 2. `NoticeProjectionKafkaListener` 消费 `content.events` / `social.events`。
-3. `NoticeProjectionApplicationService` 判断事件类型、收件人、topic 和 content 快照。
-4. `NoticeProjectionDomainService` 判断是否应该投影。
-5. 先按 `sourceEventId` 记录投影去重，再写 notice 记录。
-6. like create/remove 在 social owner 事务内为稳定 `relationKey` 分配持久化单调 `relationVersion`，并在 notice 事务内推进对应状态；`relationInstanceId` 只是不透明的生命周期身份，不参与排序。
+3. `NoticeProjectionApplicationService` 判断事件类型，计算并校验收件人、topic 和 content 快照。
+4. 有效投影先按 `sourceEventId` 记录投影去重，再写 notice 记录；缺少收件人、topic 或 content 的事件不会占用幂等身份。
+5. like create/remove 在 social owner 事务内为稳定 `relationKey` 分配持久化单调 `relationVersion`，并在 notice 事务内推进对应状态；`relationInstanceId` 只是不透明的生命周期身份，不参与排序。
 
 Topics / content：
 
@@ -516,7 +515,6 @@ Key code：
 - `notice.controller.NoticeController`
 - `notice.application.NoticeApplicationService`
 - `notice.application.NoticeProjectionApplicationService`
-- `notice.domain.service.NoticeProjectionDomainService`
 - `notice.infrastructure.event.NoticeProjectionKafkaListener`
 
 ## IM Private Message
@@ -693,7 +691,7 @@ Ingest path：
 1. `AnalyticsRequestCaptureFilter` 在请求链路完成后执行采集判断。
 2. `AnalyticsRequestClassifier` 根据开关、method、path、status、include / exclude path 决定是否采集。
 3. filter 从 `ClientIpResolver` 解析 IP，从当前 `Authentication` 解析用户 UUID。
-4. filter 进入 `AnalyticsRequestCaptureApplicationService`；async 开启且 publisher 存在时发布 `analytics.request`，否则同步调用 ingest。
+4. filter 进入 `AnalyticsRequestCaptureApplicationService`，通过必需的 capture port 发布 `analytics.request`。
 5. `AnalyticsRequestKafkaListener` 把异步事件转换回 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService.recordRequest(...)` 记录 UV / DAU。
 6. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
 

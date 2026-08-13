@@ -38,8 +38,7 @@
 | `auth.infrastructure.web.AuthOriginGuardFilter` | `community-app` unsafe HTTP method OriginGuard | [安全模型](security.md#cors-和-originguard) | Covered |
 | `auth.infrastructure.web.TokenFreshnessFilter` | `/api/**` 中带 access JWT 请求的 token freshness enforcement | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | refresh session 清理 job | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | 默认 DB refresh session 与 `securityVersionAtIssue` adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
-| `auth.infrastructure.persistence.RedisRefreshTokenRepository` | 可选 Redis refresh session adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
+| `auth.infrastructure.persistence.MyBatisRefreshTokenRepository` | DB refresh session 与 `securityVersionAtIssue` adapter | [登录与会话链路](auth-login-session-flow.md) | Covered |
 
 ## User
 
@@ -194,9 +193,8 @@
 | --- | --- | --- | --- |
 | `notice.controller.NoticeController` | notice HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `notice.application.NoticeApplicationService` | 通知写入、列表、未读数、批量已读 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 到通知读模型 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 的有效性校验、去重和通知读模型投影 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.domain.service.NoticeDomainService` | 通知分页、状态和创建校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `notice.domain.service.NoticeProjectionDomainService` | 通知投影规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `notice.infrastructure.event.NoticeProjectionKafkaListener` | content / social Kafka event 到通知可靠投影 listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 
 ## Search
@@ -219,7 +217,7 @@
 | `analytics.controller.AnalyticsController` | analytics HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入，失败节流日志 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `analytics.application.AnalyticsRequestCaptureApplicationService` | async publish 与同步 ingest 的采集边界选择 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
+| `analytics.application.AnalyticsRequestCaptureApplicationService` | Kafka analytics 采集发布边界 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
 | `analytics.domain.service.AnalyticsDomainService` | UV / DAU 查询区间规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.domain.service.AnalyticsIngestDomainService` | UV / DAU 是否记录规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 analytics 采集过滤器 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |

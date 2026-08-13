@@ -50,7 +50,7 @@ HTTP 入口位于 `AuthController`：
 3. refresh / logout：浏览器只把 refresh token 放在 HttpOnly cookie 中。refresh 时 auth 用随机 fencing lease 把旧 session 转入 `PENDING_ROTATION`，再回源 user 校验用户仍允许登录和 refresh，并读取当前 `securityVersion`；校验通过后才生成 replacement token，并用同一 lease finish rotation，把旧 session 标为 `CONSUMED`、新 session 标为 `ACTIVE`。失败时只有 lease owner 能 rollback；若无法安全恢复则撤销 family。logout 可从 active、pending 或 terminal tombstone 识别 family，family marker 会阻止并发 replacement 落地。
 4. 密码重置：auth 校验规范化邮箱、captcha、IP/邮箱请求限流和 reset token。token 以 SHA-256 ID 存储，确认使用 generation + fencing lease；user owner 校验新密码策略并按签发 `securityVersion` 做 CAS 改密。成功或 stale CAS 都撤销旧 generation，后签发的新 generation 不受旧请求清理影响。旧 refresh token 下次续期时因安全版本不匹配而被拒绝。
 
-auth 不直接写 user 表；refresh session 则通过 auth 自己的 `RefreshTokenRepository` 进入 MyBatis 或 Redis infrastructure。
+auth 不直接写 user 表；refresh session 通过 auth 自己的 `RefreshTokenRepository` 进入 MyBatis infrastructure。
 
 ## 注册流程
 
@@ -202,7 +202,6 @@ logout：
 - `auth.infrastructure.jwt.JwtTokenService`
 - `auth.domain.repository.RefreshTokenRepository`
 - `auth.infrastructure.persistence.MyBatisRefreshTokenRepository`
-- `auth.infrastructure.persistence.RedisRefreshTokenRepository`
 - `auth.infrastructure.web.TokenFreshnessFilter`
 - `auth.infrastructure.job.RefreshTokenCleanupJob`
 - `user.application.UserCredentialApplicationService`

@@ -14,9 +14,8 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `notice.application.NoticeApplicationService` | 通知写入、列表、未读数和批量已读。 |
-| `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 到通知读模型。 |
+| `notice.application.NoticeProjectionApplicationService` | content / social / moderation event 的有效性校验、去重和通知读模型投影。 |
 | `notice.domain.service.NoticeDomainService` | 通知分页、状态和创建校验。 |
-| `notice.domain.service.NoticeProjectionDomainService` | 通知投影规则。 |
 | `notice.infrastructure.event.NoticeProjectionKafkaListener` | 从 owner Kafka contract event 进入 notice application。 |
 | `notice.infrastructure.persistence.MyBatisNoticeRepository` | notice 读模型持久化。 |
 
@@ -37,7 +36,7 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验。 |
-| `analytics.application.AnalyticsRequestCaptureApplicationService` | async publisher 可用时发布，否则同步 ingest。 |
+| `analytics.application.AnalyticsRequestCaptureApplicationService` | 通过必需的 capture port 发布 analytics 请求事件。 |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入。 |
 | `analytics.domain.service.AnalyticsDomainService` | UV / DAU 查询区间规则。 |
 | `analytics.domain.service.AnalyticsIngestDomainService` | UV / DAU 是否记录规则。 |

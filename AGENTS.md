@@ -165,7 +165,8 @@ Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are mi
 - Use `./deploy/deployment.sh` as the supported Compose entry point. Do not document or automate a partial direct
   `docker compose` invocation unless the deploy tooling itself requires it.
 - `single` is the normal development topology; `cluster` is for multi-instance and cluster-path validation.
-  Observability is enabled by default and is disabled with `--no-observability`.
+  Observability defaults off for `infra` / `single` and on for `cluster`; use `--observability` to enable it for
+  `single`, while `--no-observability` explicitly disables it for supported stacks.
 - Never commit real secrets or local `deploy/.env*` files. Nacos config seeds contain non-secret configuration only;
   credentials and signing keys stay in env files or a secret manager.
 - The fixed business schemas are `community`, `community_oss`, and `im_core`. Empty-volume current state lives in
@@ -247,3 +248,17 @@ After changing backend architecture rules or package boundaries, run:
 cd backend
 mvn test -pl :community-app -Dtest='*ArchTest'
 ```
+
+## Agent skills
+
+### Issue tracker
+
+Issues are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Triage labels
+
+The default five-role triage vocabulary is used. See `docs/agents/triage-labels.md`.
+
+### Domain docs
+
+Domain documentation uses the single-context layout. See `docs/agents/domain.md`.

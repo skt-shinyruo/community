@@ -53,7 +53,8 @@
 | `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL 自动确认 job。 |
 | `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL wallet action processor job。 |
 | `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL recovery job。 |
-| `market.infrastructure.persistence.*` | listing、inventory、order、dispute、delivery、shipment、wallet action 的持久化。 |
+| `market.infrastructure.persistence.MyBatisMarketListingRepository` | listing repository adapter；无独立转换语义，mapper 直接映射 `MarketListing`。 |
+| `market.infrastructure.persistence.*` | inventory、order、dispute、delivery、shipment、wallet action 的持久化；有转换职责的 row 类型继续留在 persistence seam。 |
 
 ## 关键语义
 

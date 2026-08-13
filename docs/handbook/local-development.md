@@ -7,7 +7,7 @@
 统一使用：
 
 ```bash
-./deploy/deployment.sh <command> --stack infra|single|cluster [--no-observability]
+./deploy/deployment.sh <command> --stack infra|single|cluster [--observability|--no-observability]
 ```
 
 常用命令：
@@ -25,12 +25,11 @@
 默认值：
 
 - `infra`：单节点基础设施，供宿主机后端使用；默认不加载 observability
-- `single`：完整单节点 Docker Stack；默认加载 observability
+- `single`：完整单节点 Docker Stack；默认不加载 observability，可用 `--observability` 开启
 - `cluster`：完整多节点 Docker Stack；默认加载 observability
 - project name：`community-infra`、`community-single`、`community-cluster`
 
-旧的 `--topology`、`--scope` 和 `--host-access` 参数保留给部署契约及兼容调用。日常开发只使用
-`--stack`，避免组合参数产生不明确的运行方式。
+部署 CLI 只接受 `--stack` 选择正式 Stack，不再维护 topology、scope 或 host-access 的兼容参数。
 
 ## 环境文件
 
@@ -211,23 +210,24 @@ cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
 
 ## Observability Overlay
 
-single / cluster 默认都会启用 observability：
+single 默认关闭 observability，显式开启时使用：
 
 ```bash
-./deploy/deployment.sh up --stack single
-./deploy/deployment.sh up --stack cluster
+./deploy/deployment.sh up --stack single --observability
 ```
 
-需要关闭整个 observability overlay 时使用：
+cluster 默认开启；需要显式关闭时使用：
 
 ```bash
-./deploy/deployment.sh up --stack single --no-observability
+./deploy/deployment.sh up --stack cluster --no-observability
 ```
+
+infra 不支持完整 observability overlay，传入 `--observability` 会快速失败。`--no-observability` 可用于显式确认关闭状态。
 
 如需保留观测 overlay 但临时关闭 tracing，在命令前显式设置：
 
 ```bash
-OTEL_ENABLED=false ./deploy/deployment.sh up --stack single
+OTEL_ENABLED=false ./deploy/deployment.sh up --stack single --observability
 ```
 
 该 overlay 提供：
@@ -335,7 +335,7 @@ schema 校验与 Compose 契约：
 - `deploy/compose/runtime/services/single.yml` / `deploy/compose/runtime/services/cluster.yml`：业务 runtime。
 - `deploy/compose/runtime/edge/single.yml` / `deploy/compose/runtime/edge/cluster.yml`：前端与入口。
 - `deploy/compose/runtime/mock-data-studio/single.yml` / `deploy/compose/runtime/mock-data-studio/cluster.yml`：Mock Data Studio wiring。
-- `deploy/compose/overlays/observability.yml`：默认启用的观测层。
+- `deploy/compose/overlays/observability.yml`：由 Stack 默认值或显式 CLI 参数选择的观测层。
 
 ## 停止与重置
 
@@ -356,7 +356,7 @@ schema 校验与 Compose 契约：
 ```
 
 `reset-mysql` 会先停止目标 Stack，然后删除 infra / single 的 primary volume，或 cluster 的 primary 和两个
-replica volumes。旧兼容入口仍只接受 `--scope full`。此操作会永久删除目标 Stack 中的 MySQL 数据。
+replica volumes。此操作会永久删除目标 Stack 中的 MySQL 数据。
 
 删除该拓扑的所有数据卷：
 
@@ -366,7 +366,7 @@ replica volumes。旧兼容入口仍只接受 `--scope full`。此操作会永�
 ./deploy/deployment.sh down --stack cluster -- -v
 ```
 
-如果启动时带了 `--no-observability`，停止时也带上同一组选项。
+如果启动时显式带了 `--observability` 或 `--no-observability`，停止时也带上同一组选项。
 `-v` 是透传给 `docker compose down` 的参数，要放在 `--` 后面。
 默认 project name 为 `community-infra` / `community-single` / `community-cluster`，默认 volume namespace 为
 `community_infra` / `community_single` / `community_cluster`。

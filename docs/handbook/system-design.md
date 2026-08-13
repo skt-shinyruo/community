@@ -140,9 +140,9 @@ owner 跨域事件统一先走 owner outbox 到 Kafka；consumer 从 Kafka liste
 | wallet reward | `content.events` / `social.events` -> `WalletRewardKafkaListener` -> wallet application | wallet 以 `wallet-reward:<sourceId>` 幂等落账 |
 | hot feed | owner Kafka -> listener | 根据 owner event 更新热流状态 |
 | market fund action | `market_wallet_action` saga command -> wallet owner API | 市场事务先提交资金命令，后台 processor 调钱包并推进订单/争议状态 |
-| analytics | filter -> capture application -> `analytics.request` 或同步 ingest -> Redis | 由配置选择交付路径；采集失败只记录日志，不改变已完成的业务响应 |
+| analytics | filter -> capture application -> `analytics.request` -> listener -> Redis | 固定通过 Kafka 异步交付；采集失败只记录日志，不改变已完成的业务响应 |
 
-social 严格互动链当前只支持 `social.storage=db`；其 contract event 固定通过 `eventbus.social -> social.events` 发布，Redis-backed social storage 不在支持矩阵内。
+social 严格互动链固定使用数据库；其 contract event 固定通过 `eventbus.social -> social.events` 发布。
 
 hot-feed guard 让新 Post event 与携带 `postAggregateVersion` 的 comment event 共享 `post` lane，从而按同一个 Post 单调时钟判旧；legacy Post、缺少该字段的 legacy comment 和 social 信号只按 event ID 去重，不把 epoch timestamp 当作水位。所有普通事件都在每帖锁内回源当前 Post/like 事实重算，因此跨 topic 到达顺序和节点时钟回拨不会改变最终 score。`PostDeleted` 另外建立有界 tombstone，普通投影在保护窗口内不能把已删除内容写回；Redis feed 以 `(aggregateVersion, scoreVersion)` 字典序拒绝旧预热快照覆盖新排名。
 

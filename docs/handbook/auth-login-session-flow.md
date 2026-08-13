@@ -9,7 +9,7 @@
 | 凭证 | 载体 | 服务端状态 | 用途 |
 | --- | --- | --- | --- |
 | access token | `LoginResponse.accessToken`，由前端放入 `Authorization: Bearer ...` | 不保存在线 session；resource service 用 RSA 公钥校验 `RS256`、issuer、audience 和 JOSE type | 访问 `/api/**` 受保护接口 |
-| refresh token | `refresh_token` HttpOnly cookie | 默认 DB store 保存 SHA-256 hash、family 状态和签发安全版本 | access token 过期后续期；logout 主动撤销，凭据/授权变化后续期时失效 |
+| refresh token | `refresh_token` HttpOnly cookie | DB store 保存 SHA-256 hash、family 状态和签发安全版本 | access token 过期后续期；logout 主动撤销，凭据/授权变化后续期时失效 |
 
 默认运行路径是：
 
@@ -47,9 +47,9 @@ access token 是短期 JWT，由 `JwtTokenService.createAccessToken(...)` 签发
 | `authorities` | 当前用户权限 / 角色列表 |
 | `security_version` | user owner 当前认证授权版本；带 JWT 的 `/api/**` 请求都会执行 freshness 校验 |
 
-refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`username` 或权限。它是 opaque token：`AuthSecretGenerator.opaqueToken()` 生成 32 字节 `SecureRandom` 随机数，再使用 base64url 无填充编码，通常约 43 个字符。服务端把明文 refresh token 写入 `refresh_token` HttpOnly cookie；默认 DB store 只保存该明文的 SHA-256 hex hash。
+refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`username` 或权限。它是 opaque token：`AuthSecretGenerator.opaqueToken()` 生成 32 字节 `SecureRandom` 随机数，再使用 base64url 无填充编码，通常约 43 个字符。服务端把明文 refresh token 写入 `refresh_token` HttpOnly cookie；DB store 只保存该明文的 SHA-256 hex hash。
 
-默认 DB refresh session 记录的是 refresh token 的服务端状态，而不是 token 本身的内容：
+数据库 refresh session 记录的是 refresh token 的服务端状态，而不是 token 本身的内容：
 
 | 字段 | 说明 |
 | --- | --- |
@@ -105,7 +105,7 @@ refresh token 不是 JWT，没有可解析 payload，也不包含 `userId`、`us
 - refresh token 明文只存在于 cookie、当前请求 / 响应和 hash 计算过程。
 - refresh token 和 registration token 明文由 auth application 使用统一的 256-bit `SecureRandom` 生成器生成，并使用 base64url 无填充编码；password reset token 则由随机 delivery ID 和独立 HMAC 密钥确定性派生，便于 outbox worker 在不持久化 bearer token 的前提下重建同一链接。
 - 注册邮箱验证码由同一安全随机生成器生成 6 位数字码。
-- 默认 DB store 只保存 refresh token 的 SHA-256 hex hash。
+- DB store 只保存 refresh token 的 SHA-256 hex hash。
 - 安全日志记录用户名、用户 ID、IP、IP 来源和失败原因，不记录密码或 refresh token 明文。
 
 ## 登录流程
@@ -267,7 +267,7 @@ reset token 是从随机 delivery ID 与独立密钥确定性派生的 256-bit b
 
 ## Refresh Session 存储
 
-默认配置是 `auth.refresh.store: db`。refresh session 的领域接口、应用编排和基础设施实现都属于 auth：
+refresh session 固定使用数据库持久化；其领域接口、应用编排和基础设施实现都属于 auth：
 
 ```text
 RefreshTokenApplicationService
@@ -305,15 +305,6 @@ DB store 行为：
 ![Refresh session database state machine](assets/auth-refresh-session-state.svg)
 
 `RefreshTokenCleanupJob` 每 `auth.refresh.cleanup.interval-ms` 执行一次；`auth.refresh.cleanup.enabled=false` 时跳过。该 job 只清理过期 refresh session 及其 family 辅助行，不影响 access token。
-
-可选 Redis store 由 `RedisRefreshTokenRepository` 提供，只有 `auth.refresh.store=redis` 时启用。它只保留给非生产兼容测试：所有 key 为满足多 key Lua 而集中在 `{auth-refresh}` slot，且历史 key 协议没有滚动双读能力。`prod` / `production` 启动校验强制 `auth.refresh.store=db`；切换 Redis 协议或实现时必须使测试环境的既有 session 失效，不能做新旧 writer 混跑。核心 key：
-
-| Key | 内容 |
-| --- | --- |
-| `auth:refresh:{auth-refresh}:token:<sha256>` | active 或 pending refresh token record，包含状态、截止时间和 rotation lease；key 不含 bearer token 明文 |
-| `auth:refresh:{auth-refresh}:revoked:<sha256>` | `CONSUMED` / `REVOKED` tombstone，用于复用检测和 logout family 识别 |
-| `auth:refresh:{auth-refresh}:family:<familyId>` | family 下 active token ID set |
-| `auth:refresh:{auth-refresh}:family-revoked:<familyId>` | authoritative family 撤销 marker，阻止新 token 写入；token record 按自身 TTL 清理 |
 
 ## 登录风控和验证码
 
@@ -421,7 +412,6 @@ auth:
 | `CaptchaApplicationService` | 验证码签发和校验 | [CaptchaApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/CaptchaApplicationService.java) |
 | `RefreshTokenApplicationService` | refresh token 签发、旋转、撤销和 cleanup 编排 | [RefreshTokenApplicationService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/application/RefreshTokenApplicationService.java) |
 | `MyBatisRefreshTokenRepository` | DB-backed refresh session、rotation 和 family adapter | [MyBatisRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/MyBatisRefreshTokenRepository.java) |
-| `RedisRefreshTokenRepository` | 可选 Redis-backed refresh token store | [RedisRefreshTokenRepository.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/RedisRefreshTokenRepository.java) |
 | `RefreshTokenSessionMapper` | auth refresh session MyBatis mapper | [RefreshTokenSessionMapper.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/persistence/mapper/RefreshTokenSessionMapper.java) |
 | `JwtTokenService` | access token 签发 | [JwtTokenService.java](../../backend/community-app/src/main/java/com/nowcoder/community/auth/infrastructure/jwt/JwtTokenService.java) |
 | `JwtCodecs` | JWT encoder / decoder 和 issuer 校验 | [JwtCodecs.java](../../backend/community-common/common-security/src/main/java/com/nowcoder/community/common/security/jwt/JwtCodecs.java) |

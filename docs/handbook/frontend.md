@@ -7,10 +7,10 @@
 | 目标 | 入口 |
 | --- | --- |
 | 应用启动 | `frontend/src/main.js`、`frontend/src/App.vue` |
-| 路由表和页面权限 | `frontend/src/router/index.js`、`frontend/src/router/authGuard.js`、`frontend/src/router/navigation.js` |
+| 路由表和页面权限 | `frontend/src/router/index.js`、`frontend/src/router/routeCatalog.js`、`frontend/src/router/authGuard.js`、`frontend/src/router/navigation.js` |
 | 会话恢复 | `frontend/src/auth/session.js`、`frontend/src/auth/sessionHint.js`、`frontend/src/stores/auth.js` |
 | API base URL | `frontend/src/config/runtimeConfig.js`、`frontend/src/config/endpointResolution.js` |
-| HTTP 客户端 | `frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js` |
+| HTTP 客户端 | `frontend/src/api/authenticatedHttp.js`、`frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js` |
 | 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
 | 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
@@ -22,7 +22,7 @@
 
 ## 路由和页面鉴权
 
-路由表位于 `frontend/src/router/index.js`，使用 hash history。页面级权限通过 route `meta` 表达：
+路由表位于 `frontend/src/router/index.js`，使用 hash history。`routeCatalog.js` 统一拥有 route 的稳定 workspace、权限和 active family 事实，router 与 navigation 通过窄查询函数投影这些字段。页面标题、subtitle、path、component 和 props 仍由 router 拥有；动态个人主页目标、移动端五入口和 breadcrumb fallback 仍由 navigation 实现。页面级权限通过 route `meta` 表达：
 
 | `meta` 字段 | 语义 |
 | --- | --- |
@@ -43,18 +43,19 @@ protected route
 
 安全边界仍在后端。前端守卫只减少误点和无效请求，不能作为授权依据。
 
-`frontend/src/router/navigation.js` 是导航 SSOT，包含：
+`frontend/src/router/navigation.js` 是导航产品策略入口，包含：
 
 - Community / Trading / Personal / Admin / Account 工作区导航分组。
 - 侧边栏、移动端底栏和 shell search 的 route 级可见性。
 - 角色、登录态、用户 id 的前端可见性判断。
 - posts 列表的 `order`、`type`、`categoryId`、`tag`、`subscribed` query 规范化和构造。
 
-新增页面时必须同步三处：
+新增页面时必须同步以下四处：
 
-1. `router/index.js` 注册 route 和权限 `meta`。
-2. `router/navigation.js` 决定是否进入导航。
-3. 对应 `*.test.js` 覆盖 route / nav / auth guard 行为。
+1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
+2. `router/index.js` 注册 path、component、props 和页面文案。
+3. `router/navigation.js` 决定是否进入导航及动态目标、移动端策略。
+4. 对应 `*.test.js` 覆盖 catalog / route / nav / auth guard 行为。
 
 ## 产品壳层和移动导航
 
@@ -101,6 +102,8 @@ Auth store 使用 `identityState=anonymous|unresolved|resolved` 表达身份快�
 
 ## HTTP 客户端
 
+`frontend/src/api/authenticatedHttp.js` 是主站与 IM 客户端共用的鉴权恢复内核，只负责请求时捕获 `tokenGeneration`、注入 Authorization、在允许时单飞恢复 401，并以恢复后的 token 重试一次。base URL、cookie、auth endpoint 排除、terminal redirect 与 toast 文案继续由具体客户端拥有。
+
 主站 HTTP 客户端是 `frontend/src/api/http.js`：
 
 - `baseURL` 来自 `resolveApiBaseUrl()`。
@@ -117,7 +120,7 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 - 请求同样注入 access token。
 - `401` 时复用 `refreshCoordinator` 刷新 access token，再重试 IM HTTP 请求。
 
-上传不经过带 15 秒超时的主站 `http`。`uploadTransport.js` 会把浏览器 origin 和 runtime API origin 都视为可信主站：可信上传使用 `timeout=0`、主站认证和共享的 `401` 恢复；其他绝对 URL 使用无 cookie、不注入主站 `Authorization`、不触发 refresh 的独立客户端，但保留 upload session 明确提供的存储服务签名头。`uploadSession.js` 在发送字节前校验服务端 session 的 `maxBytes` / `mimeTypes`；`POST` 指令构造 multipart，预签名 `PUT` 指令发送原始文件。页面通过 `AbortSignal` 和规范化进度回调提供取消与进度状态。
+上传不经过带 15 秒超时的主站 `http`。`uploadTransport.js` 会把浏览器 origin 和 runtime API origin 都视为可信主站：可信上传使用 `timeout=0`，只复用鉴权内核的请求快照与一次恢复 helper；其他绝对 URL 使用无 cookie、不注入主站 `Authorization`、不触发 refresh 的独立客户端，但保留 upload session 明确提供的存储服务签名头。`uploadSession.js` 在发送字节前校验服务端 session 的 `maxBytes` / `mimeTypes`；`POST` 指令构造 multipart，预签名 `PUT` 指令发送原始文件。页面通过 `AbortSignal` 和规范化进度回调提供取消与进度状态。
 
 ## 前端幂等语义
 
@@ -183,7 +186,9 @@ connect(accessToken)
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。组件只保留加载、提交、toast 和 UI 绑定。
 
-跨页面重复的有状态流程使用 focused composable：`useMarketOrderList.js` 统一买单 / 卖单的会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 `relationKind` 统一关注 / 粉丝列表的游标、hydration、账号 / 路由隔离和逐项 mutation，两个正式 route component 只绑定 relation kind；`MarketOrderListView.vue` 通过 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+
+`utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 
 ## 全局 Store
 
@@ -212,7 +217,7 @@ connect(accessToken)
 
 所有 dialog 使用 `useModalFocus.js`：打开后聚焦首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。
 
-`/dev` 只保留给本地联调和 trace 检查，不应进入正常导航；如果页面需要展示调试辅助信息，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。
+页面需要展示调试辅助信息时，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。正式 router 不注册独立开发入口。
 
 这些约定由 `frontend/src/styles/productTokens.test.js` 和 `frontend/src/views/viewComplexity.test.js` 约束，新增全局样式时不要绕过这些 guardrail。
 
@@ -264,7 +269,7 @@ npm run build
 
 | 代码变化 | 必改文档 |
 | --- | --- |
-| 新增路由、页面权限或导航入口 | 本文档、`router/index.js` / `router/navigation.js` 对应测试。 |
+| 新增路由、页面权限或导航入口 | 本文档、`routeCatalog.js` / `router/index.js` / `router/navigation.js` 对应测试。 |
 | 修改 session、refresh、token 存储或 401 重试 | 本文档、[security.md](security.md)、相关 auth / http 测试。 |
 | 修改 endpoint 解析或部署注入方式 | 本文档、[local-development.md](local-development.md)、相关 resolution 测试。 |
 | 修改前端幂等或高风险写提交方式 | 本文档、[reliability.md](reliability.md)、[integration-contracts.md](integration-contracts.md)。 |

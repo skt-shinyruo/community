@@ -2,8 +2,7 @@ import { createAiConfigRepository } from '../batches/aiConfigRepository.mjs'
 import { createBatchRepository } from '../batches/batchRepository.mjs'
 import { createEntityRefRepository } from '../batches/entityRefRepository.mjs'
 import { createTargetRepository } from '../batches/targetRepository.mjs'
-import { createAiContentEnhancer } from '../ai/aiContentEnhancer.mjs'
-import { createOpenAiClient } from '../ai/openaiClient.mjs'
+import { createRuntimeAiContentEnhancer } from '../ai/aiRuntime.mjs'
 import { loadConfig } from '../config/env.mjs'
 import { seedDefaultAiConfig } from '../db/bootstrap.mjs'
 import { createDb } from '../db/mysql.mjs'
@@ -45,13 +44,10 @@ async function createRuntime({ config, db }) {
   const jobRepository = createJobRepository(db)
   const targetRepository = createTargetRepository(db)
   const aiConfigRepository = createAiConfigRepository(db)
-  const dbAiConfig = await aiConfigRepository.getActive()
   const communityApi = createCommunityApi({ config })
-  const aiClient = createOpenAiClient({ config, dbConfig: dbAiConfig })
-  const aiContentEnhancer = createAiContentEnhancer({
+  const aiContentEnhancer = createRuntimeAiContentEnhancer({
     config,
-    aiClient,
-    dbAiConfig
+    aiConfigRepository
   })
   const communityWriter = createCommunityWriter({
     db,

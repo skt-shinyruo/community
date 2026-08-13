@@ -126,6 +126,35 @@ describe('PostDetailView', () => {
     })
   }
 
+  function mountView() {
+    const pinia = createPinia()
+    setActivePinia(pinia)
+
+    const auth = useAuthStore()
+    auth.setAccessToken('token')
+    auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
+    useTaxonomyStore().ensureCategories = vi.fn()
+    useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue()
+
+    const postMetaCache = usePostMetaCacheStore()
+    postMetaCache.ensureUserSummaries = vi.fn().mockResolvedValue({})
+    postMetaCache.ensureLikeCounts = vi.fn().mockResolvedValue({})
+    postMetaCache.ensureLikeStatuses = vi.fn().mockResolvedValue({})
+
+    return mount(PostDetailView, {
+      global: {
+        plugins: [pinia],
+        stubs: {
+          RouterLink: { template: '<a><slot /></a>' },
+          PostBlockRenderer: { template: '<div data-test="post-blocks" />' }
+        },
+        mocks: {
+          $router: { back: vi.fn() }
+        }
+      }
+    })
+  }
+
   beforeEach(() => {
     vi.clearAllMocks()
     window.localStorage.clear()
@@ -159,6 +188,27 @@ describe('PostDetailView', () => {
     getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
   })
 
+  it('exposes page, post actions, and discussion as the loader interface', async () => {
+    const wrapper = mountLoader()
+    await flushPromises()
+
+    expect(wrapper.vm.post).toBeUndefined()
+    expect(wrapper.vm.loadComments).toBeUndefined()
+    expect(wrapper.vm.page.post?.title).toBe('帖子标题')
+    expect(wrapper.vm.discussion.composer.setDraft).toEqual(expect.any(Function))
+    expect(wrapper.vm.postActions.toggleLike).toEqual(expect.any(Function))
+  })
+
+  it('renders the post, discussion, and composer through the grouped models', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.find('.post-article-title').text()).toBe('帖子标题')
+    expect(wrapper.find('.post-comments-card').exists()).toBe(true)
+    expect(wrapper.find('.comment-composer-card').exists()).toBe(true)
+  })
+
   it('does not commit post state loaded for the previous account', async () => {
     const oldDetail = deferred()
     getPostDetail
@@ -186,7 +236,7 @@ describe('PostDetailView', () => {
     await vi.waitFor(() => expect(getPostDetail).toHaveBeenCalledTimes(2))
     await flushPromises()
 
-    expect(wrapper.vm.post?.title).toBe('account B detail')
+    expect(wrapper.vm.page.post?.title).toBe('account B detail')
 
     oldDetail.resolve({
       data: {
@@ -202,15 +252,15 @@ describe('PostDetailView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.vm.post?.title).toBe('account B detail')
-    expect(wrapper.vm.post?.liked).toBe(false)
-    expect(wrapper.vm.post?.bookmarked).toBe(false)
+    expect(wrapper.vm.page.post?.title).toBe('account B detail')
+    expect(wrapper.vm.page.post?.liked).toBe(false)
+    expect(wrapper.vm.page.post?.bookmarked).toBe(false)
   })
 
   it('keeps comment drafts isolated between accounts', async () => {
     const wrapper = mountLoader()
     await flushPromises()
-    wrapper.vm.setNewComment('draft from account A')
+    wrapper.vm.discussion.composer.setDraft('draft from account A')
     expect(window.localStorage.getItem(
       'community.draft.posts.user-me.aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa.comment'
     )).toBe('draft from account A')
@@ -221,8 +271,8 @@ describe('PostDetailView', () => {
     })
     await flushPromises()
 
-    expect(wrapper.vm.newComment).toBe('')
-    expect(wrapper.vm.newComment).not.toBe('draft from account A')
+    expect(wrapper.vm.discussion.composer.draft).toBe('')
+    expect(wrapper.vm.discussion.composer.draft).not.toBe('draft from account A')
   })
 
   it('does not clear the new account draft when the previous account comment completes', async () => {
@@ -230,8 +280,8 @@ describe('PostDetailView', () => {
     addComment.mockReturnValueOnce(oldComment.promise)
     const wrapper = mountLoader()
     await flushPromises()
-    wrapper.vm.setNewComment('comment from account A')
-    const staleSubmit = wrapper.vm.addComment()
+    wrapper.vm.discussion.composer.setDraft('comment from account A')
+    const staleSubmit = wrapper.vm.discussion.composer.submit()
     await vi.waitFor(() => expect(addComment).toHaveBeenCalledTimes(1))
 
     useAuthStore().installSession({
@@ -239,12 +289,12 @@ describe('PostDetailView', () => {
       me: { userId: 'user-b', username: 'viewer-b', authorities: [] }
     })
     await flushPromises()
-    wrapper.vm.setNewComment('draft from account B')
+    wrapper.vm.discussion.composer.setDraft('draft from account B')
 
     oldComment.resolve({ data: { commentId: 'comment-a' }, traceId: 'trace-comment-a' })
     await staleSubmit
 
-    expect(wrapper.vm.newComment).toBe('draft from account B')
+    expect(wrapper.vm.discussion.composer.draft).toBe('draft from account B')
   })
 
   it('loads comments and replies with cursor params', async () => {
@@ -254,7 +304,7 @@ describe('PostDetailView', () => {
 
     expect(listComments).toHaveBeenCalledWith(routeState.params.postId, { cursor: '', size: 10 })
 
-    await wrapper.vm.loadReplies({
+    await wrapper.vm.discussion.toggleReplies({
       id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
       _repliesPage: 0,
       _repliesSize: 5,
@@ -290,17 +340,17 @@ describe('PostDetailView', () => {
     await flushPromises()
     await flushPromises()
 
-    await wrapper.vm.nextCommentsPage()
-    expect(wrapper.vm.commentsPage).toBe(0)
-    expect(wrapper.vm.comments[0].content).toBe('first page comment')
-    expect(wrapper.vm.commentsError).toBe('temporary comment failure')
+    await wrapper.vm.discussion.nextPage()
+    expect(wrapper.vm.discussion.page).toBe(0)
+    expect(wrapper.vm.discussion.comments[0].content).toBe('first page comment')
+    expect(wrapper.vm.discussion.error).toBe('temporary comment failure')
 
-    await wrapper.vm.nextCommentsPage()
+    await wrapper.vm.discussion.nextPage()
 
     expect(listComments.mock.calls.map(([, request]) => request.cursor))
       .toEqual(['', 'cursor-page-2', 'cursor-page-2'])
-    expect(wrapper.vm.commentsPage).toBe(1)
-    expect(wrapper.vm.comments[0].content).toBe('second page comment')
+    expect(wrapper.vm.discussion.page).toBe(1)
+    expect(wrapper.vm.discussion.comments[0].content).toBe('second page comment')
   })
 
   it('keeps the current comment page when resetting to the first page fails', async () => {
@@ -327,25 +377,25 @@ describe('PostDetailView', () => {
     const wrapper = mountLoader()
     await flushPromises()
     await flushPromises()
-    await wrapper.vm.nextCommentsPage()
+    await wrapper.vm.discussion.nextPage()
 
-    await wrapper.vm.reloadComments()
-    expect(wrapper.vm.commentsPage).toBe(1)
-    expect(wrapper.vm.comments[0].content).toBe('second page comment')
-    expect(wrapper.vm.commentsError).toBe('temporary refresh failure')
+    await wrapper.vm.discussion.reload()
+    expect(wrapper.vm.discussion.page).toBe(1)
+    expect(wrapper.vm.discussion.comments[0].content).toBe('second page comment')
+    expect(wrapper.vm.discussion.error).toBe('temporary refresh failure')
 
-    await wrapper.vm.reloadComments()
+    await wrapper.vm.discussion.reload()
     expect(listComments.mock.calls.map(([, request]) => request.cursor)).toEqual([
       '',
       'cursor-page-2',
       '',
       ''
     ])
-    expect(wrapper.vm.commentsPage).toBe(0)
-    expect(wrapper.vm.comments[0].content).toBe('refreshed first page comment')
+    expect(wrapper.vm.discussion.page).toBe(0)
+    expect(wrapper.vm.discussion.comments[0].content).toBe('refreshed first page comment')
   })
 
-  it('keeps the current reply page when resetting replies fails', async () => {
+  it('keeps the current reply page when a submitted reply cannot refresh the thread', async () => {
     const firstReply = {
       id: '11111111-1111-7111-8111-111111111111',
       userId: '22222222-2222-7222-8222-222222222222',
@@ -365,15 +415,19 @@ describe('PostDetailView', () => {
     const wrapper = mountLoader()
     await flushPromises()
     const root = replyableRootComment()
-    await wrapper.vm.loadReplies(root)
-    await wrapper.vm.nextRepliesPage(root)
+    await wrapper.vm.discussion.toggleReplies(root)
+    await wrapper.vm.discussion.nextRepliesPage(root)
 
-    await wrapper.vm.reloadReplies(root)
+    wrapper.vm.discussion.startReply(root)
+    root._replyDraft = 'new reply'
+    await wrapper.vm.discussion.submitReply(root)
     expect(root._repliesPage).toBe(1)
     expect(root._replies[0].content).toBe('second page reply')
     expect(root._repliesError).toBe('temporary reply refresh failure')
 
-    await wrapper.vm.reloadReplies(root)
+    wrapper.vm.discussion.startReply(root)
+    root._replyDraft = 'another reply'
+    await wrapper.vm.discussion.submitReply(root)
     expect(listReplies.mock.calls.map(([, , request]) => request.cursor)).toEqual([
       '',
       'reply-cursor-2',
@@ -396,9 +450,9 @@ describe('PostDetailView', () => {
       content: 'nested content'
     }
 
-    wrapper.vm.startReply(root)
+    wrapper.vm.discussion.startReply(root)
     root._replyDraft = 'root reply'
-    await wrapper.vm.submitReply(root)
+    await wrapper.vm.discussion.submitReply(root)
 
     expect(addComment).toHaveBeenNthCalledWith(1, routeState.params.postId, {
       content: expect.any(String),
@@ -406,9 +460,9 @@ describe('PostDetailView', () => {
     }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(root._replyParentCommentId).toBe('')
 
-    wrapper.vm.startReply(root, nested)
+    wrapper.vm.discussion.startReply(root, nested)
     root._replyDraft = 'nested reply'
-    await wrapper.vm.submitReply(root)
+    await wrapper.vm.discussion.submitReply(root)
 
     expect(addComment).toHaveBeenNthCalledWith(2, routeState.params.postId, {
       content: expect.any(String),
@@ -428,10 +482,10 @@ describe('PostDetailView', () => {
       content: 'nested content'
     }
 
-    wrapper.vm.startReply(root, nested)
+    wrapper.vm.discussion.startReply(root, nested)
     expect(root._replyParentCommentId).toBe(nested.id)
 
-    wrapper.vm.cancelReply(root)
+    wrapper.vm.discussion.cancelReply(root)
 
     expect(root._replyParentCommentId).toBe('')
     expect(addComment).not.toHaveBeenCalled()
@@ -458,17 +512,17 @@ describe('PostDetailView', () => {
     const wrapper = mountLoader()
     await flushPromises()
     await flushPromises()
-    const firstRoot = wrapper.vm.comments[0]
-    wrapper.vm.startReply(firstRoot)
-    wrapper.vm.setReplyDraft(firstRoot, 'same reply draft')
-    await wrapper.vm.submitReply(firstRoot)
+    const firstRoot = wrapper.vm.discussion.comments[0]
+    wrapper.vm.discussion.startReply(firstRoot)
+    wrapper.vm.discussion.setReplyDraft(firstRoot, 'same reply draft')
+    await wrapper.vm.discussion.submitReply(firstRoot)
 
-    await wrapper.vm.reloadComments()
-    const reloadedRoot = wrapper.vm.comments[0]
+    await wrapper.vm.discussion.reload()
+    const reloadedRoot = wrapper.vm.discussion.comments[0]
     expect(reloadedRoot).not.toBe(firstRoot)
-    wrapper.vm.startReply(reloadedRoot)
+    wrapper.vm.discussion.startReply(reloadedRoot)
     expect(reloadedRoot._replyDraft).toBe('same reply draft')
-    await wrapper.vm.submitReply(reloadedRoot)
+    await wrapper.vm.discussion.submitReply(reloadedRoot)
 
     expect(keys).toHaveLength(2)
     expect(keys[1]).toBe(keys[0])

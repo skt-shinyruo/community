@@ -29,12 +29,13 @@ function setAuthorization(config, accessToken) {
 
 http.interceptors.request.use((config) => {
   const auth = useAuthStore()
-  config._authTokenGeneration = auth.tokenGeneration
+  const requestConfig = /** @type {typeof config & { _authTokenGeneration?: number }} */ (config)
+  requestConfig._authTokenGeneration = auth.tokenGeneration
   if (auth.accessToken) {
-    setAuthorization(config, auth.accessToken)
+    setAuthorization(requestConfig, auth.accessToken)
   }
 
-  return config
+  return requestConfig
 })
 
 http.interceptors.response.use(

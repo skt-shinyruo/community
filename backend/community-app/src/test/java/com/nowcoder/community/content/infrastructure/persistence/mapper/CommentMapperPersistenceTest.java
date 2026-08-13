@@ -187,6 +187,8 @@ class CommentMapperPersistenceTest {
         List<UUID> roots = commentMapper.selectDeletedRootIdsWithActiveReplies(10);
 
         assertThat(roots).containsExactly(repairRootId);
+        assertThat(commentMapper.existsActiveReply(repairRootId)).isEqualTo(1);
+        assertThat(commentMapper.existsActiveReply(completeRootId)).isZero();
     }
 
     @Test

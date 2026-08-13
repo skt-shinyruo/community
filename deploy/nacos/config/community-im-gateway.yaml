@@ -17,3 +17,4 @@ im:
       path: /ws/im
       first-frame-timeout-ms: 5000
       max-inbound-chars: 10000
+      max-inbound-buffer-frames: 64

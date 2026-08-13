@@ -239,8 +239,9 @@ prod 下 `community-app` 如果开启 Servlet trusted proxy：
 gateway 路径级限流：
 
 - 配置键：`gateway.http.rate-limit.*`
-- 当前默认 `enabled=true`、`fail-open-on-error=false`、`policies={}`。
-- 能力已接线，但默认没有生效中的路径规则。
+- 当前默认 `enabled=true`、`fail-open-on-error=false`。
+- `POST /api/drive/shares/{shareToken}/verify` 默认按客户端身份限制为每分钟 10 次；匿名请求使用 canonical client IP，已认证请求使用 principal。所有实际 share token 共用稳定的路径模式键，不能靠更换 token 绕过同一身份预算。
+- 路径策略使用 Spring `PathPattern` 语义；精确路径优先，多个模式同时命中时使用更具体的模式。
 - 生产全局限流仍建议优先由反代 / Ingress / WAF 承担。
 
 ## 审计日志
@@ -313,7 +314,7 @@ prod 下约束：
 - `AuthStartupValidator` 校验 refresh cookie、找回密码、注册邮件、固定验证码和 OriginGuard fail-closed allowlist。
 - 共享安全基础设施校验 access 公钥、issuer、audience；签发端额外校验 access 私钥和公钥匹配，service token 使用方校验独立 HMAC secret。
 - trusted proxy 校验 CIDR。
-- actuator / metrics basic auth 如果启用但缺凭据，会失败。
+- actuator / metrics basic auth 如果启用但缺凭据，会失败；`community-im-gateway` 的 `/actuator/prometheus` 与其他运行时服务一样要求 `METRICS_BASIC_AUTH_*`，健康和 info 端点仍可匿名读取。
 - outbox 启用但缺 JDBC store，会失败。
 
 这些规则的目标是避免“缺配置就用默认值继续上线”。

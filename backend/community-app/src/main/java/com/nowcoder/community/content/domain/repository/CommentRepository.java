@@ -35,6 +35,13 @@ public interface CommentRepository {
         return List.of();
     }
 
+    /**
+     * Probe whether a deleted root still has cleanup work after a bounded run.
+     */
+    default boolean hasActiveReplies(UUID rootCommentId) {
+        return false;
+    }
+
     CommentTransitionStatus apply(CommentEdit edit);
 
     CommentDeletionResult apply(CommentDeletion deletion);

@@ -100,7 +100,7 @@ export function createAutoFillService({
     })
   }
 
-  async function planBatch({ batch = null, batchId = batch?.id ?? null, requestedBy = 'mock-data-studio', sceneKey } = {}) {
+  async function planBatch({ batch = null, batchId = batch?.id ?? null, requestedBy = 'mock-data-studio', sceneKey, counts = null } = {}) {
     if (!resolvedPlanner) {
       throw new Error('planner is required')
     }
@@ -115,7 +115,8 @@ export function createAutoFillService({
 
     const plan = await resolvedPlanner.planDefaultBatch({
       batchId: resolvedBatchId,
-      sceneKey
+      sceneKey,
+      counts
     })
 
     return {
@@ -212,10 +213,12 @@ export function createAutoFillJobPhases({ autoFillService } = {}) {
     },
     {
       name: 'plan',
-      run: async ({ batch, batchId, context }) => {
+      run: async ({ batch, batchId, context, runOptions }) => {
         const { batch: plannedBatch, plan } = await autoFillService.planBatch({
           batch,
-          batchId
+          batchId,
+          sceneKey: runOptions?.mode === 'manual-generate' ? runOptions.scenePresetId : undefined,
+          counts: runOptions?.mode === 'manual-generate' ? runOptions.counts : null
         })
         context.autoFillBatch = plannedBatch
         context.autoFillPlan = plan

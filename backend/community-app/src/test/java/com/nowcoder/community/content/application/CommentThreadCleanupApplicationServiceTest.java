@@ -20,7 +20,7 @@ import static org.mockito.Mockito.when;
 class CommentThreadCleanupApplicationServiceTest {
 
     @Test
-    void reconcileShouldDrainEachRootInBoundedBatchesAndIsolateFailures() {
+    void reconcileShouldRespectPerRootBudgetAndIsolateFailures() {
         UUID firstRootId = uuid(9101);
         UUID failedRootId = uuid(9102);
         UUID postId = uuid(9103);
@@ -41,6 +41,7 @@ class CommentThreadCleanupApplicationServiceTest {
                 .thenReturn(List.of(firstRootId, failedRootId));
         when(repository.findSnapshot(firstRootId)).thenReturn(Optional.of(firstRoot));
         when(repository.findSnapshot(failedRootId)).thenReturn(Optional.of(failedRoot));
+        when(repository.hasActiveReplies(firstRootId)).thenReturn(true);
         when(operations.deleteReplyBatch(
                 firstRootId,
                 postId,
@@ -48,10 +49,7 @@ class CommentThreadCleanupApplicationServiceTest {
                 "hide: spam",
                 deletedAt,
                 CommentDeletionTransactionOperations.REPLY_BATCH_SIZE
-        )).thenReturn(
-                CommentDeletionResult.applied(List.of(reply)),
-                CommentDeletionResult.noOp()
-        );
+        )).thenReturn(CommentDeletionResult.applied(List.of(reply)));
         when(operations.deleteReplyBatch(
                 failedRootId,
                 postId,
@@ -62,10 +60,13 @@ class CommentThreadCleanupApplicationServiceTest {
         )).thenThrow(new IllegalStateException("row lock timeout"));
 
         CommentThreadCleanupApplicationService.CleanupResult result =
-                service.reconcile(2);
+                service.reconcile(2, 2);
 
-        assertThat(result).isEqualTo(
-                new CommentThreadCleanupApplicationService.CleanupResult(2, 1, 1));
+        assertThat(result.scanned()).isEqualTo(2);
+        assertThat(result.completed()).isZero();
+        assertThat(result.deferred()).isEqualTo(1);
+        assertThat(result.failed()).isEqualTo(1);
+        assertThat(result.failedRootIds()).containsExactly(failedRootId);
         verify(operations, times(2)).deleteReplyBatch(
                 firstRootId,
                 postId,
@@ -92,9 +93,80 @@ class CommentThreadCleanupApplicationServiceTest {
                         repository, mock(CommentDeletionTransactionOperations.class));
         when(repository.findDeletedRootIdsWithActiveReplies(500)).thenReturn(List.of());
 
-        assertThat(service.reconcile(5_000).scanned()).isZero();
+        assertThat(service.reconcile(5_000, 5_000).scanned()).isZero();
 
         verify(repository).findDeletedRootIdsWithActiveReplies(500);
+    }
+
+    @Test
+    void reconcileShouldCompleteWhenAReplyBatchReportsNoChange() {
+        UUID rootId = uuid(9201);
+        UUID postId = uuid(9202);
+        UUID moderatorId = uuid(9203);
+        Date deletedAt = new Date(3_000_000L);
+        CommentRepository repository = mock(CommentRepository.class);
+        CommentDeletionTransactionOperations operations =
+                mock(CommentDeletionTransactionOperations.class);
+        CommentThreadCleanupApplicationService service =
+                new CommentThreadCleanupApplicationService(repository, operations);
+
+        when(repository.findDeletedRootIdsWithActiveReplies(1)).thenReturn(List.of(rootId));
+        when(repository.findSnapshot(rootId))
+                .thenReturn(Optional.of(deletedRoot(rootId, postId, moderatorId, deletedAt)));
+        when(operations.deleteReplyBatch(
+                rootId,
+                postId,
+                moderatorId,
+                "hide: spam",
+                deletedAt,
+                CommentDeletionTransactionOperations.REPLY_BATCH_SIZE
+        )).thenReturn(CommentDeletionResult.noOp());
+
+        CommentThreadCleanupApplicationService.CleanupResult result = service.reconcile(1, 3);
+
+        assertThat(result.completed()).isEqualTo(1);
+        assertThat(result.deferred()).isZero();
+        assertThat(result.failed()).isZero();
+    }
+
+    @Test
+    void reconcileShouldCompleteWhenTheLastBudgetedBatchClearsTheRoot() {
+        UUID rootId = uuid(9301);
+        UUID postId = uuid(9302);
+        UUID moderatorId = uuid(9303);
+        Date deletedAt = new Date(4_000_000L);
+        CommentRepository repository = mock(CommentRepository.class);
+        CommentDeletionTransactionOperations operations =
+                mock(CommentDeletionTransactionOperations.class);
+        CommentThreadCleanupApplicationService service =
+                new CommentThreadCleanupApplicationService(repository, operations);
+        CommentSnapshot reply = activeReply(uuid(9304), rootId, postId);
+        when(repository.findDeletedRootIdsWithActiveReplies(1)).thenReturn(List.of(rootId));
+        when(repository.findSnapshot(rootId))
+                .thenReturn(Optional.of(deletedRoot(rootId, postId, moderatorId, deletedAt)));
+        when(operations.deleteReplyBatch(
+                rootId,
+                postId,
+                moderatorId,
+                "hide: spam",
+                deletedAt,
+                CommentDeletionTransactionOperations.REPLY_BATCH_SIZE
+        )).thenReturn(CommentDeletionResult.applied(List.of(reply)));
+        when(repository.hasActiveReplies(rootId)).thenReturn(false);
+
+        CommentThreadCleanupApplicationService.CleanupResult result = service.reconcile(1, 1);
+
+        assertThat(result.completed()).isEqualTo(1);
+        assertThat(result.deferred()).isZero();
+        verify(operations).deleteReplyBatch(
+                rootId,
+                postId,
+                moderatorId,
+                "hide: spam",
+                deletedAt,
+                CommentDeletionTransactionOperations.REPLY_BATCH_SIZE
+        );
+        verify(repository).hasActiveReplies(rootId);
     }
 
     private static CommentSnapshot deletedRoot(

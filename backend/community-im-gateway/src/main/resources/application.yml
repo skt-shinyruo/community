@@ -97,3 +97,4 @@ im:
       path: ${IM_GATEWAY_WS_PATH:/ws/im}
       first-frame-timeout-ms: ${IM_GATEWAY_FIRST_FRAME_TIMEOUT_MS:5000}
       max-inbound-chars: ${IM_GATEWAY_WS_MAX_INBOUND_CHARS:10000}
+      max-inbound-buffer-frames: ${IM_GATEWAY_WS_MAX_INBOUND_BUFFER_FRAMES:64}

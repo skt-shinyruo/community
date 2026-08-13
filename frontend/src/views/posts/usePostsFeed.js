@@ -320,8 +320,8 @@ export function usePostsFeed(emit) {
     if (!Array.isArray(list) || list.length === 0) return
 
     const { userIds, postIds } = collectPostsHydrationIds(list)
-    let users = {}
-    let counts = {}
+    let users
+    let counts
     let statuses = {}
 
     try {

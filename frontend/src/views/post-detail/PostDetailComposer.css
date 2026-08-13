@@ -1,0 +1,16 @@
+.comment-composer {
+  margin-top: 12px;
+}
+
+.comment-composer-card {
+  border-radius: 24px;
+  background:
+    linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface)),
+    repeating-linear-gradient(
+      180deg,
+      transparent,
+      transparent 30px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 30px,
+      color-mix(in srgb, var(--border) 10%, transparent 90%) 31px
+    );
+}

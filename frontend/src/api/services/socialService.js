@@ -108,7 +108,7 @@ export async function getFollowStatuses(entityType, entityIds, { force = false }
     if (syncFollowCacheScope() !== cacheScope) {
       return getFollowStatuses(entityType, ids, { force: true })
     }
-    traceId = result.traceId
+    traceId = typeof result.traceId === 'string' ? result.traceId : ''
     for (const entityId of requestedIds) {
       followStatusCache.set(scopedFollowKey(cacheScope, entityType, entityId), result.data[entityId] === true)
     }

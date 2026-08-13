@@ -4,7 +4,7 @@ import { clearSessionHint, setSessionHint } from '../auth/sessionHint'
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     accessToken: '',
-    me: null,
+    me: /** @type {null | { userId?: any, username?: string, authorities?: string[], [key: string]: any }} */ (null),
     identityState: 'anonymous',
     tokenGeneration: 0
   }),
@@ -34,6 +34,7 @@ export const useAuthStore = defineStore('auth', {
       }
       setSessionHint()
     },
+    /** @param {{ accessToken?: string, me?: any }} [session] */
     installSession({ accessToken, me } = {}) {
       const nextToken = accessToken || ''
       if (!nextToken) {

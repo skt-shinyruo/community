@@ -80,9 +80,11 @@ describe('registerFlowState', () => {
       step: 'verify',
       registrationToken,
       maskedEmail: 'a***e@example.com',
-      debugEmailCode: '123456'
+      debugEmailCode: ''
     })
-    expect(JSON.parse(window.localStorage.getItem('community.register.pending'))).not.toHaveProperty('userId')
+    const stored = JSON.parse(window.localStorage.getItem('community.register.pending'))
+    expect(stored).not.toHaveProperty('userId')
+    expect(stored).not.toHaveProperty('debugEmailCode')
   })
 
   it('clears persisted verification state when returning to the form step', () => {
@@ -101,24 +103,51 @@ describe('registerFlowState', () => {
     })
   })
 
-  it('marks terminal register flow errors as reset-flow failures', () => {
-    expect(resolveRegisterFlowError({ code: 10013, message: '注册上下文已失效，请重新注册' })).toEqual({
+  it('removes a debug code persisted by an older frontend version', () => {
+    window.localStorage.setItem('community.register.pending', JSON.stringify({
+      registrationToken,
+      emailCodeIssued: true,
+      maskedEmail: 'a***e@example.com',
+      debugEmailCode: '654321'
+    }))
+
+    expect(restoreRegisterFlowState()).toMatchObject({
+      step: 'verify',
+      registrationToken,
+      debugEmailCode: ''
+    })
+    expect(JSON.parse(window.localStorage.getItem('community.register.pending')))
+      .not.toHaveProperty('debugEmailCode')
+  })
+
+  it('marks terminal Axios register flow errors as reset-flow failures', () => {
+    expect(resolveRegisterFlowError({
+      response: { data: { code: 10013, message: '注册上下文已失效，请重新注册' } }
+    })).toEqual({
       resetFlow: true,
       message: '注册上下文已失效，请重新注册'
     })
-    expect(resolveRegisterFlowError({ code: 10014, message: '注册已完成，请直接登录' })).toEqual({
+    expect(resolveRegisterFlowError({
+      response: { data: { code: 10014, message: '注册已完成，请直接登录' } }
+    })).toEqual({
       resetFlow: true,
       message: '注册已完成，请直接登录'
     })
-    expect(resolveRegisterFlowError({ code: 10002, message: '账号未激活或被禁用' })).toEqual({
+    expect(resolveRegisterFlowError({
+      response: { data: { code: 10002, message: '账号未激活或被禁用' } }
+    })).toEqual({
       resetFlow: false,
       message: '账号未激活或被禁用'
     })
-    expect(resolveRegisterFlowError({ code: 11001, message: '用户不存在' })).toEqual({
+    expect(resolveRegisterFlowError({
+      response: { data: { code: 11001, message: '用户不存在' } }
+    })).toEqual({
       resetFlow: false,
       message: '用户不存在'
     })
-    expect(resolveRegisterFlowError({ code: 10009, message: '注册验证码不正确' })).toEqual({
+    expect(resolveRegisterFlowError({
+      response: { data: { code: 10009, message: '注册验证码不正确' } }
+    })).toEqual({
       resetFlow: false,
       message: '注册验证码不正确'
     })

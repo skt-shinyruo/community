@@ -2,6 +2,10 @@
 // 该模块不依赖 router/store，避免循环依赖。
 
 export class BusinessError extends Error {
+  /**
+   * @param {string} message
+   * @param {{ code?: unknown, traceId?: unknown, data?: unknown }} [details]
+   */
   constructor(message, { code, traceId, data } = {}) {
     super(message || '请求失败')
     this.name = 'BusinessError'
@@ -11,10 +15,14 @@ export class BusinessError extends Error {
   }
 }
 
+/**
+ * @param {{ code?: unknown, message?: unknown, traceId?: unknown, data?: unknown } | null | undefined} body
+ * @param {string} [hint]
+ */
 export function unwrapResultBody(body, hint = '') {
   const code = body?.code
-  const message = body?.message || ''
-  const traceId = body?.traceId || ''
+  const message = typeof body?.message === 'string' ? body.message : ''
+  const traceId = typeof body?.traceId === 'string' ? body.traceId : ''
   const data = body?.data
 
   if (code === 0) {
@@ -24,4 +32,3 @@ export function unwrapResultBody(body, hint = '') {
   const msg = message || (hint ? `${hint} 失败` : '请求失败')
   throw new BusinessError(msg, { code, traceId, data })
 }
-

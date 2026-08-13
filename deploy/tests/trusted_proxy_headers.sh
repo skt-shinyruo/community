@@ -224,9 +224,15 @@ assert_gateway_header_filters_disabled() {
   local file="$1"
 
   awk '
-    previous == "      forwarded:" && $0 == "        enabled: false" { forwarded_disabled = 1 }
-    previous == "      x-forwarded:" && $0 == "        enabled: false" { x_forwarded_disabled = 1 }
-    { previous = $0 }
+    function indent_of(line) { match(line, /[^ ]/); return RSTART - 1 }
+    /^[[:space:]]*forwarded:[[:space:]]*$/ { key = "forwarded"; key_indent = indent_of($0); next }
+    /^[[:space:]]*x-forwarded:[[:space:]]*$/ { key = "x-forwarded"; key_indent = indent_of($0); next }
+    key && indent_of($0) <= key_indent { key = "" }
+    key && /^[[:space:]]*enabled:[[:space:]]*false[[:space:]]*$/ {
+      if (key == "forwarded") forwarded_disabled = 1
+      if (key == "x-forwarded") x_forwarded_disabled = 1
+      key = ""
+    }
     END { exit forwarded_disabled && x_forwarded_disabled ? 0 : 1 }
   ' "${file}" || fail "${file#"${REPO_ROOT}/"} must disable both Spring Cloud Gateway forwarded header filters"
 }
@@ -332,10 +338,10 @@ assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
 assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS=${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
 assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
 assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
-assert_count 3 'GATEWAY_TRUSTED_PROXY_ENABLED=true' "${cluster_compose}"
-assert_count 3 'GATEWAY_TRUSTED_PROXY_CIDRS=${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}' "${cluster_compose}"
-assert_count 3 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=true' "${cluster_compose}"
-assert_count 3 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}' "${cluster_compose}"
+assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"
+assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS: "${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}"' "${cluster_compose}"
+assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"
+assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS: "${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}"' "${cluster_compose}"
 
 assert_env_value COMMUNITY_NETWORK_SUBNET 172.30.0.0/24 "${single_env}"
 assert_env_value COMMUNITY_NETWORK_DYNAMIC_RANGE 172.30.0.128/25 "${single_env}"

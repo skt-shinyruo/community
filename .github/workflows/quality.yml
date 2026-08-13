@@ -24,9 +24,9 @@ jobs:
           distribution: temurin
           java-version: "17"
           cache: maven
-      - name: Run every backend module test
+      - name: Run every backend unit and integration test
         working-directory: backend
-        run: mvn test
+        run: mvn verify
 
   frontend:
     name: Frontend unit tests and build
@@ -47,6 +47,12 @@ jobs:
       - name: Run unit tests
         working-directory: frontend
         run: npm test
+      - name: Run lint, Vue template checks, and checked-JS type checks
+        working-directory: frontend
+        run: npm run lint && npm run typecheck
+      - name: Enforce coverage thresholds
+        working-directory: frontend
+        run: npm run test:coverage
       - name: Build production assets
         working-directory: frontend
         run: npm run build
@@ -86,11 +92,14 @@ jobs:
           ./deploy/tests/community_forward_migration_mysql.sh
           ./deploy/tests/oss_schema_snapshot_contract.sh
           ./deploy/tests/im_schema_snapshot_contract.sh
+          ./deploy/tests/oss_topology.sh
           ./deploy/tests/community_backbone_topics_contract.sh
           ./deploy/tests/kafka_topics_contract.sh
           ./deploy/tests/projection_version_baseline_contract.sh
           ./deploy/tests/nacos_config_seed.sh
           ./deploy/tests/observability_contracts.sh
+          ./deploy/tests/observability_otel_default.sh
           ./deploy/tests/production_image_contract.sh
+          ./deploy/tests/trusted_proxy_headers.sh
           ./deploy/tests/xxl_job_seed_contract.sh
           ./deploy/tests/yierloom_naming_contract.sh

@@ -41,7 +41,37 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: './src/test/setup.js',
       minWorkers: 1,
-      maxWorkers: 4
+      maxWorkers: 4,
+      coverage: {
+        provider: 'v8',
+        reporter: ['text', 'json-summary'],
+        include: ['src/**/*.{js,vue}'],
+        exclude: ['src/main.js', 'src/test/**', 'src/**/*.test.js'],
+        thresholds: {
+          statements: 70,
+          branches: 60,
+          functions: 70,
+          lines: 74,
+          'src/views/drive/useDriveEntryWorkflow.js': {
+            statements: 85,
+            branches: 68,
+            functions: 76,
+            lines: 94
+          },
+          'src/views/post-detail/usePostDetailActions.js': {
+            statements: 80,
+            branches: 58,
+            functions: 90,
+            lines: 90
+          },
+          'src/views/post-detail/PostDetailComments.vue': {
+            statements: 92,
+            branches: 68,
+            functions: 90,
+            lines: 92
+          }
+        }
+      }
     },
     server: {
       port: devPort,

@@ -117,6 +117,54 @@ class RateLimitWebFilterTest {
     }
 
     @Test
+    void shouldApplyPatternPolicyWithAStableRouteKey() {
+        RateLimitProperties properties = new RateLimitProperties();
+        RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
+        String policyPath = "/api/drive/shares/{shareToken}/verify";
+        properties.getPolicies().put(policyPath, policy);
+
+        RateLimiter limiter = mock(RateLimiter.class);
+        when(limiter.allow("ip:198.51.100.9:" + policyPath, policy)).thenReturn(true);
+        RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
+        ServerWebExchange exchange = buildExchange(
+                "/api/drive/shares/9e9da46c-ae3e-4e3e-bac8-4ef2dca0f121/verify",
+                null,
+                new InetSocketAddress("198.51.100.9", 9090)
+        );
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        verify(limiter).allow("ip:198.51.100.9:" + policyPath, policy);
+    }
+
+    @Test
+    void shouldRefreshPatternAndPolicyAfterConfigurationRebind() {
+        RateLimitProperties properties = new RateLimitProperties();
+        RateLimitProperties.Policy initialPolicy = new RateLimitProperties.Policy();
+        String initialPath = "/api/drive/shares/{shareToken}/verify";
+        properties.getPolicies().put(initialPath, initialPolicy);
+        RateLimiter limiter = mock(RateLimiter.class);
+        RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
+
+        RateLimitProperties.Policy refreshedPolicy = new RateLimitProperties.Policy();
+        refreshedPolicy.setLimit(7);
+        String refreshedPath = "/api/drive/public/{shareToken}/verify";
+        properties.getPolicies().clear();
+        properties.getPolicies().put(refreshedPath, refreshedPolicy);
+        when(limiter.allow("ip:198.51.100.10:" + refreshedPath, refreshedPolicy)).thenReturn(true);
+        ServerWebExchange exchange = buildExchange(
+                "/api/drive/public/9e9da46c-ae3e-4e3e-bac8-4ef2dca0f121/verify",
+                null,
+                new InetSocketAddress("198.51.100.10", 9090)
+        );
+
+        filter.filter(exchange, ignored -> Mono.empty()).block();
+
+        verify(limiter).allow("ip:198.51.100.10:" + refreshedPath, refreshedPolicy);
+        verify(limiter, never()).allow("ip:198.51.100.10:" + initialPath, initialPolicy);
+    }
+
+    @Test
     void canonicalizationShouldRunBeforeRateLimiting() {
         assertThat(RateLimitWebFilter.ORDER)
                 .isEqualTo(RateLimitWebFilter.SECURITY_WEB_FILTER_CHAIN_ORDER + 1);

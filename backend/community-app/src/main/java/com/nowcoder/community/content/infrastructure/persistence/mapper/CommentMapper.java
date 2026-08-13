@@ -61,6 +61,8 @@ public interface CommentMapper {
 
     List<UUID> selectDeletedRootIdsWithActiveReplies(@Param("limit") int limit);
 
+    int existsActiveReply(@Param("rootCommentId") UUID rootCommentId);
+
     int existsRootComment(@Param("postId") UUID postId, @Param("commentId") UUID commentId);
 
     int applyEdit(

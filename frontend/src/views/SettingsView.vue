@@ -108,6 +108,7 @@
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { me as apiMe } from '../api/services/authService'
+import { invalidateUserProfile } from '../api/services/userService'
 import http from '../api/http'
 import { unwrapResultBody } from '../api/result'
 import { executeUploadSession, normalizeUploadSession } from '../api/uploadSession'
@@ -233,6 +234,7 @@ async function uploadAndUpdate() {
     uploadPhase.value = 'saving'
     const updateTraceId = await updateAvatar(objectId, userId)
     if (!isCurrentUpload(generation, scope)) return
+    invalidateUserProfile(userId)
     emit('trace', updateTraceId || '')
     try {
       const { data, traceId } = await apiMe()

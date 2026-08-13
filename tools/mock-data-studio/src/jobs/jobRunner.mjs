@@ -47,11 +47,16 @@ function normalizeMode(mode, batchType) {
   return 'manual-generate'
 }
 
-function createRunOptions({ mode, batchType, aiEnhancement = false } = {}) {
+function createRunOptions({ mode, batchType, aiEnhancement = false, scenePresetId = null, counts = {} } = {}) {
   const normalizedMode = normalizeMode(mode, batchType)
   return {
     mode: normalizedMode,
-    aiEnhancement: normalizedMode === 'manual-generate' && Boolean(aiEnhancement)
+    aiEnhancement: normalizedMode === 'manual-generate' && Boolean(aiEnhancement),
+    scenePresetId: typeof scenePresetId === 'string' ? scenePresetId.trim() || null : null,
+    counts: Object.fromEntries(
+      Object.entries(counts && typeof counts === 'object' ? counts : {})
+        .map(([key, value]) => [key, Math.max(0, Number.parseInt(value, 10) || 0)])
+    )
   }
 }
 
@@ -157,6 +162,8 @@ export function createJobRunner({
     jobType = 'demo-seed',
     mode,
     aiEnhancement = false,
+    scenePresetId = null,
+    counts = {},
     batchKey = createBatchKey(),
     jobKey = createJobKey(),
     createdAt = now()
@@ -164,7 +171,9 @@ export function createJobRunner({
     const runOptions = createRunOptions({
       mode,
       batchType,
-      aiEnhancement
+      aiEnhancement,
+      scenePresetId,
+      counts
     })
 
     return withRepositories(async ({ batchRepository: txBatchRepository, jobRepository: txJobRepository }) => {
@@ -344,7 +353,9 @@ export function createJobRunner({
       batchType = 'demo-seed',
       jobType = 'demo-seed',
       mode,
-      aiEnhancement = false
+      aiEnhancement = false,
+      scenePresetId = null,
+      counts = {}
     } = {}) {
       if (activeRun) {
         throw createConflictError(activeRun)
@@ -359,7 +370,9 @@ export function createJobRunner({
         runOptions: createRunOptions({
           mode,
           batchType,
-          aiEnhancement
+          aiEnhancement,
+          scenePresetId,
+          counts
         })
       }
 
@@ -371,7 +384,9 @@ export function createJobRunner({
           batchType,
           jobType,
           mode,
-          aiEnhancement
+          aiEnhancement,
+          scenePresetId,
+          counts
         })
         runState.batch = createdRecords.batch
         runState.job = createdRecords.job

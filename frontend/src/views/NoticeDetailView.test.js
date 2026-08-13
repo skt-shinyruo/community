@@ -2,7 +2,7 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { listNotices, markRead } = vi.hoisted(() => ({
   listNotices: vi.fn(),
@@ -17,6 +17,8 @@ vi.mock('../api/services/noticeService', () => ({
 import NoticeDetailView from './NoticeDetailView.vue'
 import { useAuthStore } from '../stores/auth'
 
+const mountedWrappers = []
+
 function mountNoticeDetailView() {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -24,7 +26,7 @@ function mountNoticeDetailView() {
     accessToken: 'token-user-a',
     me: { userId: '11111111-1111-7111-8111-111111111111', username: 'user-a', authorities: [] }
   })
-  return mount(NoticeDetailView, {
+  const wrapper = mount(NoticeDetailView, {
     props: { topic: 'comment' },
     global: {
       plugins: [pinia],
@@ -42,11 +44,13 @@ function mountNoticeDetailView() {
       }
     }
   })
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
 
 describe('NoticeDetailView', () => {
   beforeEach(() => {
-    vi.clearAllMocks()
+    vi.resetAllMocks()
     listNotices.mockResolvedValue({
       data: [
         {
@@ -65,6 +69,10 @@ describe('NoticeDetailView', () => {
       traceId: 'trace-notices'
     })
     markRead.mockResolvedValue({ traceId: 'trace-mark-read' })
+  })
+
+  afterEach(() => {
+    mountedWrappers.splice(0).forEach((wrapper) => wrapper.unmount())
   })
 
   it('submits UUID notice ids unchanged when marking the page read', async () => {
@@ -179,6 +187,10 @@ describe('NoticeDetailView', () => {
     const wrapper = mountNoticeDetailView()
     await flushPromises()
     await wrapper.findAll('button').find((button) => button.text() === '标记本页已读').trigger('click')
+    await vi.waitFor(() => {
+      expect(markRead).toHaveBeenCalledTimes(1)
+      expect(resolveOldMarkRead).toBeTypeOf('function')
+    })
 
     useAuthStore().installSession({
       accessToken: 'token-user-b',

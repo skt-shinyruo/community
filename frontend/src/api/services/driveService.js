@@ -32,6 +32,9 @@ export async function searchDriveEntries({ keyword = '' } = {}) {
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
+/**
+ * @param {{ parentId?: string, file?: File, checksumSha256?: string, signal?: AbortSignal }} [options]
+ */
 export async function createDriveUploadSession({ parentId = '', file, checksumSha256 = '', signal } = {}) {
   const payload = {
     parentId,
@@ -45,6 +48,9 @@ export async function createDriveUploadSession({ parentId = '', file, checksumSh
   return { data: normalizeUploadSession(data || {}), traceId }
 }
 
+/**
+ * @param {{ session?: object, file?: File, signal?: AbortSignal, onProgress?: (progress: { percent?: number }) => void }} [options]
+ */
 export async function uploadDriveFile({ session, file, signal, onProgress } = {}) {
   const { data, traceId } = await executeUploadSession({ session, file, signal, onProgress, operation: '上传网盘文件' })
   return { data: data || {}, traceId }
@@ -95,7 +101,9 @@ export async function createDriveShare(entryId, payload) {
 export async function listDriveShares({ page = 0, size = 20 } = {}) {
   const resp = await http.get('/api/drive/shares', { params: { page, size } })
   const { data, traceId } = unwrapResultBody(resp.data, '加载网盘分享')
-  const pageData = data || {}
+  const pageData = data && typeof data === 'object' && !Array.isArray(data)
+    ? /** @type {Record<string, any>} */ (data)
+    : {}
   return {
     data: {
       items: Array.isArray(pageData.items) ? pageData.items : [],

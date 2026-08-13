@@ -5,7 +5,7 @@ export function escapeHtml(text) {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/\"/g, '&quot;')
+    .replace(/"/g, '&quot;')
     .replace(/'/g, '&#39;')
 }
 
@@ -13,4 +13,3 @@ export function emOnlyHtml(text) {
   const escaped = escapeHtml(text)
   return escaped.replace(/&lt;\/?em&gt;/g, (m) => (m === '&lt;em&gt;' ? '<em>' : '</em>'))
 }
-

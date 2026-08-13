@@ -20,13 +20,13 @@
 | 变更类型 | 最小验证 | 扩展验证 |
 | --- | --- | --- |
 | 只改 handbook / README | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` | 视内容引用的命令，抽样运行相关测试。 |
-| 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn test` |
+| 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn verify` |
 | 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'` 和全量后端测试 |
 | schema / Compose 依赖 | 三个 schema snapshot 契约、community 前向迁移静态契约和 `reset_mysql_contract.sh` | 可用 Docker 时运行 `community_forward_migration_mysql.sh`、各 owner MySQL/Testcontainers 契约和 clean topology smoke |
-| 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn test`，必要时本地 compose 演练 |
-| 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm test` |
-| 前端构建相关 | `cd frontend && npm run build` | `cd frontend && npm test && npm run build` |
-| 前端依赖更新 | `cd frontend && npm audit --omit=dev --audit-level=moderate` | 前述审计 + `npm test && npm run build` |
+| 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn verify`，必要时本地 compose 演练 |
+| 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm run lint && npm run typecheck && npm run test:coverage && npm run build` |
+| 前端构建相关 | `cd frontend && npm run build` | 前端完整质量命令 |
+| 前端依赖更新 | `cd frontend && npm audit --omit=dev --audit-level=moderate` | 前述审计 + 前端完整质量命令 |
 | tests/k6 压测脚本 | `cd tests/k6 && npm test` | 在本地 cluster 启动后运行 `npm run smoke`，再按目标运行 profile。 |
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
 | tools/mock-data-studio 依赖更新 | `npm --prefix tools/mock-data-studio audit --omit=dev --audit-level=moderate` | 前述审计 + 全量 mock-data-studio 测试 |
@@ -37,8 +37,10 @@
 
 ```bash
 cd backend
-mvn test
+mvn verify
 ```
+
+`mvn test` 只执行 Surefire 单元/集成测试；仓库完整门禁必须使用 `mvn verify`，以同时执行 Failsafe 管理的 YierLoom 打包、插件隔离和真实 `-javaagent` 测试。定向 `-Dtest` 拼错会失败，不能通过全局 `failIfNoSpecifiedTests=false` 静默变绿。
 
 打包 community-app：
 
@@ -122,6 +124,7 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 ./deploy/tests/community_forward_migration_contract.sh
 ./deploy/tests/oss_schema_snapshot_contract.sh
 ./deploy/tests/im_schema_snapshot_contract.sh
+./deploy/tests/oss_topology.sh
 ./deploy/tests/reset_mysql_contract.sh
 ```
 
@@ -148,9 +151,18 @@ mvn test -pl :im-core -Dtest=ImCoreMySqlCurrentSchemaRepositoryContractTest
 
 ```bash
 cd frontend
+npm run lint
+npm run typecheck
 npm test
+npm run test:coverage
 npm run build
 ```
+
+`npm run typecheck` 同时运行全量 Vue SFC/模板检查，以及 `jsconfig.checked.json` 中基础模块和
+Drive / PostDetail 工作流的显式 `checkJs` 检查。历史 JavaScript 按模块逐步加入受控清单；清单内
+错误会阻断 CI，未纳管文件不应被描述为已完成静态类型检查。
+`npm run test:coverage` 除全局阈值外，还对拆分后的关键 Drive / PostDetail 工作流设置按文件阈值，防止
+高覆盖旧模块掩盖关键流程覆盖率退化。
 
 定向测试示例：
 
@@ -189,6 +201,7 @@ tests/playwright-single
 ```bash
 ./deploy/deployment.sh up --topology single --no-observability
 npm --prefix tests/playwright-single install
+npm --prefix tests/playwright-single run typecheck
 npm --prefix tests/playwright-single run health
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression

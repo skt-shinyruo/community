@@ -111,11 +111,6 @@ function getRouteName(route) {
   return String(route?.name || '')
 }
 
-function getRouteQuery(route) {
-  const q = route?.query
-  return q && typeof q === 'object' ? q : {}
-}
-
 export function isNavItemActive(route, item) {
   if (!route || !item) return false
 

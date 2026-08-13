@@ -141,6 +141,16 @@
         limit #{limit}
     </select>
 
+    <select id="existsActiveReply" resultType="int">
+        select exists (
+            select 1
+            from comment
+            where root_comment_id = #{rootCommentId, jdbcType=BINARY}
+              and parent_comment_id is not null
+              and status = 0
+        )
+    </select>
+
     <select id="existsRootComment" resultType="int">
         select count(1)
         from comment

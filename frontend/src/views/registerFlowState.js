@@ -1,3 +1,5 @@
+import { backendErrorCode, backendErrorMessage } from '../api/backendError'
+
 const STORAGE_KEY = 'community.register.pending'
 
 function safeString(value) {
@@ -42,8 +44,7 @@ export function persistRegisterFlowState(flowState, storage = getStorage()) {
   storage.setItem(STORAGE_KEY, JSON.stringify({
     registrationToken: normalized.registrationToken,
     emailCodeIssued: normalized.emailCodeIssued,
-    maskedEmail: normalized.maskedEmail,
-    debugEmailCode: normalized.debugEmailCode
+    maskedEmail: normalized.maskedEmail
   }))
   return normalized
 }
@@ -57,7 +58,12 @@ export function restoreRegisterFlowState(storage = getStorage()) {
     return buildRegisterFlowState()
   }
   try {
-    return buildRegisterFlowState(JSON.parse(raw))
+    const parsed = JSON.parse(raw)
+    const restored = buildRegisterFlowState(parsed)
+    if (Object.prototype.hasOwnProperty.call(parsed, 'debugEmailCode')) {
+      persistRegisterFlowState(restored, storage)
+    }
+    return { ...restored, debugEmailCode: '' }
   } catch {
     storage.removeItem(STORAGE_KEY)
     return buildRegisterFlowState()
@@ -69,7 +75,8 @@ export function clearRegisterFlowState(storage = getStorage()) {
 }
 
 export function resolveRegisterFlowError(error) {
-  const code = Number(error?.code || 0)
+  const code = backendErrorCode(error)
+  const message = backendErrorMessage(error)
   if (code === 10013) {
     return {
       resetFlow: true,
@@ -79,11 +86,11 @@ export function resolveRegisterFlowError(error) {
   if (code === 10014) {
     return {
       resetFlow: true,
-      message: error?.message || '注册已完成，请直接登录'
+      message: message || '注册已完成，请直接登录'
     }
   }
   return {
     resetFlow: false,
-    message: error?.message || ''
+    message
   }
 }

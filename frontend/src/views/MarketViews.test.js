@@ -234,10 +234,10 @@ describe('Unified market views', () => {
     expect(wrapper.text()).toContain('履约')
 
     await wrapper.find('select').setValue(ADDRESS_A)
+    await vi.waitFor(() => expect(findOrderButton(wrapper).attributes('disabled')).toBeUndefined())
     await findOrderButton(wrapper).trigger('click')
-    await flushPromises()
+    await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
 
-    expect(createMarketOrder).toHaveBeenCalledTimes(1)
     expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
       listingId: LISTING_A,
       quantity: 1,

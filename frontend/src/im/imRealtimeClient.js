@@ -1,5 +1,5 @@
 // IM realtime client: open a server-side session, then connect to the assigned worker.
-import { normalizeOpaqueId } from '../utils/opaqueId'
+import { normalizeOpaqueId, requireApiOpaqueId } from '../utils/opaqueId'
 import imCoreHttp from '../api/imCoreHttp'
 
 const IM_SCHEMA_VERSION = 1
@@ -142,7 +142,7 @@ export class ImRealtimeClient {
   }
 
   sendRoomText({ roomId, content, clientMsgId } = {}) {
-    const rid = Number(roomId || 0)
+    const rid = requireApiOpaqueId(roomId, 'roomId')
     const c = String(content || '')
     const cmid = String(clientMsgId || '').trim() || randomId()
     this._sendCommand({

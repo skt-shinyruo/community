@@ -49,10 +49,10 @@ export function createAiConfigRepository(db, { createId = generateUuidV7 } = {})
     async update(id, { name, provider, baseUrl, apiKey, model, enabled, timeoutMs, maxItemsPerJob }) {
       await db.execute(
         `update ai_config set
-           name = ?, provider = ?, base_url = ?, api_key = ?, model = ?,
+           name = ?, provider = ?, base_url = ?, api_key = coalesce(?, api_key), model = ?,
            enabled = ?, timeout_ms = ?, max_items_per_job = ?
          where id = ?`,
-        [name, provider, baseUrl || null, apiKey || null, model, enabled ? 1 : 0, timeoutMs, maxItemsPerJob, uuidToBuffer(id)]
+        [name, provider, baseUrl || null, apiKey ?? null, model, enabled ? 1 : 0, timeoutMs, maxItemsPerJob, uuidToBuffer(id)]
       )
       return this.getById(id)
     },

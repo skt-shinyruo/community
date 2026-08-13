@@ -51,6 +51,7 @@ OSS 的数据流只负责对象技术事实，业务授权仍由消费方 owner 
 代理上传：
 
 1. 消费方接收浏览器 multipart 后，通过 client 调 OSS complete。
+   `community-oss-client` 的 multipart 路径使用调用方显式提供的流式 `RestClient.Builder`；生产装配为它注入 Boot 管理的 request factory、observation registry 和 observation convention，从而继承超时、TLS、代理与观测策略。调用方还可在该专用 builder 上配置 initializer。生产专用 builder 不安装 `RestClient` interceptor，避免大文件请求体被完整缓存。
 2. session 状态从 `READY` 条件 claim 为 `UPLOADING`，同时递增 `claimVersion`；并发 complete 只能有一个 claim 成功。
 3. 本次写入 key 固定为基础 storage key 加 `.claim-<claimVersion>`，旧尝试不能覆盖新 claim 的 blob。
 4. OSS 写入 `ObjectStore`，再用 head 校验 content type、content length 和期望 checksum。

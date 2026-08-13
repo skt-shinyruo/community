@@ -4,8 +4,12 @@ let inFlightRefresh = null
 let inFlightAuth = null
 let inFlightGeneration = null
 
+/** @typedef {{ tokenGeneration: number, accessToken: string, me: any, clear: () => void, installSession: (session: any) => void, setMe: (me: any) => void }} AuthSessionStore */
+
 function refreshError(cause, state, fallbackMessage) {
-  const error = cause instanceof Error ? cause : new Error(fallbackMessage, { cause })
+  const error = /** @type {Error & { sessionRefreshState?: string }} */ (
+    cause instanceof Error ? cause : new Error(fallbackMessage, { cause })
+  )
   error.sessionRefreshState = state
   return error
 }
@@ -61,7 +65,10 @@ async function performRefresh(auth, startGeneration, requireProfile) {
     return afterRefresh
   }
 
-  const accessToken = refreshResponse?.data?.accessToken || ''
+  const refreshData = refreshResponse?.data && typeof refreshResponse.data === 'object'
+    ? /** @type {Record<string, any>} */ (refreshResponse.data)
+    : {}
+  const accessToken = String(refreshData.accessToken || '')
   if (!accessToken) {
     return retryableFailure(auth, startGeneration, new Error('Refresh response did not include an access token'))
   }
@@ -92,6 +99,9 @@ async function performRefresh(auth, startGeneration, requireProfile) {
   }
 }
 
+/**
+ * @param {{ auth?: AuthSessionStore, expectedGeneration?: number, requireProfile?: boolean }} [options]
+ */
 export function refreshSession({ auth, expectedGeneration, requireProfile = true } = {}) {
   if (!auth) {
     return Promise.reject(new TypeError('auth store is required'))
@@ -124,6 +134,7 @@ export function refreshSession({ auth, expectedGeneration, requireProfile = true
   return inFlightRefresh
 }
 
+/** @param {{ auth?: AuthSessionStore, requestGeneration?: number }} [options] */
 export function recoverUnauthorized({ auth, requestGeneration } = {}) {
   if (!auth) {
     return Promise.reject(new TypeError('auth store is required'))

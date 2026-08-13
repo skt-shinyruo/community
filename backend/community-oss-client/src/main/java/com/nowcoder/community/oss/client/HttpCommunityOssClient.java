@@ -49,12 +49,13 @@ public class HttpCommunityOssClient implements CommunityOssClient {
     private final OssServiceTokenProvider serviceTokenProvider;
 
     public HttpCommunityOssClient(String baseUrl, OssServiceTokenProvider serviceTokenProvider) {
-        this(baseUrl, RestClient.builder(), serviceTokenProvider);
+        this(baseUrl, RestClient.builder(), RestClient.builder(), serviceTokenProvider);
     }
 
     public HttpCommunityOssClient(
             String baseUrl,
             RestClient.Builder restClientBuilder,
+            RestClient.Builder multipartRestClientBuilder,
             OssServiceTokenProvider serviceTokenProvider
     ) {
         this.serviceTokenProvider = Objects.requireNonNull(serviceTokenProvider, "serviceTokenProvider");
@@ -65,7 +66,10 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .baseUrl(normalizedBaseUrl);
         this.publicRestClient = buildPublicClient(baseBuilder);
         this.internalRestClient = buildInternalClient(baseBuilder);
-        this.multipartInternalRestClient = buildMultipartInternalClient(normalizedBaseUrl);
+        this.multipartInternalRestClient = buildMultipartInternalClient(
+                normalizedBaseUrl,
+                multipartRestClientBuilder
+        );
     }
 
     @Override
@@ -144,6 +148,9 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         } catch (ResourceAccessException e) {
             throw fromResourceFailure(e);
         } catch (RestClientException e) {
+            if (hasTimeoutCause(e)) {
+                throw new OssClientException(TIMEOUT, 0, true, "OSS request timed out", e);
+            }
             throw new OssClientException(TRANSIENT, 0, true, "OSS request failed", e);
         }
     }
@@ -208,6 +215,9 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         } catch (ResourceAccessException e) {
             throw fromResourceFailure(e);
         } catch (RestClientException e) {
+            if (hasTimeoutCause(e)) {
+                throw new OssClientException(TIMEOUT, 0, true, "OSS request timed out", e);
+            }
             throw new OssClientException(TRANSIENT, 0, true, "OSS request failed", e);
         }
     }
@@ -305,10 +315,14 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .build();
     }
 
-    private RestClient buildMultipartInternalClient(String baseUrl) {
-        // Spring 6.1 buffers request bodies whenever its interceptor list is non-null, even when empty.
-        return RestClient.builder()
-                .baseUrl(baseUrl)
+    private RestClient buildMultipartInternalClient(
+            String baseUrl,
+            RestClient.Builder configuredBuilder
+    ) {
+        RestClient.Builder builder = configuredBuilder == null
+                ? RestClient.builder()
+                : configuredBuilder.clone();
+        return builder.baseUrl(baseUrl)
                 .defaultRequest(spec -> {
                     String authorization = serviceAuthorization();
                     spec.httpRequest(request ->

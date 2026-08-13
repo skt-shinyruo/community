@@ -17,6 +17,7 @@ import reactor.core.publisher.Mono;
 import reactor.core.publisher.Sinks;
 
 import java.time.Duration;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.TimeoutException;
 
@@ -28,6 +29,8 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
     private static final String REASON_UNSUPPORTED_FRAME_TYPE = "unsupported_frame_type";
     private static final String REASON_INTERNAL_BRIDGE_ERROR = "internal_bridge_error";
     private static final String REASON_UNSUPPORTED_WORKER_FRAME_TYPE = "unsupported_worker_frame_type";
+    private static final String REASON_PAYLOAD_TOO_LARGE = "payload_too_large";
+    private static final String REASON_INBOUND_BUFFER_OVERFLOW = "inbound_buffer_overflow";
 
     private final ConnectTicketRouter connectTicketRouter;
     private final InternalWorkerBridgeFactory bridgeFactory;
@@ -54,12 +57,24 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
         return Mono.defer(() -> {
             metrics.connectionOpened();
             AtomicBoolean firstSeen = new AtomicBoolean(false);
+            AtomicBoolean bridgeFailureRecorded = new AtomicBoolean(false);
             Sinks.One<InboundFrame> firstMessage = Sinks.one();
-            Sinks.Many<InboundFrame> subsequentFrames = Sinks.many().unicast().onBackpressureBuffer();
+            Sinks.Many<InboundFrame> subsequentFrames = Sinks.many().unicast().onBackpressureBuffer(
+                    new ArrayBlockingQueue<>(properties.getWs().getMaxInboundBufferFrames())
+            );
 
             Mono<Void> receivePump = session.receive()
-                    .doOnNext(message -> routeInboundMessage(firstSeen, firstMessage, subsequentFrames, message))
-                    .doOnError(ex -> failInbound(firstSeen, firstMessage, subsequentFrames, ex))
+                    .doOnNext(message -> routeInboundMessage(
+                            firstSeen,
+                            firstMessage,
+                            subsequentFrames,
+                            message,
+                            properties.getWs().getMaxInboundChars()
+                    ))
+                    .doOnError(ex -> {
+                        recordReceiveFailure(bridgeFailureRecorded, ex);
+                        failInbound(firstSeen, firstMessage, subsequentFrames, ex);
+                    })
                     .doOnComplete(() -> completeInbound(firstSeen, firstMessage, subsequentFrames))
                     .then();
             Mono<Void> route = firstMessage.asMono()
@@ -70,13 +85,19 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
                             ConnectTicketRouter.REASON_CONNECT_REQUIRED,
                             "connect required"
                     ).then(Mono.<InboundFrame>empty()))
-                    .flatMap(message -> handleFirstMessage(session, message, subsequentFrames.asFlux()))
+                    .flatMap(message -> handleFirstMessage(
+                            session,
+                            message,
+                            subsequentFrames.asFlux(),
+                            bridgeFailureRecorded
+                    ))
                     .onErrorResume(TimeoutException.class,
                             ex -> rejectAndClose(session, 408, REASON_CONNECT_TIMEOUT, "connect timeout"))
                     .onErrorResume(ex -> session.close());
 
             return Mono.when(receivePump, route)
                     .then()
+                    .onErrorResume(ex -> session.close())
                     .doFinally(signalType -> metrics.connectionClosed());
         });
     }
@@ -84,8 +105,12 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleFirstMessage(
             WebSocketSession session,
             InboundFrame firstMessage,
-            Flux<InboundFrame> subsequentFrames
+            Flux<InboundFrame> subsequentFrames,
+            AtomicBoolean bridgeFailureRecorded
     ) {
+        if (firstMessage.oversized()) {
+            return rejectAndClose(session, 400, REASON_PAYLOAD_TOO_LARGE, "payload too large");
+        }
         if (firstMessage.type() != WebSocketMessage.Type.TEXT) {
             return rejectAndClose(session, 400, REASON_UNSUPPORTED_FRAME_TYPE, "unsupported frame type");
         }
@@ -105,7 +130,7 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
                     return bridge.bridge(session, outbound, metrics::bridgeOpened);
                 })
                 .onErrorResume(ex -> {
-                    metrics.bridgeFailed(bridgeFailureReason(ex));
+                    recordBridgeFailure(bridgeFailureRecorded, ex);
                     logBridgeFailure(session, decision, ex);
                     return session.close();
                 });
@@ -122,6 +147,10 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
 
     private Flux<String> subsequentTextFrames(WebSocketSession session, Flux<InboundFrame> frames) {
         return frames.handle((message, sink) -> {
+            if (message.oversized()) {
+                sink.error(new PayloadTooLargeException());
+                return;
+            }
             if (message.type() == WebSocketMessage.Type.TEXT) {
                 sink.next(message.text());
                 return;
@@ -164,6 +193,7 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
                     REASON_CONNECT_TIMEOUT,
                     ConnectTicketRouter.REASON_MALFORMED_FRAME -> metrics.invalidFirstFrame();
             case REASON_UNSUPPORTED_FRAME_TYPE -> metrics.invalidFirstFrame();
+            case REASON_PAYLOAD_TOO_LARGE -> metrics.invalidFirstFrame();
             case ConnectTicketRouter.REASON_INVALID_TICKET -> metrics.invalidTicket();
             case ConnectTicketRouter.REASON_WORKER_UNAVAILABLE -> metrics.workerUnavailable();
             default -> {
@@ -175,24 +205,47 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
         if (ex instanceof UnsupportedFrameTypeException) {
             return REASON_UNSUPPORTED_FRAME_TYPE;
         }
+        if (ex instanceof PayloadTooLargeException) {
+            return REASON_PAYLOAD_TOO_LARGE;
+        }
+        if (ex instanceof InboundBufferOverflowException) {
+            return REASON_INBOUND_BUFFER_OVERFLOW;
+        }
         if (ex != null && ex.getClass().getName().endsWith("UnsupportedWorkerFrameTypeException")) {
             return REASON_UNSUPPORTED_WORKER_FRAME_TYPE;
         }
         return REASON_INTERNAL_BRIDGE_ERROR;
     }
 
+    private void recordReceiveFailure(AtomicBoolean bridgeFailureRecorded, Throwable ex) {
+        if (ex instanceof InboundBufferOverflowException) {
+            recordBridgeFailure(bridgeFailureRecorded, ex);
+        }
+    }
+
+    private void recordBridgeFailure(AtomicBoolean bridgeFailureRecorded, Throwable ex) {
+        if (bridgeFailureRecorded.compareAndSet(false, true)) {
+            metrics.bridgeFailed(bridgeFailureReason(ex));
+        }
+    }
+
     private static void routeInboundMessage(
             AtomicBoolean firstSeen,
             Sinks.One<InboundFrame> firstMessage,
             Sinks.Many<InboundFrame> subsequentFrames,
-            WebSocketMessage message
+            WebSocketMessage message,
+            int maxInboundChars
     ) {
-        InboundFrame frame = InboundFrame.from(message);
+        InboundFrame frame = InboundFrame.from(message, maxInboundChars);
         if (firstSeen.compareAndSet(false, true)) {
             firstMessage.tryEmitValue(frame);
             return;
         }
-        subsequentFrames.tryEmitNext(frame);
+        Sinks.EmitResult result = subsequentFrames.tryEmitNext(frame);
+        if (result == Sinks.EmitResult.FAIL_OVERFLOW
+                || result == Sinks.EmitResult.FAIL_ZERO_SUBSCRIBER) {
+            throw new InboundBufferOverflowException();
+        }
     }
 
     private static void failInbound(
@@ -225,13 +278,29 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
         }
     }
 
-    private record InboundFrame(WebSocketMessage.Type type, String text) {
+    private static class PayloadTooLargeException extends RuntimeException {
 
-        private static InboundFrame from(WebSocketMessage message) {
+        PayloadTooLargeException() {
+            super("websocket payload too large");
+        }
+    }
+
+    private static class InboundBufferOverflowException extends RuntimeException {
+
+        InboundBufferOverflowException() {
+            super("websocket inbound buffer overflow");
+        }
+    }
+
+    private record InboundFrame(WebSocketMessage.Type type, String text, boolean oversized) {
+
+        private static InboundFrame from(WebSocketMessage message, int maxInboundChars) {
             if (message.getType() == WebSocketMessage.Type.TEXT) {
-                return new InboundFrame(message.getType(), message.getPayloadAsText());
+                String text = message.getPayloadAsText();
+                boolean oversized = text.length() > maxInboundChars;
+                return new InboundFrame(message.getType(), oversized ? "" : text, oversized);
             }
-            return new InboundFrame(message.getType(), "");
+            return new InboundFrame(message.getType(), "", false);
         }
     }
 }

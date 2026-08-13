@@ -14,6 +14,34 @@ describe('view complexity guardrails', () => {
   it('keeps post views split into focused modules', () => {
     expect(lineCount('src/views/PostDetailView.vue')).toBeLessThanOrEqual(900)
     expect(lineCount('src/views/PostsView.vue')).toBeLessThanOrEqual(900)
+
+    const loader = read('src/views/post-detail/usePostDetailLoader.js')
+    const returnBlock = loader.slice(loader.lastIndexOf('return {'))
+    expect(returnBlock).toContain('page,')
+    expect(returnBlock).toContain('postActions: actions.model')
+    expect(returnBlock).toContain('discussion: discussion.model')
+    expect(returnBlock).not.toContain('togglePostLike')
+    expect(returnBlock).not.toContain('loadComments')
+  })
+
+  it('keeps drive transport and request lifecycle behind its page-state seam', () => {
+    const drive = read('src/views/DriveView.vue')
+    const script = drive.match(/<script setup>([\s\S]*?)<\/script>/)?.[1] || ''
+    const pageState = read('src/views/drive/useDrivePageState.js')
+    const returnBlock = pageState.slice(pageState.lastIndexOf('return {'))
+
+    expect(script).not.toContain("../api/services/driveService")
+    expect(script).not.toContain('createLatestRequestTracker')
+    expect(script).not.toContain('useAuthStore')
+    expect(script).not.toContain('toRefs')
+    expect(script).toContain("./drive/useDrivePageState")
+    expect(pageState).not.toContain("../../api/services/driveService")
+    expect(pageState.split('\n').length).toBeLessThanOrEqual(180)
+    expect(returnBlock).toContain('page,')
+    expect(returnBlock).toContain('workspace,')
+    expect(returnBlock).toContain('entries,')
+    expect(returnBlock).toContain('upload,')
+    expect(returnBlock).toContain('shares')
   })
 })
 

@@ -9,8 +9,9 @@ import { useAuthStore } from '../stores/auth'
 import UiButton from '../components/ui/UiButton.vue'
 import UiFileInput from '../components/ui/UiFileInput.vue'
 
-const { apiMe, uploadTransport } = vi.hoisted(() => ({
+const { apiMe, invalidateUserProfile, uploadTransport } = vi.hoisted(() => ({
   apiMe: vi.fn(),
+  invalidateUserProfile: vi.fn(),
   uploadTransport: { upload: vi.fn() }
 }))
 
@@ -26,6 +27,8 @@ vi.mock('../api/http', () => ({
 vi.mock('../api/services/authService', () => ({
   me: apiMe
 }))
+
+vi.mock('../api/services/userService', () => ({ invalidateUserProfile }))
 
 vi.mock('../api/uploadTransport', () => ({ uploadTransport }))
 
@@ -110,6 +113,7 @@ describe('SettingsView', () => {
     http.put.mockReset()
     window.localStorage.clear()
     apiMe.mockReset()
+    invalidateUserProfile.mockReset()
     uploadTransport.upload.mockReset()
     uploadTransport.upload.mockResolvedValue(okResult({
       objectId: '00000000-0000-7000-8000-000000000050'
@@ -185,6 +189,7 @@ describe('SettingsView', () => {
     expect(form.get('sessionId')).toBe('session-1')
     expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
     expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { objectId: '00000000-0000-7000-8000-000000000050' })
+    expect(invalidateUserProfile).toHaveBeenCalledWith('7')
   })
 
   it('shows upload progress and aborts the active request when cancelled', async () => {

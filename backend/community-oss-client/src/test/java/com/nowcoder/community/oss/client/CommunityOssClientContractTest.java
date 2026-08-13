@@ -68,6 +68,12 @@ class CommunityOssClientContractTest {
                 String.class,
                 RestClient.Builder.class,
                 OssServiceTokenProvider.class
+        )).isFalse();
+        assertThat(hasPublicConstructor(
+                String.class,
+                RestClient.Builder.class,
+                RestClient.Builder.class,
+                OssServiceTokenProvider.class
         )).isTrue();
     }
 

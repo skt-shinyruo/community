@@ -26,7 +26,7 @@
 
 | 文件 | 当前状态语义 |
 | --- | --- |
-| `registerFlowState.js` | 保存待验证注册上下文：`registrationToken`、`userId`、`emailCodeIssued`、`maskedEmail`、`debugEmailCode`。只有 `step === 'verify'` 会写入 `localStorage` 的 `community.register.pending`；回到表单态会清理。恢复时 JSON 解析失败会删除本地状态。错误码 `10002`、`10013`、`10014`、`11001` 会返回 `resetFlow: true`，要求页面重置注册上下文。 |
+| `registerFlowState.js` | 待验证注册上下文的内存状态包含 `step`、`registrationToken`、`emailCodeIssued`、`maskedEmail`、`debugEmailCode` 和派生的 `successMessage`；持久化值只包含 `registrationToken`、`emailCodeIssued`、`maskedEmail`，不包含 `userId`、调试验证码或展示文案。只有 `step === 'verify'` 会写入 `localStorage` 的 `community.register.pending`，回到表单态会清理；恢复时会移除旧版本可能留下的 `debugEmailCode`，JSON 解析失败也会删除本地状态。Axios 业务错误从 `error.response.data` 解包：仅注册上下文失效（`10013`）和注册已完成（`10014`）返回 `resetFlow: true` 并要求页面清理上下文；`10002`、`11001`、验证码错误及其他错误都保留当前步骤。 |
 | `conversationDetailState.js` | 生成 canonical conversation id：两个 userId 按 Java UUID signed bits 排序后拼接。消息映射要求合法 `messageId`、`fromUserId`、`toUserId`、正数 `seq` 和 `createdAtEpochMs`。消息合并优先用 `seq` 去重，缺少 `seq` 时用 message id；排序按 `seq`、时间、id。`findLatestConversationSeq` 提供 catch-up cursor。 |
 | `marketState.js` | 将 listings、orders、disputes、addresses、inventory 投影为页面可读状态：商品类型、履约、托管、库存、订单下一步、资金状态、争议状态、地址行和订单 lifecycle steps。它只解释当前返回数据，不推进市场 / 钱包事实。 |
 | `driveState.js` | 规范化 quota、面包屑、entry 能力和分享表单。entry capability 由 `status` / `type` 派生：ACTIVE 文件可下载，ACTIVE 条目可分享 / 重命名 / 移动 / 移入回收站，TRASHED 条目可恢复 / 彻删。分享表单要求提取码非空且过期时间晚于当前时间。 |

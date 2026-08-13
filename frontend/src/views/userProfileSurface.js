@@ -3,7 +3,7 @@ function toCount(value) {
   return Number.isFinite(count) && count > 0 ? count : 0
 }
 
-export function buildProfileWalletAsset({ profile, authed, isSelf } = {}) {
+export function buildProfileWalletAsset({ authed, isSelf } = {}) {
   if (authed && isSelf) {
     return {
       valueText: '仅自己可见',

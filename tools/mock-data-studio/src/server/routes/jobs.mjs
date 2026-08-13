@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { loadAiRuntimeConfig } from '../../ai/aiRuntime.mjs'
 import { normalizeUuid } from '../../db/uuidv7.mjs'
 import { asyncHandler } from './asyncHandler.mjs'
 
@@ -25,13 +26,19 @@ function normalizeJobRequest(body = {}) {
       ? 'auto-fill'
       : 'manual-generate'
   const aiEnhancement = normalizedMode === 'manual-generate' && Boolean(body.aiEnhancement)
+  const counts = Object.fromEntries(
+    Object.entries(body.counts && typeof body.counts === 'object' ? body.counts : {})
+      .map(([key, value]) => [key, Math.max(0, Number.parseInt(value, 10) || 0)])
+  )
 
   return {
     requestedBy: body.requestedBy ?? 'mock-data-studio',
     batchType: body.batchType ?? 'demo-seed',
     jobType: body.jobType ?? 'demo-seed',
     mode: normalizedMode,
-    aiEnhancement
+    aiEnhancement,
+    scenePresetId: typeof body.scenePresetId === 'string' ? body.scenePresetId.trim() || null : null,
+    counts
   }
 }
 
@@ -62,7 +69,7 @@ function buildPollingPayload({ job, batch = null } = {}) {
   }
 }
 
-export function buildJobsRouter({ config, jobRunner, jobRepository } = {}) {
+export function buildJobsRouter({ config, aiConfigRepository = null, jobRunner, jobRepository } = {}) {
   if (!jobRunner?.start) {
     throw new Error('jobRunner.start is required')
   }
@@ -77,11 +84,14 @@ export function buildJobsRouter({ config, jobRunner, jobRepository } = {}) {
     try {
       const requestedJob = normalizeJobRequest(req.body ?? {})
 
-      if (requestedJob.aiEnhancement && !config?.ai?.ready) {
+      const ai = requestedJob.aiEnhancement
+        ? await loadAiRuntimeConfig({ config, aiConfigRepository })
+        : null
+      if (requestedJob.aiEnhancement && !ai?.ready) {
         res.status(400).json({
           ok: false,
           error: 'ai_not_ready',
-          message: buildAiNotReadyMessage(config)
+          message: buildAiNotReadyMessage({ ai })
         })
         return
       }

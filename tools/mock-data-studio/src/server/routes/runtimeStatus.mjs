@@ -1,5 +1,6 @@
 import { Router } from 'express'
 
+import { loadAiRuntimeConfig } from '../../ai/aiRuntime.mjs'
 import { asyncHandler } from './asyncHandler.mjs'
 
 function formatErrorMessage(error) {
@@ -181,37 +182,19 @@ export function createRuntimeStatusService({
         upstreamReady(imCoreUrl)
       ])
 
-      let aiStatus = {
-        provider: config?.ai?.provider || 'openai',
-        model: config?.ai?.model || null,
-        enabled: Boolean(config?.ai?.enabled),
-        missingConfig: Array.isArray(config?.ai?.missingConfig) ? config.ai.missingConfig : [],
-        required: false,
-        ready: Boolean(config?.ai?.ready)
+      let aiStatus
+      try {
+        aiStatus = await loadAiRuntimeConfig({ config, aiConfigRepository })
+      } catch {
+        aiStatus = await loadAiRuntimeConfig({ config })
       }
-
-      if (aiConfigRepository) {
-        try {
-          const dbAiConfig = await aiConfigRepository.getActive()
-          if (dbAiConfig) {
-            const detailParts = [dbAiConfig.provider, dbAiConfig.model]
-            if (dbAiConfig.baseUrl) {
-              detailParts.push(dbAiConfig.baseUrl)
-            }
-            detailParts.push(dbAiConfig.enabled ? 'enabled' : 'disabled')
-
-            aiStatus = {
-              provider: dbAiConfig.provider,
-              model: dbAiConfig.model,
-              baseUrl: dbAiConfig.baseUrl,
-              enabled: dbAiConfig.enabled,
-              required: false,
-              ready: true,
-              detail: detailParts.join(' · ')
-            }
-          }
-        } catch {
-        }
+      aiStatus = {
+        provider: aiStatus.provider,
+        model: aiStatus.model,
+        enabled: aiStatus.enabled,
+        missingConfig: aiStatus.missingConfig,
+        ready: aiStatus.ready,
+        required: false
       }
 
       return {

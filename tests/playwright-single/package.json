@@ -5,6 +5,7 @@
   "type": "module",
   "scripts": {
     "health": "node scripts/health-check.mjs",
+    "typecheck": "tsc -p tsconfig.json",
     "test": "npm run test:regression",
     "test:smoke": "playwright test --grep @smoke",
     "test:regression": "playwright test --grep @regression",
@@ -14,6 +15,7 @@
   },
   "devDependencies": {
     "@playwright/test": "^1.44.0",
+    "@types/node": "^24.3.0",
     "typescript": "^5.4.0"
   }
 }

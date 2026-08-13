@@ -173,13 +173,15 @@ describe('DriveView', () => {
         }
       }
     })
-    await flushPromises()
+    await vi.waitFor(() => expect(listDriveEntries).toHaveBeenCalledTimes(1))
+    await vi.waitFor(() => {
+      const shareButton = wrapper.findAll('button').find((button) => button.text() === '分享管理')
+      expect(shareButton.attributes('disabled')).toBeUndefined()
+    })
 
     await wrapper.findAll('button').find((button) => button.text() === '分享管理').trigger('click')
-    await flushPromises()
-
-    expect(listDriveShares).toHaveBeenCalledWith({ page: 0, size: 20 })
-    expect(wrapper.text()).toContain('retained.txt')
+    await vi.waitFor(() => expect(listDriveShares).toHaveBeenCalledWith({ page: 0, size: 20 }))
+    await vi.waitFor(() => expect(wrapper.text()).toContain('retained.txt'))
   })
 
   it('keeps file results visible when the share section fails', async () => {

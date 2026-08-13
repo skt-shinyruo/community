@@ -157,6 +157,11 @@ public class MyBatisCommentRepository implements CommentRepository {
     }
 
     @Override
+    public boolean hasActiveReplies(UUID rootCommentId) {
+        return rootCommentId != null && commentMapper.existsActiveReply(rootCommentId) > 0;
+    }
+
+    @Override
     public CommentTransitionStatus apply(CommentEdit edit) {
         CommentDataObject current = commentMapper.selectByIdForUpdate(edit.commentId());
         CommentTransitionStatus currentStatus = classify(current, edit.expectedVersion());

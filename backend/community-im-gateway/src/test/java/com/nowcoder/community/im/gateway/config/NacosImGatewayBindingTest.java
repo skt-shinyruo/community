@@ -35,7 +35,8 @@ class NacosImGatewayBindingTest {
         assertThat(properties.getWorker().getServiceId()).isEqualTo("im-realtime-worker");
         assertThat(properties.getWs().getPath()).isEqualTo("/ws/im");
         assertThat(properties.getWs().getFirstFrameTimeoutMs()).isEqualTo(5000);
-        assertThat(environment.getProperty("im.gateway.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
+        assertThat(properties.getWs().getMaxInboundChars()).isEqualTo(10000);
+        assertThat(properties.getWs().getMaxInboundBufferFrames()).isEqualTo(64);
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

@@ -4,6 +4,17 @@ import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
 import { useAuthStore } from '../stores/auth'
 
+/** @typedef {import('axios').AxiosInstance} AxiosInstance */
+/**
+ * @typedef {Object} UploadRequest
+ * @property {unknown} [url]
+ * @property {unknown} [method]
+ * @property {any} [data]
+ * @property {Record<string, any>} [headers]
+ * @property {AbortSignal} [signal]
+ * @property {(progress: { loaded: number, total: number, percent: number | null }) => void} [onProgress]
+ */
+
 const trustedUploadClient = axios.create({
   baseURL: resolveApiBaseUrl(),
   withCredentials: true,
@@ -34,6 +45,10 @@ function originOf(value, baseUrl) {
   }
 }
 
+/**
+ * @param {unknown} url
+ * @param {{ apiBaseUrl?: string, browserUrl?: string }} [options]
+ */
 export function isExternalUploadUrl(url, {
   apiBaseUrl = resolveApiBaseUrl(),
   browserUrl = browserLocationUrl()
@@ -70,6 +85,16 @@ function progressAdapter(onProgress) {
   }
 }
 
+/**
+ * @param {{
+ *   trustedClient?: AxiosInstance | { request: (config: any) => Promise<any> },
+ *   externalClient?: AxiosInstance | { request: (config: any) => Promise<any> },
+ *   authProvider?: () => any,
+ *   unauthorizedRecovery?: (options: { auth: any, requestGeneration: number }) => Promise<string>,
+ *   trustedBaseUrl?: string,
+ *   browserUrl?: string
+ * }} [options]
+ */
 export function createUploadTransport({
   trustedClient = trustedUploadClient,
   externalClient = externalUploadClient,
@@ -79,6 +104,7 @@ export function createUploadTransport({
   browserUrl
 } = {}) {
   return {
+    /** @param {UploadRequest} [request] */
     async upload({ url, method = 'POST', data, headers = {}, signal, onProgress } = {}) {
       const requestUrl = String(url || '').trim()
       const requestMethod = String(method || 'POST').toUpperCase()
@@ -99,7 +125,7 @@ export function createUploadTransport({
 
       const auth = authProvider()
       const generation = auth.tokenGeneration
-      const config = {
+      const config = /** @type {import('axios').AxiosRequestConfig & { _authTokenGeneration: number, _retry?: boolean }} */ ({
         url: requestUrl,
         method: requestMethod,
         data,
@@ -109,11 +135,12 @@ export function createUploadTransport({
         signal,
         onUploadProgress,
         _authTokenGeneration: generation
-      }
+      })
 
       try {
         return await trustedClient.request(config)
-      } catch (error) {
+      } catch (cause) {
+        const error = /** @type {any} */ (cause)
         if (Number(error?.response?.status || 0) !== 401 || config._retry) throw error
         const accessToken = await unauthorizedRecovery({ auth, requestGeneration: generation })
         return trustedClient.request({

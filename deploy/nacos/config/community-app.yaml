@@ -142,6 +142,7 @@ content:
   comment-thread-cleanup:
     enabled: ${CONTENT_COMMENT_THREAD_CLEANUP_ENABLED:true}
     batch-size: ${CONTENT_COMMENT_THREAD_CLEANUP_BATCH_SIZE:100}
+    max-batches-per-root: ${CONTENT_COMMENT_THREAD_CLEANUP_MAX_BATCHES_PER_ROOT:10}
     delay-ms: ${CONTENT_COMMENT_THREAD_CLEANUP_DELAY_MS:60000}
   score:
     refresh:

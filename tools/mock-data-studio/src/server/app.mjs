@@ -85,6 +85,7 @@ export function buildApp({
       '/api/jobs',
       buildJobsRouter({
         config,
+        aiConfigRepository,
         jobRepository: resolvedJobRepository,
         jobRunner: resolvedJobRunner
       })

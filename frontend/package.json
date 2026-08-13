@@ -6,8 +6,13 @@
   "scripts": {
     "dev": "vite",
     "build": "vite build",
+    "lint": "eslint . --max-warnings 0",
+    "typecheck": "npm run check:vue && npm run check:js",
+    "check:vue": "vue-tsc --noEmit -p jsconfig.json",
+    "check:js": "tsc --noEmit -p jsconfig.checked.json",
     "preview": "vite preview",
     "test": "vitest run",
+    "test:coverage": "vitest run --coverage",
     "test:watch": "vitest"
   },
   "dependencies": {
@@ -17,11 +22,18 @@
     "vue-router": "^4.4.5"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@vitejs/plugin-vue": "^6.0.8",
+    "@vitest/coverage-v8": "^4.1.10",
     "@vue/test-utils": "^2.4.6",
     "axios-mock-adapter": "^1.22.0",
+    "eslint": "^10.8.1",
+    "eslint-plugin-vue": "^10.10.0",
+    "globals": "^16.4.0",
     "jsdom": "^29.0.1",
+    "typescript": "^5.9.3",
     "vite": "^8.2.1",
-    "vitest": "^4.1.10"
+    "vitest": "^4.1.10",
+    "vue-tsc": "^3.2.5"
   }
 }

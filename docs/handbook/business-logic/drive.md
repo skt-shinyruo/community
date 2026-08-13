@@ -102,7 +102,7 @@ Front-end：
 3. 分享 token 使用 18 字节随机数做 URL-safe base64；提取码只保存 hash。
 4. `listOwnShares(...)` 按创建时间分页读取 owner 的持久记录，批量装配 entry 名称；条目已删除时仍保留分享审计记录，active 但已过期的记录按 `EXPIRED` 展示。
 5. `loadPublicShareGate(...)` 只返回提取码门禁信息，不返回目标 entry 的名称、类型、ID、状态或 ticket。
-6. `verifyShare(...)` 对过期、撤销、密码错误、目标 entry 不可用都记录 `drive_share_access`；密码错误返回提取码错误。
+6. `verifyShare(...)` 对过期、撤销、密码错误、目标 entry 不可用都记录 `drive_share_access`；密码错误返回提取码错误。Gateway 对该动态路径默认按客户端身份限制为每分钟 10 次，避免 BCrypt 和失败访问写入被并发放大。
 7. 校验成功后返回目标 entry 元数据，记录成功访问，签发 600 秒短时 ticket。
 8. `createShareDownloadUrl(...)` 必须带合法 ticket；分享 file 时只能下载该 file，分享 folder 时只能下载其 active file 子孙。
 9. 分享下载 URL 由 OSS 签发，TTL 也是 600 秒。

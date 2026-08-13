@@ -61,6 +61,8 @@ grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_infra}"
 grep -E '^  community-oss:$' "${single_full}"
 assert_service_environment_value "${single_full}" community-oss 'METRICS_BASIC_AUTH_USERNAME: prometheus'
 assert_service_environment_value "${single_full}" community-oss 'METRICS_BASIC_AUTH_PASSWORD: dev-prometheus-pass'
+assert_service_environment_value "${single_full}" community-im-gateway 'COMMUNITY_METRICS_BASIC_AUTH_USERNAME: prometheus'
+assert_service_environment_value "${single_full}" community-im-gateway 'COMMUNITY_METRICS_BASIC_AUTH_PASSWORD: dev-prometheus-pass'
 grep -A4 -E '^      garage-init:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -F 'endpoint: http://garage:3900' deploy/nacos/config/community-oss.yaml
 grep -F 'OSS_DB_URL: jdbc:mysql://mysql:3306/community_oss' "${single_full}"
@@ -87,6 +89,15 @@ for service in community-oss-1 community-oss-2 community-oss-3; do
     "${cluster_full}" "${service}" 'METRICS_BASIC_AUTH_USERNAME: prometheus' || metrics_environment_failure=1
   assert_service_environment_value \
     "${cluster_full}" "${service}" 'METRICS_BASIC_AUTH_PASSWORD: dev-prometheus-pass' || metrics_environment_failure=1
+done
+if [ "${metrics_environment_failure}" -ne 0 ]; then
+  exit 1
+fi
+for service in community-im-gateway-1 community-im-gateway-2 community-im-gateway-3; do
+  assert_service_environment_value \
+    "${cluster_full}" "${service}" 'COMMUNITY_METRICS_BASIC_AUTH_USERNAME: prometheus' || metrics_environment_failure=1
+  assert_service_environment_value \
+    "${cluster_full}" "${service}" 'COMMUNITY_METRICS_BASIC_AUTH_PASSWORD: dev-prometheus-pass' || metrics_environment_failure=1
 done
 if [ "${metrics_environment_failure}" -ne 0 ]; then
   exit 1

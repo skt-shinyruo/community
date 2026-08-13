@@ -1,5 +1,6 @@
 import {
   autoFillPhaseNames,
+  buildManualTargets,
   resolveScenePreset
 } from './scenes/defaults.mjs'
 
@@ -67,7 +68,7 @@ export function createPlanner({
   }
 
   return {
-    async planDefaultBatch({ batchId, sceneKey = config?.autoFill?.sceneKey } = {}) {
+    async planDefaultBatch({ batchId, sceneKey = config?.autoFill?.sceneKey, counts = null } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')
       }
@@ -75,8 +76,10 @@ export function createPlanner({
       let targets = await targetRepository.listByBatchId(batchId)
 
       if (targets.length === 0) {
-        const preset = resolveScenePresetImpl({ config, sceneKey })
-        targets = await targetRepository.replaceForBatch(batchId, preset.targets)
+        const requestedTargets = counts && typeof counts === 'object'
+          ? buildManualTargets({ counts, sceneKey: sceneKey || 'community-seed' })
+          : resolveScenePresetImpl({ config, sceneKey }).targets
+        targets = await targetRepository.replaceForBatch(batchId, requestedTargets)
       }
 
       const refs = await entityRefRepository.listByBatchId(batchId)

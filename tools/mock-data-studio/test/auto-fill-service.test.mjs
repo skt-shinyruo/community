@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 
-import { createAutoFillService } from '../src/jobs/autoFillService.mjs'
+import { createAutoFillJobPhases, createAutoFillService } from '../src/jobs/autoFillService.mjs'
 
 function createDuplicateKeyError(message = 'Duplicate entry') {
   const error = new Error(message)
@@ -289,4 +289,34 @@ test('write phase helpers forward run options to writers', async () => {
 
   assert.deepEqual(communityPayload.runOptions, runOptions)
   assert.deepEqual(imPayload.runOptions, runOptions)
+})
+
+test('plan phase keeps UI-only auto-fill preset ids out of the generator scene contract', async () => {
+  let planRequest
+  const phases = createAutoFillJobPhases({
+    autoFillService: {
+      async planBatch(request) {
+        planRequest = request
+        return { batch: request.batch, plan: { phases: [] } }
+      },
+      async runCompletionHooks() {
+        return { warnings: [] }
+      }
+    }
+  })
+  const planPhase = phases.find((phase) => phase.name === 'plan')
+
+  await planPhase.run({
+    batch: { id: 42 },
+    batchId: 42,
+    context: {},
+    runOptions: {
+      mode: 'auto-fill',
+      scenePresetId: 'default-deficit',
+      counts: { users: 0 }
+    }
+  })
+
+  assert.equal(planRequest.sceneKey, undefined)
+  assert.equal(planRequest.counts, null)
 })

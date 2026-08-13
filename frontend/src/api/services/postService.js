@@ -25,8 +25,12 @@ export async function listBoardFeed(boardId, { cursor = '', size = 20 } = {}) {
   return { data: normalizeFeedPage(data), traceId }
 }
 
+/**
+ * @param {{ title?: unknown, blocks?: unknown[], categoryId?: unknown, tags?: unknown[] }} [post]
+ * @param {{ writeAttempt?: any }} [options]
+ */
 export async function createPost({ title, blocks, categoryId, tags } = {}, { writeAttempt } = {}) {
-  const payload = { title, blocks: normalizeBlocks(blocks) }
+  const payload = /** @type {Record<string, any>} */ ({ title, blocks: normalizeBlocks(blocks) });
   {
     const cid = normalizeOpaqueId(categoryId)
     if (cid) payload.categoryId = cid
@@ -50,9 +54,13 @@ export async function getPostDetail(postId) {
   return { data, traceId }
 }
 
+/**
+ * @param {unknown} postId
+ * @param {{ title?: unknown, blocks?: unknown[], categoryId?: unknown, tags?: unknown[] }} [post]
+ */
 export async function updatePost(postId, { title, blocks, categoryId, tags } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
-  const payload = { title, blocks: normalizeBlocks(blocks) }
+  const payload = /** @type {Record<string, any>} */ ({ title, blocks: normalizeBlocks(blocks) });
   {
     const cid = normalizeOpaqueId(categoryId)
     if (cid) payload.categoryId = cid
@@ -88,11 +96,12 @@ export async function listReplies(postId, commentId, { cursor = '', size = 10 } 
   return { data: normalizeCommentPage(data), traceId }
 }
 
+/** @param {unknown[] | undefined} blocks */
 function normalizeBlocks(blocks) {
   return (Array.isArray(blocks) ? blocks : []).map((b) => {
-    const raw = b || {}
+    const raw = b && typeof b === 'object' ? /** @type {Record<string, any>} */ (b) : {}
     const type = String(raw.type || '').trim()
-    const block = { type }
+    const block = /** @type {Record<string, any>} */ ({ type })
     if (type === 'paragraph' || type === 'code' || raw.text != null) {
       block.text = raw.text == null ? '' : String(raw.text)
     }
@@ -106,9 +115,14 @@ function normalizeBlocks(blocks) {
   })
 }
 
+/**
+ * @param {unknown} postId
+ * @param {{ content?: unknown, parentCommentId?: unknown }} [comment]
+ * @param {{ writeAttempt?: any }} [options]
+ */
 export async function addComment(postId, { content, parentCommentId } = {}, { writeAttempt } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
-  const payload = { content }
+  const payload = /** @type {Record<string, any>} */ ({ content });
   {
     const normalizedParentCommentId = normalizeOpaqueId(parentCommentId)
     if (normalizedParentCommentId) payload.parentCommentId = normalizedParentCommentId
@@ -118,6 +132,11 @@ export async function addComment(postId, { content, parentCommentId } = {}, { wr
   return { data, traceId }
 }
 
+/**
+ * @param {unknown} postId
+ * @param {unknown} commentId
+ * @param {{ content?: unknown }} [comment]
+ */
 export async function updateComment(postId, commentId, { content } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
   const cid = requireOpaqueId(commentId, 'commentId')

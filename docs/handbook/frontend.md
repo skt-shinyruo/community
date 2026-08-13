@@ -183,7 +183,7 @@ connect(accessToken)
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。组件只保留加载、提交、toast 和 UI 绑定。
 
-跨页面重复的有状态流程使用 focused composable：`useMarketOrderList.js` 统一买单 / 卖单的会话隔离、分页和过期请求丢弃，`useDriveWorkspaceState.js` 统一 Drive 的模式、目录、选择和刷新收敛，`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused composable：`useMarketOrderList.js` 统一买单 / 卖单的会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 ## 全局 Store
 
@@ -201,6 +201,8 @@ connect(accessToken)
 - 用户摘要缓存 60 秒。
 - 点赞计数 / 状态缓存 30 秒。
 - 点赞状态与登录态相关，auth 变化后应清理。
+
+`userService` 的完整资料缓存使用 5 分钟 TTL 和 100 项 LRU 上限，并公开单用户/全量失效入口。头像等资料写入成功后必须先失效对应用户；失效时仍在途的旧请求不得重新写回缓存。
 
 ## 产品 UI 基础件
 

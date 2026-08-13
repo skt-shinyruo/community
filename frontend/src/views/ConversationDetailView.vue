@@ -103,7 +103,7 @@ import {
   parseConversationTargetId
 } from './conversationDetailState'
 
-const emit = defineEmits(['trace'])
+defineEmits(['trace'])
 const props = defineProps({ conversationId: String })
 const auth = useAuthStore()
 const meId = computed(() => normalizeOpaqueId(auth.userId))

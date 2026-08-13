@@ -1,6 +1,9 @@
 package com.nowcoder.community.oss.client;
 
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
+import io.micrometer.observation.Observation;
+import io.micrometer.observation.ObservationHandler;
+import io.micrometer.observation.ObservationRegistry;
 import com.sun.net.httpserver.HttpServer;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
@@ -16,6 +19,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -72,12 +76,70 @@ class HttpCommunityOssClientFailureContractTest {
         HttpCommunityOssClient client = new HttpCommunityOssClient(
                 baseUrl(server),
                 RestClient.builder().requestFactory(requestFactory),
+                RestClient.builder(),
                 () -> "service-token-1"
         );
 
         Throwable failure = catchThrowable(() -> client.getMetadata(OBJECT_ID));
 
         assertTypedFailure(failure, "TIMEOUT", 0, true);
+    }
+
+    @Test
+    void multipartUploadMustPreserveTheConfiguredReadTimeout() throws Exception {
+        AtomicReference<String> uploadPolicyHeader = new AtomicReference<>();
+        HttpServer server = startServer(exchange -> {
+            uploadPolicyHeader.set(exchange.getRequestHeaders().getFirst("X-Oss-Upload-Policy"));
+            exchange.getRequestBody().readAllBytes();
+            try {
+                Thread.sleep(250);
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+            }
+            exchange.close();
+        }, "/internal/oss/upload-sessions/");
+        SimpleClientHttpRequestFactory requestFactory = new SimpleClientHttpRequestFactory();
+        requestFactory.setConnectTimeout(100);
+        requestFactory.setReadTimeout(50);
+        AtomicInteger observationStarts = new AtomicInteger();
+        ObservationRegistry observationRegistry = ObservationRegistry.create();
+        observationRegistry.observationConfig().observationHandler(new ObservationHandler<Observation.Context>() {
+            @Override
+            public void onStart(Observation.Context context) {
+                observationStarts.incrementAndGet();
+            }
+
+            @Override
+            public boolean supportsContext(Observation.Context context) {
+                return true;
+            }
+        });
+        HttpCommunityOssClient client = new HttpCommunityOssClient(
+                baseUrl(server),
+                RestClient.builder(),
+                RestClient.builder()
+                        .requestFactory(requestFactory)
+                        .observationRegistry(observationRegistry)
+                        .requestInitializer(request -> request.getHeaders()
+                                .set("X-Oss-Upload-Policy", "streaming-v1")),
+                () -> "service-token-1"
+        );
+        OssCompleteUploadRequest request = new OssCompleteUploadRequest(
+                UUID.fromString("00000000-0000-7000-8000-000000007303"),
+                OBJECT_ID,
+                UUID.fromString("00000000-0000-7000-8000-000000007302"),
+                () -> new ByteArrayInputStream("data".getBytes(StandardCharsets.UTF_8)),
+                "avatar.png",
+                "image/png",
+                4,
+                "sha256-avatar"
+        );
+
+        Throwable failure = catchThrowable(() -> client.completeProxyUpload(request));
+
+        assertTypedFailure(failure, "TIMEOUT", 0, true);
+        assertThat(observationStarts).hasValue(1);
+        assertThat(uploadPolicyHeader).hasValue("streaming-v1");
     }
 
     @Test
@@ -212,8 +274,12 @@ class HttpCommunityOssClientFailureContractTest {
     }
 
     private HttpServer startServer(com.sun.net.httpserver.HttpHandler handler) throws IOException {
+        return startServer(handler, "/internal/oss/objects/" + OBJECT_ID);
+    }
+
+    private HttpServer startServer(com.sun.net.httpserver.HttpHandler handler, String path) throws IOException {
         HttpServer server = HttpServer.create(new InetSocketAddress("127.0.0.1", 0), 0);
-        server.createContext("/internal/oss/objects/" + OBJECT_ID, handler);
+        server.createContext(path, handler);
         server.start();
         servers.add(server);
         return server;

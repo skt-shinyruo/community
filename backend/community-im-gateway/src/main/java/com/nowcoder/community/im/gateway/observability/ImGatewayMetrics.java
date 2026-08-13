@@ -18,7 +18,9 @@ public class ImGatewayMetrics {
     private static final Set<String> BRIDGE_FAILURE_REASONS = Set.of(
             "internal_bridge_error",
             "unsupported_frame_type",
-            "unsupported_worker_frame_type"
+            "unsupported_worker_frame_type",
+            "payload_too_large",
+            "inbound_buffer_overflow"
     );
 
     private final MeterRegistry registry;

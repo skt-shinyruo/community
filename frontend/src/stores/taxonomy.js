@@ -6,8 +6,8 @@ import { normalizeOpaqueId } from '../utils/opaqueId'
 
 export const useTaxonomyStore = defineStore('taxonomy', {
   state: () => ({
-    categories: [],
-    hotTags: [],
+    categories: /** @type {any[]} */ ([]),
+    hotTags: /** @type {any[]} */ ([]),
     categoriesLoaded: false,
     hotTagsLoaded: false
   }),

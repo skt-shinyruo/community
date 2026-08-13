@@ -16,15 +16,18 @@ public class CommentThreadCleanupJob {
     private final CommentThreadCleanupApplicationService applicationService;
     private final boolean enabled;
     private final int batchSize;
+    private final int maxBatchesPerRoot;
 
     public CommentThreadCleanupJob(
             CommentThreadCleanupApplicationService applicationService,
             @Value("${content.comment-thread-cleanup.enabled:true}") boolean enabled,
-            @Value("${content.comment-thread-cleanup.batch-size:100}") int batchSize
+            @Value("${content.comment-thread-cleanup.batch-size:100}") int batchSize,
+            @Value("${content.comment-thread-cleanup.max-batches-per-root:10}") int maxBatchesPerRoot
     ) {
         this.applicationService = applicationService;
         this.enabled = enabled;
         this.batchSize = Math.min(500, Math.max(1, batchSize));
+        this.maxBatchesPerRoot = Math.min(100, Math.max(1, maxBatchesPerRoot));
     }
 
     @Scheduled(
@@ -38,13 +41,14 @@ public class CommentThreadCleanupJob {
             }
             try {
                 CommentThreadCleanupApplicationService.CleanupResult result =
-                        applicationService.reconcile(batchSize);
-                if (result.failed() > 0) {
-                    log.warn("[content-comment] cleanup scanned={} completed={} failed={}",
-                            result.scanned(), result.completed(), result.failed());
+                        applicationService.reconcile(batchSize, maxBatchesPerRoot);
+                if (result.deferred() > 0 || result.failed() > 0) {
+                    log.warn("[content-comment] cleanup scanned={} completed={} deferred={} failed={} failedRootIds={}",
+                            result.scanned(), result.completed(), result.deferred(), result.failed(),
+                            result.failedRootIds());
                 }
             } catch (RuntimeException exception) {
-                log.warn("[content-comment] cleanup scan failed: {}", exception.toString());
+                log.warn("[content-comment] cleanup scan failed", exception);
             }
         });
     }

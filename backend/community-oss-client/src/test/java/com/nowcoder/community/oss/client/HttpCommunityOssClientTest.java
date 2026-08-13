@@ -15,6 +15,8 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.MediaType;
+import org.springframework.http.client.SimpleClientHttpRequestFactory;
+import io.micrometer.observation.ObservationRegistry;
 import org.springframework.mock.web.MockHttpServletRequest;
 import org.springframework.web.client.RestClient;
 import org.springframework.web.context.request.RequestContextHolder;
@@ -139,6 +141,7 @@ class HttpCommunityOssClientTest {
                     "http://127.0.0.1:" + server.getAddress().getPort(),
                     RestClient.builder().defaultHeader(
                             HttpHeaders.AUTHORIZATION, "Bearer leaked-default"),
+                    streamingBuilder(),
                     () -> {
                         throw new AssertionError("public file loading must not request a service token");
                     }
@@ -165,6 +168,7 @@ class HttpCommunityOssClientTest {
                     "http://127.0.0.1:" + server.getAddress().getPort() + "/proxy",
                     RestClient.builder().defaultHeader(
                             HttpHeaders.AUTHORIZATION, "Bearer leaked-default"),
+                    streamingBuilder(),
                     () -> {
                         tokenCalls.incrementAndGet();
                         return "service-token-1";
@@ -199,6 +203,7 @@ class HttpCommunityOssClientTest {
             HttpCommunityOssClient client = new HttpCommunityOssClient(
                     "http://127.0.0.1:" + server.getAddress().getPort(),
                     callerBuilder,
+                    streamingBuilder(),
                     () -> {
                         tokenCalls.incrementAndGet();
                         return "service-token-1";
@@ -391,6 +396,7 @@ class HttpCommunityOssClientTest {
             HttpCommunityOssClient client = new HttpCommunityOssClient(
                     "http://127.0.0.1:" + server.getAddress().getPort() + "/proxy",
                     callerBuilder,
+                    streamingBuilder(),
                     () -> "service-token-" + tokenCalls.incrementAndGet()
             );
 
@@ -441,6 +447,7 @@ class HttpCommunityOssClientTest {
             HttpCommunityOssClient client = new HttpCommunityOssClient(
                     "http://127.0.0.1:" + server.getAddress().getPort(),
                     callerBuilder,
+                    streamingBuilder(),
                     () -> {
                         tokenCalls.incrementAndGet();
                         tokenOrder.set(sequence.incrementAndGet());
@@ -958,6 +965,12 @@ class HttpCommunityOssClientTest {
                 new String(body, headersStart, headersEnd - headersStart, charset),
                 Arrays.copyOfRange(body, contentStart, contentEnd)
         );
+    }
+
+    private static RestClient.Builder streamingBuilder() {
+        return RestClient.builder()
+                .requestFactory(new SimpleClientHttpRequestFactory())
+                .observationRegistry(ObservationRegistry.NOOP);
     }
 
     private static int requireSequence(byte[] source, byte[] sequence, int fromIndex) {

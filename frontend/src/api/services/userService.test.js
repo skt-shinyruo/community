@@ -1,20 +1,86 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { batchUserSummary, getUserProfile } from './userService'
+import { batchUserSummary, clearUserProfileCache, getUserProfile, invalidateUserProfile } from './userService'
 
 describe('api/services/userService', () => {
   let mock
 
   beforeEach(() => {
     setActivePinia(createPinia())
+    clearUserProfileCache()
   })
 
   afterEach(() => {
+    vi.useRealTimers()
     mock?.restore()
     mock = null
+  })
+
+  it('expires cached profiles after the cache TTL', async () => {
+    vi.useFakeTimers()
+    vi.setSystemTime(new Date('2026-08-12T00:00:00Z'))
+    const userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${userId}`).replyOnce(200, {
+      code: 0, data: { id: userId, username: 'before-expiry' }
+    }).onGet(`/api/users/${userId}`).replyOnce(200, {
+      code: 0, data: { id: userId, username: 'after-expiry' }
+    })
+
+    expect((await getUserProfile(userId)).username).toBe('before-expiry')
+    await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1)
+    expect((await getUserProfile(userId)).username).toBe('after-expiry')
+  })
+
+  it('does not let an invalidated in-flight request repopulate the cache', async () => {
+    const userId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    let resolveOld
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${userId}`).replyOnce(() => new Promise((resolve) => {
+      resolveOld = resolve
+    })).onGet(`/api/users/${userId}`).replyOnce(200, {
+      code: 0, data: { id: userId, username: 'fresh' }
+    })
+
+    const oldRequest = getUserProfile(userId)
+    await Promise.resolve()
+    invalidateUserProfile(userId)
+    expect((await getUserProfile(userId)).username).toBe('fresh')
+    resolveOld([200, { code: 0, data: { id: userId, username: 'stale' } }])
+    expect((await oldRequest).username).toBe('stale')
+    expect((await getUserProfile(userId)).username).toBe('fresh')
+  })
+
+  it('evicts the least recently used profile when the cache reaches its bound', async () => {
+    mock = new MockAdapter(http)
+    mock.onGet().reply((config) => {
+      const id = config.url.split('/').pop()
+      return [200, { code: 0, data: { id, username: id } }]
+    })
+    const ids = Array.from({ length: 101 }, (_, index) =>
+      `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`)
+
+    for (const id of ids) await getUserProfile(id)
+    await getUserProfile(ids[0])
+
+    expect(mock.history.get).toHaveLength(102)
+  })
+
+  it('force refreshes a cached profile', async () => {
+    const userId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${userId}`).replyOnce(200, {
+      code: 0, data: { id: userId, username: 'cached' }
+    }).onGet(`/api/users/${userId}`).replyOnce(200, {
+      code: 0, data: { id: userId, username: 'forced' }
+    })
+
+    expect((await getUserProfile(userId)).username).toBe('cached')
+    expect((await getUserProfile(userId, { force: true })).username).toBe('forced')
+    expect(mock.history.get).toHaveLength(2)
   })
 
   it('getUserProfile should request the UUID route without numeric coercion', async () => {

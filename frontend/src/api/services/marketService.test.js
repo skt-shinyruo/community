@@ -20,7 +20,7 @@ describe('api/services/marketService', () => {
 
   it('listMarketListings should read the unified listings endpoint', async () => {
     mock = new MockAdapter(http)
-    mock.onGet('/api/market/listings').reply((config) => [200, {
+    mock.onGet('/api/market/listings').reply(() => [200, {
       code: 0,
       message: 'OK',
       httpStatus: 200,

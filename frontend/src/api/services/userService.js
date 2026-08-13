@@ -4,8 +4,45 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
 
+const USER_CACHE_TTL_MS = 5 * 60 * 1000
+const USER_CACHE_MAX_ENTRIES = 100
 const userCache = new Map()
 const userInflight = new Map()
+
+function touchCacheEntry(userId, entry) {
+  userCache.delete(userId)
+  userCache.set(userId, entry)
+}
+
+function readCachedProfile(userId) {
+  const entry = userCache.get(userId)
+  if (!entry) return null
+  if (entry.expiresAt <= Date.now()) {
+    userCache.delete(userId)
+    return null
+  }
+  touchCacheEntry(userId, entry)
+  return entry.value
+}
+
+function writeCachedProfile(userId, value) {
+  touchCacheEntry(userId, { value, expiresAt: Date.now() + USER_CACHE_TTL_MS })
+  while (userCache.size > USER_CACHE_MAX_ENTRIES) {
+    userCache.delete(userCache.keys().next().value)
+  }
+}
+
+export function invalidateUserProfile(userId) {
+  const uid = requireOpaqueId(userId, 'userId')
+  userCache.delete(uid)
+  const activeRequest = userInflight.get(uid)
+  if (activeRequest) activeRequest.cacheable = false
+}
+
+export function clearUserProfileCache() {
+  userCache.clear()
+  for (const activeRequest of userInflight.values()) activeRequest.cacheable = false
+}
 
 function optionalNumber(value) {
   const next = Number(value)
@@ -30,31 +67,42 @@ function normalizeUserLevelProfileFields(raw) {
 
 export async function getUserProfile(userId, { force = false } = {}) {
   const uid = requireOpaqueId(userId, 'userId')
-  if (!force && userCache.has(uid)) {
-    return userCache.get(uid)
+  if (!force) {
+    const cached = readCachedProfile(uid)
+    if (cached) return cached
   }
 
-  if (userInflight.has(uid)) {
-    return userInflight.get(uid)
+  const activeRequest = userInflight.get(uid)
+  if (!force && activeRequest?.cacheable) {
+    return activeRequest.promise
   }
+  if (force && activeRequest) activeRequest.cacheable = false
 
+  const request = /** @type {{ cacheable: boolean, promise: Promise<any> | null }} */ ({
+    cacheable: true,
+    promise: null
+  })
   const p = (async () => {
     const resp = await http.get(`/api/users/${uid}`)
     const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
+    const profile = data && typeof data === 'object' && !Array.isArray(data) ? data : {}
     const value = {
-      ...data,
+      ...profile,
       ...normalizeUserLevelProfileFields(data),
       _traceId: traceId
     }
-    userCache.set(uid, value)
+    if (request.cacheable) {
+      writeCachedProfile(uid, value)
+    }
     return value
   })()
 
-  userInflight.set(uid, p)
+  request.promise = p
+  userInflight.set(uid, request)
   try {
     return await p
   } finally {
-    if (userInflight.get(uid) === p) userInflight.delete(uid)
+    if (userInflight.get(uid) === request) userInflight.delete(uid)
   }
 }
 

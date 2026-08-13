@@ -42,6 +42,10 @@ class NacosGatewayBindingTest {
         assertThat(environment.containsProperty("gateway.http.rate-limit.fail-open-on-error")).isTrue();
         assertThat(rateLimit.isEnabled()).isTrue();
         assertThat(rateLimit.isFailOpenOnError()).isFalse();
+        assertThat(rateLimit.getPolicies())
+                .containsKey("/api/drive/shares/{shareToken}/verify");
+        assertThat(rateLimit.getPolicies().get("/api/drive/shares/{shareToken}/verify").getLimit())
+                .isEqualTo(10);
         assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
         assertThat(cors.getAllowedOrigins()).containsExactly(
                 "http://localhost:5173",

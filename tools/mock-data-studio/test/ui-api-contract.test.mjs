@@ -205,6 +205,7 @@ test('root serves the minimal studio shell assets', async () => {
   const app = createAppHarness()
 
   const response = await request(app).get('/')
+  const scriptResponse = await request(app).get('/app.js')
 
   assert.equal(response.status, 200)
   assert.match(response.headers['content-type'], /^text\/html/u)
@@ -213,6 +214,11 @@ test('root serves the minimal studio shell assets', async () => {
   assert.match(response.text, /batch-history-table/u)
   assert.match(response.text, /href="\/styles\.css"/u)
   assert.match(response.text, /src="\/app\.js"/u)
+  assert.equal(scriptResponse.status, 200)
+  assert.match(scriptResponse.text, /const id = btn\.dataset\.id/u)
+  assert.doesNotMatch(scriptResponse.text, /Number\(btn\.dataset\.id\)/u)
+  assert.match(scriptResponse.text, /body: JSON\.stringify\(previewPayload\)/u)
+  assert.doesNotMatch(scriptResponse.text, /previewPayload\.jobRequest/u)
 })
 
 test('health exposes generate-form metadata for the UI shell preview', async () => {
@@ -344,6 +350,7 @@ test('runtime status returns card-friendly summary data for the status panel', a
 })
 
 test('job start and polling responses expose generate-flow helpers for the UI shell', async () => {
+  let startedRequest
   const startedBatch = createBatch(7, {
     requestedBy: 'alice',
     status: 'running',
@@ -364,10 +371,13 @@ test('job start and polling responses expose generate-flow helpers for the UI sh
       }
     }),
     jobsById: new Map([[startedJob.id, startedJob]]),
-    startJob: async () => ({
+    startJob: async (request) => {
+      startedRequest = request
+      return {
       batch: startedBatch,
       job: startedJob
-    })
+      }
+    }
   })
 
   const createResponse = await request(app).post('/api/jobs').send({
@@ -375,7 +385,15 @@ test('job start and polling responses expose generate-flow helpers for the UI sh
     batchType: 'demo-seed',
     jobType: 'demo-seed',
     mode: 'manual-generate',
-    aiEnhancement: true
+    aiEnhancement: true,
+    scenePresetId: 'community-seed',
+    counts: {
+      users: 6,
+      posts: 12,
+      comments: 24,
+      socialFollows: 16,
+      socialLikes: 24
+    }
   })
 
   assert.equal(createResponse.status, 202)
@@ -384,8 +402,17 @@ test('job start and polling responses expose generate-flow helpers for the UI sh
     batchType: 'demo-seed',
     jobType: 'demo-seed',
     mode: 'manual-generate',
-    aiEnhancement: true
+    aiEnhancement: true,
+    scenePresetId: 'community-seed',
+    counts: {
+      users: 6,
+      posts: 12,
+      comments: 24,
+      socialFollows: 16,
+      socialLikes: 24
+    }
   })
+  assert.deepEqual(startedRequest, createResponse.body.request)
   assert.deepEqual(createResponse.body.polling, {
     jobId: startedJob.id,
     batchId: startedBatch.id,
@@ -435,6 +462,74 @@ test('job start rejects manual AI enhancement when AI config is not ready', asyn
     error: 'ai_not_ready',
     message: 'AI enhancement is not ready: missing apiKey'
   })
+})
+
+test('auto-fill job start preserves the startup batch contract from the selected scene', async () => {
+  let startedRequest
+  const app = createAppHarness({
+    startJob: async (request) => {
+      startedRequest = request
+      return {
+        batch: createBatch(91, { batchType: request.batchType, requestedBy: request.requestedBy }),
+        job: createJob(92, 91, { jobType: request.jobType })
+      }
+    }
+  })
+
+  const response = await request(app).post('/api/jobs').send({
+    requestedBy: 'startup-auto-fill',
+    batchType: 'startup-auto-fill',
+    jobType: 'startup-auto-fill',
+    mode: 'auto-fill',
+    aiEnhancement: false,
+    scenePresetId: 'default-deficit',
+    counts: { users: 0, posts: 0, comments: 0, socialFollows: 0, socialLikes: 0 }
+  })
+
+  assert.equal(response.status, 202)
+  assert.equal(startedRequest.batchType, 'startup-auto-fill')
+  assert.equal(startedRequest.jobType, 'startup-auto-fill')
+  assert.equal(startedRequest.mode, 'auto-fill')
+})
+
+test('job start accepts the active database AI configuration without a restart', async () => {
+  let started = false
+  const app = buildApp({
+    config: fakeConfig(),
+    aiConfigRepository: {
+      async getActive() {
+        return {
+          provider: 'openai',
+          model: 'gpt-4.1-mini',
+          apiKey: 'runtime-key',
+          enabled: true,
+          maxItemsPerJob: 20
+        }
+      },
+      async list() { return [] }
+    },
+    jobRepository: {
+      async findById() { return null },
+      async getById() { return createJob(89, 88, { status: 'pending' }) }
+    },
+    jobRunner: {
+      async start() {
+        started = true
+        return {
+          batch: createBatch(88, { status: 'pending' }),
+          job: createJob(89, 88, { status: 'pending' })
+        }
+      }
+    }
+  })
+
+  const response = await request(app).post('/api/jobs').send({
+    mode: 'manual-generate',
+    aiEnhancement: true
+  })
+
+  assert.equal(response.status, 202)
+  assert.equal(started, true)
 })
 
 test('batch history groups the default batch separately from manual batches', async () => {

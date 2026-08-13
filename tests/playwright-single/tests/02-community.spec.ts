@@ -40,7 +40,7 @@ test.describe.serial('community product flow @regression', () => {
     expect(bookmarksResponse.status()).toBe(200)
     const bookmarksBody = await bookmarksResponse.json()
     expect(Array.isArray(bookmarksBody.data)).toBe(true)
-    expect(bookmarksBody.data.some((post) => post.title === data.postTitle)).toBe(true)
+    expect(bookmarksBody.data.some((post: { title?: string }) => post.title === data.postTitle)).toBe(true)
     await expect(page.getByText(data.postTitle).first()).toBeVisible()
   })
 

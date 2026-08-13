@@ -16,13 +16,13 @@ class CommentThreadCleanupJobTest {
         CommentThreadCleanupApplicationService applicationService =
                 mock(CommentThreadCleanupApplicationService.class);
         doThrow(new IllegalStateException("database unavailable"))
-                .when(applicationService).reconcile(25);
+                .when(applicationService).reconcile(25, 4);
         CommentThreadCleanupJob job =
-                new CommentThreadCleanupJob(applicationService, true, 25);
+                new CommentThreadCleanupJob(applicationService, true, 25, 4);
 
         assertThatCode(job::cleanup).doesNotThrowAnyException();
 
-        verify(applicationService).reconcile(25);
+        verify(applicationService).reconcile(25, 4);
     }
 
     @Test
@@ -30,10 +30,10 @@ class CommentThreadCleanupJobTest {
         CommentThreadCleanupApplicationService applicationService =
                 mock(CommentThreadCleanupApplicationService.class);
         CommentThreadCleanupJob job =
-                new CommentThreadCleanupJob(applicationService, false, 25);
+                new CommentThreadCleanupJob(applicationService, false, 25, 4);
 
         job.cleanup();
 
-        verify(applicationService, never()).reconcile(25);
+        verify(applicationService, never()).reconcile(25, 4);
     }
 }

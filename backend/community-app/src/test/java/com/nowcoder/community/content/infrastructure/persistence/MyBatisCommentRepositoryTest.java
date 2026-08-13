@@ -271,6 +271,18 @@ class MyBatisCommentRepositoryTest {
     }
 
     @Test
+    void activeReplyProbeShouldDelegateAndRejectMissingRootId() {
+        CommentMapper mapper = mock(CommentMapper.class);
+        when(mapper.existsActiveReply(ROOT_ID)).thenReturn(1);
+        MyBatisCommentRepository repository = repository(mapper);
+
+        assertThat(repository.hasActiveReplies(ROOT_ID)).isTrue();
+        assertThat(repository.hasActiveReplies(null)).isFalse();
+
+        verify(mapper).existsActiveReply(ROOT_ID);
+    }
+
+    @Test
     void editApplyShouldDistinguishAppliedNoOpStaleAndNotFound() {
         Date updatedAt = new Date(2_000L);
         CommentEdit edit = new CommentEdit(ROOT_ID, 7L, "edited", updatedAt);

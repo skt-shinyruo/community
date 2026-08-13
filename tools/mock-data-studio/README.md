@@ -90,7 +90,7 @@ curl http://127.0.0.1:12890/
 curl http://127.0.0.1:12890/health
 curl http://127.0.0.1:12890/api/runtime-status
 curl -X POST http://127.0.0.1:12890/api/jobs -H 'content-type: application/json' \
-  -d '{"requestedBy":"local-dev","batchType":"demo-seed","jobType":"demo-seed"}'
+  -d '{"requestedBy":"local-dev","batchType":"demo-seed","jobType":"demo-seed","mode":"manual-generate","scenePresetId":"community-seed","counts":{"users":6,"posts":12,"comments":24,"socialFollows":16,"socialLikes":24}}'
 curl http://127.0.0.1:12890/api/jobs/1
 curl http://127.0.0.1:12890/api/batches
 curl http://127.0.0.1:12890/api/batches/1
@@ -110,6 +110,7 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
 - `/health` 额外返回 `ui.generateForm` 元数据，给静态页面初始化模式、预设与默认预览值。
 - `/api/runtime-status` 额外返回 `summary` 与 `cards`，供状态卡片直接渲染。
 - `/api/jobs` 与 `/api/jobs/:jobId` 额外返回 `request` / `polling` 元数据，便于前端轮询与跳转 batch 详情。
+- 手动生成会把预览中的 `scenePresetId` 和五项 `counts` 原样提交并写成当前 batch targets；不会回退到 startup auto-fill 的 100/800/2500 默认目标。
 - `/api/batches` 与 `/api/batches/:batchId` 额外返回 `history` / `detail` 元数据，便于表格与详情面板渲染。
 
 ## 关键环境变量
@@ -159,4 +160,5 @@ curl -X DELETE http://127.0.0.1:12890/api/batches/1
   - `discuss_post.comment_count`
 - 所有业务写入都会追加 `demo_entity_ref`，因此批次详情 target / actual / failure summary 与 delete 流程都能覆盖 Phase 2 实体。
 - AI 文本增强只会修改文本字段（帖子/评论/通知/举报说明/IM 文案等）；数量控制、关系生成、批次管理和写库逻辑仍由规则链路负责。
+- AI 配置页编辑已有配置时，密钥留空表示保留原密钥；卡片连接测试由服务端按配置 ID 读取已保存密钥，密钥不会回传浏览器。健康状态、运行态卡片和作业提交都会在请求时读取同一个 active DB 配置，启用后无需重启服务。
 - 即便手动 job 开启 AI 增强，若 AI 凭据缺失、超时或 provider 异常，也会自动回退规则文案，不会导致整 job 失败。

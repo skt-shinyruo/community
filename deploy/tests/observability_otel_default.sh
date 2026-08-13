@@ -65,7 +65,16 @@ require_env_count() {
   local topology="$4"
   local actual
 
-  actual="$(rg -c "${key}[=:]" "${config}" || true)"
+  actual="$(awk -v key="${key}" '
+    $0 == "services:" { in_services = 1; next }
+    in_services && /^[^[:space:]]/ { in_services = 0; in_service = 0 }
+    in_services && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { in_service = 1; found = 0; next }
+    in_services && in_service && index($0, "      " key ":") == 1 && !found {
+      count++
+      found = 1
+    }
+    END { print count + 0 }
+  ' "${config}")"
   if [ "${actual}" != "${expected}" ]; then
     echo "expected ${topology} config to expose ${key} for all ${expected} services, found ${actual}" >&2
     exit 1

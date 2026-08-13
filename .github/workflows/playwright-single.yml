@@ -93,6 +93,10 @@ jobs:
         working-directory: tests/playwright-single
         run: npm ci
 
+      - name: Type-check Playwright suite
+        working-directory: tests/playwright-single
+        run: npm run typecheck
+
       - name: Install Chromium
         working-directory: tests/playwright-single
         run: npx playwright install --with-deps chromium

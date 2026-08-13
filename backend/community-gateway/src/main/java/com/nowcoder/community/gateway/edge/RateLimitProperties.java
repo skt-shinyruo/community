@@ -3,15 +3,15 @@ package com.nowcoder.community.gateway.edge;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import java.time.Duration;
-import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.concurrent.ConcurrentHashMap;
 
 @ConfigurationProperties(prefix = "gateway.http.rate-limit")
 public class RateLimitProperties {
 
     private boolean enabled = true;
     private boolean failOpenOnError = false;
-    private final Map<String, Policy> policies = new LinkedHashMap<>();
+    private final Map<String, Policy> policies = new ConcurrentHashMap<>();
 
     public boolean isEnabled() {
         return enabled;

@@ -165,6 +165,7 @@ class TransactionBoundaryArchTest {
         assertNotTransactional(
                 CommentThreadCleanupApplicationService.class,
                 "reconcile",
+                int.class,
                 int.class
         );
         assertNotTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);

@@ -137,6 +137,9 @@ grep -F 'public-gateway-origin: ${GATEWAY_PUBLIC_BASE_URL}' "${CONFIG_DIR}/commu
 grep -F 'websocket-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
+grep -F '"[/api/drive/shares/{shareToken}/verify]":' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'max-batches-per-root: ${CONTENT_COMMENT_THREAD_CLEANUP_MAX_BATCHES_PER_ROOT:10}' \
+  "${CONFIG_DIR}/community-app.yaml"
 grep -F 'reset-base-url: http://localhost:13110' "${curl_log}"
 grep -F 'refresh-cookie-secure: false' "${curl_log}"
 grep -F 'refresh-cookie-same-site: Strict' "${curl_log}"
@@ -322,14 +325,14 @@ grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/.env.single.example"
 grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/.env.cluster.example"
 grep -F -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
   "${REPO_ROOT}/deploy/compose.runtime.services.single.yml"
-test "$(grep -Fc -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
-  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+test "$(grep -Fc -- 'DRIVE_SHARE_TICKET_SECRET: "${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}"' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 1
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/.env.single.example"
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/.env.cluster.example"
 grep -F -- '- AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}' \
   "${REPO_ROOT}/deploy/compose.runtime.services.single.yml"
-test "$(grep -Fc -- '- AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}' \
-  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+test "$(grep -Fc -- 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET: "${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}"' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 1
 grep -F 'allowed-mime-types:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'image/jpeg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'allowed-extensions:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
@@ -365,6 +368,7 @@ grep -F 'recovery-batch-size: 100' "${CONFIG_DIR}/community-work-processing.yaml
 grep -F 'processing-lease: 60s' "${CONFIG_DIR}/community-work-processing.yaml"
 grep -F 'room-flush-interval-ms: 50' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'max-inbound-chars: 10000' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'max-inbound-buffer-frames: 64' "${CONFIG_DIR}/community-im-gateway.yaml"
 grep -F 'timeout-ms: 1500' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'event:' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'concurrency: 3' "${CONFIG_DIR}/im-realtime.yaml"
@@ -431,9 +435,11 @@ smtp_runtime_env_vars=(
   SPRING_MAIL_READ_TIMEOUT_MS
   SPRING_MAIL_WRITE_TIMEOUT_MS
 )
+test "$(grep -Fc -- '<<: *community-app-environment' \
+  "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
 for env_var in "${smtp_runtime_env_vars[@]}"; do
   test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.single.yml")" -eq 1
-  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+  test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 1
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.single.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.cluster.example"
 done
@@ -456,7 +462,7 @@ community_auth_runtime_env_vars=(
 )
 for env_var in "${community_auth_runtime_env_vars[@]}"; do
   test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.single.yml")" -eq 1
-  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 3
+  test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose.runtime.services.cluster.yml")" -eq 1
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.single.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/.env.cluster.example"
 done

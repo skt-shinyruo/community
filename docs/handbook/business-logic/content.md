@@ -241,6 +241,7 @@ Complete upload：
 
 - 删除根评论时先在独立短事务中写入 tombstone，立即阻断新回复；已有回复按固定批量在独立事务中删除。任一批失败后，重试同一删除命令会从剩余活跃回复继续，不会重新扣减已完成批次的计数。
 - 批处理查询使用 `idx_comment_root_cleanup(root_comment_id,status,create_time,id)`，避免热门评论树形成无界锁集合或动态超长 SQL。
+- 后台 reconciliation 每轮最多扫描 `content.comment-thread-cleanup.batch-size` 个 root，每个 root 最多执行 `max-batches-per-root` 个回复批次；达到预算后以一次只读探测区分恰好完成和仍有剩余，未完成的 root 标记为 deferred 并继续处理后续 root。单 root 失败日志同时记录 root ID 和异常堆栈，下轮仍可重试。
 
 - 作者删除校验作者和路由帖子。
 - 治理删除校验治理动作。

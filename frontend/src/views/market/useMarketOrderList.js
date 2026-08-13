@@ -53,9 +53,10 @@ export function useMarketOrderList({
       if (append) pageError.value = cause?.message || moreError
       else error.value = cause?.message || initialError
     } finally {
-      if (!isCurrentRequest(generation, scope)) return
-      if (append) loadingMore.value = false
-      else loading.value = false
+      if (isCurrentRequest(generation, scope)) {
+        if (append) loadingMore.value = false
+        else loading.value = false
+      }
     }
   }
 

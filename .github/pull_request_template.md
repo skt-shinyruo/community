@@ -15,5 +15,5 @@
 
 ## Verification
 
-- [ ] `mvn -pl community-app -am -Dtest=DddLayeringArchTest,DomainBoundaryArchTest,InfraBoundaryArchTest,ControllerBoundaryArchTest,DtoBoundaryArchTest,ListenerBoundaryArchTest test`
+- [ ] `mvn -pl community-app -am -DskipTests install && mvn -pl community-app -Dtest='*ArchTest' test`
 - [ ] `mvn -pl community-app -am test`

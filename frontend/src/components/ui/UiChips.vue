@@ -18,7 +18,7 @@
 </template>
 
 <script setup>
-const props = defineProps({
+defineProps({
   modelValue: { type: [String, Number], default: '' },
   options: { type: Array, default: () => [] }, // [{ key, label, icon?, disabled? }]
   ariaLabel: { type: String, default: '' },
@@ -32,4 +32,3 @@ function onSelect(key) {
   emit('change', key)
 }
 </script>
-

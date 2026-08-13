@@ -303,13 +303,6 @@ const profileTimeline = computed(() =>
   })
 )
 
-function categoryLabel(id) {
-  const cid = normalizeOpaqueId(id)
-  if (!cid) return ''
-  const category = taxonomy.categoriesById.get(cid)
-  return category?.name || `分类#${cid}`
-}
-
 function settle(promise) {
   return Promise.resolve(promise).then(
     (value) => ({ value, error: null }),

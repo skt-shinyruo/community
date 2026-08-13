@@ -12,11 +12,11 @@ function identityScope(auth) {
 
 export const useSocialPrefsStore = defineStore('socialPrefs', {
   state: () => ({
-    blockedUserIds: [],
+    blockedUserIds: /** @type {unknown[]} */ ([]),
     blockedLoaded: false,
     blockedScope: '',
     blockedRequestId: 0,
-    subscribedCategoryIds: [],
+    subscribedCategoryIds: /** @type {unknown[]} */ ([]),
     subscribedLoaded: false,
     subscribedScope: '',
     subscribedRequestId: 0

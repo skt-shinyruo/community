@@ -28,6 +28,10 @@ jobs:
           java-version: "17"
           cache: maven
 
+      - name: Build community-app dependencies
+        working-directory: backend
+        run: mvn -pl :community-app -am -DskipTests install
+
       - name: Run DDD architecture tests
         working-directory: backend
-        run: mvn -pl :community-app -am -Dtest='*ArchTest' test
+        run: mvn -pl :community-app -Dtest='*ArchTest' test

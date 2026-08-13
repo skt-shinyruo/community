@@ -1,14 +1,17 @@
+// @ts-check
 import { computed, ref } from 'vue'
 import { buildDriveBreadcrumb, reduceDriveSelection } from '../driveState'
 
+/** @typedef {{ entryId: string, name: string, isFolder?: boolean, [key: string]: any }} DriveEntry */
+/** @type {Readonly<{ entryId: string, name: string }>} */
 const ROOT_FOLDER = Object.freeze({ entryId: '', name: '我的文件' })
 
 export function useDriveWorkspaceState() {
   const mode = ref('files')
-  const entries = ref([])
-  const trashEntries = ref([])
+  const entries = ref(/** @type {DriveEntry[]} */ ([]))
+  const trashEntries = ref(/** @type {DriveEntry[]} */ ([]))
   const selectedEntryId = ref('')
-  const folderTrail = ref([{ ...ROOT_FOLDER }])
+  const folderTrail = ref(/** @type {Array<{ entryId: string, name: string }>} */ ([{ ...ROOT_FOLDER }]))
   const searchKeyword = ref('')
   const renameDraft = ref('')
 

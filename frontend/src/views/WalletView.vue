@@ -255,7 +255,7 @@ function isCurrentActionIntent(generation, scope, requestedIntent, currentIntent
 }
 
 async function submitRecharge() {
-  let amount = 0
+  let amount
   try {
     amount = requirePositiveAmount(rechargeForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
@@ -283,7 +283,7 @@ async function submitRecharge() {
 }
 
 async function submitWithdrawal() {
-  let amount = 0
+  let amount
   try {
     amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
@@ -312,7 +312,7 @@ async function submitWithdrawal() {
 
 async function submitTransfer() {
   const toUserId = normalizeOpaqueId(transferForm.value.toUserId)
-  let amount = 0
+  let amount
   try {
     if (!isUuid(toUserId)) {
       throw new Error('请输入有效的目标用户 ID')

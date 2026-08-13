@@ -162,18 +162,13 @@ function getPreviewPayload() {
   const requestedBy = elements.requestedBy.value.trim() || preset?.jobRequest?.requestedBy || 'local-dev'
 
   return {
+    requestedBy,
+    batchType: preset?.jobRequest?.batchType ?? 'demo-seed',
+    jobType: preset?.jobRequest?.jobType ?? 'demo-seed',
     mode,
     scenePresetId: preset?.id ?? null,
-    requestedBy,
     counts: readCounts(),
-    aiEnhancement,
-    jobRequest: {
-      requestedBy,
-      batchType: preset?.jobRequest?.batchType ?? 'demo-seed',
-      jobType: preset?.jobRequest?.jobType ?? 'demo-seed',
-      mode,
-      aiEnhancement
-    }
+    aiEnhancement
   }
 }
 
@@ -553,23 +548,15 @@ function getAiConfigFormPayload() {
 }
 
 async function testAiConfigFromCard(cfg) {
-  const payload = {
-    provider: cfg.provider,
-    model: cfg.model,
-    baseUrl: cfg.baseUrl || null,
-    apiKey: cfg.apiKey || null,
-    timeoutMs: cfg.timeoutMs || 8000
-  }
   const btn = document.querySelector(`[data-action="test"][data-id="${cfg.id}"]`)
   if (btn) {
     btn.disabled = true
     btn.textContent = '测试中…'
   }
   try {
-    const response = await fetch('/api/ai-config/test', {
+    const response = await fetch(`/api/ai-config/${cfg.id}/test`, {
       method: 'POST',
-      headers: { 'content-type': 'application/json' },
-      body: JSON.stringify(payload)
+      headers: { 'content-type': 'application/json' }
     })
     const data = await response.json()
     if (data.ok) {
@@ -771,7 +758,7 @@ async function submitGenerate(event) {
       headers: {
         'content-type': 'application/json'
       },
-      body: JSON.stringify(previewPayload.jobRequest)
+      body: JSON.stringify(previewPayload)
     })
 
     setJobStatus(`已创建 Job #${response.job.id}，开始轮询状态。`)
@@ -836,7 +823,7 @@ function bindEvents() {
   elements.aiConfig.listEl.addEventListener('click', (event) => {
     const btn = event.target.closest('[data-action]')
     if (!btn) return
-    const id = Number(btn.dataset.id)
+    const id = btn.dataset.id
     const action = btn.dataset.action
     if (action === 'test') {
       const cfg = state.aiConfigs.find((c) => c.id === id)

@@ -116,7 +116,7 @@ export function buildAiConfigRouter({ aiConfigRepository } = {}) {
       name: name || existing.name,
       provider,
       baseUrl: baseUrl !== undefined ? baseUrl : existing.baseUrl,
-      apiKey: apiKey || undefined,
+      apiKey: typeof apiKey === 'string' && apiKey.trim() ? apiKey.trim() : existing.apiKey,
       model,
       enabled: Boolean(enabled),
       timeoutMs: Number(timeoutMs) || existing.timeoutMs,
@@ -127,6 +127,19 @@ export function buildAiConfigRouter({ aiConfigRepository } = {}) {
       ok: true,
       data: sanitizeConfig(saved)
     })
+  }))
+
+  router.post('/:id/test', asyncHandler(async (req, res) => {
+    const id = parseConfigId(req.params.id)
+    if (!id) {
+      return res.status(400).json({ ok: false, error: 'validation_error', message: 'invalid configuration id' })
+    }
+    const config = await aiConfigRepository.getById(id)
+    if (!config) {
+      return res.status(404).json({ ok: false, error: 'not_found', message: 'Configuration not found' })
+    }
+    const result = await aiConfigRepository.testConnection(config)
+    res.json({ ok: result.success, message: result.message })
   }))
 
   router.post('/:id/activate', asyncHandler(async (req, res) => {

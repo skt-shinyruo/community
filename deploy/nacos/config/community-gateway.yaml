@@ -42,7 +42,11 @@ gateway:
     rate-limit:
       enabled: true
       fail-open-on-error: false
-      policies: {}
+      policies:
+        "[/api/drive/shares/{shareToken}/verify]":
+          enabled: true
+          limit: 10
+          window: 1m
     traffic-policy:
       default-policy-id: baseline
       default-tags:

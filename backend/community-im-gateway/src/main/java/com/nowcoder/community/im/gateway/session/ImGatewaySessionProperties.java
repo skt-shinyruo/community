@@ -98,6 +98,8 @@ public class ImGatewaySessionProperties {
     public static class Ws {
         private String path = DEFAULT_WS_PATH;
         private long firstFrameTimeoutMs = 5000L;
+        private int maxInboundChars = 10_000;
+        private int maxInboundBufferFrames = 64;
 
         public String getPath() {
             return normalizePath(path);
@@ -113,6 +115,22 @@ public class ImGatewaySessionProperties {
 
         public void setFirstFrameTimeoutMs(long firstFrameTimeoutMs) {
             this.firstFrameTimeoutMs = firstFrameTimeoutMs <= 0 ? 5000L : firstFrameTimeoutMs;
+        }
+
+        public int getMaxInboundChars() {
+            return maxInboundChars;
+        }
+
+        public void setMaxInboundChars(int maxInboundChars) {
+            this.maxInboundChars = Math.min(Math.max(1, maxInboundChars), 100_000);
+        }
+
+        public int getMaxInboundBufferFrames() {
+            return maxInboundBufferFrames;
+        }
+
+        public void setMaxInboundBufferFrames(int maxInboundBufferFrames) {
+            this.maxInboundBufferFrames = Math.min(Math.max(1, maxInboundBufferFrames), 10_000);
         }
     }
 }

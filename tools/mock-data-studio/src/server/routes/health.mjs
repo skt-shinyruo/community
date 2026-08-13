@@ -1,4 +1,5 @@
 import { Router } from 'express'
+import { loadAiRuntimeConfig } from '../../ai/aiRuntime.mjs'
 
 function buildGenerateFormMetadata({ config, aiInfo } = {}) {
   const ai = aiInfo ?? {
@@ -91,29 +92,11 @@ export function buildHealthRouter({ config, aiConfigRepository } = {}) {
   const serviceName = config?.serviceName || 'mock-data-studio'
 
   router.get('/', async (_req, res) => {
-    let aiInfo = {
-      enabled: Boolean(config?.ai?.enabled),
-      ready: Boolean(config?.ai?.ready),
-      provider: config?.ai?.provider ?? 'openai',
-      model: config?.ai?.model ?? null,
-      maxItemsPerJob: config?.ai?.maxItemsPerJob ?? null
-    }
-
-    if (aiConfigRepository) {
-      try {
-        const dbConfig = await aiConfigRepository.getActive()
-        if (dbConfig) {
-          aiInfo = {
-            enabled: dbConfig.enabled,
-            ready: true,
-            provider: dbConfig.provider,
-            model: dbConfig.model,
-            baseUrl: dbConfig.baseUrl,
-            maxItemsPerJob: dbConfig.maxItemsPerJob
-          }
-        }
-      } catch {
-      }
+    let aiInfo
+    try {
+      aiInfo = await loadAiRuntimeConfig({ config, aiConfigRepository })
+    } catch {
+      aiInfo = await loadAiRuntimeConfig({ config })
     }
 
     const formMetadata = buildGenerateFormMetadata({ config, aiInfo })

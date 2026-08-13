@@ -151,7 +151,7 @@ describe('imRealtimeClient URL resolution', () => {
       clientMsgId: 'private-1'
     })
     imRealtimeClient.sendRoomText({
-      roomId: 42,
+      roomId: '33333333-3333-7333-8333-333333333333',
       content: 'hello room',
       clientMsgId: 'room-1'
     })
@@ -170,10 +170,29 @@ describe('imRealtimeClient URL resolution', () => {
     })
     expect(sent[2]).toMatchObject({
       type: 'sendRoomText',
-      roomId: 42,
+      roomId: '33333333-3333-7333-8333-333333333333',
       content: 'hello room',
       clientMsgId: 'room-1'
     })
+  })
+
+  it('rejects a non-UUID room id before writing a frame', async () => {
+    const { imRealtimeClient, imCoreHttp } = await loadClient()
+    imCoreHttp.post.mockResolvedValue({
+      data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-1' } }
+    })
+    const sent = []
+    FakeWebSocket.prototype.send = (payload) => sent.push(JSON.parse(payload))
+    await imRealtimeClient.connect('token-1')
+    await flushMicrotasks()
+    const ws = FakeWebSocket.instances[0]
+    ws.readyState = FakeWebSocket.OPEN
+    ws.onopen?.()
+    ws.onmessage?.({ data: JSON.stringify({ type: 'connected', sessionId: 'sess-1', schemaVersion: 1 }) })
+
+    expect(() => imRealtimeClient.sendRoomText({ roomId: 42, content: 'invalid room' }))
+      .toThrow('roomId 非法')
+    expect(sent).toHaveLength(1)
   })
 
   it.each([

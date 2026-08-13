@@ -5,122 +5,122 @@
     <UiPageHeader>
       <template #title>网盘</template>
       <template #subtitle>
-        <span>{{ quota.label }}</span>
+        <span>{{ entries.quota.label }}</span>
         <span class="drive-header-dot" aria-hidden="true">·</span>
-        <span>{{ quota.usedPercent }}% 已用</span>
+        <span>{{ entries.quota.usedPercent }}% 已用</span>
         <span class="drive-header-dot" aria-hidden="true">·</span>
         <span>私有文件、分享链接和社区附件</span>
       </template>
       <template #actions>
-        <UiButton variant="secondary" :disabled="isBusy" @click="reload">
-          {{ loading ? '刷新中…' : '刷新' }}
+        <UiButton variant="secondary" :disabled="page.isBusy" @click="page.reload">
+          {{ page.loading ? '刷新中…' : '刷新' }}
         </UiButton>
-        <UiButton v-if="mode !== 'trash'" variant="secondary" :disabled="isBusy" @click="toggleFolderComposer">
-          {{ creatingFolder ? '收起新建' : '新建文件夹' }}
+        <UiButton v-if="workspace.mode !== 'trash'" variant="secondary" :disabled="page.isBusy" @click="entries.toggleFolderComposer">
+          {{ entries.creatingFolder ? '收起新建' : '新建文件夹' }}
         </UiButton>
-        <label v-if="mode !== 'trash'" class="btn drive-upload-label" :class="{ 'is-disabled': isBusy }">
-          {{ busyAction === 'upload' && uploadProgress != null ? `上传 ${uploadProgress}%` : '上传' }}
-          <input class="sr-only" type="file" multiple :disabled="isBusy" @change="handleUploadChange">
+        <label v-if="workspace.mode !== 'trash'" class="btn drive-upload-label" :class="{ 'is-disabled': page.isBusy }">
+          {{ page.busyAction === 'upload' && upload.progress != null ? `上传 ${upload.progress}%` : '上传' }}
+          <input class="sr-only" type="file" multiple :disabled="page.isBusy" @change="upload.handleSelection">
         </label>
-        <UiButton v-if="busyAction === 'upload'" variant="secondary" @click="cancelUpload">取消上传</UiButton>
+        <UiButton v-if="page.busyAction === 'upload'" variant="secondary" @click="upload.cancel">取消上传</UiButton>
       </template>
     </UiPageHeader>
 
     <section class="drive-stats">
       <div class="drive-stat">
         <span>已用空间</span>
-        <strong>{{ formatDriveBytes(quota.usedBytes) }}</strong>
+        <strong>{{ formatDriveBytes(entries.quota.usedBytes) }}</strong>
       </div>
       <div class="drive-stat">
         <span>剩余空间</span>
-        <strong>{{ formatDriveBytes(quota.remainingBytes) }}</strong>
+        <strong>{{ formatDriveBytes(entries.quota.remainingBytes) }}</strong>
       </div>
       <div class="drive-stat">
         <span>当前目录</span>
-        <strong>{{ currentFolderLabel }}</strong>
+        <strong>{{ workspace.currentFolderLabel }}</strong>
       </div>
       <div class="drive-stat">
         <span>当前条目</span>
-        <strong>{{ visibleEntries.length }}</strong>
+        <strong>{{ workspace.visibleEntries.length }}</strong>
       </div>
     </section>
 
-    <div v-if="error" class="drive-banner drive-banner--error">{{ error }}</div>
-    <div v-else-if="statusMessage" class="drive-banner">{{ statusMessage }}</div>
+    <div v-if="page.error" class="drive-banner drive-banner--error">{{ page.error }}</div>
+    <div v-else-if="page.statusMessage" class="drive-banner">{{ page.statusMessage }}</div>
 
     <div class="drive-layout">
       <UiCard class="drive-panel drive-main-panel">
         <div class="drive-toolbar">
           <div class="drive-tabs" role="tablist" aria-label="网盘模式">
-            <button type="button" class="drive-tab" :class="{ active: mode === 'files' }" :disabled="isBusy" @click="switchMode('files')">
+            <button type="button" class="drive-tab" :class="{ active: workspace.mode === 'files' }" :disabled="page.isBusy" @click="workspace.switchMode('files')">
               我的文件
             </button>
-            <button type="button" class="drive-tab" :class="{ active: mode === 'shares' }" :disabled="isBusy" @click="switchMode('shares')">
+            <button type="button" class="drive-tab" :class="{ active: workspace.mode === 'shares' }" :disabled="page.isBusy" @click="workspace.switchMode('shares')">
               分享管理
             </button>
-            <button type="button" class="drive-tab" :class="{ active: mode === 'trash' }" :disabled="isBusy" @click="switchMode('trash')">
+            <button type="button" class="drive-tab" :class="{ active: workspace.mode === 'trash' }" :disabled="page.isBusy" @click="workspace.switchMode('trash')">
               回收站
             </button>
           </div>
 
           <div class="drive-search">
             <UiInput
-              v-model.trim="searchKeyword"
+              v-model.trim="workspace.searchKeyword"
               type="search"
               placeholder="搜索文件"
               autocomplete="off"
-              @keydown.enter.prevent="runSearch"
+              @keydown.enter.prevent="workspace.search"
             />
-            <UiButton variant="secondary" :disabled="isBusy" @click="runSearch">搜索</UiButton>
-            <UiButton v-if="searchKeyword" variant="ghost" :disabled="isBusy" @click="clearSearch">清除</UiButton>
+            <UiButton variant="secondary" :disabled="page.isBusy" @click="workspace.search">搜索</UiButton>
+            <UiButton v-if="workspace.searchKeyword" variant="ghost" :disabled="page.isBusy" @click="workspace.clearSearch">清除</UiButton>
           </div>
         </div>
 
-        <div v-if="creatingFolder && mode !== 'trash'" class="drive-inline-form">
+        <div v-if="entries.creatingFolder && workspace.mode !== 'trash'" class="drive-inline-form">
           <label class="drive-field">
             <span>文件夹名称</span>
-            <UiInput v-model.trim="folderNameDraft" placeholder="输入文件夹名称" autocomplete="off" />
+            <UiInput v-model.trim="entries.folderNameDraft" placeholder="输入文件夹名称" autocomplete="off" />
           </label>
           <div class="drive-inline-actions">
-            <UiButton :disabled="isBusy" @click="createFolder">确认</UiButton>
-            <UiButton variant="ghost" :disabled="isBusy" @click="cancelCreateFolder">取消</UiButton>
+            <UiButton :disabled="page.isBusy" @click="entries.createFolder">确认</UiButton>
+            <UiButton variant="ghost" :disabled="page.isBusy" @click="entries.cancelCreateFolder">取消</UiButton>
           </div>
         </div>
 
         <div class="drive-breadcrumb" aria-label="文件夹路径">
           <button
-            v-for="(item, index) in breadcrumbItems"
+            v-for="(item, index) in workspace.breadcrumbItems"
             :key="item.entryId || 'root'"
             type="button"
             class="drive-breadcrumb-item"
-            :class="{ active: index === breadcrumbItems.length - 1 }"
-            :disabled="isBusy"
-            @click="goBreadcrumb(index)"
+            :class="{ active: index === workspace.breadcrumbItems.length - 1 }"
+            :disabled="page.isBusy"
+            @click="workspace.goBreadcrumb(index)"
           >
             {{ item.name }}
           </button>
         </div>
 
-        <UiState v-if="loading && visibleEntries.length === 0">
+        <UiState v-if="page.loading && workspace.visibleEntries.length === 0">
           正在加载网盘…
         </UiState>
-        <UiState v-else-if="!loading && visibleEntries.length === 0">
+        <UiState v-else-if="!page.loading && workspace.visibleEntries.length === 0">
           暂无文件
           <template #description>
-            {{ mode === 'trash' ? '回收站目前是空的。' : '可以先创建文件夹，或者上传一个文件。' }}
+            {{ workspace.mode === 'trash' ? '回收站目前是空的。' : '可以先创建文件夹，或者上传一个文件。' }}
           </template>
         </UiState>
 
         <div v-else class="drive-entry-list">
           <div
-            v-for="entry in visibleEntries"
+            v-for="entry in workspace.visibleEntries"
             :key="entry.entryId"
             class="drive-entry-row"
-            :class="{ selected: entry.entryId === selectedEntryId }"
+            :class="{ selected: entry.entryId === workspace.selectedEntryId }"
             role="button"
             tabindex="0"
-            @click="selectEntry(entry)"
-            @keydown.enter.prevent="selectEntry(entry)"
+            @click="workspace.select(entry)"
+            @keydown.enter.prevent="workspace.select(entry)"
           >
             <div class="drive-entry-main">
               <strong class="drive-entry-name">{{ entry.name }}</strong>
@@ -134,17 +134,17 @@
             </div>
             <div class="drive-entry-actions">
               <UiButton
-                v-if="mode === 'files' && entry.isFolder"
+                v-if="workspace.mode === 'files' && entry.isFolder"
                 variant="ghost"
-                :disabled="isBusy"
-                @click.stop="enterFolder(entry)"
+                :disabled="page.isBusy"
+                @click.stop="workspace.enterFolder(entry)"
               >
                 进入
               </UiButton>
               <UiButton
-                v-else-if="mode === 'trash'"
+                v-else-if="workspace.mode === 'trash'"
                 variant="secondary"
-                @click.stop="restoreEntry(entry)"
+                @click.stop="entries.restore(entry)"
               >
                 恢复
               </UiButton>
@@ -154,52 +154,52 @@
       </UiCard>
 
       <UiCard class="drive-panel drive-detail-panel">
-        <template v-if="selectedEntry">
+        <template v-if="workspace.selectedEntry">
           <UiPageHeader>
-            <template #title>{{ selectedEntry.name }}</template>
+            <template #title>{{ workspace.selectedEntry.name }}</template>
             <template #subtitle>
-              <span>{{ selectedEntry.isFolder ? '文件夹' : formatDriveBytes(selectedEntry.sizeBytes) }}</span>
+              <span>{{ workspace.selectedEntry.isFolder ? '文件夹' : formatDriveBytes(workspace.selectedEntry.sizeBytes) }}</span>
               <span class="drive-header-dot" aria-hidden="true">·</span>
-              <span>{{ selectedEntry.statusLabel }}</span>
+              <span>{{ workspace.selectedEntry.statusLabel }}</span>
             </template>
           </UiPageHeader>
 
           <dl class="drive-detail-grid">
             <div>
               <dt>类型</dt>
-              <dd>{{ selectedEntry.isFolder ? '文件夹' : '文件' }}</dd>
+              <dd>{{ workspace.selectedEntry.isFolder ? '文件夹' : '文件' }}</dd>
             </div>
             <div>
               <dt>位置</dt>
-              <dd>{{ currentFolderLabel }}</dd>
+              <dd>{{ workspace.currentFolderLabel }}</dd>
             </div>
             <div>
               <dt>状态</dt>
-              <dd>{{ selectedEntry.statusLabel }}</dd>
+              <dd>{{ workspace.selectedEntry.statusLabel }}</dd>
             </div>
             <div>
               <dt>可见性</dt>
-              <dd>{{ selectedEntry.visibilityLabel }}</dd>
+              <dd>{{ workspace.selectedEntry.visibilityLabel }}</dd>
             </div>
           </dl>
 
-          <div v-if="mode !== 'trash'" class="drive-action-stack">
+          <div v-if="workspace.mode !== 'trash'" class="drive-action-stack">
             <label class="drive-field">
               <span>重命名</span>
-              <UiInput v-model.trim="renameDraft" placeholder="输入新名称" autocomplete="off" />
+              <UiInput v-model.trim="workspace.renameDraft" placeholder="输入新名称" autocomplete="off" />
             </label>
             <div class="drive-action-row">
-              <UiButton :disabled="isBusy || !renameDraft.trim()" @click="renameSelected">重命名</UiButton>
-              <UiButton variant="secondary" :disabled="isBusy" @click="moveSelectedHere">移动到当前目录</UiButton>
+              <UiButton :disabled="page.isBusy || !workspace.renameDraft.trim()" @click="entries.renameSelected">重命名</UiButton>
+              <UiButton variant="secondary" :disabled="page.isBusy" @click="entries.moveSelectedHere">移动到当前目录</UiButton>
             </div>
             <div class="drive-action-row">
-              <UiButton v-if="selectedEntry.canDownload" variant="secondary" :disabled="isBusy" @click="downloadSelected">
+              <UiButton v-if="workspace.selectedEntry.canDownload" variant="secondary" :disabled="page.isBusy" @click="entries.downloadSelected">
                 下载
               </UiButton>
-              <UiButton v-if="selectedEntry.canShare" variant="secondary" :disabled="isBusy" @click="switchToShares">
+              <UiButton v-if="workspace.selectedEntry.canShare" variant="secondary" :disabled="page.isBusy" @click="shares.open">
                 分享
               </UiButton>
-              <UiButton v-if="selectedEntry.canTrash" variant="danger" :disabled="isBusy" @click="trashSelected">
+              <UiButton v-if="workspace.selectedEntry.canTrash" variant="danger" :disabled="page.isBusy" @click="entries.trashSelected">
                 删除
               </UiButton>
             </div>
@@ -207,8 +207,8 @@
 
           <div v-else class="drive-action-stack">
             <div class="drive-action-row">
-              <UiButton variant="secondary" :disabled="isBusy" @click="restoreSelected">恢复到当前目录</UiButton>
-              <UiButton variant="danger" :disabled="isBusy" @click="deleteSelectedPermanently">彻底删除</UiButton>
+              <UiButton variant="secondary" :disabled="page.isBusy" @click="entries.restoreSelected">恢复到当前目录</UiButton>
+              <UiButton variant="danger" :disabled="page.isBusy" @click="entries.deleteSelectedPermanently">彻底删除</UiButton>
             </div>
           </div>
         </template>
@@ -217,47 +217,47 @@
           选择一个文件或文件夹查看详情
         </UiState>
 
-        <section v-if="mode === 'shares'" class="drive-share-panel">
+        <section v-if="workspace.mode === 'shares'" class="drive-share-panel">
           <UiPageHeader>
             <template #title>分享管理</template>
             <template #subtitle>默认私有；生成链接后可用于帖子附件、成员分享或虚拟商品交付。</template>
           </UiPageHeader>
 
           <div class="drive-share-note">
-            <span v-if="selectedEntry">{{ selectedEntry.canShare ? selectedEntry.name : '当前选择不可分享' }}</span>
+            <span v-if="workspace.selectedEntry">{{ workspace.selectedEntry.canShare ? workspace.selectedEntry.name : '当前选择不可分享' }}</span>
             <span v-else>先选中文件或文件夹，再生成分享链接。</span>
           </div>
 
           <div class="drive-share-form">
             <label class="drive-field">
               <span>提取码</span>
-              <UiInput v-model.trim="sharePassword" type="password" autocomplete="off" />
+              <UiInput v-model.trim="shares.password" type="password" autocomplete="off" />
             </label>
             <label class="drive-field">
               <span>有效期</span>
-              <input v-model="shareExpiresAt" class="input" type="datetime-local">
+              <input v-model="shares.expiresAt" class="input" type="datetime-local">
             </label>
-            <UiButton :disabled="isBusy || !selectedEntry || !selectedEntry.canShare" @click="createShareForSelected">
+            <UiButton :disabled="page.isBusy || !workspace.selectedEntry || !workspace.selectedEntry.canShare" @click="shares.create">
               生成分享链接
             </UiButton>
-            <div v-if="shareError" class="error">{{ shareError }}</div>
+            <div v-if="shares.error" class="error">{{ shares.error }}</div>
           </div>
 
-          <div v-if="createdShares.length > 0" class="drive-share-list">
-            <article v-for="item in createdShares" :key="item.shareId" class="drive-share-item">
+          <div v-if="shares.items.length > 0" class="drive-share-list">
+            <article v-for="item in shares.items" :key="item.shareId" class="drive-share-item">
               <div class="drive-share-item-main">
                 <strong>{{ item.entryName }}</strong>
-                <span>{{ shareStatusLabel(item.status) }} · {{ item.expiresAt }}</span>
+                <span>{{ shares.statusLabel(item.status) }} · {{ item.expiresAt }}</span>
                 <code class="drive-share-link">{{ item.shareUrl }}</code>
               </div>
               <div class="drive-share-item-actions">
-                <UiButton v-if="item.status === 'ACTIVE'" variant="secondary" :disabled="isBusy" @click="copyShareLink(item)">复制链接</UiButton>
-                <UiButton v-if="item.status === 'ACTIVE'" variant="dangerSecondary" :disabled="isBusy" @click="revokeCreatedShare(item)">撤销</UiButton>
+                <UiButton v-if="item.status === 'ACTIVE'" variant="secondary" :disabled="page.isBusy" @click="shares.copy(item)">复制链接</UiButton>
+                <UiButton v-if="item.status === 'ACTIVE'" variant="dangerSecondary" :disabled="page.isBusy" @click="shares.revoke(item)">撤销</UiButton>
               </div>
             </article>
           </div>
           <UiState v-else>暂无分享记录</UiState>
-          <UiButton v-if="sharesHasNext" variant="secondary" :disabled="isBusy" @click="loadMoreShares">
+          <UiButton v-if="shares.hasNext" variant="secondary" :disabled="page.isBusy" @click="shares.loadMore">
             加载更多
           </UiButton>
         </section>
@@ -267,539 +267,16 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import {
-  createDriveFolder,
-  createDriveShare,
-  createDriveUploadSession,
-  deleteDriveEntryPermanently,
-  getDriveDownloadUrl,
-  getDriveSpace,
-  listDriveEntries,
-  listDriveShares,
-  listDriveTrash,
-  moveDriveEntry,
-  renameDriveEntry,
-  restoreDriveEntry,
-  revokeDriveShare,
-  searchDriveEntries,
-  trashDriveEntry,
-  uploadDriveFile
-} from '../api/services/driveService'
-import { useAuthStore } from '../stores/auth'
-import { createLatestRequestTracker } from '../utils/latestRequest'
-import { normalizeOpaqueId } from '../utils/opaqueId'
-import { formatDriveBytes, normalizeCreatedDriveShare, normalizeDriveEntry, normalizeDriveQuota, validateShareForm } from './driveState'
-import { useDriveWorkspaceState } from './drive/useDriveWorkspaceState'
-import { settleNamedRequests } from '../utils/settledRequests'
+import { formatDriveBytes } from './driveState'
+import { useDrivePageState } from './drive/useDrivePageState'
 
-const ONE_DAY_MS = 24 * 60 * 60 * 1000
-const DEFAULT_QUOTA_BYTES = 10 * 1024 * 1024 * 1024
-
-const auth = useAuthStore()
-const reloadRequestTracker = createLatestRequestTracker()
-const shareRequestTracker = createLatestRequestTracker()
-const actionRequestTracker = createLatestRequestTracker()
-
-const loading = ref(false)
-const busyAction = ref('')
-const error = ref('')
-const statusMessage = ref('')
-const shareError = ref('')
-const space = ref(defaultDriveSpace())
-const folderNameDraft = ref('')
-const creatingFolder = ref(false)
-const sharePassword = ref('')
-const shareExpiresAt = ref(toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS)))
-const createdShares = ref([])
-const sharePage = ref(0)
-const shareSize = 20
-const sharesHasNext = ref(false)
-const uploadProgress = ref(null)
-let uploadController = null
-
-const workspace = useDriveWorkspaceState()
-const {
-  mode,
-  entries,
-  trashEntries,
-  selectedEntryId,
-  searchKeyword,
-  renameDraft,
-  currentFolderId,
-  currentFolderLabel,
-  breadcrumbItems,
-  visibleEntries,
-  selectedEntry
-} = workspace
-
-const quota = computed(() => normalizeDriveQuota(space.value))
-const isBusy = computed(() => loading.value || busyAction.value !== '')
-
-function defaultDriveSpace() {
-  return { quotaBytes: DEFAULT_QUOTA_BYTES, usedBytes: 0, remainingBytes: DEFAULT_QUOTA_BYTES }
-}
-
-function captureAuthScope() {
-  return {
-    tokenGeneration: auth.tokenGeneration,
-    userId: normalizeOpaqueId(auth.userId)
-  }
-}
-
-function isCurrentAuthScope(scope) {
-  return auth.authed &&
-    auth.tokenGeneration === scope.tokenGeneration &&
-    normalizeOpaqueId(auth.userId) === scope.userId
-}
-
-function isCurrentRequest(tracker, token, scope) {
-  return tracker.isCurrent(token) && isCurrentAuthScope(scope)
-}
-
-function resetOwnerState() {
-  error.value = ''
-  statusMessage.value = ''
-  shareError.value = ''
-  workspace.reset()
-  space.value = defaultDriveSpace()
-  folderNameDraft.value = ''
-  creatingFolder.value = false
-  sharePassword.value = ''
-  shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
-  createdShares.value = []
-  sharePage.value = 0
-  sharesHasNext.value = false
-}
-
-function toDatetimeLocalValue(date) {
-  const safe = date instanceof Date ? date : new Date(date)
-  const year = safe.getFullYear()
-  const month = String(safe.getMonth() + 1).padStart(2, '0')
-  const day = String(safe.getDate()).padStart(2, '0')
-  const hour = String(safe.getHours()).padStart(2, '0')
-  const minute = String(safe.getMinutes()).padStart(2, '0')
-  return `${year}-${month}-${day}T${hour}:${minute}`
-}
-
-function buildShareUrl(shareToken) {
-  if (typeof window === 'undefined') {
-    return `#/drive/s/${shareToken}`
-  }
-  return `${window.location.origin}/#/drive/s/${shareToken}`
-}
-
-function setBusy(label, fn) {
-  const token = actionRequestTracker.begin()
-  const scope = captureAuthScope()
-  const request = {
-    isCurrent: () => isCurrentRequest(actionRequestTracker, token, scope)
-  }
-  busyAction.value = label
-  error.value = ''
-  shareError.value = ''
-  statusMessage.value = ''
-  return Promise.resolve()
-    .then(() => fn(request))
-    .catch((e) => {
-      if (request.isCurrent()) {
-        error.value = e?.message || '操作失败'
-      }
-      throw e
-    })
-    .finally(() => {
-      if (request.isCurrent()) {
-        busyAction.value = ''
-      }
-    })
-}
-
-function selectEntry(entry) {
-  workspace.selectEntry(entry)
-}
-
-function commitEntries(target, list) {
-  workspace.commitEntries(target, list)
-}
-
-async function reload() {
-  const token = reloadRequestTracker.begin()
-  const scope = captureAuthScope()
-  const requestedMode = mode.value
-  const requestedFolderId = currentFolderId.value
-  const requestedKeyword = String(searchKeyword.value || '').trim()
-  shareRequestTracker.invalidate()
-  loading.value = true
-  error.value = ''
-  try {
-    const entryRequest = requestedMode === 'trash'
-      ? () => listDriveTrash()
-      : requestedKeyword
-        ? () => searchDriveEntries({ keyword: requestedKeyword })
-        : () => listDriveEntries({ parentId: requestedFolderId })
-    const shareRequest = requestedMode === 'shares'
-      ? () => listDriveShares({ page: 0, size: shareSize })
-      : () => null
-    const outcome = await settleNamedRequests({
-      space: () => getDriveSpace(),
-      entries: entryRequest,
-      shares: shareRequest
-    })
-    if (!isCurrentRequest(reloadRequestTracker, token, scope)) return
-
-    if (outcome.results.space.ok) space.value = outcome.results.space.value?.data || {}
-    if (outcome.results.entries.ok) {
-      const entryResponse = outcome.results.entries.value
-      const list = Array.isArray(entryResponse?.data) ? entryResponse.data.map(normalizeDriveEntry) : []
-      commitEntries(requestedMode === 'trash' ? trashEntries : entries, list)
-    }
-    if (requestedMode === 'shares' && outcome.results.shares.ok) {
-      const shareResponse = outcome.results.shares.value
-      createdShares.value = (Array.isArray(shareResponse?.data?.items) ? shareResponse.data.items : []).map(normalizeCreatedShare)
-      sharePage.value = 0
-      sharesHasNext.value = shareResponse?.data?.hasNext === true
-    }
-    const relevantFailures = outcome.failedKeys.filter((key) => requestedMode === 'shares' || key !== 'shares')
-    if (relevantFailures.length > 0) {
-      const firstError = outcome.results[relevantFailures[0]]?.error
-      const relevantSuccessCount = ['space', 'entries', ...(requestedMode === 'shares' ? ['shares'] : [])]
-        .filter((key) => outcome.results[key]?.ok).length
-      error.value = relevantSuccessCount > 0
-        ? `部分网盘数据加载失败：${firstError?.message || '请稍后重试'}`
-        : (firstError?.message || '加载网盘失败')
-    }
-  } catch (e) {
-    if (isCurrentRequest(reloadRequestTracker, token, scope)) {
-      error.value = e?.message || '加载网盘失败'
-    }
-  } finally {
-    if (isCurrentRequest(reloadRequestTracker, token, scope)) {
-      loading.value = false
-    }
-  }
-}
-
-async function switchMode(next) {
-  if (isBusy.value) return
-  if (!workspace.switchMode(next)) return
-  await reload()
-}
-
-async function runSearch() {
-  workspace.beginSearch()
-  await reload()
-}
-
-async function clearSearch() {
-  searchKeyword.value = ''
-  await reload()
-}
-
-async function enterFolder(entry) {
-  if (isBusy.value) return
-  if (!workspace.enterFolder(entry)) return
-  await reload()
-}
-
-async function goBreadcrumb(index) {
-  if (isBusy.value) return
-  if (!workspace.goBreadcrumb(index)) return
-  await reload()
-}
-
-function toggleFolderComposer() {
-  creatingFolder.value = !creatingFolder.value
-  if (creatingFolder.value) {
-    folderNameDraft.value = ''
-  }
-}
-
-function cancelCreateFolder() {
-  creatingFolder.value = false
-  folderNameDraft.value = ''
-}
-
-async function createFolder() {
-  const name = String(folderNameDraft.value || '').trim()
-  if (!name) {
-    error.value = '请输入文件夹名称'
-    return
-  }
-  await setBusy('folder', async (request) => {
-    await createDriveFolder({ parentId: currentFolderId.value, name })
-    if (!request.isCurrent()) return
-    folderNameDraft.value = ''
-    creatingFolder.value = false
-    statusMessage.value = '文件夹已创建'
-    await reload()
-  }).catch(() => {})
-}
-
-async function handleUploadChange(event) {
-  const files = Array.from(event?.target?.files || [])
-  if (files.length === 0) return
-  const targetParentId = currentFolderId.value
-  const controller = new AbortController()
-  uploadController = controller
-  uploadProgress.value = 0
-  try {
-    await setBusy('upload', async (request) => {
-      for (const file of files) {
-        const session = await createDriveUploadSession({
-          parentId: targetParentId,
-          file,
-          signal: controller.signal
-        })
-        if (!request.isCurrent()) return
-        await uploadDriveFile({
-          session: session.data,
-          file,
-          signal: controller.signal,
-          onProgress: ({ percent }) => {
-            if (request.isCurrent() && percent != null) uploadProgress.value = percent
-          }
-        })
-        if (!request.isCurrent()) return
-        uploadProgress.value = 0
-      }
-      statusMessage.value = `已上传 ${files.length} 个文件`
-      await reload()
-    })
-  } catch {
-    // setBusy owns the visible error for non-cancelled uploads.
-  } finally {
-    if (uploadController === controller) {
-      uploadController = null
-      uploadProgress.value = null
-    }
-  }
-  if (event?.target) {
-    event.target.value = ''
-  }
-}
-
-function cancelUpload() {
-  if (!uploadController) return
-  actionRequestTracker.invalidate()
-  uploadController.abort()
-  uploadController = null
-  uploadProgress.value = null
-  busyAction.value = ''
-  error.value = ''
-  statusMessage.value = '上传已取消'
-}
-
-async function renameSelected() {
-  const entry = selectedEntry.value
-  const newName = String(renameDraft.value || '').trim()
-  if (!entry) return
-  if (!newName) {
-    error.value = '请输入新名称'
-    return
-  }
-  await setBusy('rename', async (request) => {
-    await renameDriveEntry(entry.entryId, { newName })
-    if (!request.isCurrent()) return
-    statusMessage.value = '名称已更新'
-    await reload()
-  }).catch(() => {})
-}
-
-async function moveSelectedHere() {
-  const entry = selectedEntry.value
-  if (!entry) return
-  await setBusy('move', async (request) => {
-    await moveDriveEntry(entry.entryId, { targetParentId: currentFolderId.value })
-    if (!request.isCurrent()) return
-    statusMessage.value = '条目已移动'
-    await reload()
-  }).catch(() => {})
-}
-
-async function downloadSelected() {
-  const entry = selectedEntry.value
-  if (!entry?.canDownload) return
-  await setBusy('download', async (request) => {
-    const { data } = await getDriveDownloadUrl(entry.entryId)
-    if (!request.isCurrent()) return
-    if (data?.url && typeof window !== 'undefined') {
-      window.open(data.url, '_blank', 'noopener,noreferrer')
-    }
-  }).catch(() => {})
-}
-
-async function trashSelected() {
-  const entry = selectedEntry.value
-  if (!entry?.canTrash) return
-  await setBusy('trash', async (request) => {
-    await trashDriveEntry(entry.entryId)
-    if (!request.isCurrent()) return
-    statusMessage.value = '条目已移至回收站'
-    await reload()
-  }).catch(() => {})
-}
-
-async function restoreEntry(entry) {
-  if (!entry?.canRestore) return
-  await setBusy('restore', async (request) => {
-    await restoreDriveEntry(entry.entryId, { targetParentId: currentFolderId.value })
-    if (!request.isCurrent()) return
-    statusMessage.value = '条目已恢复'
-    await reload()
-  }).catch(() => {})
-}
-
-async function restoreSelected() {
-  await restoreEntry(selectedEntry.value)
-}
-
-async function deleteSelectedPermanently() {
-  const entry = selectedEntry.value
-  if (!entry?.canDeletePermanently) return
-  await setBusy('delete', async (request) => {
-    await deleteDriveEntryPermanently(entry.entryId)
-    if (!request.isCurrent()) return
-    statusMessage.value = '条目已彻底删除'
-    await reload()
-  }).catch(() => {})
-}
-
-async function switchToShares() {
-  mode.value = 'shares'
-  shareError.value = ''
-  await reload()
-}
-
-function normalizeCreatedShare(data) {
-  const share = normalizeCreatedDriveShare(data)
-  return {
-    ...share,
-    shareUrl: buildShareUrl(share.shareToken)
-  }
-}
-
-function shareStatusLabel(status) {
-  const normalized = String(status || '').trim().toUpperCase()
-  if (normalized === 'ACTIVE') return '有效'
-  if (normalized === 'EXPIRED') return '已过期'
-  if (normalized === 'REVOKED') return '已撤销'
-  return '状态待确认'
-}
-
-async function loadShares({ reset = false } = {}) {
-  const token = shareRequestTracker.begin()
-  const scope = captureAuthScope()
-  const targetPage = reset ? 0 : sharePage.value + 1
-  let data
-  try {
-    const response = await listDriveShares({ page: targetPage, size: shareSize })
-    data = response?.data
-  } catch (e) {
-    if (!isCurrentRequest(shareRequestTracker, token, scope) || mode.value !== 'shares') return
-    throw e
-  }
-  if (!isCurrentRequest(shareRequestTracker, token, scope) || mode.value !== 'shares') return
-  const nextItems = (Array.isArray(data?.items) ? data.items : []).map(normalizeCreatedShare)
-  createdShares.value = reset ? nextItems : [...createdShares.value, ...nextItems]
-  sharePage.value = targetPage
-  sharesHasNext.value = data?.hasNext === true
-}
-
-async function loadMoreShares() {
-  if (!sharesHasNext.value) return
-  await setBusy('shares', () => loadShares()).catch(() => {})
-}
-
-async function createShareForSelected() {
-  const entry = selectedEntry.value
-  if (!entry?.canShare) {
-    shareError.value = '请选择可分享的文件或文件夹'
-    return
-  }
-  const validation = validateShareForm({
-    password: sharePassword.value,
-    expiresAt: shareExpiresAt.value
-  }, new Date())
-  if (!validation.valid) {
-    shareError.value = validation.message
-    return
-  }
-  await setBusy('share', async (request) => {
-    await createDriveShare(entry.entryId, {
-      password: String(sharePassword.value || '').trim(),
-      expiresAt: new Date(shareExpiresAt.value).toISOString()
-    })
-    if (!request.isCurrent()) return
-    sharePassword.value = ''
-    shareExpiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
-    statusMessage.value = '分享链接已生成'
-    mode.value = 'shares'
-    await loadShares({ reset: true })
-  }).catch(() => {})
-}
-
-async function revokeCreatedShare(item) {
-  if (!item?.shareId) return
-  await setBusy('revoke', async (request) => {
-    await revokeDriveShare(item.shareId)
-    if (!request.isCurrent()) return
-    await loadShares({ reset: true })
-    if (!request.isCurrent()) return
-    statusMessage.value = '分享已撤销'
-  }).catch(() => {})
-}
-
-async function copyShareLink(item) {
-  if (!item?.shareUrl) return
-  const scope = captureAuthScope()
-  if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-    await navigator.clipboard.writeText(item.shareUrl)
-    if (!isCurrentAuthScope(scope)) return
-    statusMessage.value = '分享链接已复制'
-    return
-  }
-  if (!isCurrentAuthScope(scope)) return
-  statusMessage.value = item.shareUrl
-}
-
-watch(
-  () => [auth.tokenGeneration, normalizeOpaqueId(auth.userId), auth.authed],
-  ([, userId, authed], previous = []) => {
-    const previousUserId = previous[1]
-    reloadRequestTracker.invalidate()
-    shareRequestTracker.invalidate()
-    actionRequestTracker.invalidate()
-    uploadController?.abort()
-    uploadController = null
-    uploadProgress.value = null
-    loading.value = false
-    busyAction.value = ''
-
-    if (!previous.length || userId !== previousUserId) {
-      resetOwnerState()
-    }
-    if (authed) {
-      reload()
-    } else {
-      resetOwnerState()
-    }
-  },
-  { immediate: true }
-)
-
-onBeforeUnmount(() => {
-  reloadRequestTracker.invalidate()
-  shareRequestTracker.invalidate()
-  actionRequestTracker.invalidate()
-  uploadController?.abort()
-  uploadController = null
-})
+const { page, workspace, entries, upload, shares } = useDrivePageState()
 </script>
 
 <style scoped>

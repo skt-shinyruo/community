@@ -122,7 +122,6 @@ function lifecycleStepState(active, complete = false) {
 function buildLifecycleSteps(item) {
   const status = normalizeStatus(item?.status)
   const disputed = ['DISPUTED', 'DISPUTE_REFUND_PENDING', 'DISPUTE_RELEASE_PENDING'].includes(status)
-  const complete = status === 'COMPLETED'
   const terminal = ['COMPLETED', 'CANCELLED', 'ESCROW_FAILED', 'REFUNDED'].includes(status)
   const escrowProcessing = ['ESCROW_PENDING', 'ESCROW_CANCEL_PENDING'].includes(status)
   const escrowed = [

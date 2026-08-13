@@ -51,7 +51,7 @@ function normalizePostId(postId) {
 
 function pruneItems(items) {
   const entries = Object.entries(items || {})
-    .map(([k, v]) => [String(k), Number(v || 0)])
+    .map(([k, v]) => /** @type {[string, number]} */ ([String(k), Number(v || 0)]))
     .filter(([, v]) => Number.isFinite(v) && v > 0)
     .sort((a, b) => b[1] - a[1])
 
@@ -64,6 +64,7 @@ function pruneItems(items) {
 
 // 仅获取当前 baseline（不更新 lastSeenAt）。
 // - 首次访问返回 now（避免全量显示“未读”）。
+/** @param {{ identityId?: unknown }} [options] */
 export function getPostsListBaselineAt({ identityId } = {}) {
   const state = loadState(identityId)
   const prev = Number(state.lastSeenAt || 0)
@@ -72,6 +73,7 @@ export function getPostsListBaselineAt({ identityId } = {}) {
 }
 
 // 返回“上一轮 lastSeenAt”（用于本次页面渲染判断），并把 lastSeenAt 更新为当前时间用于下一次。
+/** @param {{ identityId?: unknown }} [options] */
 export function touchPostsListSeen({ identityId } = {}) {
   const state = loadState(identityId)
   const prev = Number(state.lastSeenAt || 0)
@@ -88,6 +90,10 @@ export function touchPostsListSeen({ identityId } = {}) {
   return baseline
 }
 
+/**
+ * @param {unknown} postId
+ * @param {{ at?: number, identityId?: unknown }} [options]
+ */
 export function markPostRead(postId, { at = nowMs(), identityId } = {}) {
   const id = normalizePostId(postId)
   if (!id) return
@@ -105,6 +111,7 @@ export function markPostRead(postId, { at = nowMs(), identityId } = {}) {
   }, identityId)
 }
 
+/** @param {unknown} postId @param {{ identityId?: unknown }} [options] */
 export function getPostReadAt(postId, { identityId } = {}) {
   const id = normalizePostId(postId)
   if (!id) return 0

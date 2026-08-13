@@ -239,12 +239,13 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 
 本地入口统一通过 `deploy/deployment.sh`：
 
-- `single`：单机开发拓扑。
-- `cluster`：本地多副本 / 集群演练拓扑。
-- `--scope infra`：只启动基础设施，便于 IDE 启动业务服务。
+- `infra`：独立单节点基础设施 Stack，供宿主机后端开发。
+- `single`：独立完整单机 Stack。
+- `cluster`：独立完整多副本 / 集群演练 Stack。
+- `--scope infra`：保留给部署契约和兼容调用；日常开发使用 `--stack infra`。
 - `--no-observability`：关闭 observability overlay。
 
-MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deploy/mysql/primary-init/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。`community` 已有数据通过 app 启动前的独立 one-shot 向前升级，runtime 账号只保留 DML 权限，不在应用启动代码中建表。详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
+MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deploy/database/business/current-state/010_current_schema.sql` 描述。MySQL entrypoint 只在主库数据目录为空时执行该快照；cluster replica 通过 GTID 复制获得相同结构。`community` 已有数据通过 app 启动前的独立 one-shot 向前升级，runtime 账号只保留 DML 权限，不在应用启动代码中建表。详见 [data-and-storage.md](data-and-storage.md#当前态-schema-快照)。
 
 运行命令和端口见 [local-development.md](local-development.md)，观测和排障见 [operations.md](operations.md)。
 

@@ -12,7 +12,7 @@ class OssSchemaResourceTest {
     @Test
     void deploySchemaShouldCreateAllOssTables() throws Exception {
         String schema = Files.readString(Path.of(
-                "..", "..", "deploy", "mysql", "primary-init", "010_current_schema.sql"))
+                "..", "..", "deploy", "database", "business", "current-state", "010_current_schema.sql"))
                 .toLowerCase(java.util.Locale.ROOT);
 
         assertThat(schema).contains(

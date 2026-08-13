@@ -7,21 +7,21 @@ This directory stores the repository-managed Kibana saved objects for the local 
 Choose one topology; observability is enabled by default:
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-./deploy/deployment.sh up --topology single
+cp deploy/stacks/single/.env.example deploy/stacks/single/.env
+./deploy/deployment.sh up --stack single
 ```
 
 or
 
 ```bash
-cp deploy/.env.cluster.example deploy/.env.cluster
-./deploy/deployment.sh up --topology cluster
+cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
+./deploy/deployment.sh up --stack cluster
 ```
 
 Default UI endpoints:
 
-- Kibana: `http://localhost:12889`
-- Elasticsearch: `http://localhost:12888`
+- single Kibana / Elasticsearch: `http://localhost:12889` / `http://localhost:12888`
+- cluster Kibana / Elasticsearch: `http://localhost:13889` / `http://localhost:13888`
 
 ## Import Steps
 
@@ -71,7 +71,7 @@ diagnostic.plugin.id : thread
 If a baseline query is empty, first run:
 
 ```bash
-./deploy/tests/observability_smoke.sh
+./deploy/tests/smoke/observability_smoke.sh
 ```
 
 If a conditional filter is still empty after the smoke script, exercise the

@@ -46,7 +46,7 @@ tests/playwright-single/
 从仓库根目录启动完整的单机拓扑：
 
 ```bash
-./deploy/deployment.sh up --topology single --no-observability
+./deploy/deployment.sh up --stack single --no-observability
 ```
 
 默认访问目标如下：

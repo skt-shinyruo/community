@@ -1,9 +1,10 @@
 # deploy/
 
-本目录现在同时支持两套本地拓扑：
+本目录支持三个彼此独立的本地 Stack：
 
-- `single`：单机开发拓扑，适合本地调试、联调、功能验证
-- `cluster`：本地多副本 / 集群演练拓扑，适合多实例和集群路径验证
+- `infra`：单节点基础设施，供宿主机后端开发
+- `single`：基础设施、后端、前端一起运行的完整单机 Stack
+- `cluster`：多副本 / 多节点完整 Stack，适合集群路径验证
 
 统一入口仍然是 `./deploy/deployment.sh`。
 
@@ -11,31 +12,36 @@
 
 ## 常用命令
 
-- 单机全栈：`./deploy/deployment.sh up --topology single`
-- 单机基础设施：`./deploy/deployment.sh up --topology single --scope infra`
-- 集群全栈：`./deploy/deployment.sh up --topology cluster`
-- 查看状态：`./deploy/deployment.sh ps --topology single`
-- 查看日志：`./deploy/deployment.sh logs --topology cluster community-gateway-1`
-- 渲染配置：`./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example`
-- 关闭观测层：`./deploy/deployment.sh up --topology cluster --no-observability`
-- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --topology single`
-- 验证 community 前向迁移：`./deploy/tests/community_forward_migration_mysql.sh`
+- 基础设施：`./deploy/deployment.sh up --stack infra`
+- 生成宿主机后端 env：`./deploy/deployment.sh render-backend-env --stack infra`
+- 单机全栈：`./deploy/deployment.sh up --stack single`
+- 集群全栈：`./deploy/deployment.sh up --stack cluster`
+- 查看状态：`./deploy/deployment.sh ps --stack single`
+- 查看日志：`./deploy/deployment.sh logs --stack cluster community-gateway-1`
+- 渲染配置：`./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example`
+- 关闭观测层：`./deploy/deployment.sh up --stack cluster --no-observability`
+- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --stack single`
+- 验证全部部署契约：`./deploy/tests/run-contracts.sh`
 
-默认 compose project name：
+默认 Compose project name：
 
+- `community-infra`
 - `community-single`
 - `community-cluster`
 
-如需覆盖，继续使用 `-p` / `--project-name`。自定义 project 必须同时提供独立的 volume namespace、网段、动态地址范围、NGINX/Gateway 静态地址和对应 trusted-proxy CIDR；脚本会在调用 Compose 前拒绝仍复用任一默认拓扑值的配置，避免两个 project 争用相同地址或数据卷。
+三个 Stack 默认使用独立的 volume namespace、网络和宿主机端口，可以并存。自定义 project 仍需使用
+`-p` / `--project-name`，并为 volume namespace、网段、动态地址范围、静态地址和宿主机端口提供独立值。
 
 ## 环境文件
 
-推荐使用拓扑专属 env：
+推荐使用 Stack 专属 env：
 
-- `cp deploy/.env.single.example deploy/.env.single`
-- `cp deploy/.env.cluster.example deploy/.env.cluster`
+- `cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env`
+- `cp deploy/stacks/single/.env.example deploy/stacks/single/.env`
+- `cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env`
 
-`deployment.sh` 只按白名单读取拓扑变量，不会 `source` env 文件。拓扑值的优先级为当前 shell 环境、env 文件、内置默认值。这样升级前创建、尚未包含新网络键的 `.env.single` / `.env.cluster` 仍可使用默认拓扑；Compose 文件中的必填插值继续保护绕过入口脚本的直接调用。
+`deployment.sh` 只按白名单读取 Stack 和拓扑变量，不会 `source` env 文件。值的优先级为当前 shell 环境、Stack
+env、内置默认值。Compose 文件中的必填插值继续保护绕过入口脚本的直接调用。
 
 内置 single 默认值为 `172.30.0.0/24`、动态范围 `172.30.0.128/25`、NGINX `172.30.0.10`、Gateway `172.30.0.20`。cluster 对应为 `172.31.0.0/24`、动态范围 `172.31.0.128/25`、NGINX `172.31.0.10`、三个 Gateway `172.31.0.20` 到 `172.31.0.22`。
 
@@ -43,45 +49,50 @@
 
 ## 文件结构
 
-- `compose.yml`
-  共享顶层元数据与 volume 定义
-- `compose.infra.*.single.yml`
-  `single` 单机基础设施
-- `compose.infra.*.cluster.yml`
-  `cluster` 多节点基础设施
-- `compose.infra.mailhog.yml`
-  共享 MailHog
-- `compose.infra.mock-data-studio-bootstrap.single.yml`
-- `compose.infra.mock-data-studio-bootstrap.cluster.yml`
-  拓扑专属 MySQL bootstrap sidecar
-- `compose.runtime.services.single.yml`
-  单机 `community-app` / `community-gateway` / `community-im-gateway` / `im-core` / `im-realtime`
-- `compose.runtime.services.cluster.yml`
-  多副本 runtime 服务
-- `compose.runtime.frontend-nginx.single.yml`
-- `compose.runtime.frontend-nginx.cluster.yml`
-  拓扑专属前端和 Nginx 入口
-- `compose.runtime.mock-data-studio.single.yml`
-- `compose.runtime.mock-data-studio.cluster.yml`
-  拓扑专属 studio wiring
-- `nginx/nginx.single.conf`
-- `nginx/nginx.cluster.conf`
-  拓扑专属 ingress upstream
-- `compose.observability.yml`
-  默认启用的 observability overlay
+```text
+deploy/
+  stacks/{infra,single,cluster}/  # 独立入口、env 模板和操作说明
+  compose/
+    base.yml                     # 共享网络和 volume 定义
+    infra/<capability>/          # 基础设施 single/cluster 片段
+    runtime/{services,edge,...}/ # 容器化业务运行时片段
+    overlays/                    # host access、observability 可选层
+  images/{backend,frontend,garage-init}/
+  database/{business,mysql,nacos,xxl-job}/
+  config/{nacos,nginx,garage}/
+  observability/
+  scripts/
+  tests/{contracts,smoke}/
+```
+
+`stacks/*/compose.yml` 是拓扑清单，只负责组合 `compose/` 中的能力片段；`deployment.sh` 是唯一支持的
+操作入口。数据库事实源放在 `database/`，容器运行配置放在 `config/`，镜像构建输入放在 `images/`，
+避免按技术名词平铺在 `deploy/` 根目录。测试目录的分组和执行方式见 [tests/README.md](tests/README.md)。
 
 ## 快速开始
 
-### 单机开发拓扑
+### infra Stack
 
 1. 准备环境文件：
-   `cp deploy/.env.single.example deploy/.env.single`
-2. 启动全栈：
-   `./deploy/deployment.sh up --topology single`
-3. 或者只启动基础设施：
-   `./deploy/deployment.sh up --topology single --scope infra`
+   `cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env`
+2. 启动基础设施：
+   `./deploy/deployment.sh up --stack infra`
+3. 生成宿主机后端配置：
+   `./deploy/deployment.sh render-backend-env --stack infra`
 
-默认入口：
+infra 使用 MySQL `23306`、Redis `26379`、Kafka `39092`、Elasticsearch `29200`、Nacos
+HTTP/gRPC `28848/29848`、Garage `23900/23903`、MailHog `21025/28025` 和 XXL-JOB `22887`，
+全部绑定到 `127.0.0.1`。生成的后端 env 和启动顺序见[本地开发手册](../docs/handbook/local-development.md#宿主机启动后端)。
+infra 不启动前端或容器化后端；本地 Gateway 默认监听 `12880`。
+
+### single Stack
+
+1. 准备环境文件：
+   `cp deploy/stacks/single/.env.example deploy/stacks/single/.env`
+2. 启动：
+   `./deploy/deployment.sh up --stack single`
+
+single 默认入口：
 
 - 前端：`http://localhost:12881`
 - 统一入口：`http://localhost:12880`
@@ -91,18 +102,18 @@
 - XXL-JOB：`http://localhost:12887/xxl-job-admin`
 - MailHog：`http://localhost:8025`
 
-### 本地集群演练拓扑
+### cluster Stack
 
 1. 准备环境文件：
-   `cp deploy/.env.cluster.example deploy/.env.cluster`
+   `cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env`
 2. 启动：
-   `./deploy/deployment.sh up --topology cluster`
+   `./deploy/deployment.sh up --stack cluster`
 
-默认入口与 `single` 保持一致，但后端与中间件是多副本 / 多节点形态。
+cluster 默认使用独立的 `13880` / `13881` / `38848` 等控制面端口，与 single 和 infra 并存。
 
 ## Runtime 镜像约束
 
-`Dockerfile.frontend` 使用 Node 构建静态资源，最终镜像只保留非 root Nginx，不运行
+`images/frontend/Dockerfile` 使用 Node 构建静态资源，最终镜像只保留非 root Nginx，不运行
 Vite preview 或携带前端源码依赖。single 和 cluster 拓扑均把前端根文件系统设为只读、
 丢弃 Linux capabilities，并只挂载受限的 `/tmp`。Nginx 的 pid、临时文件和启动时生成的
 `/app-config.js` 都位于该 tmpfs；版本化 `/assets/` 使用 immutable 缓存，HTML 和运行时配置不缓存。
@@ -115,12 +126,12 @@ Vite preview 或携带前端源码依赖。single 和 cluster 拓扑均把前端
 
 显式设置 `FRONTEND_RUNTIME_API_BASE_URL=` 或 `FRONTEND_RUNTIME_IM_HTTP_BASE_URL=` 可选择
 同源相对路径。镜像中的 Nginx 仍代理 `/api/`、`/files/` 和 `/ws/im` 到 Compose ingress，
-以兼容同源部署和后端返回的相对公开文件 URL。`Dockerfile.backend-service` 的运行阶段使用
+以兼容同源部署和后端返回的相对公开文件 URL。`images/backend/Dockerfile` 的运行阶段使用
 固定 UID/GID `10001`，镜像内 JAR、agent 和启动脚本仅需只读访问；JVM 的 `user.home` 与
 `java.io.tmpdir` 固定落在 `/tmp/community-runtime`，只读根文件系统部署时应为 `/tmp`
 提供可写的临时挂载。
 
-对应静态契约可独立运行：`./deploy/tests/production_image_contract.sh`。
+对应静态契约可独立运行：`./deploy/tests/contracts/images/production_image_contract.sh`。
 
 ## 拓扑速览
 
@@ -144,7 +155,7 @@ Vite preview 或携带前端源码依赖。single 和 cluster 拓扑均把前端
 - XXL-JOB：`xxl-job-admin-1/2`
 - Runtime：`community-app-1..3` / `community-gateway-1..3` / `community-im-gateway-1..3` / `im-core-1..3` / `im-realtime-1..3`
 
-`nacos-config-bootstrap` 会把 `deploy/nacos/config/*.yaml` 发布到 Nacos group
+`nacos-config-bootstrap` 会把 `deploy/config/nacos/*.yaml` 发布到 Nacos group
 `COMMUNITY`。启动时它接收 `BROWSER_ALLOWED_ORIGINS`、`FRONTEND_PUBLIC_ORIGIN`、
 `GATEWAY_PUBLIC_BASE_URL`、`OSS_PUBLIC_BASE_URL` 和 `IM_GATEWAY_PUBLIC_WS_URL`，将它们
 渲染到 Gateway、community-app、community-oss、frontend runtime 和 IM 的浏览器
@@ -160,37 +171,46 @@ Nacos 3.1.2 使用 `/nacos/v3/admin/core/state/readiness` 作为 readiness 接�
 
 ## 停止与清理
 
-- 停止：`./deploy/deployment.sh down --topology single`
-- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --topology single`
-- 完全重置：`./deploy/deployment.sh down --topology cluster -- -v`
+- 停止：`./deploy/deployment.sh down --stack single`
+- 只重置 MySQL：`./deploy/deployment.sh reset-mysql --stack single`
+- 完全重置：`./deploy/deployment.sh down --stack cluster -- -v`
 
-`reset-mysql` 会先停止完整拓扑，只删除明确命名的 MySQL volumes，并保留 Redis、Kafka、Garage、Elasticsearch 等数据。它只接受 `--scope full`。single 删除 primary volume；cluster 删除 primary 和两个 replica volumes。此操作不可恢复。
+`reset-mysql` 会先停止目标 Stack，只删除明确命名的 MySQL volumes，并保留 Redis、Kafka、Garage、
+Elasticsearch 等数据。infra / single 删除 primary volume；cluster 删除 primary 和两个 replica volumes。此操作不可恢复。
 
-`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面，会删除该拓扑的所有 Compose volumes。默认 project name 是 `community-single` / `community-cluster`，默认 volume namespace 是 `community_single` / `community_cluster`，对应的 MySQL 数据卷名分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
+`-v` 是传给 `docker compose down` 的参数，要放在 `--` 后面，会删除该 Stack 的所有 Compose volumes。
+三个默认 project name 是 `community-infra` / `community-single` / `community-cluster`，volume namespace 是
+`community_infra` / `community_single` / `community_cluster`。
 
-三个业务 schema 固定为 `community`、`community_oss`、`im_core`，空库最终结构统一维护在 `mysql/primary-init/010_current_schema.sql`。MySQL entrypoint 只在 primary volume 为空时执行该文件。`community` 改表还必须追加 `mysql/community-migrations/VNNN__*.sql`；`community-db-migrations` 使用专用 DDL 账号在 app 前一次性执行，已有 volume 不得重放快照。可丢弃环境可以 reset；保留数据时先备份并按 [operations runbook](../docs/handbook/operations.md#community-前向-schema-迁移) 静默写入、向前升级。development 身份数据位于 `mysql/community/090_seed_identity.sql`，不属于当前态 schema。
+三个业务 schema 固定为 `community`、`community_oss`、`im_core`，空库最终结构统一维护在
+`database/business/current-state/010_current_schema.sql`。MySQL entrypoint 只在 primary volume 为空时执行该文件。
+`community` 改表还必须追加 `database/business/migrations/VNNN__*.sql`；`community-db-migrations` 使用专用
+DDL 账号在 app 前一次性执行，已有 volume 不得重放快照。可丢弃环境可以 reset；保留数据时先备份并按
+[operations runbook](../docs/handbook/operations.md#community-前向-schema-迁移) 静默写入、向前升级。
+development 身份数据位于 `database/business/seed/090_seed_identity.sql`，不属于当前态 schema。
 
-如需给 volume 使用独立前缀，可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE`，例如 `COMMUNITY_VOLUME_NAMESPACE=community_smoke ./deploy/deployment.sh up --topology single`。
+如需再启动同类 Stack，复制对应 `.env.example`，并同时修改 project name、volume namespace、网段、静态地址和
+全部宿主机端口；入口脚本会拒绝复用默认隔离值的自定义 project。
 
 如果你启动时带了 `--no-observability`，停止时也请带上相同参数组合。
 
 ## 观测层
 
-两套拓扑默认都会启用 observability。普通启动会加载 `deploy/compose.observability.yml`，并默认开启后端 OTel tracing：
+两套拓扑默认都会启用 observability。普通启动会加载 `deploy/compose/overlays/observability.yml`，并默认开启后端 OTel tracing：
 
-- `./deploy/deployment.sh up --topology single`
-- `./deploy/deployment.sh up --topology cluster`
+- `./deploy/deployment.sh up --stack single`
+- `./deploy/deployment.sh up --stack cluster`
 
 需要关闭整个观测 overlay 时使用：
 
 ```bash
-./deploy/deployment.sh up --topology single --no-observability
+./deploy/deployment.sh up --stack single --no-observability
 ```
 
 如需保留观测 overlay 但临时关闭 tracing，在命令前显式设置：
 
 ```bash
-OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
+OTEL_ENABLED=false ./deploy/deployment.sh up --stack single
 ```
 
 默认端口：
@@ -203,13 +223,13 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 After the stack is up, verify that logs and traces are queryable:
 
 ```bash
-./deploy/tests/observability_smoke.sh
+./deploy/tests/smoke/observability_smoke.sh
 ```
 
 To require specific event categories during a focused scenario run:
 
 ```bash
-OBSERVABILITY_EXPECT_EVENT_CATEGORIES=runtime,database,messaging ./deploy/tests/observability_smoke.sh
+OBSERVABILITY_EXPECT_EVENT_CATEGORIES=runtime,database,messaging ./deploy/tests/smoke/observability_smoke.sh
 ```
 
 Only require categories that the scenario has actually exercised. The default smoke keeps category checks broad so a fresh local stack is not forced to emit every subsystem event.
@@ -225,7 +245,7 @@ body or `traceparent` header, and checks Elasticsearch for:
 For a short YierLoom capture, start the stack with YierLoom enabled as described below, then set:
 
 ```bash
-OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
+OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/smoke/observability_smoke.sh
 ```
 
 日志路径是 backend JSON stdout / OTLP logs -> EDOT collector logs pipeline -> Elasticsearch / Kibana。更多说明见 `docs/handbook/operations.md`。
@@ -237,7 +257,7 @@ Backend images include YierLoom at `/otel/yierloom-agent.jar`. It is disabled by
 ```bash
 YIERLOOM_ENABLED=true \
 YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
-./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --stack single
 ```
 
 The built-in `method`, `exception`, `thread`, and `jvm` plugins are enabled when the Agent starts. YierLoom emits `event.category=yierloom` logs with `diagnostic.plugin.id` through the same observability path as other backend logs. Its event queue is bounded; `YIERLOOM_EVENTS_QUEUE_CAPACITY` defaults to `8192`, and a full queue drops new observations or events instead of blocking instrumented application work.
@@ -248,7 +268,7 @@ Dependency plugins are opt-in. Enable only the plugin needed for the capture; fo
 YIERLOOM_ENABLED=true \
 YIERLOOM_PLUGIN__HTTP__ENABLED=true \
 YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s \
-./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --stack single
 ```
 
 The equivalent switches are `YIERLOOM_PLUGIN__JDBC__ENABLED=true`, `YIERLOOM_PLUGIN__REDIS__ENABLED=true`, and `YIERLOOM_PLUGIN__KAFKA__ENABLED=true`. Sample rates and per-second limits follow the same plugin-scoped mapping, for example `YIERLOOM_PLUGIN__HTTP__SAMPLE_RATE` and `YIERLOOM_PLUGIN__HTTP__MAX_EVENTS_PER_SECOND`. Kafka topic names are hashed by default; disclose raw names only by explicitly setting `YIERLOOM_PLUGIN__KAFKA__TOPIC_NAMES_ENABLED=true`.
@@ -256,7 +276,7 @@ The equivalent switches are `YIERLOOM_PLUGIN__JDBC__ENABLED=true`, `YIERLOOM_PLU
 YierLoom must not collect method arguments, return values, request or response bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers. Disable it immediately after the capture window and restart the target services:
 
 ```bash
-YIERLOOM_ENABLED=false ./deploy/deployment.sh up --topology single
+YIERLOOM_ENABLED=false ./deploy/deployment.sh up --stack single
 ```
 
 #### Trusted External Plugins

@@ -169,9 +169,9 @@ Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are mi
 - Never commit real secrets or local `deploy/.env*` files. Nacos config seeds contain non-secret configuration only;
   credentials and signing keys stay in env files or a secret manager.
 - The fixed business schemas are `community`, `community_oss`, and `im_core`. Empty-volume current state lives in
-  `deploy/mysql/primary-init/010_current_schema.sql`.
+  `deploy/database/business/current-state/010_current_schema.sql`.
 - A `community` schema change updates the current-state snapshot and appends a new
-  `deploy/mysql/community-migrations/VNNN__*.sql` forward migration. It also updates the applicable H2/MyBatis fixtures,
+  `deploy/database/business/migrations/VNNN__*.sql` forward migration. It also updates the applicable H2/MyBatis fixtures,
   schema contracts, and `docs/handbook/data-and-storage.md`. Never rewrite an already released migration.
 - Treat `reset-mysql` and `docker compose down -v` as destructive. Run them only when the task explicitly requires data
   removal and the exact topology/project has been confirmed.

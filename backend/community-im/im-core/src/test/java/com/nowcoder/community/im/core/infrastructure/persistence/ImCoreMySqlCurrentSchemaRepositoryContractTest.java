@@ -117,7 +117,8 @@ class ImCoreMySqlCurrentSchemaRepositoryContractTest {
     private static synchronized String currentSchemaJdbcUrl() {
         if (!schemaInstalled) {
             Path currentSchema = Path.of(
-                    "..", "..", "..", "deploy", "mysql", "primary-init", "010_current_schema.sql")
+                    "..", "..", "..", "deploy", "database", "business", "current-state",
+                    "010_current_schema.sql")
                     .toAbsolutePath().normalize();
             try (Connection connection = DriverManager.getConnection(
                     MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {

@@ -235,6 +235,7 @@
                 <configuration>
                     <systemPropertyVariables>
                         <api.version>${docker.api.version}</api.version>
+                        <elasticsearch.client.version>${elasticsearch-client.version}</elasticsearch.client.version>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>

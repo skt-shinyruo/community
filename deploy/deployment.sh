@@ -13,22 +13,32 @@ Commands:
   ps        Show compose status
   logs      Show logs with `logs -f --tail=200`
   config    Render the merged compose config
+  render-backend-env  Generate host-run backend env files from the infra stack env
 
 Options:
+  --stack <infra|single|cluster> Select an independent stack directory
   --topology <single|cluster>  Choose topology (default: single)
   --scope <full|infra>         Choose compose scope (default: full)
-  --no-observability  Disable deploy/compose.observability.yml
-  --env-file <path>   Override env file path (default: deploy/.env.single or deploy/.env.cluster)
-  -p, --project-name  Override compose project name (default: community-single or community-cluster)
+  --host-access      Expose single/infra dependencies on localhost for host-run backends
+  --no-observability  Disable deploy/compose/overlays/observability.yml
+  --env-file <path>   Override env file path (default: the selected Stack's .env)
+  --output-dir <path>  Override render-backend-env output (default: backend/env/generated)
+  -p, --project-name  Override compose project name (default: community-infra/single/cluster)
   Custom project names require an independent network topology and volume namespace.
+  Custom projects using --host-access also require independent localhost ports.
   Topology values use shell environment, then env file, then the built-in topology defaults.
   -h, --help          Show this help
 
 Examples:
+  ./deploy/deployment.sh up --stack infra
+  ./deploy/deployment.sh up --stack single
+  ./deploy/deployment.sh up --stack cluster
+  ./deploy/deployment.sh render-backend-env --stack infra
   ./deploy/deployment.sh up
   ./deploy/deployment.sh up --no-observability
   ./deploy/deployment.sh up --topology single
   ./deploy/deployment.sh up --topology single --scope infra
+  ./deploy/deployment.sh up --topology single --scope infra --host-access
   ./deploy/deployment.sh config --topology single -p community-single-smoke --env-file deploy/.env.single.smoke
   ./deploy/deployment.sh logs --no-observability community-app
   ./deploy/deployment.sh down --no-observability
@@ -55,12 +65,20 @@ resolve_path() {
 
 resolve_default_env_file() {
   local topology="$1"
+  if [ -n "${STACK:-}" ]; then
+    case "${STACK}" in
+      infra|single|cluster)
+        printf '%s/deploy/stacks/%s/.env\n' "${REPO_ROOT}" "${STACK}"
+        return
+        ;;
+    esac
+  fi
   case "${topology}" in
     single)
-      printf '%s/deploy/.env.single\n' "${REPO_ROOT}"
+      printf '%s/deploy/stacks/single/.env\n' "${REPO_ROOT}"
       ;;
     cluster)
-      printf '%s/deploy/.env.cluster\n' "${REPO_ROOT}"
+      printf '%s/deploy/stacks/cluster/.env\n' "${REPO_ROOT}"
       ;;
     *)
       echo "[deployment.sh] unsupported topology: ${topology}" >&2
@@ -70,6 +88,18 @@ resolve_default_env_file() {
 }
 
 resolve_default_project_name() {
+  if [ -n "${STACK:-}" ]; then
+    case "${STACK}" in
+      infra) printf 'community-infra\n' ;;
+      single) printf 'community-single\n' ;;
+      cluster) printf 'community-cluster\n' ;;
+      *)
+        echo "[deployment.sh] unsupported stack: ${STACK}" >&2
+        exit 1
+        ;;
+    esac
+    return
+  fi
   case "${TOPOLOGY}" in
     single) printf 'community-single\n' ;;
     cluster) printf 'community-cluster\n' ;;
@@ -115,6 +145,26 @@ read_env_file_value() {
 initialize_topology_defaults() {
   declare -gA TOPOLOGY_DEFAULTS=()
   declare -ga TOPOLOGY_VARIABLES=()
+
+  if [ "${STACK:-}" = "infra" ]; then
+    TOPOLOGY_VARIABLES=(
+      COMMUNITY_VOLUME_NAMESPACE
+      COMMUNITY_NETWORK_SUBNET
+      COMMUNITY_NETWORK_DYNAMIC_RANGE
+      NGINX_STATIC_IP
+      COMMUNITY_GATEWAY_STATIC_IP
+      GATEWAY_TRUSTED_PROXY_CIDRS
+      COMMUNITY_APP_TRUSTED_PROXY_CIDRS
+    )
+    TOPOLOGY_DEFAULTS[COMMUNITY_VOLUME_NAMESPACE]=community_infra
+    TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_SUBNET]=172.32.0.0/24
+    TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_DYNAMIC_RANGE]=172.32.0.128/25
+    TOPOLOGY_DEFAULTS[NGINX_STATIC_IP]=172.32.0.10
+    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_STATIC_IP]=172.32.0.20
+    TOPOLOGY_DEFAULTS[GATEWAY_TRUSTED_PROXY_CIDRS]=172.32.0.10/32
+    TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]=172.32.0.20/32
+    return
+  fi
 
   case "${TOPOLOGY}" in
     single)
@@ -233,45 +283,255 @@ validate_project_topology() {
   fi
 }
 
+initialize_host_access_defaults() {
+  declare -gA HOST_ACCESS_DEFAULTS=()
+  declare -ga HOST_ACCESS_VARIABLES=(
+    MYSQL_HOST_PORT
+    REDIS_HOST_PORT
+    KAFKA_HOST_PORT
+    ELASTICSEARCH_HOST_ACCESS_PORT
+    NACOS_HOST_PORT
+    NACOS_GRPC_HOST_PORT
+    GARAGE_S3_HOST_PORT
+    GARAGE_ADMIN_HOST_PORT
+    MAILHOG_UI_HOST_PORT
+    MAILHOG_SMTP_HOST_PORT
+    XXL_JOB_ADMIN_PORT
+  )
+
+  HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=13306
+  HOST_ACCESS_DEFAULTS[REDIS_HOST_PORT]=16379
+  HOST_ACCESS_DEFAULTS[KAFKA_HOST_PORT]=29092
+  HOST_ACCESS_DEFAULTS[ELASTICSEARCH_HOST_ACCESS_PORT]=19200
+  HOST_ACCESS_DEFAULTS[NACOS_HOST_PORT]=18848
+  HOST_ACCESS_DEFAULTS[NACOS_GRPC_HOST_PORT]=19848
+  HOST_ACCESS_DEFAULTS[GARAGE_S3_HOST_PORT]=13900
+  HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=13903
+  HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
+  HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=11025
+  HOST_ACCESS_DEFAULTS[XXL_JOB_ADMIN_PORT]=12887
+
+  if [ "${STACK:-}" = "infra" ]; then
+    HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=23306
+    HOST_ACCESS_DEFAULTS[REDIS_HOST_PORT]=26379
+    HOST_ACCESS_DEFAULTS[KAFKA_HOST_PORT]=39092
+    HOST_ACCESS_DEFAULTS[ELASTICSEARCH_HOST_ACCESS_PORT]=29200
+    HOST_ACCESS_DEFAULTS[NACOS_HOST_PORT]=28848
+    HOST_ACCESS_DEFAULTS[NACOS_GRPC_HOST_PORT]=29848
+    HOST_ACCESS_DEFAULTS[GARAGE_S3_HOST_PORT]=23900
+    HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=23903
+    HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=28025
+    HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=21025
+    HOST_ACCESS_DEFAULTS[XXL_JOB_ADMIN_PORT]=22887
+  fi
+}
+
+resolve_host_access_values() {
+  local variable
+  local value
+  local existing_variable
+  declare -A used_ports=()
+  declare -gA HOST_ACCESS_VALUES=()
+
+  for variable in "${HOST_ACCESS_VARIABLES[@]}"; do
+    if [[ -v "${variable}" ]]; then
+      value="${!variable}"
+    elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
+      :
+    else
+      value="${HOST_ACCESS_DEFAULTS[${variable}]}"
+    fi
+
+    if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} < 1 || 10#${value} > 65535 )); then
+      echo "[deployment.sh] ${variable} must be a port between 1 and 65535" >&2
+      exit 1
+    fi
+    existing_variable="${used_ports[${value}]:-}"
+    if [ -n "${existing_variable}" ]; then
+      echo "[deployment.sh] ${variable} and ${existing_variable} must not use the same host port ${value}" >&2
+      exit 1
+    fi
+
+    used_ports["${value}"]="${variable}"
+    HOST_ACCESS_VALUES["${variable}"]="${value}"
+    printf -v "${variable}" '%s' "${value}"
+    export "${variable}"
+  done
+}
+
+validate_custom_project_host_access() {
+  local default_project_name
+  local variable
+  local reused_variables=()
+
+  default_project_name="$(resolve_default_project_name)"
+  if [ "${PROJECT_NAME}" = "${default_project_name}" ]; then
+    return
+  fi
+
+  for variable in "${HOST_ACCESS_VARIABLES[@]}"; do
+    if [ "${HOST_ACCESS_VALUES[${variable}]}" = "${HOST_ACCESS_DEFAULTS[${variable}]}" ]; then
+      reused_variables+=("${variable}")
+    fi
+  done
+
+  if [ "${#reused_variables[@]}" -gt 0 ]; then
+    echo "[deployment.sh] custom project '${PROJECT_NAME}' with --host-access requires independent localhost ports" >&2
+    echo "[deployment.sh] values still using host-access defaults: ${reused_variables[*]}" >&2
+    exit 1
+  fi
+}
+
+initialize_stack_port_defaults() {
+  declare -gA STACK_PORT_DEFAULTS=()
+  declare -ga STACK_PORT_VARIABLES=()
+
+  case "${STACK}" in
+    single)
+      STACK_PORT_VARIABLES=(
+        NACOS_HOST_PORT
+        MAILHOG_UI_HOST_PORT
+        FRONTEND_HOST_PORT
+        NGINX_API_PORT
+        NGINX_XXL_JOB_PORT
+        MOCK_DATA_STUDIO_HOST_PORT
+        ELASTICSEARCH_PORT
+        KIBANA_PORT
+      )
+      STACK_PORT_DEFAULTS[NACOS_HOST_PORT]=18848
+      STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
+      STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=12881
+      STACK_PORT_DEFAULTS[NGINX_API_PORT]=12880
+      STACK_PORT_DEFAULTS[NGINX_XXL_JOB_PORT]=12887
+      STACK_PORT_DEFAULTS[MOCK_DATA_STUDIO_HOST_PORT]=12890
+      STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=12888
+      STACK_PORT_DEFAULTS[KIBANA_PORT]=12889
+      ;;
+    cluster)
+      STACK_PORT_VARIABLES=(
+        NACOS_HOST_PORT
+        MAILHOG_UI_HOST_PORT
+        FRONTEND_HOST_PORT
+        NGINX_API_PORT
+        NGINX_XXL_JOB_PORT
+        MOCK_DATA_STUDIO_HOST_PORT
+        GARAGE_S3_HOST_PORT
+        GARAGE_ADMIN_HOST_PORT
+        ELASTICSEARCH_PORT
+        KIBANA_PORT
+      )
+      STACK_PORT_DEFAULTS[NACOS_HOST_PORT]=38848
+      STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=38025
+      STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=13881
+      STACK_PORT_DEFAULTS[NGINX_API_PORT]=13880
+      STACK_PORT_DEFAULTS[NGINX_XXL_JOB_PORT]=13887
+      STACK_PORT_DEFAULTS[MOCK_DATA_STUDIO_HOST_PORT]=13890
+      STACK_PORT_DEFAULTS[GARAGE_S3_HOST_PORT]=33900
+      STACK_PORT_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=33903
+      STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=13888
+      STACK_PORT_DEFAULTS[KIBANA_PORT]=13889
+      ;;
+    *)
+      return
+      ;;
+  esac
+}
+
+resolve_stack_port_values() {
+  local variable
+  local value
+  local existing_variable
+  declare -A used_ports=()
+  declare -gA STACK_PORT_VALUES=()
+
+  for variable in "${STACK_PORT_VARIABLES[@]}"; do
+    if [[ -v "${variable}" ]]; then
+      value="${!variable}"
+    elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
+      :
+    else
+      value="${STACK_PORT_DEFAULTS[${variable}]}"
+    fi
+
+    if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} < 1 || 10#${value} > 65535 )); then
+      echo "[deployment.sh] ${variable} must be a port between 1 and 65535" >&2
+      exit 1
+    fi
+    existing_variable="${used_ports[${value}]:-}"
+    if [ -n "${existing_variable}" ]; then
+      echo "[deployment.sh] ${variable} and ${existing_variable} must not use the same host port ${value}" >&2
+      exit 1
+    fi
+
+    used_ports["${value}"]="${variable}"
+    STACK_PORT_VALUES["${variable}"]="${value}"
+    printf -v "${variable}" '%s' "${value}"
+    export "${variable}"
+  done
+}
+
+validate_custom_project_stack_ports() {
+  local default_project_name
+  local variable
+  local reused_variables=()
+
+  default_project_name="$(resolve_default_project_name)"
+  if [ "${PROJECT_NAME}" = "${default_project_name}" ]; then
+    return
+  fi
+
+  for variable in "${STACK_PORT_VARIABLES[@]}"; do
+    if [ "${STACK_PORT_VALUES[${variable}]}" = "${STACK_PORT_DEFAULTS[${variable}]}" ]; then
+      reused_variables+=("${variable}")
+    fi
+  done
+
+  if [ "${#reused_variables[@]}" -gt 0 ]; then
+    echo "[deployment.sh] custom project '${PROJECT_NAME}' requires independent localhost ports" >&2
+    echo "[deployment.sh] values still using ${STACK} port defaults: ${reused_variables[*]}" >&2
+    exit 1
+  fi
+}
+
 append_topology_files() {
   case "${TOPOLOGY}" in
     single)
       COMPOSE_FILES+=(
-        deploy/compose.infra.mysql.single.yml
-        deploy/compose.infra.redis.single.yml
-        deploy/compose.infra.kafka.single.yml
-        deploy/compose.infra.elasticsearch.single.yml
-        deploy/compose.infra.garage.single.yml
-        deploy/compose.infra.nacos.single.yml
-        deploy/compose.infra.xxl-job.single.yml
-        deploy/compose.infra.mailhog.yml
-        deploy/compose.infra.mock-data-studio-bootstrap.single.yml
+        deploy/compose/infra/mysql/single.yml
+        deploy/compose/infra/redis/single.yml
+        deploy/compose/infra/kafka/single.yml
+        deploy/compose/infra/elasticsearch/single.yml
+        deploy/compose/infra/garage/single.yml
+        deploy/compose/infra/nacos/single.yml
+        deploy/compose/infra/xxl-job/single.yml
+        deploy/compose/infra/mailhog.yml
+        deploy/compose/infra/mock-data-studio/single.yml
       )
       if [ "${SCOPE}" = "full" ]; then
         COMPOSE_FILES+=(
-          deploy/compose.runtime.services.single.yml
-          deploy/compose.runtime.frontend-nginx.single.yml
-          deploy/compose.runtime.mock-data-studio.single.yml
+          deploy/compose/runtime/services/single.yml
+          deploy/compose/runtime/edge/single.yml
+          deploy/compose/runtime/mock-data-studio/single.yml
         )
       fi
       ;;
     cluster)
       COMPOSE_FILES+=(
-        deploy/compose.infra.mysql.cluster.yml
-        deploy/compose.infra.redis.cluster.yml
-        deploy/compose.infra.kafka.cluster.yml
-        deploy/compose.infra.elasticsearch.cluster.yml
-        deploy/compose.infra.garage.cluster.yml
-        deploy/compose.infra.nacos.cluster.yml
-        deploy/compose.infra.xxl-job.cluster.yml
-        deploy/compose.infra.mailhog.yml
-        deploy/compose.infra.mock-data-studio-bootstrap.cluster.yml
+        deploy/compose/infra/mysql/cluster.yml
+        deploy/compose/infra/redis/cluster.yml
+        deploy/compose/infra/kafka/cluster.yml
+        deploy/compose/infra/elasticsearch/cluster.yml
+        deploy/compose/infra/garage/cluster.yml
+        deploy/compose/infra/nacos/cluster.yml
+        deploy/compose/infra/xxl-job/cluster.yml
+        deploy/compose/infra/mailhog.yml
+        deploy/compose/infra/mock-data-studio/cluster.yml
       )
       if [ "${SCOPE}" = "full" ]; then
         COMPOSE_FILES+=(
-          deploy/compose.runtime.services.cluster.yml
-          deploy/compose.runtime.frontend-nginx.cluster.yml
-          deploy/compose.runtime.mock-data-studio.cluster.yml
+          deploy/compose/runtime/services/cluster.yml
+          deploy/compose/runtime/edge/cluster.yml
+          deploy/compose/runtime/mock-data-studio/cluster.yml
         )
       fi
       ;;
@@ -285,6 +545,7 @@ append_topology_files() {
 CALLER_PWD="$(pwd)"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
+export COMMUNITY_DEPLOY_ROOT="${REPO_ROOT}/deploy"
 
 if [ "$#" -eq 0 ]; then
   usage
@@ -295,16 +556,34 @@ COMMAND="$1"
 shift
 
 OBSERVABILITY=1
+HOST_ACCESS=0
+STACK=""
 TOPOLOGY="single"
 SCOPE="full"
 ENV_FILE=""
 PROJECT_NAME=""
 EXTRA_ARGS=()
+OUTPUT_DIR="${REPO_ROOT}/backend/env/generated"
+TOPOLOGY_OPTION=0
+SCOPE_OPTION=0
+HOST_ACCESS_OPTION=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
+    --stack)
+      if [ "$#" -lt 2 ]; then
+        echo "[deployment.sh] missing value for --stack" >&2
+        exit 1
+      fi
+      STACK="$2"
+      shift
+      ;;
     --no-observability)
       OBSERVABILITY=0
+      ;;
+    --host-access)
+      HOST_ACCESS=1
+      HOST_ACCESS_OPTION=1
       ;;
     --topology)
       if [ "$#" -lt 2 ]; then
@@ -312,6 +591,7 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       TOPOLOGY="$2"
+      TOPOLOGY_OPTION=1
       shift
       ;;
     --scope)
@@ -320,6 +600,7 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       SCOPE="$2"
+      SCOPE_OPTION=1
       shift
       ;;
     --env-file)
@@ -328,6 +609,14 @@ while [ "$#" -gt 0 ]; do
         exit 1
       fi
       ENV_FILE="$(resolve_path "$2")"
+      shift
+      ;;
+    --output-dir)
+      if [ "$#" -lt 2 ]; then
+        echo "[deployment.sh] missing value for --output-dir" >&2
+        exit 1
+      fi
+      OUTPUT_DIR="$(resolve_path "$2")"
       shift
       ;;
     -p|--project-name)
@@ -377,6 +666,9 @@ case "${COMMAND}" in
   config)
     SUBCOMMAND=(config)
     ;;
+  render-backend-env)
+    SUBCOMMAND=()
+    ;;
   -h|--help|help)
     usage
     exit 0
@@ -387,6 +679,35 @@ case "${COMMAND}" in
     exit 1
     ;;
 esac
+
+if [ -n "${STACK}" ]; then
+  if [ "${TOPOLOGY_OPTION}" -eq 1 ] || [ "${SCOPE_OPTION}" -eq 1 ] || [ "${HOST_ACCESS_OPTION}" -eq 1 ]; then
+    echo "[deployment.sh] --stack cannot be combined with --topology, --scope, or --host-access" >&2
+    exit 1
+  fi
+  case "${STACK}" in
+    infra)
+      TOPOLOGY="single"
+      SCOPE="infra"
+      HOST_ACCESS=1
+      OBSERVABILITY=0
+      ;;
+    single)
+      TOPOLOGY="single"
+      SCOPE="full"
+      HOST_ACCESS=0
+      ;;
+    cluster)
+      TOPOLOGY="cluster"
+      SCOPE="full"
+      HOST_ACCESS=0
+      ;;
+    *)
+      echo "[deployment.sh] unsupported stack: ${STACK}" >&2
+      exit 1
+      ;;
+  esac
+fi
 
 case "${TOPOLOGY}" in
   single|cluster)
@@ -406,6 +727,11 @@ case "${SCOPE}" in
     ;;
 esac
 
+if [ -z "${STACK}" ] && [ "${HOST_ACCESS}" -eq 1 ] && { [ "${TOPOLOGY}" != "single" ] || [ "${SCOPE}" != "infra" ]; }; then
+  echo "[deployment.sh] --host-access requires --topology single --scope infra" >&2
+  exit 1
+fi
+
 if [ -z "${ENV_FILE}" ]; then
   ENV_FILE="$(resolve_default_env_file "${TOPOLOGY}")"
 fi
@@ -415,19 +741,59 @@ if [ ! -f "${ENV_FILE}" ]; then
   exit 1
 fi
 
+if [ "${COMMAND}" = "render-backend-env" ]; then
+  if [ "${STACK}" != "infra" ]; then
+    echo "[deployment.sh] render-backend-env requires --stack infra" >&2
+    exit 1
+  fi
+  if [ "${#EXTRA_ARGS[@]}" -ne 0 ]; then
+    echo "[deployment.sh] render-backend-env does not accept compose arguments" >&2
+    exit 1
+  fi
+  exec "${REPO_ROOT}/deploy/scripts/render-backend-env.sh" "${ENV_FILE}" "${OUTPUT_DIR}"
+fi
+
 if [ -z "${PROJECT_NAME}" ]; then
   PROJECT_NAME="$(resolve_default_project_name)"
+fi
+
+if [ -n "${STACK}" ]; then
+  STACK_FILE="${REPO_ROOT}/deploy/stacks/${STACK}/compose.yml"
+  if [ ! -f "${STACK_FILE}" ]; then
+    echo "[deployment.sh] stack manifest not found: ${STACK_FILE}" >&2
+    exit 1
+  fi
 fi
 
 initialize_topology_defaults
 resolve_topology_values
 validate_project_topology
 
-COMPOSE_FILES=(deploy/compose.yml)
-append_topology_files
+if [ "${HOST_ACCESS}" -eq 1 ]; then
+  initialize_host_access_defaults
+  resolve_host_access_values
+  validate_custom_project_host_access
+fi
+
+if [ "${STACK}" = "single" ] || [ "${STACK}" = "cluster" ]; then
+  initialize_stack_port_defaults
+  resolve_stack_port_values
+  validate_custom_project_stack_ports
+fi
+
+if [ -n "${STACK}" ]; then
+  COMPOSE_FILES=("${STACK_FILE}")
+else
+  COMPOSE_FILES=(deploy/compose/base.yml)
+  append_topology_files
+fi
+
+if [ -z "${STACK}" ] && [ "${HOST_ACCESS}" -eq 1 ]; then
+  COMPOSE_FILES+=(deploy/compose/overlays/host-access.yml)
+fi
 
 if [ "${OBSERVABILITY}" -eq 1 ]; then
-  COMPOSE_FILES+=(deploy/compose.observability.yml)
+  COMPOSE_FILES+=(deploy/compose/overlays/observability.yml)
 fi
 
 if [ "${OBSERVABILITY}" -eq 1 ] && [ -z "${OTEL_ENABLED+x}" ]; then
@@ -438,7 +804,11 @@ if [ "${OBSERVABILITY}" -eq 0 ]; then
   export OTEL_ENABLED=false
 fi
 
-COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
+if [ -n "${STACK}" ]; then
+  COMPOSE_CMD=(docker compose --project-directory "${REPO_ROOT}/deploy" --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
+else
+  COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
+fi
 for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_CMD+=(-f "${compose_file}")
 done
@@ -448,7 +818,7 @@ if [ "${COMMAND}" = "reset-mysql" ]; then
     echo "[deployment.sh] reset-mysql does not accept compose arguments" >&2
     exit 1
   fi
-  if [ "${SCOPE}" != "full" ]; then
+  if [ "${SCOPE}" != "full" ] && [ "${STACK}" != "infra" ]; then
     echo "[deployment.sh] reset-mysql requires --scope full so every container using MySQL is stopped" >&2
     exit 1
   fi

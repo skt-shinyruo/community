@@ -1,0 +1,39 @@
+services:
+  mysql:
+    ports:
+    - 127.0.0.1:${MYSQL_HOST_PORT:-13306}:3306
+
+  redis:
+    ports:
+    - 127.0.0.1:${REDIS_HOST_PORT:-16379}:6379
+
+  kafka:
+    environment:
+    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093
+    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka:9092,HOST://127.0.0.1:${KAFKA_HOST_PORT:-29092}
+    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT
+    ports:
+    - 127.0.0.1:${KAFKA_HOST_PORT:-29092}:29092
+
+  elasticsearch:
+    ports:
+    - 127.0.0.1:${ELASTICSEARCH_HOST_ACCESS_PORT:-19200}:9200
+
+  garage:
+    ports:
+    - 127.0.0.1:${GARAGE_S3_HOST_PORT:-13900}:3900
+    - 127.0.0.1:${GARAGE_ADMIN_HOST_PORT:-13903}:3903
+
+  nacos:
+    ports:
+    - 127.0.0.1:${NACOS_GRPC_HOST_PORT:-19848}:9848
+
+  mailhog:
+    ports:
+    - 127.0.0.1:${MAILHOG_SMTP_HOST_PORT:-11025}:1025
+
+  xxl-job-admin:
+    extra_hosts:
+    - host.docker.internal:host-gateway
+    ports:
+    - 127.0.0.1:${XXL_JOB_ADMIN_PORT:-12887}:8080

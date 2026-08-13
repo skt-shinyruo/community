@@ -261,11 +261,11 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 
 ## Schema 快照与前向迁移设计
 
-`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态快照。它包含最终建表语句与必要引用数据，不包含版本化演进、历史表或 development 身份数据。schema 名固定，Compose 和 runtime JDBC URL 不支持改名。
+`deploy/database/business/current-state/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态快照。它包含最终建表语句与必要引用数据，不包含版本化演进、历史表或 development 身份数据。schema 名固定，Compose 和 runtime JDBC URL 不支持改名。
 
 MySQL entrypoint 在空主库卷上先创建最小权限账号，再执行当前态快照。single 只有一个 MySQL；cluster 只初始化 primary，并在放行迁移前由 replication bootstrap 建立两个 replica 的 GTID 复制。业务服务、Mock Data Studio 和 development seed 都使用 DML-only 账号，不能在 runtime 启动路径中补表。
 
-`community` 的结构变更同时维护最终快照和 `deploy/mysql/community-migrations` 前向序列。独立 one-shot 使用专用 DDL 账号、固定脚本位置、named lock、SHA-256 history 和逐项幂等 DDL，成功后 runtime 才能启动；应用进程从不接收迁移凭证。可丢弃环境仍可 clean reset，保留数据的环境只能备份后向前迁移，不支持 down migration。
+`community` 的结构变更同时维护最终快照和 `deploy/database/business/migrations` 前向序列。独立 one-shot 使用专用 DDL 账号、固定脚本位置、named lock、SHA-256 history 和逐项幂等 DDL，成功后 runtime 才能启动；应用进程从不接收迁移凭证。可丢弃环境仍可 clean reset，保留数据的环境只能备份后向前迁移，不支持 down migration。
 
 ## Config And Discovery 设计
 
@@ -278,7 +278,7 @@ Nacos 同时承担服务注册中心和非密钥配置中心职责。所有 runt
 - `NACOS_CONFIG_IMPORT_SHARED`
 - `NACOS_CONFIG_IMPORT_SERVICE`
 
-`deploy/nacos/config/*.yaml` 是可发布到 Nacos 的 seed 配置，只放动态策略、路由、
+`deploy/config/nacos/*.yaml` 是可发布到 Nacos 的 seed 配置，只放动态策略、路由、
 降级、限流、前端 runtime、IM worker 元数据等非密钥配置。access JWT RSA 私钥、service JWT
 HMAC secret、数据库密码、对象存储 access key、XXL-JOB token 和 Nacos 凭据必须来自 `.env`、Secret
 manager 或部署平台 Secret，不进入 Nacos Config dataId。

@@ -108,7 +108,7 @@ describe('k6 load testing suite structure', () => {
     const readme = await read('README.md')
 
     for (const text of [
-      './deploy/deployment.sh up --topology cluster',
+      './deploy/deployment.sh up --stack cluster',
       'npm run smoke',
       'K6_BASE_URL',
       'aaa / aaa',

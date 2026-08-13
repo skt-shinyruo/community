@@ -14,7 +14,7 @@ class DriveSchemaResourceTest {
 
     @Test
     void productionSchemaShouldDefineDriveTablesAndIndexes() throws IOException {
-        String sql = Files.readString(REPO_ROOT.resolve("deploy/mysql/primary-init/010_current_schema.sql"))
+        String sql = Files.readString(REPO_ROOT.resolve("deploy/database/business/current-state/010_current_schema.sql"))
                 .toLowerCase(java.util.Locale.ROOT);
 
         assertThat(sql).contains(

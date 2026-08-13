@@ -28,7 +28,7 @@ class OssUploadCurrentSchemaContractTest {
     private static Path currentSchema() {
         Path candidate = Path.of("").toAbsolutePath().normalize();
         while (candidate != null) {
-            Path schema = candidate.resolve("deploy/mysql/primary-init/010_current_schema.sql");
+            Path schema = candidate.resolve("deploy/database/business/current-state/010_current_schema.sql");
             if (Files.isRegularFile(schema)) {
                 return schema;
             }

@@ -40,7 +40,7 @@ jobs:
           mock_data_studio_host_port=$((12890 + port_offset))
           env_file="${RUNNER_TEMP}/community-single-${run_suffix}.env"
 
-          cp deploy/.env.single.example "${env_file}"
+          cp deploy/stacks/single/.env.example "${env_file}"
           {
             echo "PW_PROJECT=community-single-pw-${run_suffix}"
             echo "PW_ENV_FILE=${env_file}"
@@ -111,7 +111,7 @@ jobs:
         run: npm --prefix tests/playwright-single run "test:${PW_SUITE}"
 
       - name: Generate Markdown report
-        if: always()
+        if: ${{ always() && hashFiles('tests/playwright-single/reports/latest-results.json') != '' }}
         run: npm --prefix tests/playwright-single run report
 
       - name: Collect Compose diagnostics
@@ -123,23 +123,34 @@ jobs:
           ./deploy/deployment.sh ps --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" \
             > "${RUNNER_TEMP}/community-single-compose/ps.txt" 2>&1
           compose_files=(
-            -f deploy/compose.yml
-            -f deploy/compose.infra.mysql.single.yml
-            -f deploy/compose.infra.redis.single.yml
-            -f deploy/compose.infra.kafka.single.yml
-            -f deploy/compose.infra.elasticsearch.single.yml
-            -f deploy/compose.infra.garage.single.yml
-            -f deploy/compose.infra.nacos.single.yml
-            -f deploy/compose.infra.xxl-job.single.yml
-            -f deploy/compose.infra.mailhog.yml
-            -f deploy/compose.infra.mock-data-studio-bootstrap.single.yml
-            -f deploy/compose.runtime.services.single.yml
-            -f deploy/compose.runtime.frontend-nginx.single.yml
-            -f deploy/compose.runtime.mock-data-studio.single.yml
+            -f deploy/compose/base.yml
+            -f deploy/compose/infra/mysql/single.yml
+            -f deploy/compose/infra/redis/single.yml
+            -f deploy/compose/infra/kafka/single.yml
+            -f deploy/compose/infra/elasticsearch/single.yml
+            -f deploy/compose/infra/garage/single.yml
+            -f deploy/compose/infra/nacos/single.yml
+            -f deploy/compose/infra/xxl-job/single.yml
+            -f deploy/compose/infra/mailhog.yml
+            -f deploy/compose/infra/mock-data-studio/single.yml
+            -f deploy/compose/runtime/services/single.yml
+            -f deploy/compose/runtime/edge/single.yml
+            -f deploy/compose/runtime/mock-data-studio/single.yml
           )
           docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
             logs --no-color --tail=500 \
             > "${RUNNER_TEMP}/community-single-compose/logs.txt" 2>&1
+          docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
+            logs --no-color community-app \
+            > "${RUNNER_TEMP}/community-single-compose/community-app.log" 2>&1
+          community_app_container="$(docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" \
+            "${compose_files[@]}" ps -aq community-app)"
+          if [[ -n "${community_app_container}" ]]; then
+            docker inspect --format \
+              'ExitCode={{.State.ExitCode}} OOMKilled={{.State.OOMKilled}} Status={{.State.Status}} Health={{if .State.Health}}{{.State.Health.Status}}{{else}}none{{end}}' \
+              "${community_app_container}" \
+              > "${RUNNER_TEMP}/community-single-compose/community-app-state.txt" 2>&1
+          fi
 
       - name: Upload Playwright and Compose artifacts
         if: always()

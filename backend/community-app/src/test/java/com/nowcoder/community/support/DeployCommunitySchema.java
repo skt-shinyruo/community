@@ -11,6 +11,6 @@ public final class DeployCommunitySchema {
 
     public static String read(Path repoRoot) throws IOException {
         return Files.readString(repoRoot.resolve(
-                "deploy/mysql/primary-init/010_current_schema.sql"));
+                "deploy/database/business/current-state/010_current_schema.sql"));
     }
 }

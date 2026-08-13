@@ -1,0 +1,39 @@
+services:
+  elasticsearch-observability-port:
+    image: caddy:2.8-alpine
+    mem_limit: ${OBSERVABILITY_PROXY_MEM_LIMIT:-64m}
+    command:
+    - caddy
+    - reverse-proxy
+    - --from
+    - :9200
+    - --to
+    - elasticsearch:9200
+    depends_on:
+      es-init:
+        condition: service_completed_successfully
+    ports:
+    - 127.0.0.1:${ELASTICSEARCH_PORT:-12888}:9200
+  kibana:
+    image: docker.elastic.co/kibana/kibana:${ELASTIC_STACK_VERSION:-9.2.8}
+    mem_limit: ${KIBANA_MEM_LIMIT:-768m}
+    ports:
+    - 127.0.0.1:${KIBANA_PORT:-12889}:5601
+    environment:
+    - ELASTICSEARCH_HOSTS=http://elasticsearch:9200
+    depends_on:
+      es-init:
+        condition: service_completed_successfully
+  observability-gateway-edot-collector:
+    image: docker.elastic.co/elastic-agent/elastic-otel-collector:9.3.2
+    mem_limit: ${OTEL_COLLECTOR_MEM_LIMIT:-768m}
+    user: 0:0
+    command:
+    - --config=/etc/otelcol/config.yaml
+    volumes:
+    - ${COMMUNITY_DEPLOY_ROOT:?COMMUNITY_DEPLOY_ROOT must point to deploy}/observability/edot-collector.yml:/etc/otelcol/config.yaml:ro
+    - /var/lib/docker/containers:/var/lib/docker/containers:ro
+    depends_on:
+      es-init:
+        condition: service_completed_successfully
+    restart: unless-stopped

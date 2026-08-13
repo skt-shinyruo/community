@@ -367,7 +367,7 @@ class NacosPolicyBindingTest {
     private static Path seedFile(String fileName) {
         Path current = Path.of("").toAbsolutePath();
         while (current != null) {
-            Path candidate = current.resolve("deploy/nacos/config").resolve(fileName);
+            Path candidate = current.resolve("deploy/config/nacos").resolve(fileName);
             if (Files.exists(candidate)) {
                 return candidate;
             }

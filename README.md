@@ -1,8 +1,8 @@
 # Community
 
 一个覆盖社区内容、社交互动、实时 IM、搜索、成长体系、钱包与交易场景的全栈项目。仓库采用
-monorepo，包含 Vue 3 SPA、Java 17 / Spring Boot 4 后端、开发工具、测试套件，以及 single / cluster
-两套 Docker Compose 本地拓扑。
+monorepo，包含 Vue 3 SPA、Java 17 / Spring Boot 4 后端、开发工具、测试套件，以及 infra / single /
+cluster 三套彼此独立的 Docker Compose Stack。
 
 根 README 只提供项目入口。当前行为与维护约定以 [开发者手册](docs/handbook/readme.md)、代码、部署配置和
 架构守卫测试为准。
@@ -56,26 +56,26 @@ owner ApplicationService
 推荐先启动 single 全栈：
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-./deploy/deployment.sh up --topology single
+cp deploy/stacks/single/.env.example deploy/stacks/single/.env
+./deploy/deployment.sh up --stack single
 ```
 
 observability overlay 默认启用。资源有限或当前不需要 Elasticsearch、Kibana 与 OTel collector 时：
 
 ```bash
-./deploy/deployment.sh up --topology single --no-observability
+./deploy/deployment.sh up --stack single --no-observability
 ```
 
 常用操作：
 
 ```bash
-./deploy/deployment.sh ps --topology single
-./deploy/deployment.sh logs --topology single community-app
-./deploy/deployment.sh down --topology single
+./deploy/deployment.sh ps --stack single
+./deploy/deployment.sh logs --stack single community-app
+./deploy/deployment.sh down --stack single
 ```
 
 如果启动时使用了 `--no-observability`，停止时也要带上相同参数。集群演练使用
-`deploy/.env.cluster.example` 和 `--topology cluster`。完整参数、并行 project 隔离要求与数据清理说明见
+`deploy/stacks/cluster/.env` 和 `--stack cluster`。完整参数、Stack 隔离与数据清理说明见
 [部署文档](deploy/README.md)。
 
 ## 默认入口
@@ -97,8 +97,13 @@ observability overlay 默认启用。资源有限或当前不需要 Elasticsearc
 只启动基础设施，业务服务从 IDE 或命令行运行：
 
 ```bash
-./deploy/deployment.sh up --topology single --scope infra
+cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env
+./deploy/deployment.sh up --stack infra
+./deploy/deployment.sh render-backend-env --stack infra
 ```
+
+`infra` 使用独立的 Compose project、network、volume 和宿主机端口。生成的六个后端服务 env 位于
+`backend/env/generated/`，端口分配和 IDE 启动顺序见[本地开发](docs/handbook/local-development.md#宿主机启动后端)。
 
 后端构建与测试从 `backend/` 执行：
 

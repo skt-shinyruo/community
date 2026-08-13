@@ -7,15 +7,16 @@
 推荐使用 cluster 拓扑和观测层：
 
 ```bash
-cp deploy/.env.cluster.example deploy/.env.cluster
-./deploy/deployment.sh up --topology cluster
+cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
+./deploy/deployment.sh up --stack cluster
+export K6_BASE_URL=http://localhost:13880
 ```
 
 轻量验证可以使用 single：
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-./deploy/deployment.sh up --topology single
+cp deploy/stacks/single/.env.example deploy/stacks/single/.env
+./deploy/deployment.sh up --stack single
 ```
 
 ## k6 套件

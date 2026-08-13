@@ -1,47 +1,55 @@
 # 本地开发
 
-本文档合并本地启动、single / cluster 拓扑、端口、dev-only 配置和 Mock Data Studio。观测、压测、reindex、scheduler 排障见 [operations.md](operations.md)。
+本文档合并 infra / single / cluster Stack、本地启动、端口、dev-only 配置和 Mock Data Studio。观测、压测、reindex、scheduler 排障见 [operations.md](operations.md)。
 
 ## 入口命令
 
 统一使用：
 
 ```bash
-./deploy/deployment.sh <command> [--topology single|cluster] [--scope full|infra] [--no-observability]
+./deploy/deployment.sh <command> --stack infra|single|cluster [--no-observability]
 ```
 
 常用命令：
 
 ```bash
-./deploy/deployment.sh up --topology single
-./deploy/deployment.sh up --topology single --scope infra
-./deploy/deployment.sh up --topology cluster
-./deploy/deployment.sh ps --topology cluster
-./deploy/deployment.sh logs --topology cluster community-gateway-1
-./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example
+./deploy/deployment.sh up --stack infra
+./deploy/deployment.sh render-backend-env --stack infra
+./deploy/deployment.sh up --stack single
+./deploy/deployment.sh up --stack cluster
+./deploy/deployment.sh ps --stack cluster
+./deploy/deployment.sh logs --stack cluster community-gateway-1
+./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example
 ```
 
 默认值：
 
-- `--topology single`
-- `--scope full`
-- observability overlay 默认启用，使用 `--no-observability` 关闭
-- project name：`community-single` 或 `community-cluster`
+- `infra`：单节点基础设施，供宿主机后端使用；默认不加载 observability
+- `single`：完整单节点 Docker Stack；默认加载 observability
+- `cluster`：完整多节点 Docker Stack；默认加载 observability
+- project name：`community-infra`、`community-single`、`community-cluster`
+
+旧的 `--topology`、`--scope` 和 `--host-access` 参数保留给部署契约及兼容调用。日常开发只使用
+`--stack`，避免组合参数产生不明确的运行方式。
 
 ## 环境文件
 
 本地启动前建议复制：
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-cp deploy/.env.cluster.example deploy/.env.cluster
+cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env
+cp deploy/stacks/single/.env.example deploy/stacks/single/.env
+cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
 ```
 
-`.env` 文件包含本地密钥、端口、浏览器 origin、Mock Data Studio、observability 等配置。不要提交真实 `.env`。`deployment.sh` 不执行 env 文件，只安全读取拓扑白名单键；这些键按 shell 环境、env 文件、内置拓扑默认值的顺序取值，因此未包含新网络键的旧本地 env 仍可正常启动默认 project。
+每个目录内的 `.env` 只属于对应 Stack，包含本地密钥、端口、浏览器 origin、Mock Data Studio 和
+observability 等配置。不要提交真实 `.env`。`deployment.sh` 不执行 env 文件，只安全读取白名单键；值按
+shell 环境、Stack env、内置默认值的顺序解析。
 
-使用 `-p` / `--project-name` 启动并存的第二套 project 时，必须提供完全独立的 `COMMUNITY_VOLUME_NAMESPACE`、网络 subnet/dynamic range、NGINX/Gateway 静态 IP 和与这些 peer 一致的 trusted-proxy CIDR。任一值仍等于 single/cluster 默认值时，入口脚本会在 Compose 启动前失败；不能只改 project name 来复用固定 IPAM。完整键列表见 [deploy README](../../deploy/README.md)。
+三个 Stack 默认使用不同的 project、volume namespace、Docker network 和宿主机端口，可以并存。使用
+`-p` / `--project-name` 再启动同类 Stack 时，仍必须提供独立的 volume namespace、网络与宿主机端口。
 
-## single 拓扑
+## single Stack
 
 `single` 适合日常本地开发和功能联调：
 
@@ -66,18 +74,98 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 单机全栈：
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-./deploy/deployment.sh up --topology single
+cp deploy/stacks/single/.env.example deploy/stacks/single/.env
+./deploy/deployment.sh up --stack single
 ```
 
-只启动基础设施，业务服务在 IDE 里启动：
+## infra Stack
+
+`infra` 使用 single-node 基础设施实现，但它不是 `single` 的部分启动状态。它拥有独立的
+`community-infra` project、`community_infra` 数据卷、`172.32.0.0/24` 网络和宿主机端口，仅供本地后端使用。
+
+启动基础设施并生成本地后端 env：
 
 ```bash
-cp deploy/.env.single.example deploy/.env.single
-./deploy/deployment.sh up --topology single --scope infra
+cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env
+./deploy/deployment.sh up --stack infra
+./deploy/deployment.sh render-backend-env --stack infra
 ```
 
-## cluster 拓扑
+所有依赖只绑定宿主机 `127.0.0.1`。Kafka 同时保留容器内 listener 与 HOST listener，避免宿主机客户端
+收到无法解析的 `kafka:9092`。不要修改 Spring Boot 主配置或使用容器 IP。
+
+宿主机入口如下：
+
+| 依赖 | 地址 |
+| --- | --- |
+| MySQL | `127.0.0.1:23306` |
+| Redis | `127.0.0.1:26379` |
+| Kafka | `127.0.0.1:39092` |
+| Elasticsearch | `http://127.0.0.1:29200` |
+| Nacos HTTP / gRPC | `127.0.0.1:28848` / `127.0.0.1:29848` |
+| Garage S3 / admin | `127.0.0.1:23900` / `127.0.0.1:23903` |
+| MailHog SMTP / UI | `127.0.0.1:21025` / `http://127.0.0.1:28025` |
+| XXL-JOB Admin | `http://127.0.0.1:22887/xxl-job-admin` |
+
+这些端口可以在 `deploy/stacks/infra/.env` 中覆盖。修改后重新执行 `render-backend-env` 即可，生成器会保证
+Spring Boot 连接地址与 Compose 端口一致；不需要手工同步六份服务配置。
+
+### 宿主机启动后端
+
+`render-backend-env` 从 `deploy/stacks/infra/.env` 生成六个最小权限服务 env 到
+`backend/env/generated/`。生成目录已被 `.gitignore` 排除。在 IDE 的 Spring Boot Run Configuration 中加载
+对应文件；不要直接加载 Stack env，其中仍包含 Compose 容器使用的 DNS 地址。
+
+完整后端的启动顺序如下：
+
+| 顺序 | Main Class | 生成 env | 端口 |
+| --- | --- | --- | --- |
+| 1 | `CommunityAppApplication` | `community-app.env` | `18080` |
+| 2 | `OssApplication` | `community-oss.env` | `18090` |
+| 3 | `ImCoreApplication` | `im-core.env` | `18082` |
+| 4 | `ImRealtimeApplication` | `im-realtime.env` | `18081` |
+| 5 | `CommunityImGatewayApplication` | `community-im-gateway.env` | `18083` |
+| 6 | `CommunityGatewayApplication` | `community-gateway.env` | `12880` |
+
+先从 `backend/` 安装 reactor 依赖：
+
+```bash
+cd backend
+mvn -q -DskipTests install
+```
+
+不使用 IDE 时，可以在独立终端加载服务自己的本地 env 后运行对应模块。例如启动 `community-app`：
+
+```bash
+cd backend
+set -a
+. env/generated/community-app.env
+set +a
+mvn -pl :community-app spring-boot:run
+```
+
+其他服务将模块参数和 env 文件名替换为表中的对应项。每个服务应使用独立终端，不能把六份 env 合并成一个
+进程环境，否则会混淆端口和不必要地扩大密钥可见范围。
+
+服务通过宿主机 Nacos 注册 `127.0.0.1`，Gateway 因而可以发现并调用本地进程。XXL-JOB Admin 容器通过
+`host.docker.internal` 回调 `community-app` 的 executor `19999` 端口。只调试主站 HTTP 时至少启动
+`community-app`、`community-oss` 和 `community-gateway`；IM session、WebSocket 和历史消息需要六个服务全部启动。
+
+启动后可检查：
+
+```bash
+curl -fsS http://127.0.0.1:18080/actuator/health
+curl -fsS http://127.0.0.1:12880/actuator/health
+curl -fsS http://127.0.0.1:12880/api/runtime-config
+```
+
+停止基础设施时必须保留同一组选项：
+
+```bash
+./deploy/deployment.sh down --stack infra
+```
+
+## cluster Stack
 
 `cluster` 适合本地多副本、服务发现、worker lease、gateway 路由、IM backplane 演练：
 
@@ -99,26 +187,26 @@ cp deploy/.env.single.example deploy/.env.single
 启动：
 
 ```bash
-cp deploy/.env.cluster.example deploy/.env.cluster
-./deploy/deployment.sh up --topology cluster
+cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
+./deploy/deployment.sh up --stack cluster
 ```
 
 查看状态：
 
 ```bash
-./deploy/deployment.sh ps --topology cluster
+./deploy/deployment.sh ps --stack cluster
 ```
 
 查看日志：
 
 ```bash
-./deploy/deployment.sh logs --topology cluster community-gateway-1
+./deploy/deployment.sh logs --stack cluster community-gateway-1
 ```
 
 渲染最终 compose：
 
 ```bash
-./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example
+./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example
 ```
 
 ## Observability Overlay
@@ -126,20 +214,20 @@ cp deploy/.env.cluster.example deploy/.env.cluster
 single / cluster 默认都会启用 observability：
 
 ```bash
-./deploy/deployment.sh up --topology single
-./deploy/deployment.sh up --topology cluster
+./deploy/deployment.sh up --stack single
+./deploy/deployment.sh up --stack cluster
 ```
 
 需要关闭整个 observability overlay 时使用：
 
 ```bash
-./deploy/deployment.sh up --topology single --no-observability
+./deploy/deployment.sh up --stack single --no-observability
 ```
 
 如需保留观测 overlay 但临时关闭 tracing，在命令前显式设置：
 
 ```bash
-OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
+OTEL_ENABLED=false ./deploy/deployment.sh up --stack single
 ```
 
 该 overlay 提供：
@@ -151,7 +239,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 
 详细排障和 Kibana 资产见 [operations.md](operations.md)。
 
-## 默认端口
+## single 默认端口
 
 | 组件 | 地址 |
 | --- | --- |
@@ -174,7 +262,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --topology single
 
 Nacos is both the local service registry and non-secret configuration center.
 `nacos-db-bootstrap` initializes the Nacos MySQL schema, then
-`nacos-config-bootstrap` publishes YAML dataIds from `deploy/nacos/config`.
+`nacos-config-bootstrap` publishes YAML dataIds from `deploy/config/nacos`.
 
 Local services import config with optional `nacos:` imports so IDE startup can still
 fall back to packaged defaults. Production-like runs set required imports through
@@ -222,63 +310,68 @@ git diff --check -- docs/handbook
 
 ### 本地数据库结构
 
-`deploy/mysql/primary-init/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态结构文件。MySQL entrypoint 只在 primary volume 为空时执行。`community-db-migrations` 会在每次拓扑启动时校验/执行固定的 `deploy/mysql/community-migrations/VNNN__*.sql`，所以已有 community volume 可以向前升级。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only；专用 migrator 凭证不注入应用。
+`deploy/database/business/current-state/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态结构文件。MySQL entrypoint 只在 primary volume 为空时执行。`community-db-migrations` 会在每次拓扑启动时校验/执行固定的 `deploy/database/business/migrations/VNNN__*.sql`，所以已有 community volume 可以向前升级。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only；专用 migrator 凭证不注入应用。
 
-`--scope infra` 会完成主库初始化、最小权限账号创建、cluster GTID replica bootstrap 和 community 前向迁移，因此这些步骤成功后可以从 IDE 启动业务 runtime。
+`infra` Stack 会完成单节点主库初始化、最小权限账号创建和 community 前向迁移，因此这些步骤成功后可以从
+IDE 启动业务 runtime。`single` 与 `cluster` 使用相同的初始化契约，cluster 另外完成 GTID replica bootstrap。
 
 schema 校验与 Compose 契约：
 
 ```bash
-./deploy/deployment.sh config --topology single --env-file deploy/.env.single.example --no-observability
-./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example --no-observability
-./deploy/tests/community_schema_snapshot_contract.sh
-./deploy/tests/community_forward_migration_contract.sh
-./deploy/tests/oss_schema_snapshot_contract.sh
-./deploy/tests/im_schema_snapshot_contract.sh
-./deploy/tests/reset_mysql_contract.sh
+./deploy/deployment.sh config --stack infra --env-file deploy/stacks/infra/.env.example
+./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example --no-observability
+./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example --no-observability
+./deploy/tests/run-contracts.sh database compose
 ```
 
-改 community 表时同时修改快照中的最终 `CREATE TABLE`、追加新版本前向迁移并同步 H2/契约。可丢弃本地数据时可以 `reset-mysql`；要保留数据时普通 `up` 会先执行 one-shot，禁止在旧 volume 上手工重放快照。真实 MySQL 重放验证使用 `./deploy/tests/community_forward_migration_mysql.sh`。
+改 community 表时同时修改快照中的最终 `CREATE TABLE`、追加新版本前向迁移并同步 H2/契约。可丢弃本地数据时可以 `reset-mysql`；要保留数据时普通 `up` 会先执行 one-shot，禁止在旧 volume 上手工重放快照。真实 MySQL 重放验证包含在 database 契约组中。
 
 ## Compose 文件分层
 
-- `deploy/compose.yml`：共享顶层元数据与 volume。
-- `deploy/compose.infra.*.single.yml`：single 基础设施。
-- `deploy/compose.infra.*.cluster.yml`：cluster 基础设施。
-- `deploy/compose.runtime.services.single.yml` / `deploy/compose.runtime.services.cluster.yml`：业务 runtime。
-- `deploy/compose.runtime.frontend-nginx.single.yml` / `deploy/compose.runtime.frontend-nginx.cluster.yml`：前端与入口。
-- `deploy/compose.runtime.mock-data-studio.single.yml` / `deploy/compose.runtime.mock-data-studio.cluster.yml`：Mock Data Studio wiring。
-- `deploy/compose.observability.yml`：默认启用的观测层。
+- `deploy/stacks/infra|single|cluster/compose.yml`：三个独立 Stack 的入口清单。
+- `deploy/compose/base.yml`：共享顶层元数据与 volume。
+- `deploy/compose/infra/<capability>/single.yml`：single 基础设施。
+- `deploy/compose/infra/<capability>/cluster.yml`：cluster 基础设施。
+- `deploy/compose/runtime/services/single.yml` / `deploy/compose/runtime/services/cluster.yml`：业务 runtime。
+- `deploy/compose/runtime/edge/single.yml` / `deploy/compose/runtime/edge/cluster.yml`：前端与入口。
+- `deploy/compose/runtime/mock-data-studio/single.yml` / `deploy/compose/runtime/mock-data-studio/cluster.yml`：Mock Data Studio wiring。
+- `deploy/compose/overlays/observability.yml`：默认启用的观测层。
 
 ## 停止与重置
 
 停止：
 
 ```bash
-./deploy/deployment.sh down --topology single
-./deploy/deployment.sh down --topology cluster
+./deploy/deployment.sh down --stack infra
+./deploy/deployment.sh down --stack single
+./deploy/deployment.sh down --stack cluster
 ```
 
 只删除 MySQL 数据卷并保留其他中间件数据：
 
 ```bash
-./deploy/deployment.sh reset-mysql --topology single
-./deploy/deployment.sh reset-mysql --topology cluster
+./deploy/deployment.sh reset-mysql --stack infra
+./deploy/deployment.sh reset-mysql --stack single
+./deploy/deployment.sh reset-mysql --stack cluster
 ```
 
-`reset-mysql` 会停止完整拓扑，只接受 `--scope full`，然后删除 single 的 primary volume，或 cluster 的 primary 和两个 replica volumes。此操作会永久删除目标拓扑中的 MySQL 数据。
+`reset-mysql` 会先停止目标 Stack，然后删除 infra / single 的 primary volume，或 cluster 的 primary 和两个
+replica volumes。旧兼容入口仍只接受 `--scope full`。此操作会永久删除目标 Stack 中的 MySQL 数据。
 
 删除该拓扑的所有数据卷：
 
 ```bash
-./deploy/deployment.sh down --topology single -- -v
-./deploy/deployment.sh down --topology cluster -- -v
+./deploy/deployment.sh down --stack infra -- -v
+./deploy/deployment.sh down --stack single -- -v
+./deploy/deployment.sh down --stack cluster -- -v
 ```
 
 如果启动时带了 `--no-observability`，停止时也带上同一组选项。
 `-v` 是透传给 `docker compose down` 的参数，要放在 `--` 后面。
-默认 project name 为 `community-single` / `community-cluster`，默认 volume namespace 为 `community_single` / `community_cluster`，对应的数据卷分别是 `community_single_mysql_primary_data` / `community_cluster_mysql_primary_data`。
-默认 project 可在命令前设置 `COMMUNITY_VOLUME_NAMESPACE` 调整 volume 前缀。自定义 project 必须同时覆盖 volume namespace 和完整网络拓扑，不能只改其中一项。
+默认 project name 为 `community-infra` / `community-single` / `community-cluster`，默认 volume namespace 为
+`community_infra` / `community_single` / `community_cluster`。
+自定义 project 必须同时覆盖 volume namespace、完整网络拓扑和该 Stack 暴露的全部宿主机端口，不能只改
+其中一项。
 
 Kafka 长时间 `health: starting` 且刚从旧拓扑切换时，优先执行带 `-v` 的 down 后重启。
 
@@ -287,25 +380,26 @@ Kafka 长时间 `health: starting` 且刚从旧拓扑切换时，优先执行带
 Nacos worker 列表：
 
 ```bash
-curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
+curl -fsS "http://localhost:38848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
 ```
 
 网关 502：
 
 ```bash
-./deploy/deployment.sh ps --topology cluster
-./deploy/deployment.sh logs --topology cluster community-gateway-1
-./deploy/deployment.sh logs --topology cluster im-realtime-1
+./deploy/deployment.sh ps --stack cluster
+./deploy/deployment.sh logs --stack cluster community-gateway-1
+./deploy/deployment.sh logs --stack cluster im-realtime-1
 ```
 
-停止单个服务演练建议优先用 `deployment.sh` 或渲染后的 compose 配置。旧文档里的完整 `docker compose -f ... stop community-gateway-1` 命令本质上等价于 cluster compose 文件列表展开，当前更推荐通过 `./deploy/deployment.sh config --topology cluster --env-file deploy/.env.cluster.example` 确认最终配置。
+停止单个服务演练建议优先用 `deployment.sh` 或渲染后的 compose 配置。需要确认最终配置时使用
+`./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example`。
 
 ## Dev-only 账号和开关
 
 本地身份种子来自独立 SQL，不属于当前态 schema：
 
 ```text
-deploy/mysql/community/090_seed_identity.sql
+deploy/database/business/seed/090_seed_identity.sql
 ```
 
 example env 默认设置 `COMMUNITY_DEV_SEED_ENABLED=true`。Compose 的 `community-dev-seed` 使用 `mysql:8.0` 客户端和 DML-only community 账号执行该文件；只有 `DEPLOYMENT_ENVIRONMENT` 精确为 `development` 时才运行，生产环境即使误开 seed 开关也会 fail-closed。

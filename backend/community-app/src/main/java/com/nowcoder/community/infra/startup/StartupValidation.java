@@ -79,7 +79,7 @@ public class StartupValidation {
             sb.append("fixGuide=").append('\n');
             sb.append(" - 如果 community.nacos.config.required=true，检查 NACOS_CONFIG_IMPORT_SHARED / NACOS_CONFIG_IMPORT_SERVICE 是否使用 required nacos: dataId").append('\n');
             sb.append(" - 检查 Nacos dataId 是否已发布到正确 namespace/group").append('\n');
-            sb.append(" - 检查 deploy/.env.single / deploy/.env.cluster 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
+            sb.append(" - 检查 deploy/stacks/*/.env 与部署平台 Secret/ConfigMap 是否已注入对应环境变量").append('\n');
             throw new IllegalStateException(sb.toString());
         }
     }

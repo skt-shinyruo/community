@@ -1,0 +1,13 @@
+include:
+  - path:
+      - compose/base.yml
+      - compose/infra/mysql/single.yml
+      - compose/infra/redis/single.yml
+      - compose/infra/kafka/single.yml
+      - compose/infra/elasticsearch/single.yml
+      - compose/infra/garage/single.yml
+      - compose/infra/nacos/single.yml
+      - compose/infra/xxl-job/single.yml
+      - compose/infra/mailhog.yml
+      - compose/infra/mock-data-studio/single.yml
+      - compose/overlays/host-access.yml

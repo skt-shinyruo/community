@@ -85,21 +85,13 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+          cache: maven
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
       - name: Validate schemas, topics, configuration and observability
-        run: |
-          ./deploy/tests/community_schema_snapshot_contract.sh
-          ./deploy/tests/community_forward_migration_contract.sh
-          ./deploy/tests/community_forward_migration_mysql.sh
-          ./deploy/tests/oss_schema_snapshot_contract.sh
-          ./deploy/tests/im_schema_snapshot_contract.sh
-          ./deploy/tests/oss_topology.sh
-          ./deploy/tests/community_backbone_topics_contract.sh
-          ./deploy/tests/kafka_topics_contract.sh
-          ./deploy/tests/projection_version_baseline_contract.sh
-          ./deploy/tests/nacos_config_seed.sh
-          ./deploy/tests/observability_contracts.sh
-          ./deploy/tests/observability_otel_default.sh
-          ./deploy/tests/production_image_contract.sh
-          ./deploy/tests/trusted_proxy_headers.sh
-          ./deploy/tests/xxl_job_seed_contract.sh
-          ./deploy/tests/yierloom_naming_contract.sh
+        run: ./deploy/tests/run-contracts.sh

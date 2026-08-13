@@ -30,7 +30,7 @@ class KafkaBackboneConfigTest {
 
     @Test
     void nacosKafkaPolicyDefinesKafkaBackboneDefaults() throws Exception {
-        StandardEnvironment environment = environmentFrom("../../deploy/nacos/config/community-kafka-policy.yaml");
+        StandardEnvironment environment = environmentFrom("../../deploy/config/nacos/community-kafka-policy.yaml");
 
         assertBackboneDefaults(environment);
         assertConsumerDefaults(environment);

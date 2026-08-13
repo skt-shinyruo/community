@@ -9,14 +9,14 @@
 本地观测路径通过共享 overlay 提供：
 
 ```text
-deploy/compose.observability.yml
+deploy/compose/overlays/observability.yml
 ```
 
 启动：
 
 ```bash
-./deploy/deployment.sh up --topology single
-./deploy/deployment.sh up --topology cluster
+./deploy/deployment.sh up --stack single
+./deploy/deployment.sh up --stack cluster
 ```
 
 observability 默认启用；如需关闭整个 overlay，追加 `--no-observability`。
@@ -41,8 +41,8 @@ traces / metrics：
 
 - 继续通过 OTLP -> EDOT collector -> Elastic。
 - 普通启动默认加载 observability overlay，并由 `deployment.sh` 设置 `OTEL_ENABLED=true`，后端服务会加载 OTel Java agent。
-- 如需关闭整个 overlay，使用 `./deploy/deployment.sh up --topology single --no-observability`。
-- 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --topology single`。
+- 如需关闭整个 overlay，使用 `./deploy/deployment.sh up --stack single --no-observability`。
+- 如需保留 observability overlay 但临时关闭 tracing，使用 `OTEL_ENABLED=false ./deploy/deployment.sh up --stack single`。
 
 Kibana saved objects：
 
@@ -317,7 +317,7 @@ Enable YierLoom only after always-on traces and runtime logs do not explain the 
 ```bash
 YIERLOOM_ENABLED=true \
 YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
-./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --stack single
 ```
 
 Query:
@@ -333,7 +333,7 @@ Interpretation: YierLoom is for focused deep dives; it should explain one unreso
 Next action: disable YierLoom immediately after the capture window and restart the target services:
 
 ```bash
-YIERLOOM_ENABLED=false ./deploy/deployment.sh up --topology single
+YIERLOOM_ENABLED=false ./deploy/deployment.sh up --stack single
 ```
 
 For a focused dependency capture, opt in only to the required plugin. For example:
@@ -342,7 +342,7 @@ For a focused dependency capture, opt in only to the required plugin. For exampl
 YIERLOOM_ENABLED=true \
 YIERLOOM_PLUGIN__HTTP__ENABLED=true \
 YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s \
-./deploy/deployment.sh up --topology single
+./deploy/deployment.sh up --stack single
 ```
 
 ### Production Compatibility
@@ -508,7 +508,7 @@ Market scheduler jobs：
 - `marketWalletActionRecovery`：恢复过期 processing lease，补齐缺失 action，并把已有 `wallet_txn_id` 重新应用到订单 / 争议状态。
 - 这些 job 都可以重跑；重复执行依赖 `market_wallet_action.request_id`、`wallet_txn.request_id` 和订单条件更新保证幂等。
 
-默认控制面由 `deploy/mysql/xxl-job/020_seed_local.sh` 幂等维护：
+默认控制面由 `deploy/database/xxl-job/020_seed_local.sh` 幂等维护：
 
 | Handler | 调度 | 默认状态 | 路由 / 阻塞策略 |
 | --- | --- | --- | --- |
@@ -517,7 +517,7 @@ Market scheduler jobs：
 | `marketWalletActionRecovery` | 每分钟第 15 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
 | `marketOrderAutoConfirm` | 每分钟第 30 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
 
-市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试，因此 XXL 层不额外重试，错过调度时使用 `DO_NOTHING`，避免控制面重放与业务层重试叠加。新增或删除 `@XxlJob` handler 时必须同步 seed；运行 `./deploy/tests/xxl_job_seed_contract.sh` 检查源码与部署控制面是否一致。
+市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试，因此 XXL 层不额外重试，错过调度时使用 `DO_NOTHING`，避免控制面重放与业务层重试叠加。新增或删除 `@XxlJob` handler 时必须同步 seed；运行 `./deploy/tests/contracts/database/xxl_job_seed_contract.sh` 检查源码与部署控制面是否一致。
 
 XXL-JOB Admin 本地入口：
 
@@ -527,7 +527,7 @@ http://localhost:12887/xxl-job-admin
 
 ## Community 前向 Schema 迁移
 
-空库仍由 `deploy/mysql/primary-init/010_current_schema.sql` 一次性建立最终结构。已有 `community` 数据由 `community-db-migrations` one-shot 执行 `deploy/mysql/community-migrations/VNNN__*.sql`；它使用独立 `${COMMUNITY_MIGRATION_USERNAME}`，runtime 账号始终只有 DML 权限。当前序列从 `V016` 开始，能接管之前没有 history 的快照环境，也能在已经包含目标结构的新空库上幂等登记。
+空库仍由 `deploy/database/business/current-state/010_current_schema.sql` 一次性建立最终结构。已有 `community` 数据由 `community-db-migrations` one-shot 执行 `deploy/database/business/migrations/VNNN__*.sql`；它使用独立 `${COMMUNITY_MIGRATION_USERNAME}`，runtime 账号始终只有 DML 权限。当前序列从 `V016` 开始，能接管之前没有 history 的快照环境，也能在已经包含目标结构的新空库上幂等登记。
 
 ### 发布步骤
 
@@ -543,7 +543,7 @@ http://localhost:12887/xxl-job-admin
 
 ### Development Seed
 
-`community-dev-seed` 使用 DML-only community 账号执行 `deploy/mysql/community/090_seed_identity.sql`。只有 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时才运行；生产环境误开开关会失败关闭。该 SQL 不属于当前态 schema，不会污染 production 初始化。
+`community-dev-seed` 使用 DML-only community 账号执行 `deploy/database/business/seed/090_seed_identity.sql`。只有 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时才运行；生产环境误开开关会失败关闭。该 SQL 不属于当前态 schema，不会污染 production 初始化。
 
 ### 故障定位
 
@@ -558,12 +558,7 @@ http://localhost:12887/xxl-job-admin
 契约验证：
 
 ```bash
-./deploy/tests/community_schema_snapshot_contract.sh
-./deploy/tests/community_forward_migration_contract.sh
-./deploy/tests/community_forward_migration_mysql.sh
-./deploy/tests/oss_schema_snapshot_contract.sh
-./deploy/tests/im_schema_snapshot_contract.sh
-./deploy/tests/reset_mysql_contract.sh
+./deploy/tests/run-contracts.sh database compose
 ```
 
 ## Startup Fail-closed
@@ -677,10 +672,10 @@ ORDER BY user_id_hex;
 ### Gateway 502
 
 ```bash
-./deploy/deployment.sh ps --topology cluster
-./deploy/deployment.sh logs --topology cluster community-gateway-1
-./deploy/deployment.sh logs --topology cluster community-app-1
-./deploy/deployment.sh logs --topology cluster im-realtime-1
+./deploy/deployment.sh ps --stack cluster
+./deploy/deployment.sh logs --stack cluster community-gateway-1
+./deploy/deployment.sh logs --stack cluster community-app-1
+./deploy/deployment.sh logs --stack cluster im-realtime-1
 ```
 
 同时检查 Nacos 是否有目标服务实例。
@@ -688,7 +683,7 @@ ORDER BY user_id_hex;
 ### IM WebSocket worker 不可用
 
 ```bash
-curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
+curl -fsS "http://localhost:38848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
 ```
 
 如果 worker 列表为空，查看 `im-realtime-*` 启动日志和 Nacos 注册 metadata。
@@ -698,13 +693,13 @@ curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realt
 List a seeded config:
 
 ```bash
-curl -fsS "http://localhost:18848/nacos/v1/cs/configs?dataId=community-gateway.yaml&group=COMMUNITY"
+curl -fsS "http://localhost:38848/nacos/v1/cs/configs?dataId=community-gateway.yaml&group=COMMUNITY"
 ```
 
 List IM worker registration metadata:
 
 ```bash
-curl -fsS "http://localhost:18848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
+curl -fsS "http://localhost:38848/nacos/v1/ns/instance/list?serviceName=im-realtime-worker"
 ```
 
 If a required config import is missing in production-like mode, the service must
@@ -714,14 +709,14 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 ### Kafka health 长时间 starting
 
 ```bash
-./deploy/deployment.sh logs --topology cluster kafka-1
+./deploy/deployment.sh logs --stack cluster kafka-1
 ```
 
 如果是旧拓扑残留数据，执行：
 
 ```bash
-./deploy/deployment.sh down --topology cluster -- -v
-./deploy/deployment.sh up --topology cluster
+./deploy/deployment.sh down --stack cluster -- -v
+./deploy/deployment.sh up --stack cluster
 ```
 `-v` 要放在 `--` 后面，才会被透传给 `docker compose down`。默认 cluster volume namespace 是 `community_cluster`，所以 MySQL 数据卷名是 `community_cluster_mysql_primary_data`。
 

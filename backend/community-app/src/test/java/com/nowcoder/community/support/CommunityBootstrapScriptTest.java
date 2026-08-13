@@ -13,7 +13,7 @@ class CommunityBootstrapScriptTest {
     private static final Path MODULE_ROOT = Path.of("").toAbsolutePath().normalize();
     private static final Path REPO_ROOT = MODULE_ROOT.getParent().getParent();
     private static final Path CURRENT_SCHEMA = REPO_ROOT.resolve(
-            "deploy/mysql/primary-init/010_current_schema.sql");
+            "deploy/database/business/current-state/010_current_schema.sql");
 
     @Test
     void deploymentSchemaAssertionsShouldReadTheCurrentStateSnapshot() throws IOException {

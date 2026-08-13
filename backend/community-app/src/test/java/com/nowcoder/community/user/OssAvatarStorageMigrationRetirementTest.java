@@ -51,13 +51,13 @@ class OssAvatarStorageMigrationRetirementTest {
 
     @Test
     void deployRuntimeConfigsShouldNotPassLegacyAvatarStorageEnvironment() throws IOException {
-        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.single.yml"));
-        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose.runtime.services.cluster.yml"));
+        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose/runtime/services/single.yml"));
+        assertDoesNotPassOssClientEnv(REPO_ROOT.resolve("deploy/compose/runtime/services/cluster.yml"));
     }
 
     @Test
     void nacosCommunityAppConfigShouldProvideOssClientBaseUrl() throws IOException {
-        String yaml = Files.readString(REPO_ROOT.resolve("deploy/nacos/config/community-app.yaml"));
+        String yaml = Files.readString(REPO_ROOT.resolve("deploy/config/nacos/community-app.yaml"));
 
         assertThat(yaml).contains(
                 "oss:",

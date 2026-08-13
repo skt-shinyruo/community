@@ -10,17 +10,20 @@
 > 从仓库根目录执行（见 `../deploy/README.md` 获取可选 overlay 与显式 layered compose 命令）：
 
 1. 单机开发（推荐）：
-   - `cp deploy/.env.single.example deploy/.env.single`
-   - `./deploy/deployment.sh up --topology single`
+   - `cp deploy/stacks/single/.env.example deploy/stacks/single/.env`
+   - `./deploy/deployment.sh up --stack single`
 2. 只起基础设施，IDE 本地起服务：
-   - `./deploy/deployment.sh up --topology single --scope infra`
+   - `cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env`
+   - `./deploy/deployment.sh up --stack infra`
+   - `./deploy/deployment.sh render-backend-env --stack infra`
+   - 在 IDE 中为六个 Main Class 分别加载 `env/generated/*.env`；端口、顺序和最小启动集合见 `../docs/handbook/local-development.md#宿主机启动后端`
 3. 本地集群演练：
-   - `cp deploy/.env.cluster.example deploy/.env.cluster`
-   - `./deploy/deployment.sh up --topology cluster`
+   - `cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env`
+   - `./deploy/deployment.sh up --stack cluster`
 4. 访问：
    - 前端：`http://localhost:12881`
    - 统一入口：`http://localhost:12880/api/...`
-   - 关闭可观测性 overlay（可选）：`./deploy/deployment.sh up --topology single --no-observability`
+   - 关闭可观测性 overlay（可选）：`./deploy/deployment.sh up --stack single --no-observability`
 
 ## 本地开发 / 测试
 - 单测：`mvn test`

@@ -26,6 +26,10 @@ OTLP metrics
   -> Kibana
 ```
 
+Elasticsearch 与 Kibana 必须使用 env example 中同一个 `ELASTIC_STACK_VERSION`；当前版本为 `9.2.8`。
+该版本同时承载业务搜索和本地 observability 数据，升级时必须一起评估索引兼容性、Kibana saved objects
+和数据卷迁移，不能让两者跨主版本连接。
+
 生产演进必须保持应用代码只面向 OpenTelemetry、Micrometer、SLF4J 和项目公共观测模块，不直接绑定某个存储后端。
 
 ## SLO/SLI Catalog
@@ -292,13 +296,13 @@ The contract files under `deploy/observability/contracts` are the machine-readab
 Run static governance:
 
 ```bash
-bash deploy/tests/observability_contracts.sh
+bash deploy/tests/contracts/config/observability_contracts.sh
 ```
 
 Run local smoke after the stack is up:
 
 ```bash
-./deploy/tests/observability_smoke.sh
+./deploy/tests/smoke/observability_smoke.sh
 ```
 
 For a short YierLoom capture:
@@ -306,8 +310,8 @@ For a short YierLoom capture:
 ```bash
 YIERLOOM_ENABLED=true \
 YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
-./deploy/deployment.sh up --topology single
-OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/observability_smoke.sh
+./deploy/deployment.sh up --stack single
+OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/smoke/observability_smoke.sh
 ```
 
 YierLoom remains default-off. Its events use `event.category=yierloom` and identify their owner with `diagnostic.plugin.id`. Its bounded queue must isolate application work from exporter pressure. YierLoom must not collect arguments, return values, bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers.

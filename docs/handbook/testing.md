@@ -8,7 +8,8 @@
 | --- | --- | --- |
 | 后端单元 / slice / 集成测试 | 验证 domain、application、adapter、controller、infra 行为。 | `backend/**/src/test/java/**/*.java` |
 | 架构守卫 | 防止 DDD 分层、事务边界、DTO / domain / infra 依赖退化。 | `backend/community-app/src/test/java/com/nowcoder/community/app/arch` |
-| 数据库 schema / 迁移契约 | 验证当前态快照、前向迁移重放、必要引用数据、最小权限、Compose 初始化/复制依赖和 MySQL-only reset。 | `deploy/tests/*_schema_snapshot_contract.sh`、`deploy/tests/community_forward_migration_*.sh`、`deploy/tests/reset_mysql_contract.sh`、相关模块 MySQL 契约测试 |
+| 数据库 schema / 迁移契约 | 验证当前态快照、前向迁移重放、必要引用数据、最小权限、Compose 初始化/复制依赖和 MySQL-only reset。 | `deploy/tests/contracts/database/`、相关模块 MySQL 契约测试 |
+| Compose 拓扑契约 | 验证 infra/single/cluster Stack 隔离、single/cluster 服务形态、Elasticsearch 版本、Kafka listener、宿主机端口和生成 env 最小权限。 | `deploy/tests/contracts/compose/` |
 | 前端单元 / 组件测试 | 验证路由、session、HTTP interceptor、状态纯函数、Vue 组件交互。 | `frontend/src/**/*.test.js` |
 | 压测套件结构测试 | 验证 k6 profile、运行器、共享库、场景和文档入口。 | `tests/k6/tests/*.test.mjs` |
 | 工具测试 | 验证本地工具的 env、API contract、job、planner、batch delete。 | `tools/**/test/*.mjs` |
@@ -60,6 +61,8 @@ mvn test -pl :community-app -Dtest=IdempotencyGuardSerializationFailureTest
 ```
 
 如果测试依赖 Testcontainers、Docker、MySQL、Redis、Kafka 或 Elasticsearch，本地环境不可用时不要把失败误判为代码失败。先确认错误是环境连接失败还是断言失败。
+`ElasticsearchStackCompatibilityTest` 使用 Maven 实际解析的 Java Client 版本启动同版本临时 Elasticsearch，
+验证真实 `cluster.health` 协议；Compose 契约组中的 `elasticsearch_stack_contract.sh` 再保证镜像与该版本一致。
 
 ## 架构守卫测试
 
@@ -120,18 +123,13 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 验证快照内容、迁移 one-shot、DDL/DML 账号隔离、runtime 等待关系和 MySQL-only reset：
 
 ```bash
-./deploy/tests/community_schema_snapshot_contract.sh
-./deploy/tests/community_forward_migration_contract.sh
-./deploy/tests/oss_schema_snapshot_contract.sh
-./deploy/tests/im_schema_snapshot_contract.sh
-./deploy/tests/oss_topology.sh
-./deploy/tests/reset_mysql_contract.sh
+./deploy/tests/run-contracts.sh database compose
 ```
 
 真实 MySQL 前向迁移测试会把当前快照降为 V016/V017 前结构，写入 block/follow 冲突数据，再验证升级、重放、当前快照 no-op 和 runtime 无 DDL 权限：
 
 ```bash
-./deploy/tests/community_forward_migration_mysql.sh
+./deploy/tests/contracts/database/community_forward_migration_mysql.sh
 ```
 
 相关 Testcontainers 契约从 `backend/` 执行，需要可用的 Docker：
@@ -199,7 +197,7 @@ tests/playwright-single
 `http://localhost:12880`。常用命令：
 
 ```bash
-./deploy/deployment.sh up --topology single --no-observability
+./deploy/deployment.sh up --stack single --no-observability
 npm --prefix tests/playwright-single install
 npm --prefix tests/playwright-single run typecheck
 npm --prefix tests/playwright-single run health
@@ -220,8 +218,7 @@ single 数据库、Redis、对象存储或 Elasticsearch。
 Run these from the repository root after changing observability docs, contracts, Collector config, Logback JSON fields, or metric dimensions:
 
 ```bash
-bash deploy/tests/observability_contracts.sh
-bash deploy/tests/observability_otel_default.sh
+./deploy/tests/run-contracts.sh config
 ```
 
 ## Mock Data Studio 测试

@@ -42,6 +42,10 @@ deploy/.env.single
 deploy/.env.cluster
 deploy/.local/
 deploy/backups/
+backend/env/generated/
+deploy/stacks/infra/.env
+deploy/stacks/single/.env
+deploy/stacks/cluster/.env
 
 ### Frontend ###
 frontend/node_modules/

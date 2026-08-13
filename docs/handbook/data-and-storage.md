@@ -6,9 +6,9 @@
 
 数据库与账号 bootstrap：
 
-- `deploy/mysql/primary-init/001_create_databases.sh`：mysql-primary 首次建库和最小权限账号。
-- `deploy/mysql/primary-init/010_current_schema.sql`：三个业务 schema 的当前态建表快照，由 MySQL entrypoint 在主库数据目录为空时执行一次。
-- `deploy/mysql/community-migrations/VNNN__*.sql`：`community` 已有数据环境的不可变前向迁移序列，从 `V016` 开始。
+- `deploy/database/business/init/001_create_databases.sh`：mysql-primary 首次建库和最小权限账号。
+- `deploy/database/business/current-state/010_current_schema.sql`：三个业务 schema 的当前态建表快照，由 MySQL entrypoint 在主库数据目录为空时执行一次。
+- `deploy/database/business/migrations/VNNN__*.sql`：`community` 已有数据环境的不可变前向迁移序列，从 `V016` 开始。
 
 schema：
 
@@ -35,7 +35,7 @@ UUID 持久化：
 
 ## 当前态 Schema 快照
 
-`deploy/mysql/primary-init/010_current_schema.sql` 同时拥有 `community`、`community_oss`、`im_core` 三个固定名称的业务 schema。文件只保存最终 `CREATE TABLE` 定义和运行所需的引用数据，不保存结构演进过程、history table 或开发用户。必要引用数据包括分类、任务模板、OSS usage policy 和 IM version counter。
+`deploy/database/business/current-state/010_current_schema.sql` 同时拥有 `community`、`community_oss`、`im_core` 三个固定名称的业务 schema。文件只保存最终 `CREATE TABLE` 定义和运行所需的引用数据，不保存结构演进过程、history table 或开发用户。必要引用数据包括分类、任务模板、OSS usage policy 和 IM version counter。
 
 MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执行 `010_current_schema.sql`，且只在主库 `/var/lib/mysql` 为空时运行。single 只把快照挂到 `mysql`；cluster 只挂到 `mysql-primary`，初始化 DDL 和 DML 通过 GTID 复制到两个 replica。之后 `community-db-migrations` 使用固定只读挂载 `/migrations` 执行迁移；cluster 会先等待复制 bootstrap，`community-app` 和 development seed 都等待迁移成功。
 
@@ -52,8 +52,8 @@ V020 为 IM policy snapshot 增加 append-only owner version history，V021 为�
 可丢弃的本地环境仍可使用 clean reset：
 
 ```bash
-./deploy/deployment.sh reset-mysql --topology single
-./deploy/deployment.sh up --topology single
+./deploy/deployment.sh reset-mysql --stack single
+./deploy/deployment.sh up --stack single
 ```
 
 `reset-mysql` 会停止完整拓扑，并且只删除该拓扑明确命名的 MySQL primary/replica volumes；其他中间件数据卷不受影响。需要保留既有业务数据时禁止 reset 或重放快照，应按 [运行与排障](operations.md#community-前向-schema-迁移) 先备份、静默写入并运行 one-shot。`community_oss` 和 `im_core` 尚无本序列覆盖的结构变化；给这两个 owner 增加演进时必须建立各自独立 history、DDL 账号和 runtime 启动依赖，不能借用 community 迁移账号。
@@ -145,7 +145,7 @@ IM 消息权威状态在 `im_core`，主站通知读模型在 `community.notice_
 身份种子由独立的 development-only SQL 提供，不进入当前态快照：
 
 ```text
-deploy/mysql/community/090_seed_identity.sql
+deploy/database/business/seed/090_seed_identity.sql
 ```
 
 默认账号：
@@ -362,6 +362,12 @@ owner-domain async contracts：
 | versioned index | `community_posts_vYYYYMMDDHHmmss[_n]` |
 
 本地 compose 的 `es-init` 只等待 ES ready，不创建业务索引。运行时 `PostIndexManager` 会在 alias 不存在时创建带 mapping 的版本化索引，并将 `community_posts_alias` 指向该索引；如果已有 alias 的 mapping 缺少当前必需字段，启动直接失败。搜索读写只通过 alias 访问。
+
+Compose 中 Elasticsearch 与 Kibana 共用 `ELASTIC_STACK_VERSION`，当前固定为 `9.2.8`，与 Spring Data
+Elasticsearch 6.0 / Elasticsearch Java Client 9.2 系列保持同一主次版本。不得只升级客户端、Elasticsearch
+或 Kibana 中的一项。已有 8.x 数据卷不能直接挂载到 9.x；保留数据时必须按 Elastic 官方升级路径先升级到
+最新 8.19、完成 Upgrade Assistant 和快照，再进入 9.x。可丢弃的本地搜索数据应在确认具体 Elasticsearch
+volume 后使用新卷，并通过数据库事实源和 outbox/reindex 重建业务索引。
 
 ES 文档 `EsPostDocument` 字段：
 

@@ -10,31 +10,64 @@ if rg -n -- '--no-consistency' deploy/deployment.sh >/dev/null; then
 fi
 
 single_config="$(mktemp)"
+single_default_config="$(mktemp)"
 cluster_config="$(mktemp)"
+cluster_enabled_config="$(mktemp)"
+cluster_disabled_config="$(mktemp)"
+infra_config="$(mktemp)"
+infra_disabled_config="$(mktemp)"
 override_config="$(mktemp)"
 disabled_config="$(mktemp)"
-trap 'rm -f "${single_config}" "${cluster_config}" "${override_config}" "${disabled_config}"' EXIT
+trap 'rm -f "${single_config}" "${single_default_config}" "${cluster_config}" "${cluster_enabled_config}" "${cluster_disabled_config}" "${infra_config}" "${infra_disabled_config}" "${override_config}" "${disabled_config}"' EXIT
 
-env -u OTEL_ENABLED ./deploy/deployment.sh config --topology single --env-file deploy/stacks/single/.env.example >"${single_config}"
-env -u OTEL_ENABLED ./deploy/deployment.sh config --topology cluster --env-file deploy/stacks/cluster/.env.example >"${cluster_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack infra --env-file deploy/stacks/infra/.env.example >"${infra_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack infra --no-observability --env-file deploy/stacks/infra/.env.example >"${infra_disabled_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example >"${single_default_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack single --observability --env-file deploy/stacks/single/.env.example >"${single_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example >"${cluster_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack cluster --observability --env-file deploy/stacks/cluster/.env.example >"${cluster_enabled_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack cluster --no-observability --env-file deploy/stacks/cluster/.env.example >"${cluster_disabled_config}"
+env -u OTEL_ENABLED ./deploy/deployment.sh config --stack single --no-observability --env-file deploy/stacks/single/.env.example >"${disabled_config}"
 
-if ! rg -n 'OTEL_ENABLED[=: ]+"?true"?|OTEL_ENABLED=true' "${single_config}" >/dev/null; then
-  echo "expected default single config to enable OTEL_ENABLED=true" >&2
+require_overlay_enabled() {
+  local config="$1"
+  local label="$2"
+  if ! rg -n '^  kibana:' "${config}" >/dev/null; then
+    echo "expected ${label} config to include observability overlay" >&2
+    exit 1
+  fi
+  if ! rg -n 'OTEL_ENABLED[=: ]+"?true"?|OTEL_ENABLED=true' "${config}" >/dev/null; then
+    echo "expected ${label} config to enable OTEL_ENABLED=true" >&2
+    exit 1
+  fi
+}
+
+require_overlay_disabled() {
+  local config="$1"
+  local label="$2"
+  if rg -n '^  kibana:' "${config}" >/dev/null; then
+    echo "expected ${label} config to omit observability overlay" >&2
+    exit 1
+  fi
+}
+
+require_overlay_disabled "${infra_config}" "default infra"
+require_overlay_disabled "${infra_disabled_config}" "explicitly disabled infra"
+require_overlay_disabled "${single_default_config}" "default single"
+require_overlay_enabled "${single_config}" "explicitly enabled single"
+require_overlay_enabled "${cluster_config}" "default cluster"
+require_overlay_enabled "${cluster_enabled_config}" "explicitly enabled cluster"
+require_overlay_disabled "${cluster_disabled_config}" "explicitly disabled cluster"
+require_overlay_disabled "${disabled_config}" "explicitly disabled single"
+
+if ./deploy/deployment.sh config --stack infra --observability --env-file deploy/stacks/infra/.env.example >/dev/null 2>&1; then
+  echo "expected infra to reject --observability" >&2
   exit 1
 fi
 
-if ! rg -n 'OTEL_ENABLED[=: ]+"?true"?|OTEL_ENABLED=true' "${cluster_config}" >/dev/null; then
-  echo "expected default cluster config to enable OTEL_ENABLED=true" >&2
-  exit 1
-fi
-
-if ! rg -n '^  kibana:' "${single_config}" >/dev/null; then
-  echo "expected default single config to include observability overlay" >&2
-  exit 1
-fi
-
-if ! rg -n '^  kibana:' "${cluster_config}" >/dev/null; then
-  echo "expected default cluster config to include observability overlay" >&2
+if ./deploy/deployment.sh config --stack single --observability --no-observability --env-file deploy/stacks/single/.env.example >/dev/null 2>&1 ||
+  ./deploy/deployment.sh config --stack single --no-observability --observability --env-file deploy/stacks/single/.env.example >/dev/null 2>&1; then
+  echo "expected conflicting observability flags to be rejected in either order" >&2
   exit 1
 fi
 
@@ -324,14 +357,14 @@ if ! reject_console_json_content '<excludeMdcKeyName>traceId</excludeMdcKeyName>
   exit 1
 fi
 
-OTEL_ENABLED=false ./deploy/deployment.sh config --topology single --env-file deploy/stacks/single/.env.example >"${override_config}"
+OTEL_ENABLED=false ./deploy/deployment.sh config --stack single --observability --env-file deploy/stacks/single/.env.example >"${override_config}"
 
 if ! rg -n 'OTEL_ENABLED[=: ]+"?false"?|OTEL_ENABLED=false' "${override_config}" >/dev/null; then
   echo "expected explicit OTEL_ENABLED=false override to be preserved" >&2
   exit 1
 fi
 
-OTEL_ENABLED=true ./deploy/deployment.sh config --topology single --no-observability --env-file deploy/stacks/single/.env.example >"${disabled_config}"
+OTEL_ENABLED=true ./deploy/deployment.sh config --stack single --no-observability --env-file deploy/stacks/single/.env.example >"${disabled_config}"
 
 if rg -n '^  kibana:' "${disabled_config}" >/dev/null; then
   echo "expected --no-observability config to omit observability overlay" >&2

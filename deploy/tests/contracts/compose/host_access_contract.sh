@@ -5,56 +5,24 @@ repo_root="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 cd "${repo_root}"
 
 rendered_config="$(mktemp)"
-base_config="$(mktemp)"
-full_error="$(mktemp)"
-cluster_error="$(mktemp)"
 duplicate_port_error="$(mktemp)"
 custom_env="$(mktemp)"
 custom_config="$(mktemp)"
 generated_dir="$(mktemp -d)"
-trap 'rm -f "${rendered_config}" "${base_config}" "${full_error}" "${cluster_error}" "${duplicate_port_error}" "${custom_env}" "${custom_config}"; rm -rf "${generated_dir}"' EXIT
+trap 'rm -f "${rendered_config}" "${duplicate_port_error}" "${custom_env}" "${custom_config}"; rm -rf "${generated_dir}"' EXIT
 
 ./deploy/deployment.sh config --stack infra \
   --env-file deploy/stacks/infra/.env.example >"${rendered_config}"
 
-./deploy/deployment.sh config \
-  --topology single \
-  --scope infra \
-  --no-observability \
-  --env-file deploy/stacks/single/.env.example >"${base_config}"
-
-for port in 23306 26379 39092 29200 29848 23900 23903 21025 22887; do
-  if grep -F "published: \"${port}\"" "${base_config}" >/dev/null; then
-    echo "single/infra without --host-access must not publish host-access port ${port}" >&2
-    exit 1
-  fi
-done
-
 help_output="$(./deploy/deployment.sh --help 2>&1)"
 grep -F -- '--stack <infra|single|cluster>' <<<"${help_output}" >/dev/null
-grep -F -- '--host-access' <<<"${help_output}" >/dev/null
-grep -F -- 'single/infra dependencies on localhost' <<<"${help_output}" >/dev/null
 
-if ./deploy/deployment.sh config --topology single --scope full --host-access \
-  --env-file deploy/stacks/single/.env.example >/dev/null 2>"${full_error}"; then
-  echo '--host-access unexpectedly accepted the full scope' >&2
+if REDIS_HOST_PORT=23306 ./deploy/deployment.sh config --stack infra \
+  --env-file deploy/stacks/infra/.env.example >/dev/null 2>"${duplicate_port_error}"; then
+  echo 'infra stack unexpectedly accepted duplicate localhost ports' >&2
   exit 1
 fi
-grep -F -- '--host-access requires --topology single --scope infra' "${full_error}" >/dev/null
-
-if ./deploy/deployment.sh config --topology cluster --scope infra --host-access \
-  --env-file deploy/stacks/cluster/.env.example >/dev/null 2>"${cluster_error}"; then
-  echo '--host-access unexpectedly accepted the cluster topology' >&2
-  exit 1
-fi
-grep -F -- '--host-access requires --topology single --scope infra' "${cluster_error}" >/dev/null
-
-if REDIS_HOST_PORT=13306 ./deploy/deployment.sh config --topology single --scope infra --host-access \
-  --env-file deploy/stacks/single/.env.example >/dev/null 2>"${duplicate_port_error}"; then
-  echo '--host-access unexpectedly accepted duplicate localhost ports' >&2
-  exit 1
-fi
-grep -F -- 'REDIS_HOST_PORT and MYSQL_HOST_PORT must not use the same host port 13306' \
+grep -F -- 'REDIS_HOST_PORT and MYSQL_HOST_PORT must not use the same host port 23306' \
   "${duplicate_port_error}" >/dev/null
 
 awk '
@@ -66,23 +34,23 @@ awk '
   /^GATEWAY_TRUSTED_PROXY_CIDRS=/ { print "GATEWAY_TRUSTED_PROXY_CIDRS=172.45.0.10/32"; next }
   /^COMMUNITY_APP_TRUSTED_PROXY_CIDRS=/ { print "COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.45.0.20/32"; next }
   { print }
-' deploy/stacks/single/.env.example >"${custom_env}"
-MYSQL_HOST_PORT=23306 \
-REDIS_HOST_PORT=26379 \
-KAFKA_HOST_PORT=39092 \
-ELASTICSEARCH_HOST_ACCESS_PORT=29200 \
-NACOS_HOST_PORT=28848 \
-NACOS_GRPC_HOST_PORT=29848 \
-GARAGE_S3_HOST_PORT=23900 \
-GARAGE_ADMIN_HOST_PORT=23903 \
-MAILHOG_UI_HOST_PORT=28025 \
-MAILHOG_SMTP_HOST_PORT=21025 \
-XXL_JOB_ADMIN_PORT=22887 \
-  ./deploy/deployment.sh config --topology single --scope infra --host-access \
-    --no-observability --env-file "${custom_env}" -p community-host-access-test >"${custom_config}"
+' deploy/stacks/infra/.env.example >"${custom_env}"
+MYSQL_HOST_PORT=33306 \
+REDIS_HOST_PORT=36379 \
+KAFKA_HOST_PORT=49092 \
+ELASTICSEARCH_HOST_ACCESS_PORT=39200 \
+NACOS_HOST_PORT=48848 \
+NACOS_GRPC_HOST_PORT=49848 \
+GARAGE_S3_HOST_PORT=33900 \
+GARAGE_ADMIN_HOST_PORT=33903 \
+MAILHOG_UI_HOST_PORT=38025 \
+MAILHOG_SMTP_HOST_PORT=31025 \
+XXL_JOB_ADMIN_PORT=32887 \
+  ./deploy/deployment.sh config --stack infra \
+    --env-file "${custom_env}" -p community-host-access-test >"${custom_config}"
 grep -F 'name: community-host-access-test' "${custom_config}" >/dev/null
-grep -F 'published: "23306"' "${custom_config}" >/dev/null
-grep -F 'KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://127.0.0.1:39092' \
+grep -F 'published: "33306"' "${custom_config}" >/dev/null
+grep -F 'KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://127.0.0.1:49092' \
   "${custom_config}" >/dev/null
 
 assert_port() {

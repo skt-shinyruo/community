@@ -51,9 +51,10 @@ if [[ "${single_version}" != "${client_version}" || "${cluster_version}" != "${c
   exit 1
 fi
 
-./deploy/deployment.sh config --topology single --scope infra \
+./deploy/deployment.sh config --stack single \
+  --observability \
   --env-file deploy/stacks/single/.env.example >"${single_rendered}"
-./deploy/deployment.sh config --topology cluster --scope infra \
+./deploy/deployment.sh config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example >"${cluster_rendered}"
 
 for service in elasticsearch; do

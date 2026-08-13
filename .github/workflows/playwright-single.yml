@@ -102,7 +102,7 @@ jobs:
         run: npx playwright install --with-deps chromium
 
       - name: Start isolated single topology
-        run: ./deploy/deployment.sh up --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"
+        run: ./deploy/deployment.sh up --stack single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"
 
       - name: Check single health
         run: npm --prefix tests/playwright-single run health
@@ -120,30 +120,18 @@ jobs:
         run: |
           set +e
           mkdir -p "${RUNNER_TEMP}/community-single-compose"
-          ./deploy/deployment.sh ps --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" \
+          ./deploy/deployment.sh ps --stack single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" \
             > "${RUNNER_TEMP}/community-single-compose/ps.txt" 2>&1
           compose_files=(
-            -f deploy/compose/base.yml
-            -f deploy/compose/infra/mysql/single.yml
-            -f deploy/compose/infra/redis/single.yml
-            -f deploy/compose/infra/kafka/single.yml
-            -f deploy/compose/infra/elasticsearch/single.yml
-            -f deploy/compose/infra/garage/single.yml
-            -f deploy/compose/infra/nacos/single.yml
-            -f deploy/compose/infra/xxl-job/single.yml
-            -f deploy/compose/infra/mailhog.yml
-            -f deploy/compose/infra/mock-data-studio/single.yml
-            -f deploy/compose/runtime/services/single.yml
-            -f deploy/compose/runtime/edge/single.yml
-            -f deploy/compose/runtime/mock-data-studio/single.yml
+            -f deploy/stacks/single/compose.yml
           )
-          docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
+          docker compose --project-directory deploy --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
             logs --no-color --tail=500 \
             > "${RUNNER_TEMP}/community-single-compose/logs.txt" 2>&1
-          docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
+          docker compose --project-directory deploy --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" "${compose_files[@]}" \
             logs --no-color community-app \
             > "${RUNNER_TEMP}/community-single-compose/community-app.log" 2>&1
-          community_app_container="$(docker compose --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" \
+          community_app_container="$(docker compose --project-directory deploy --env-file "$PW_ENV_FILE" -p "$PW_PROJECT" \
             "${compose_files[@]}" ps -aq community-app)"
           if [[ -n "${community_app_container}" ]]; then
             docker inspect --format \
@@ -166,4 +154,4 @@ jobs:
 
       - name: Stop isolated single topology
         if: always()
-        run: ./deploy/deployment.sh down --topology single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"
+        run: ./deploy/deployment.sh down --stack single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE"

@@ -389,15 +389,15 @@ single_false_override_rendered="$(mktemp)"
 cluster_false_override_rendered="$(mktemp)"
 trap 'rm -f "${single_rendered}" "${cluster_rendered}" "${single_false_override_rendered}" "${cluster_false_override_rendered}"' EXIT
 
-"${REPO_ROOT}/deploy/deployment.sh" config --topology single --scope full \
+"${REPO_ROOT}/deploy/deployment.sh" config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_rendered}"
-"${REPO_ROOT}/deploy/deployment.sh" config --topology cluster --scope full \
+"${REPO_ROOT}/deploy/deployment.sh" config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_rendered}"
 env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
-  "${REPO_ROOT}/deploy/deployment.sh" config --topology single --scope full \
+  "${REPO_ROOT}/deploy/deployment.sh" config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_false_override_rendered}"
 env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
-  "${REPO_ROOT}/deploy/deployment.sh" config --topology cluster --scope full \
+  "${REPO_ROOT}/deploy/deployment.sh" config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_false_override_rendered}"
 
 if [ "$(rendered_default_ipam_value "${single_rendered}" subnet)" != "172.30.0.0/24" ]; then

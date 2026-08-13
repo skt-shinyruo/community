@@ -16,34 +16,28 @@ Commands:
   render-backend-env  Generate host-run backend env files from the infra stack env
 
 Options:
-  --stack <infra|single|cluster> Select an independent stack directory
-  --topology <single|cluster>  Choose topology (default: single)
-  --scope <full|infra>         Choose compose scope (default: full)
-  --host-access      Expose single/infra dependencies on localhost for host-run backends
-  --no-observability  Disable deploy/compose/overlays/observability.yml
+  --stack <infra|single|cluster> Select the required independent Stack
+  --observability     Enable deploy/compose/overlays/observability.yml
+  --no-observability  Disable the observability overlay
   --env-file <path>   Override env file path (default: the selected Stack's .env)
   --output-dir <path>  Override render-backend-env output (default: backend/env/generated)
   -p, --project-name  Override compose project name (default: community-infra/single/cluster)
   Custom project names require an independent network topology and volume namespace.
-  Custom projects using --host-access also require independent localhost ports.
+  Custom infra projects also require independent localhost ports.
   Topology values use shell environment, then env file, then the built-in topology defaults.
   -h, --help          Show this help
 
 Examples:
   ./deploy/deployment.sh up --stack infra
-  ./deploy/deployment.sh up --stack single
+  ./deploy/deployment.sh up --stack single --observability
   ./deploy/deployment.sh up --stack cluster
   ./deploy/deployment.sh render-backend-env --stack infra
-  ./deploy/deployment.sh up
-  ./deploy/deployment.sh up --no-observability
-  ./deploy/deployment.sh up --topology single
-  ./deploy/deployment.sh up --topology single --scope infra
-  ./deploy/deployment.sh up --topology single --scope infra --host-access
-  ./deploy/deployment.sh config --topology single -p community-single-smoke --env-file deploy/.env.single.smoke
-  ./deploy/deployment.sh logs --no-observability community-app
-  ./deploy/deployment.sh down --no-observability
-  ./deploy/deployment.sh reset-mysql --topology single
-  ./deploy/deployment.sh config --topology single
+  ./deploy/deployment.sh up --stack single --no-observability
+  ./deploy/deployment.sh config --stack single -p community-single-smoke --env-file deploy/.env.single.smoke
+  ./deploy/deployment.sh logs --stack single --observability community-app
+  ./deploy/deployment.sh down --stack single --observability
+  ./deploy/deployment.sh reset-mysql --stack single
+  ./deploy/deployment.sh config --stack cluster
 EOF
 }
 
@@ -64,47 +58,24 @@ resolve_path() {
 }
 
 resolve_default_env_file() {
-  local topology="$1"
-  if [ -n "${STACK:-}" ]; then
-    case "${STACK}" in
-      infra|single|cluster)
-        printf '%s/deploy/stacks/%s/.env\n' "${REPO_ROOT}" "${STACK}"
-        return
-        ;;
-    esac
-  fi
-  case "${topology}" in
-    single)
-      printf '%s/deploy/stacks/single/.env\n' "${REPO_ROOT}"
-      ;;
-    cluster)
-      printf '%s/deploy/stacks/cluster/.env\n' "${REPO_ROOT}"
+  case "${STACK}" in
+    infra|single|cluster)
+      printf '%s/deploy/stacks/%s/.env\n' "${REPO_ROOT}" "${STACK}"
       ;;
     *)
-      echo "[deployment.sh] unsupported topology: ${topology}" >&2
+      echo "[deployment.sh] unsupported stack: ${STACK}" >&2
       exit 1
       ;;
   esac
 }
 
 resolve_default_project_name() {
-  if [ -n "${STACK:-}" ]; then
-    case "${STACK}" in
-      infra) printf 'community-infra\n' ;;
-      single) printf 'community-single\n' ;;
-      cluster) printf 'community-cluster\n' ;;
-      *)
-        echo "[deployment.sh] unsupported stack: ${STACK}" >&2
-        exit 1
-        ;;
-    esac
-    return
-  fi
-  case "${TOPOLOGY}" in
+  case "${STACK}" in
+    infra) printf 'community-infra\n' ;;
     single) printf 'community-single\n' ;;
     cluster) printf 'community-cluster\n' ;;
     *)
-      echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
+      echo "[deployment.sh] unsupported stack: ${STACK}" >&2
       exit 1
       ;;
   esac
@@ -376,7 +347,7 @@ validate_custom_project_host_access() {
   done
 
   if [ "${#reused_variables[@]}" -gt 0 ]; then
-    echo "[deployment.sh] custom project '${PROJECT_NAME}' with --host-access requires independent localhost ports" >&2
+    echo "[deployment.sh] custom infra project '${PROJECT_NAME}' requires independent localhost ports" >&2
     echo "[deployment.sh] values still using host-access defaults: ${reused_variables[*]}" >&2
     exit 1
   fi
@@ -493,55 +464,6 @@ validate_custom_project_stack_ports() {
   fi
 }
 
-append_topology_files() {
-  case "${TOPOLOGY}" in
-    single)
-      COMPOSE_FILES+=(
-        deploy/compose/infra/mysql/single.yml
-        deploy/compose/infra/redis/single.yml
-        deploy/compose/infra/kafka/single.yml
-        deploy/compose/infra/elasticsearch/single.yml
-        deploy/compose/infra/garage/single.yml
-        deploy/compose/infra/nacos/single.yml
-        deploy/compose/infra/xxl-job/single.yml
-        deploy/compose/infra/mailhog.yml
-        deploy/compose/infra/mock-data-studio/single.yml
-      )
-      if [ "${SCOPE}" = "full" ]; then
-        COMPOSE_FILES+=(
-          deploy/compose/runtime/services/single.yml
-          deploy/compose/runtime/edge/single.yml
-          deploy/compose/runtime/mock-data-studio/single.yml
-        )
-      fi
-      ;;
-    cluster)
-      COMPOSE_FILES+=(
-        deploy/compose/infra/mysql/cluster.yml
-        deploy/compose/infra/redis/cluster.yml
-        deploy/compose/infra/kafka/cluster.yml
-        deploy/compose/infra/elasticsearch/cluster.yml
-        deploy/compose/infra/garage/cluster.yml
-        deploy/compose/infra/nacos/cluster.yml
-        deploy/compose/infra/xxl-job/cluster.yml
-        deploy/compose/infra/mailhog.yml
-        deploy/compose/infra/mock-data-studio/cluster.yml
-      )
-      if [ "${SCOPE}" = "full" ]; then
-        COMPOSE_FILES+=(
-          deploy/compose/runtime/services/cluster.yml
-          deploy/compose/runtime/edge/cluster.yml
-          deploy/compose/runtime/mock-data-studio/cluster.yml
-        )
-      fi
-      ;;
-    *)
-      echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
-      exit 1
-      ;;
-  esac
-}
-
 CALLER_PWD="$(pwd)"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
@@ -555,18 +477,13 @@ fi
 COMMAND="$1"
 shift
 
-OBSERVABILITY=1
+OBSERVABILITY_MODE="default"
 HOST_ACCESS=0
 STACK=""
-TOPOLOGY="single"
-SCOPE="full"
 ENV_FILE=""
 PROJECT_NAME=""
 EXTRA_ARGS=()
 OUTPUT_DIR="${REPO_ROOT}/backend/env/generated"
-TOPOLOGY_OPTION=0
-SCOPE_OPTION=0
-HOST_ACCESS_OPTION=0
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -578,30 +495,19 @@ while [ "$#" -gt 0 ]; do
       STACK="$2"
       shift
       ;;
+    --observability)
+      if [ "${OBSERVABILITY_MODE}" = "disabled" ]; then
+        echo "[deployment.sh] --observability and --no-observability are mutually exclusive" >&2
+        exit 1
+      fi
+      OBSERVABILITY_MODE="enabled"
+      ;;
     --no-observability)
-      OBSERVABILITY=0
-      ;;
-    --host-access)
-      HOST_ACCESS=1
-      HOST_ACCESS_OPTION=1
-      ;;
-    --topology)
-      if [ "$#" -lt 2 ]; then
-        echo "[deployment.sh] missing value for --topology" >&2
+      if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
+        echo "[deployment.sh] --observability and --no-observability are mutually exclusive" >&2
         exit 1
       fi
-      TOPOLOGY="$2"
-      TOPOLOGY_OPTION=1
-      shift
-      ;;
-    --scope)
-      if [ "$#" -lt 2 ]; then
-        echo "[deployment.sh] missing value for --scope" >&2
-        exit 1
-      fi
-      SCOPE="$2"
-      SCOPE_OPTION=1
-      shift
+      OBSERVABILITY_MODE="disabled"
       ;;
     --env-file)
       if [ "$#" -lt 2 ]; then
@@ -680,60 +586,47 @@ case "${COMMAND}" in
     ;;
 esac
 
-if [ -n "${STACK}" ]; then
-  if [ "${TOPOLOGY_OPTION}" -eq 1 ] || [ "${SCOPE_OPTION}" -eq 1 ] || [ "${HOST_ACCESS_OPTION}" -eq 1 ]; then
-    echo "[deployment.sh] --stack cannot be combined with --topology, --scope, or --host-access" >&2
-    exit 1
-  fi
-  case "${STACK}" in
-    infra)
-      TOPOLOGY="single"
-      SCOPE="infra"
-      HOST_ACCESS=1
-      OBSERVABILITY=0
-      ;;
-    single)
-      TOPOLOGY="single"
-      SCOPE="full"
-      HOST_ACCESS=0
-      ;;
-    cluster)
-      TOPOLOGY="cluster"
-      SCOPE="full"
-      HOST_ACCESS=0
-      ;;
-    *)
-      echo "[deployment.sh] unsupported stack: ${STACK}" >&2
-      exit 1
-      ;;
-  esac
-fi
-
-case "${TOPOLOGY}" in
-  single|cluster)
-    ;;
-  *)
-    echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
-    exit 1
-    ;;
-esac
-
-case "${SCOPE}" in
-  full|infra)
-    ;;
-  *)
-    echo "[deployment.sh] unsupported scope: ${SCOPE}" >&2
-    exit 1
-    ;;
-esac
-
-if [ -z "${STACK}" ] && [ "${HOST_ACCESS}" -eq 1 ] && { [ "${TOPOLOGY}" != "single" ] || [ "${SCOPE}" != "infra" ]; }; then
-  echo "[deployment.sh] --host-access requires --topology single --scope infra" >&2
+if [ -z "${STACK}" ]; then
+  echo "[deployment.sh] --stack is required" >&2
   exit 1
 fi
 
+case "${STACK}" in
+  infra)
+    TOPOLOGY="single"
+    HOST_ACCESS=1
+    if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
+      echo "[deployment.sh] --stack infra does not support --observability" >&2
+      exit 1
+    fi
+    OBSERVABILITY=0
+    ;;
+  single)
+    TOPOLOGY="single"
+    HOST_ACCESS=0
+    if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
+      OBSERVABILITY=1
+    else
+      OBSERVABILITY=0
+    fi
+    ;;
+  cluster)
+    TOPOLOGY="cluster"
+    HOST_ACCESS=0
+    if [ "${OBSERVABILITY_MODE}" = "disabled" ]; then
+      OBSERVABILITY=0
+    else
+      OBSERVABILITY=1
+    fi
+    ;;
+  *)
+    echo "[deployment.sh] unsupported stack: ${STACK}" >&2
+    exit 1
+    ;;
+esac
+
 if [ -z "${ENV_FILE}" ]; then
-  ENV_FILE="$(resolve_default_env_file "${TOPOLOGY}")"
+  ENV_FILE="$(resolve_default_env_file)"
 fi
 
 if [ ! -f "${ENV_FILE}" ]; then
@@ -757,12 +650,10 @@ if [ -z "${PROJECT_NAME}" ]; then
   PROJECT_NAME="$(resolve_default_project_name)"
 fi
 
-if [ -n "${STACK}" ]; then
-  STACK_FILE="${REPO_ROOT}/deploy/stacks/${STACK}/compose.yml"
-  if [ ! -f "${STACK_FILE}" ]; then
-    echo "[deployment.sh] stack manifest not found: ${STACK_FILE}" >&2
-    exit 1
-  fi
+STACK_FILE="${REPO_ROOT}/deploy/stacks/${STACK}/compose.yml"
+if [ ! -f "${STACK_FILE}" ]; then
+  echo "[deployment.sh] stack manifest not found: ${STACK_FILE}" >&2
+  exit 1
 fi
 
 initialize_topology_defaults
@@ -781,16 +672,7 @@ if [ "${STACK}" = "single" ] || [ "${STACK}" = "cluster" ]; then
   validate_custom_project_stack_ports
 fi
 
-if [ -n "${STACK}" ]; then
-  COMPOSE_FILES=("${STACK_FILE}")
-else
-  COMPOSE_FILES=(deploy/compose/base.yml)
-  append_topology_files
-fi
-
-if [ -z "${STACK}" ] && [ "${HOST_ACCESS}" -eq 1 ]; then
-  COMPOSE_FILES+=(deploy/compose/overlays/host-access.yml)
-fi
+COMPOSE_FILES=("${STACK_FILE}")
 
 if [ "${OBSERVABILITY}" -eq 1 ]; then
   COMPOSE_FILES+=(deploy/compose/overlays/observability.yml)
@@ -804,11 +686,7 @@ if [ "${OBSERVABILITY}" -eq 0 ]; then
   export OTEL_ENABLED=false
 fi
 
-if [ -n "${STACK}" ]; then
-  COMPOSE_CMD=(docker compose --project-directory "${REPO_ROOT}/deploy" --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
-else
-  COMPOSE_CMD=(docker compose --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
-fi
+COMPOSE_CMD=(docker compose --project-directory "${REPO_ROOT}/deploy" --env-file "${ENV_FILE}" -p "${PROJECT_NAME}")
 for compose_file in "${COMPOSE_FILES[@]}"; do
   COMPOSE_CMD+=(-f "${compose_file}")
 done
@@ -818,11 +696,6 @@ if [ "${COMMAND}" = "reset-mysql" ]; then
     echo "[deployment.sh] reset-mysql does not accept compose arguments" >&2
     exit 1
   fi
-  if [ "${SCOPE}" != "full" ] && [ "${STACK}" != "infra" ]; then
-    echo "[deployment.sh] reset-mysql requires --scope full so every container using MySQL is stopped" >&2
-    exit 1
-  fi
-
   cd "${REPO_ROOT}"
   "${COMPOSE_CMD[@]}" down
 

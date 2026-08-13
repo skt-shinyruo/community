@@ -25,8 +25,8 @@ single_config="$(mktemp)"
 cluster_config="$(mktemp)"
 trap 'rm -f "${single_config}" "${cluster_config}"' EXIT
 
-./deploy/deployment.sh config --topology single --scope infra --env-file deploy/stacks/single/.env.example >"${single_config}"
-./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/stacks/cluster/.env.example >"${cluster_config}"
+./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example >"${single_config}"
+./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example >"${cluster_config}"
 
 grep -F 'deploy/database/mysql/conf/mysql-client.cnf' "${single_config}" >/dev/null
 grep -F 'target: /etc/mysql/conf.d/mysql-client.cnf' "${single_config}" >/dev/null

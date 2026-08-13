@@ -1,5 +1,4 @@
 search:
-  storage: es
   index:
     prefix: community_posts_v
     initialize: true

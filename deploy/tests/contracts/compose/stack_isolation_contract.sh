@@ -77,14 +77,13 @@ if rg -n 'container_name:' deploy/compose --glob '*.yml' >/dev/null; then
   exit 1
 fi
 
-mixed_error="${work_dir}/mixed.error"
-if ./deploy/deployment.sh config --stack infra --topology single \
-  --env-file deploy/stacks/infra/.env.example >/dev/null 2>"${mixed_error}"; then
-  echo '--stack unexpectedly accepted legacy topology options' >&2
+missing_stack_error="${work_dir}/missing-stack.error"
+if ./deploy/deployment.sh config \
+  --env-file deploy/stacks/infra/.env.example >/dev/null 2>"${missing_stack_error}"; then
+  echo 'deployment unexpectedly accepted a command without --stack' >&2
   exit 1
 fi
-grep -F -- '--stack cannot be combined with --topology, --scope, or --host-access' \
-  "${mixed_error}" >/dev/null
+grep -F -- '--stack is required' "${missing_stack_error}" >/dev/null
 
 custom_topology_error="${work_dir}/custom-topology.error"
 if ./deploy/deployment.sh config --stack infra -p community-infra-copy \

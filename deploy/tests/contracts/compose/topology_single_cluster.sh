@@ -8,18 +8,16 @@ unset AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET AUTH_PASSWORD_RESET_QUOTA_HMAC_
 unset IM_SESSION_TICKET_HMAC_SECRET IM_SESSION_TICKET_ISSUER IM_SESSION_TICKET_AUDIENCE
 
 help_output="$(./deploy/deployment.sh --help 2>&1)"
-printf '%s\n' "${help_output}" | grep -F -- '--topology <single|cluster>'
-printf '%s\n' "${help_output}" | grep -F -- 'Choose topology (default: single)'
+printf '%s\n' "${help_output}" | grep -F -- '--stack <infra|single|cluster>'
 printf '%s\n' "${help_output}" | grep -F -- 'Custom project names require an independent network topology'
-if printf '%s\n' "${help_output}" | grep -F -- '--topology <dev|ha>' >/dev/null 2>&1; then
-  echo "old topology help text is still visible" >&2
-  exit 1
-fi
+for legacy_option in --topology --scope --host-access; do
+  if printf '%s\n' "${help_output}" | grep -F -- "${legacy_option}" >/dev/null 2>&1; then
+    echo "legacy deployment option is still visible: ${legacy_option}" >&2
+    exit 1
+  fi
+done
 
-single_infra="$(mktemp)"
 single_full="$(mktemp)"
-default_full="$(mktemp)"
-cluster_infra="$(mktemp)"
 cluster_full="$(mktemp)"
 single_ticket_override_full="$(mktemp)"
 cluster_ticket_override_full="$(mktemp)"
@@ -41,9 +39,8 @@ compose_invocation="$(mktemp)"
 sentinel="$(mktemp)"
 rm -f "${compose_invocation}" "${sentinel}"
 fake_bin="$(mktemp -d)"
-dev_err="$(mktemp)"
-ha_err="$(mktemp)"
-trap 'rm -rf "${fake_bin}"; rm -f "${single_infra}" "${single_full}" "${default_full}" "${cluster_infra}" "${cluster_full}" "${single_ticket_override_full}" "${cluster_ticket_override_full}" "${single_missing_ticket_env}" "${cluster_missing_ticket_env}" "${single_missing_ticket_err}" "${cluster_missing_ticket_err}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${dev_err}" "${ha_err}"' EXIT
+legacy_option_err="$(mktemp)"
+trap 'rm -rf "${fake_bin}"; rm -f "${single_full}" "${cluster_full}" "${single_ticket_override_full}" "${cluster_ticket_override_full}" "${single_missing_ticket_env}" "${cluster_missing_ticket_env}" "${single_missing_ticket_err}" "${cluster_missing_ticket_err}" "${single_legacy_env}" "${cluster_legacy_env}" "${single_legacy_full}" "${cluster_legacy_full}" "${custom_single_env}" "${custom_single_full}" "${custom_cluster_env}" "${custom_cluster_full}" "${environment_override_full}" "${custom_project_err}" "${compose_invocation}" "${sentinel}" "${legacy_option_err}"' EXIT
 
 service_environment_value() {
   local rendered_config="$1"
@@ -255,7 +252,7 @@ assert_distinct_password_reset_quota_secret() {
 }
 
 assert_required_jwt_values() {
-  local topology="$1"
+  local stack="$1"
   local source_env_file="$2"
   local missing_env_file
   local error_file
@@ -267,10 +264,10 @@ assert_required_jwt_values() {
     awk -v variable="${variable}" 'index($0, variable "=") != 1' \
       "${source_env_file}" >"${missing_env_file}"
     if env -u JWT_ACCESS_PUBLIC_KEY -u JWT_ACCESS_PRIVATE_KEY -u JWT_SERVICE_HMAC_SECRET \
-      ./deploy/deployment.sh config --topology "${topology}" --scope full \
+      ./deploy/deployment.sh config --stack "${stack}" \
         --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
       rm -f "${missing_env_file}" "${error_file}"
-      echo "expected ${topology} topology without ${variable} to fail" >&2
+      echo "expected ${stack} stack without ${variable} to fail" >&2
       return 1
     fi
     grep -F "${variable} is required" "${error_file}" >/dev/null
@@ -279,7 +276,7 @@ assert_required_jwt_values() {
 }
 
 assert_required_password_reset_identifier_secret() {
-  local topology="$1"
+  local stack="$1"
   local source_env_file="$2"
   local missing_env_file
   local error_file
@@ -289,10 +286,10 @@ assert_required_password_reset_identifier_secret() {
   awk 'index($0, "AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=") != 1' \
     "${source_env_file}" >"${missing_env_file}"
   if env -u AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
-    ./deploy/deployment.sh config --topology "${topology}" --scope full \
+    ./deploy/deployment.sh config --stack "${stack}" \
       --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
     rm -f "${missing_env_file}" "${error_file}"
-    echo "expected ${topology} topology without AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET to fail" >&2
+    echo "expected ${stack} stack without AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET to fail" >&2
     return 1
   fi
   grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required' "${error_file}" >/dev/null
@@ -300,7 +297,7 @@ assert_required_password_reset_identifier_secret() {
 }
 
 assert_required_password_reset_quota_secret() {
-  local topology="$1"
+  local stack="$1"
   local source_env_file="$2"
   local missing_env_file
   local error_file
@@ -310,10 +307,10 @@ assert_required_password_reset_quota_secret() {
   awk 'index($0, "AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET=") != 1' \
     "${source_env_file}" >"${missing_env_file}"
   if env -u AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET \
-    ./deploy/deployment.sh config --topology "${topology}" --scope full \
+    ./deploy/deployment.sh config --stack "${stack}" \
       --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
     rm -f "${missing_env_file}" "${error_file}"
-    echo "expected ${topology} topology without AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET to fail" >&2
+    echo "expected ${stack} stack without AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET to fail" >&2
     return 1
   fi
   grep -F 'AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET is required' "${error_file}" >/dev/null
@@ -378,7 +375,7 @@ assert_community_app_runtime_environment() {
 }
 
 assert_required_nacos_auth_values() {
-  local topology="$1"
+  local stack="$1"
   local source_env_file="$2"
   local missing_env_file
   local error_file
@@ -390,10 +387,10 @@ assert_required_nacos_auth_values() {
     awk -v variable="${variable}" 'index($0, variable "=") != 1' \
       "${source_env_file}" >"${missing_env_file}"
     if env -u NACOS_AUTH_TOKEN -u NACOS_AUTH_IDENTITY_KEY -u NACOS_AUTH_IDENTITY_VALUE \
-      ./deploy/deployment.sh config --topology "${topology}" --scope infra \
+      ./deploy/deployment.sh config --stack "${stack}" \
         --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
       rm -f "${missing_env_file}" "${error_file}"
-      echo "expected ${topology} topology without ${variable} to fail" >&2
+      echo "expected ${stack} stack without ${variable} to fail" >&2
       return 1
     fi
     grep -F "${variable} is required" "${error_file}" >/dev/null
@@ -412,6 +409,14 @@ without_topology_values() {
 with_custom_single_topology() {
   awk '
     /^COMMUNITY_VOLUME_NAMESPACE=/ { print "COMMUNITY_VOLUME_NAMESPACE=community_single_smoke"; next }
+    /^NACOS_HOST_PORT=/ { print "NACOS_HOST_PORT=48848"; next }
+    /^MAILHOG_UI_HOST_PORT=/ { print "MAILHOG_UI_HOST_PORT=48025"; next }
+    /^FRONTEND_HOST_PORT=/ { print "FRONTEND_HOST_PORT=42881"; next }
+    /^NGINX_API_PORT=/ { print "NGINX_API_PORT=42880"; next }
+    /^NGINX_XXL_JOB_PORT=/ { print "NGINX_XXL_JOB_PORT=42887"; next }
+    /^MOCK_DATA_STUDIO_HOST_PORT=/ { print "MOCK_DATA_STUDIO_HOST_PORT=42890"; next }
+    /^ELASTICSEARCH_PORT=/ { print "ELASTICSEARCH_PORT=42888"; next }
+    /^KIBANA_PORT=/ { print "KIBANA_PORT=42889"; next }
     /^COMMUNITY_NETWORK_SUBNET=/ { print "COMMUNITY_NETWORK_SUBNET=172.40.0.0/24"; next }
     /^COMMUNITY_NETWORK_DYNAMIC_RANGE=/ { print "COMMUNITY_NETWORK_DYNAMIC_RANGE=172.40.0.128/25"; next }
     /^NGINX_STATIC_IP=/ { print "NGINX_STATIC_IP=172.40.0.10"; next }
@@ -425,6 +430,16 @@ with_custom_single_topology() {
 with_custom_cluster_topology() {
   awk '
     /^COMMUNITY_VOLUME_NAMESPACE=/ { print "COMMUNITY_VOLUME_NAMESPACE=community_cluster_smoke"; next }
+    /^NACOS_HOST_PORT=/ { print "NACOS_HOST_PORT=58848"; next }
+    /^MAILHOG_UI_HOST_PORT=/ { print "MAILHOG_UI_HOST_PORT=58025"; next }
+    /^FRONTEND_HOST_PORT=/ { print "FRONTEND_HOST_PORT=53881"; next }
+    /^NGINX_API_PORT=/ { print "NGINX_API_PORT=53880"; next }
+    /^NGINX_XXL_JOB_PORT=/ { print "NGINX_XXL_JOB_PORT=53887"; next }
+    /^MOCK_DATA_STUDIO_HOST_PORT=/ { print "MOCK_DATA_STUDIO_HOST_PORT=53890"; next }
+    /^GARAGE_S3_HOST_PORT=/ { print "GARAGE_S3_HOST_PORT=53900"; next }
+    /^GARAGE_ADMIN_HOST_PORT=/ { print "GARAGE_ADMIN_HOST_PORT=53903"; next }
+    /^ELASTICSEARCH_PORT=/ { print "ELASTICSEARCH_PORT=53888"; next }
+    /^KIBANA_PORT=/ { print "KIBANA_PORT=53889"; next }
     /^COMMUNITY_NETWORK_SUBNET=/ { print "COMMUNITY_NETWORK_SUBNET=172.43.0.0/24"; next }
     /^COMMUNITY_NETWORK_DYNAMIC_RANGE=/ { print "COMMUNITY_NETWORK_DYNAMIC_RANGE=172.43.0.128/25"; next }
     /^NGINX_STATIC_IP=/ { print "NGINX_STATIC_IP=172.43.0.10"; next }
@@ -456,12 +471,8 @@ rendered_service_ipv4_address() {
   ' "${rendered_config}"
 }
 
-./deploy/deployment.sh config --topology single --scope infra --env-file deploy/stacks/single/.env.example >"${single_infra}"
-./deploy/deployment.sh config --topology single --scope full --env-file deploy/stacks/single/.env.example >"${single_full}"
-./deploy/deployment.sh config --scope full --env-file deploy/stacks/single/.env.example >"${default_full}"
-./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/stacks/cluster/.env.example >"${cluster_infra}"
-./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/stacks/cluster/.env.example >"${cluster_full}"
-cmp -s "${default_full}" "${single_full}"
+./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example >"${single_full}"
+./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example >"${cluster_full}"
 
 single_access_public_key="$(environment_file_value deploy/stacks/single/.env.example JWT_ACCESS_PUBLIC_KEY)"
 single_access_private_key="$(environment_file_value deploy/stacks/single/.env.example JWT_ACCESS_PRIVATE_KEY)"
@@ -530,8 +541,8 @@ assert_distinct_password_reset_identifier_secret deploy/stacks/single/.env.examp
 assert_distinct_password_reset_identifier_secret deploy/stacks/cluster/.env.example
 assert_distinct_password_reset_quota_secret deploy/stacks/single/.env.example
 assert_distinct_password_reset_quota_secret deploy/stacks/cluster/.env.example
-assert_nacos_auth_environment "${single_infra}" deploy/stacks/single/.env.example nacos
-assert_nacos_auth_environment "${cluster_infra}" deploy/stacks/cluster/.env.example nacos-1 nacos-2 nacos-3
+assert_nacos_auth_environment "${single_full}" deploy/stacks/single/.env.example nacos
+assert_nacos_auth_environment "${cluster_full}" deploy/stacks/cluster/.env.example nacos-1 nacos-2 nacos-3
 assert_community_app_runtime_environment "${single_full}" deploy/stacks/single/.env.example community-app
 assert_community_app_runtime_environment "${cluster_full}" deploy/stacks/cluster/.env.example \
   community-app-1 community-app-2 community-app-3
@@ -568,12 +579,12 @@ ticket_sentinel_audience="topology-test-im-session-ticket-audience"
 IM_SESSION_TICKET_HMAC_SECRET="${ticket_sentinel_secret}" \
 IM_SESSION_TICKET_ISSUER="${ticket_sentinel_issuer}" \
 IM_SESSION_TICKET_AUDIENCE="${ticket_sentinel_audience}" \
-  ./deploy/deployment.sh config --topology single --scope full \
+  ./deploy/deployment.sh config --stack single \
     --env-file deploy/stacks/single/.env.example >"${single_ticket_override_full}"
 IM_SESSION_TICKET_HMAC_SECRET="${ticket_sentinel_secret}" \
 IM_SESSION_TICKET_ISSUER="${ticket_sentinel_issuer}" \
 IM_SESSION_TICKET_AUDIENCE="${ticket_sentinel_audience}" \
-  ./deploy/deployment.sh config --topology cluster --scope full \
+  ./deploy/deployment.sh config --stack cluster \
     --env-file deploy/stacks/cluster/.env.example >"${cluster_ticket_override_full}"
 assert_ticket_runtime_values "${single_ticket_override_full}" \
   "${ticket_sentinel_secret}" "${ticket_sentinel_issuer}" "${ticket_sentinel_audience}" \
@@ -588,7 +599,7 @@ without_ticket_secret deploy/stacks/cluster/.env.example >"${cluster_missing_tic
 if env -u IM_SESSION_TICKET_HMAC_SECRET \
   -u IM_SESSION_TICKET_ISSUER \
   -u IM_SESSION_TICKET_AUDIENCE \
-  ./deploy/deployment.sh config --topology single --scope full \
+  ./deploy/deployment.sh config --stack single \
     --env-file "${single_missing_ticket_env}" >/dev/null 2>"${single_missing_ticket_err}"; then
   echo "expected single topology without an IM session ticket secret to fail" >&2
   exit 1
@@ -597,7 +608,7 @@ grep -F 'IM_SESSION_TICKET_HMAC_SECRET is required' "${single_missing_ticket_err
 if env -u IM_SESSION_TICKET_HMAC_SECRET \
   -u IM_SESSION_TICKET_ISSUER \
   -u IM_SESSION_TICKET_AUDIENCE \
-  ./deploy/deployment.sh config --topology cluster --scope full \
+  ./deploy/deployment.sh config --stack cluster \
     --env-file "${cluster_missing_ticket_env}" >/dev/null 2>"${cluster_missing_ticket_err}"; then
   echo "expected cluster topology without an IM session ticket secret to fail" >&2
   exit 1
@@ -607,8 +618,8 @@ grep -F 'IM_SESSION_TICKET_HMAC_SECRET is required' "${cluster_missing_ticket_er
 without_topology_values deploy/stacks/single/.env.example >"${single_legacy_env}"
 without_topology_values deploy/stacks/cluster/.env.example >"${cluster_legacy_env}"
 printf '%s\n' "DEPLOYMENT_TEST_SENTINEL=\$(touch ${sentinel})" >>"${single_legacy_env}"
-./deploy/deployment.sh config --topology single --scope full --env-file "${single_legacy_env}" >"${single_legacy_full}"
-./deploy/deployment.sh config --topology cluster --scope full --env-file "${cluster_legacy_env}" >"${cluster_legacy_full}"
+./deploy/deployment.sh config --stack single --env-file "${single_legacy_env}" >"${single_legacy_full}"
+./deploy/deployment.sh config --stack cluster --env-file "${cluster_legacy_env}" >"${cluster_legacy_full}"
 test ! -e "${sentinel}"
 test "$(rendered_network_value "${single_legacy_full}" subnet)" = "172.30.0.0/24"
 test "$(rendered_network_value "${single_legacy_full}" ip_range)" = "172.30.0.128/25"
@@ -629,7 +640,7 @@ touch "${compose_invocation}"
 exit 99
 EOF
 chmod +x "${fake_bin}/docker"
-if PATH="${fake_bin}:${PATH}" ./deploy/deployment.sh config --topology single --scope full \
+if PATH="${fake_bin}:${PATH}" ./deploy/deployment.sh config --stack single \
   --env-file deploy/stacks/single/.env.example -p community-single-smoke \
   >/dev/null 2>"${custom_project_err}"; then
   echo "expected a custom project with the default topology to fail" >&2
@@ -649,7 +660,7 @@ COMMUNITY_GATEWAY_STATIC_IP=172.42.0.20
 GATEWAY_TRUSTED_PROXY_CIDRS=172.42.0.10/32
 COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.42.0.20/32
 EOF
-./deploy/deployment.sh config --topology single --scope full --env-file "${custom_single_env}" \
+./deploy/deployment.sh config --stack single --env-file "${custom_single_env}" \
   -p community-single-smoke >"${custom_single_full}"
 grep -F 'name: community-single-smoke' "${custom_single_full}"
 test "$(rendered_network_value "${custom_single_full}" subnet)" = "172.42.0.0/24"
@@ -661,7 +672,7 @@ test "$(service_environment_value "${custom_single_full}" community-app COMMUNIT
 grep -F 'name: community_single_last_mysql_primary_data' "${custom_single_full}"
 
 with_custom_cluster_topology deploy/stacks/cluster/.env.example >"${custom_cluster_env}"
-./deploy/deployment.sh config --topology cluster --scope full --env-file "${custom_cluster_env}" \
+./deploy/deployment.sh config --stack cluster --env-file "${custom_cluster_env}" \
   -p community-cluster-smoke >"${custom_cluster_full}"
 grep -F 'name: community-cluster-smoke' "${custom_cluster_full}"
 test "$(rendered_network_value "${custom_cluster_full}" subnet)" = "172.43.0.0/24"
@@ -681,7 +692,15 @@ NGINX_STATIC_IP=172.41.0.10 \
 COMMUNITY_GATEWAY_STATIC_IP=172.41.0.20 \
 GATEWAY_TRUSTED_PROXY_CIDRS=172.41.0.10/32 \
 COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.41.0.20/32 \
-  ./deploy/deployment.sh config --topology single --scope full \
+NACOS_HOST_PORT=44848 \
+MAILHOG_UI_HOST_PORT=44025 \
+FRONTEND_HOST_PORT=41881 \
+NGINX_API_PORT=41880 \
+NGINX_XXL_JOB_PORT=41887 \
+MOCK_DATA_STUDIO_HOST_PORT=41890 \
+ELASTICSEARCH_PORT=41888 \
+KIBANA_PORT=41889 \
+  ./deploy/deployment.sh config --stack single \
     --env-file deploy/stacks/single/.env.example -p community-single-environment \
     >"${environment_override_full}"
 test "$(rendered_network_value "${environment_override_full}" subnet)" = "172.41.0.0/24"
@@ -691,27 +710,27 @@ test "$(service_environment_value "${environment_override_full}" community-gatew
 test "$(service_environment_value "${environment_override_full}" community-app COMMUNITY_APP_TRUSTED_PROXY_CIDRS)" = "172.41.0.20/32"
 grep -F 'name: community_single_environment_mysql_primary_data' "${environment_override_full}"
 
-grep -F 'name: community-single' "${single_infra}"
-grep -E '^  mysql:$' "${single_infra}"
-grep -E '^  nacos:$' "${single_infra}"
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -E 'code.*0'
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'bash -c'
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F '/dev/tcp/127.0.0.1/9848'
-grep -A40 -E '^  nacos:$' "${single_infra}" | grep -F 'healthcheck:'
-grep -E '^  nacos-config-bootstrap:$' "${single_infra}"
-grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F '/deploy/config/nacos'
-grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'target: /nacos'
-grep -A36 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F 'read_only: true'
+grep -F 'name: community-single' "${single_full}"
+grep -E '^  mysql:$' "${single_full}"
+grep -E '^  nacos:$' "${single_full}"
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -F '/nacos/v3/admin/core/state/readiness'
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -E 'code.*0'
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -F 'bash -c'
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -F '/dev/tcp/127.0.0.1/9848'
+grep -A40 -E '^  nacos:$' "${single_full}" | grep -F 'healthcheck:'
+grep -E '^  nacos-config-bootstrap:$' "${single_full}"
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F '/deploy/config/nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F 'target: /nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F 'read_only: true'
 for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
-  grep -A30 -E '^  nacos-config-bootstrap:$' "${single_infra}" | grep -F "${variable}:"
+  grep -A30 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway:$' "${single_full}"
 grep -A4 -E '^      nacos:$' "${single_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${single_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway:$' "${single_full}" | grep -F 'condition: service_healthy'
-grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_infra}"
+grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?1"?' "${single_full}"
 grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_HOST: redis'
 grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_PORT: "6379"'
 single_worker_slot="$(service_environment_value "${single_full}" im-realtime IM_ROOM_FANOUT_WORKER_INBOX_SLOT)"
@@ -722,23 +741,23 @@ if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${single_
   exit 1
 fi
 
-grep -F 'name: community-cluster' "${cluster_infra}"
-grep -E '^  mysql-primary:$' "${cluster_infra}"
-grep -E '^  nacos-1:$' "${cluster_infra}"
+grep -F 'name: community-cluster' "${cluster_full}"
+grep -E '^  mysql-primary:$' "${cluster_full}"
+grep -E '^  nacos-1:$' "${cluster_full}"
 for nacos_node in nacos-1 nacos-2 nacos-3; do
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F '/nacos/v3/admin/core/state/readiness'
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -E 'code.*0'
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'bash -c'
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F '/dev/tcp/127.0.0.1/9848'
-  grep -A40 -E "^  ${nacos_node}:$" "${cluster_infra}" | grep -F 'healthcheck:'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -F 'image: nacos/nacos-server:v3.1.2-slim'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -F '/nacos/v3/admin/core/state/readiness'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -E 'code.*0'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -F 'bash -c'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -F '/dev/tcp/127.0.0.1/9848'
+  grep -A40 -E "^  ${nacos_node}:$" "${cluster_full}" | grep -F 'healthcheck:'
 done
-grep -E '^  nacos-config-bootstrap:$' "${cluster_infra}"
-grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F '/deploy/config/nacos'
-grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'target: /nacos'
-grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F 'read_only: true'
+grep -E '^  nacos-config-bootstrap:$' "${cluster_full}"
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F '/deploy/config/nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'target: /nacos'
+grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'read_only: true'
 for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
-  grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_infra}" | grep -F "${variable}:"
+  grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway-1:$' "${cluster_full}"
 grep -F 'x-community-app-environment: &community-app-environment' \
@@ -748,7 +767,7 @@ test "$(wc -l < deploy/compose/runtime/services/cluster.yml)" -lt 900
 grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
-grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
+grep -E 'KAFKA_TOPIC_REPLICATION_FACTOR: "?3"?' "${cluster_full}"
 declare -A seen_worker_slots=()
 for worker in 1 2 3; do
   grep -A80 -E "^  im-realtime-${worker}:$" "${cluster_full}" | grep -F 'SPRING_DATA_REDIS_CLUSTER_NODES: redis-1:6379,redis-2:6379,redis-3:6379,redis-4:6379,redis-5:6379,redis-6:6379'
@@ -766,14 +785,11 @@ if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${cluster
   exit 1
 fi
 
-if ./deploy/deployment.sh config --topology dev --scope infra --env-file deploy/stacks/single/.env.example >/dev/null 2>"${dev_err}"; then
-  echo "expected old topology dev to fail" >&2
-  exit 1
-fi
-grep -F 'unsupported topology: dev' "${dev_err}"
-
-if ./deploy/deployment.sh config --topology ha --scope infra --env-file deploy/stacks/cluster/.env.example >/dev/null 2>"${ha_err}"; then
-  echo "expected old topology ha to fail" >&2
-  exit 1
-fi
-grep -F 'unsupported topology: ha' "${ha_err}"
+for legacy_option in --topology --scope --host-access; do
+  if ./deploy/deployment.sh config --stack single "${legacy_option}" \
+    --env-file deploy/stacks/single/.env.example >/dev/null 2>"${legacy_option_err}"; then
+    echo "expected legacy option ${legacy_option} to fail" >&2
+    exit 1
+  fi
+  grep -F "unsupported option: ${legacy_option}" "${legacy_option_err}" >/dev/null
+done

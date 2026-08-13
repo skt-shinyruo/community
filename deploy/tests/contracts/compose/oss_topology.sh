@@ -4,11 +4,9 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-single_infra="$(mktemp)"
 single_full="$(mktemp)"
-cluster_infra="$(mktemp)"
 cluster_full="$(mktemp)"
-trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}"' EXIT
+trap 'rm -f "${single_full}" "${cluster_full}"' EXIT
 
 assert_service_environment_value() {
   local config_file="$1"
@@ -28,36 +26,34 @@ assert_service_environment_value() {
   return 1
 }
 
-./deploy/deployment.sh config --topology single --scope infra --env-file deploy/stacks/single/.env.example --no-observability >"${single_infra}"
-./deploy/deployment.sh config --topology single --scope full --env-file deploy/stacks/single/.env.example --no-observability >"${single_full}"
-./deploy/deployment.sh config --topology cluster --scope infra --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_infra}"
-./deploy/deployment.sh config --topology cluster --scope full --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_full}"
+./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example --no-observability >"${single_full}"
+./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_full}"
 
 grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/config/nginx/single.conf
 grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/config/nginx/cluster.conf
 grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/stacks/single/.env.example
 grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/stacks/cluster/.env.example
 
-grep -E '^  garage:$' "${single_infra}"
-grep -F 'dxflrs/garage:v2.2.0' "${single_infra}"
-if grep -F -- '--single-node' "${single_infra}"; then
+grep -E '^  garage:$' "${single_full}"
+grep -F 'dxflrs/garage:v2.2.0' "${single_full}"
+if grep -F -- '--single-node' "${single_full}"; then
   echo "single garage compose must use the supported v2.2 server command" >&2
   exit 1
 fi
-grep -F 'garage-init:' "${single_infra}"
+grep -F 'garage-init:' "${single_full}"
 grep -F 'layout assign' deploy/scripts/bootstrap-garage.sh
 grep -F 'layout apply' deploy/scripts/bootstrap-garage.sh
 grep -F 'bucket create' deploy/scripts/bootstrap-garage.sh
 grep -F 'key import' deploy/scripts/bootstrap-garage.sh
 grep -F 'bucket allow' deploy/scripts/bootstrap-garage.sh
-if grep -F 'CMD-SHELL' "${single_infra}" | grep -F 'garage' >/dev/null 2>&1; then
+if grep -F 'CMD-SHELL' "${single_full}" | grep -F 'garage' >/dev/null 2>&1; then
   echo "single garage healthcheck must not require a shell inside the distroless image" >&2
   exit 1
 fi
-grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${single_infra}"
+grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${single_full}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${single_full}"
 grep -F 'region: garage' deploy/config/nacos/community-oss.yaml
-grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_infra}"
+grep -E 'GARAGE_REPLICATION_FACTOR: "?1"?' "${single_full}"
 grep -E '^  community-oss:$' "${single_full}"
 assert_service_environment_value "${single_full}" community-oss 'METRICS_BASIC_AUTH_USERNAME: prometheus'
 assert_service_environment_value "${single_full}" community-oss 'METRICS_BASIC_AUTH_PASSWORD: dev-prometheus-pass'
@@ -71,14 +67,14 @@ grep -E 'NGINX_CLIENT_MAX_BODY_SIZE: "?10g"?' "${single_full}"
 grep -F 'max-file-size: 10GB' deploy/config/nacos/community-oss.yaml
 grep -F 'max-request-size: 10GB' deploy/config/nacos/community-oss.yaml
 
-grep -E '^  garage-1:$' "${cluster_infra}"
-grep -E '^  garage-2:$' "${cluster_infra}"
-grep -E '^  garage-3:$' "${cluster_infra}"
-grep -F 'garage-init:' "${cluster_infra}"
-grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${cluster_infra}"
+grep -E '^  garage-1:$' "${cluster_full}"
+grep -E '^  garage-2:$' "${cluster_full}"
+grep -E '^  garage-3:$' "${cluster_full}"
+grep -F 'garage-init:' "${cluster_full}"
+grep -F 'GARAGE_DEFAULT_ACCESS_KEY: GK000000000000000000000001' "${cluster_full}"
 grep -F 'OSS_OBJECT_STORE_ACCESS_KEY: GK000000000000000000000001' "${cluster_full}"
 grep -F 'region: garage' deploy/config/nacos/community-oss.yaml
-grep -E 'GARAGE_REPLICATION_FACTOR: "?3"?' "${cluster_infra}"
+grep -E 'GARAGE_REPLICATION_FACTOR: "?3"?' "${cluster_full}"
 grep -E '^  community-oss-1:$' "${cluster_full}"
 grep -A4 -E '^      garage-init:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -E '^  community-oss-2:$' "${cluster_full}"

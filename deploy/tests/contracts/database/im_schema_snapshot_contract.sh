@@ -9,9 +9,9 @@ single_full="$(mktemp)"
 cluster_full="$(mktemp)"
 trap 'rm -f "${single_full}" "${cluster_full}"' EXIT
 
-./deploy/deployment.sh config --topology single --scope full \
+./deploy/deployment.sh config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_full}"
-./deploy/deployment.sh config --topology cluster --scope full \
+./deploy/deployment.sh config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_full}"
 
 grep -Fq 'CREATE DATABASE IF NOT EXISTS `im_core`' "${schema}"

@@ -99,9 +99,9 @@ assert.equal(context.__COMMUNITY_RUNTIME_CONFIG__.apiBaseUrl, '')
 assert.equal(context.__COMMUNITY_RUNTIME_CONFIG__.imHttpBaseUrl, '')
 NODE
 
-./deploy/deployment.sh config --topology single --scope full \
+./deploy/deployment.sh config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_config}"
-./deploy/deployment.sh config --topology cluster --scope full \
+./deploy/deployment.sh config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_config}"
 
 extract_frontend_service() {

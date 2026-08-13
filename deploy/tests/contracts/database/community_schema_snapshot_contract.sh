@@ -5,23 +5,17 @@ REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 
 schema="deploy/database/business/current-state/010_current_schema.sql"
-single_infra="$(mktemp)"
 single_full="$(mktemp)"
-cluster_infra="$(mktemp)"
 cluster_full="$(mktemp)"
 single_production="$(mktemp)"
-trap 'rm -f "${single_infra}" "${single_full}" "${cluster_infra}" "${cluster_full}" "${single_production}"' EXIT
+trap 'rm -f "${single_full}" "${cluster_full}" "${single_production}"' EXIT
 
-./deploy/deployment.sh config --topology single --scope infra \
-  --env-file deploy/stacks/single/.env.example --no-observability >"${single_infra}"
-./deploy/deployment.sh config --topology single --scope full \
+./deploy/deployment.sh config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_full}"
-./deploy/deployment.sh config --topology cluster --scope infra \
-  --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_infra}"
-./deploy/deployment.sh config --topology cluster --scope full \
+./deploy/deployment.sh config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_full}"
 DEPLOYMENT_ENVIRONMENT=production \
-  ./deploy/deployment.sh config --topology single --scope infra \
+  ./deploy/deployment.sh config --stack single \
     --env-file deploy/stacks/single/.env.example --no-observability >"${single_production}"
 
 grep -Fq 'CREATE DATABASE IF NOT EXISTS `community`' "${schema}"
@@ -67,7 +61,7 @@ if [ "${business_ddl_files}" != "${schema}" ]; then
   exit 1
 fi
 
-for rendered in "${single_infra}" "${cluster_infra}"; do
+for rendered in "${single_full}" "${cluster_full}"; do
   grep -Fq 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${rendered}"
   grep -Eq '^  community-dev-seed:$' "${rendered}"
   grep -Eq '^  community-db-migrations:$' "${rendered}"
@@ -79,8 +73,8 @@ for rendered in "${single_infra}" "${cluster_infra}"; do
   grep -Fq 'target: /seed/090_seed_identity.sql' "${rendered}"
 done
 
-test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${single_infra}")" -eq 1
-test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${cluster_infra}")" -eq 1
+test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${single_full}")" -eq 1
+test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${cluster_full}")" -eq 1
 grep -Fq 'DEPLOYMENT_ENVIRONMENT: production' "${single_production}"
 
 if rg -n -i 'flyway|community-(oss-|im-)?db-migrations' backend/pom.xml backend/*/pom.xml backend/community-im/*/pom.xml; then

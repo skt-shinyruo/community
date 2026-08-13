@@ -60,10 +60,10 @@ cp deploy/stacks/single/.env.example deploy/stacks/single/.env
 ./deploy/deployment.sh up --stack single
 ```
 
-observability overlay 默认启用。资源有限或当前不需要 Elasticsearch、Kibana 与 OTel collector 时：
+single 默认不加载 observability overlay。需要 Elasticsearch、Kibana 与 OTel collector 时显式开启：
 
 ```bash
-./deploy/deployment.sh up --stack single --no-observability
+./deploy/deployment.sh up --stack single --observability
 ```
 
 常用操作：
@@ -74,8 +74,8 @@ observability overlay 默认启用。资源有限或当前不需要 Elasticsearc
 ./deploy/deployment.sh down --stack single
 ```
 
-如果启动时使用了 `--no-observability`，停止时也要带上相同参数。集群演练使用
-`deploy/stacks/cluster/.env` 和 `--stack cluster`。完整参数、Stack 隔离与数据清理说明见
+如果 single 启动时使用了 `--observability`，停止时也要带上相同参数。cluster 默认加载观测层；集群演练使用
+`deploy/stacks/cluster/.env` 和 `--stack cluster`。完整矩阵、Stack 隔离与数据清理说明见
 [部署文档](deploy/README.md)。
 
 ## 默认入口

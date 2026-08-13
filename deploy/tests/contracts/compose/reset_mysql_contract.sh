@@ -18,16 +18,18 @@ EOF
 chmod +x "${fake_bin}/docker"
 
 run_reset() {
-  local topology="$1"
+  local stack="$1"
   local log_file="$2"
   PATH="${fake_bin}:${PATH}" FAKE_DOCKER_LOG="${log_file}" \
-    ./deploy/deployment.sh reset-mysql --topology "${topology}" --scope full \
-      --no-observability --env-file "deploy/stacks/${topology}/.env.example"
+    ./deploy/deployment.sh reset-mysql --stack "${stack}" \
+      --no-observability --env-file "deploy/stacks/${stack}/.env.example"
 }
 
 single_log="${tmp_dir}/single.log"
 run_reset single "${single_log}"
-grep -Fq 'compose --env-file' "${single_log}"
+grep -Fq 'compose --project-directory' "${single_log}"
+grep -Fq -- '--env-file' "${single_log}"
+grep -Fq -- "-f ${REPO_ROOT}/deploy/stacks/single/compose.yml" "${single_log}"
 grep -Fq -- '-p community-single' "${single_log}"
 grep -Fq ' down' "${single_log}"
 grep -Fxq 'volume inspect community_single_mysql_primary_data' "${single_log}"
@@ -61,15 +63,3 @@ if rg -n 'volume rm .*_(redis|kafka|garage|elasticsearch)_' \
   echo 'reset-mysql removed a non-MySQL volume' >&2
   exit 1
 fi
-
-scope_log="${tmp_dir}/scope.log"
-scope_error="${tmp_dir}/scope.error"
-if PATH="${fake_bin}:${PATH}" FAKE_DOCKER_LOG="${scope_log}" \
-  ./deploy/deployment.sh reset-mysql --topology single --scope infra \
-    --no-observability --env-file deploy/stacks/single/.env.example \
-    >/dev/null 2>"${scope_error}"; then
-  echo 'reset-mysql unexpectedly accepted --scope infra' >&2
-  exit 1
-fi
-grep -Fq 'requires --scope full' "${scope_error}"
-test ! -e "${scope_log}"

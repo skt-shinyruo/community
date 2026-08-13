@@ -56,7 +56,6 @@ drive:
 
 auth:
   refresh:
-    store: db
     cleanup:
       enabled: true
       interval-ms: 3600000
@@ -159,9 +158,6 @@ events:
     max-backoff: 10m
     worker-fixed-delay-ms: 1000
 
-social:
-  storage: db
-
 growth:
   business-zone-id: Asia/Shanghai
 
@@ -174,7 +170,6 @@ oss:
     token-ttl: ${OSS_CLIENT_TOKEN_TTL:PT5M}
 
 search:
-  storage: es
   reindex:
     page-size: ${SEARCH_REINDEX_PAGE_SIZE:500}
     lock-ttl: ${SEARCH_REINDEX_LOCK_TTL:PT30M}

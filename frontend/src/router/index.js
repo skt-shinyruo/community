@@ -1,9 +1,8 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard } from './authGuard'
+import { catalogRouteName, routeMeta } from './routeCatalog'
 
 const LoginView = () => import('../views/LoginView.vue')
-const HomeView = () => import('../views/HomeView.vue')
-const EditorialPreviewView = () => import('../views/EditorialPreviewView.vue')
 const PostsView = () => import('../views/PostsView.vue')
 const PostDetailView = () => import('../views/PostDetailView.vue')
 const UserProfileView = () => import('../views/UserProfileView.vue')
@@ -43,272 +42,227 @@ const router = createRouter({
   routes: [
     {
       path: '/auth/login',
-      name: 'login',
+      name: catalogRouteName('login'),
       component: LoginView,
-      meta: { title: '登录', subtitle: '回到讨论广场前，先确认你的身份。', navGroup: 'auth' }
+      meta: routeMeta('login', { title: '登录', subtitle: '回到讨论广场前，先确认你的身份。' })
     },
     {
       path: '/auth/register',
-      name: 'register',
+      name: catalogRouteName('register'),
       component: RegisterView,
-      meta: { title: '注册', subtitle: '创建你的身份，加入一场值得阅读的讨论。', navGroup: 'auth' }
+      meta: routeMeta('register', { title: '注册', subtitle: '创建你的身份，加入一场值得阅读的讨论。' })
     },
     {
       path: '/auth/password/reset',
-      name: 'passwordReset',
+      name: catalogRouteName('passwordReset'),
       component: PasswordResetView,
-      meta: { title: '找回密码', subtitle: '通过邮箱和验证码重新确认你的登录凭据。', navGroup: 'auth' }
+      meta: routeMeta('passwordReset', { title: '找回密码', subtitle: '通过邮箱和验证码重新确认你的登录凭据。' })
     },
     { path: '/', redirect: { name: 'posts' } },
     {
       path: '/posts',
-      name: 'posts',
+      name: catalogRouteName('posts'),
       component: PostsView,
-      meta: { title: '讨论首页', subtitle: '打开首页就进入最新讨论流，先看社区现在发生什么。', navGroup: 'explore' }
+      meta: routeMeta('posts', { title: '讨论首页', subtitle: '打开首页就进入最新讨论流，先看社区现在发生什么。' })
     },
     {
       path: '/posts/:postId',
-      name: 'postDetail',
+      name: catalogRouteName('postDetail'),
       component: PostDetailView,
       props: true,
-      meta: {
+      meta: routeMeta('postDetail', {
         title: '帖子详情',
-        subtitle: '先看主贴上下文，再顺着线程进入回复。',
-        navGroup: 'explore'
-      }
+        subtitle: '先看主贴上下文，再顺着线程进入回复。'
+      })
     },
     {
       path: '/search',
-      name: 'search',
+      name: catalogRouteName('search'),
       component: SearchView,
-      meta: { title: '搜索', subtitle: '从关键词、分类和标签里定位正在发生的讨论。', navGroup: 'explore' }
+      meta: routeMeta('search', { title: '搜索', subtitle: '从关键词、分类和标签里定位正在发生的讨论。' })
     },
     {
       path: '/market',
-      name: 'market',
+      name: catalogRouteName('market'),
       component: MarketListView,
-      meta: { title: '市场', subtitle: '一个入口浏览虚拟商品和实物商品。', navGroup: 'explore' }
+      meta: routeMeta('market', { title: '市场', subtitle: '一个入口浏览虚拟商品和实物商品。' })
     },
     {
       path: '/market/listings/:listingId',
-      name: 'marketDetail',
+      name: catalogRouteName('marketDetail'),
       component: MarketDetailView,
       props: true,
-      meta: { title: '商品详情', subtitle: '确认履约方式、库存与价格，再决定是否托管下单。', navGroup: 'explore' }
+      meta: routeMeta('marketDetail', { title: '商品详情', subtitle: '确认履约方式、库存与价格，再决定是否托管下单。' })
     },
     {
       path: '/wallet',
-      name: 'wallet',
+      name: catalogRouteName('wallet'),
       component: WalletView,
-      meta: { title: '积分钱包', subtitle: '查看站内积分余额、账务流水与转账记录。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('wallet', { title: '积分钱包', subtitle: '查看站内积分余额、账务流水与转账记录。' })
     },
     {
       path: '/market/publish',
-      name: 'marketPublish',
+      name: catalogRouteName('marketPublish'),
       component: MarketPublishView,
-      meta: { title: '发布商品', subtitle: '创建新的虚拟商品或实物商品。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketPublish', { title: '发布商品', subtitle: '创建新的虚拟商品或实物商品。' })
     },
     {
       path: '/market/my-listings',
-      name: 'marketMyListings',
+      name: catalogRouteName('marketMyListings'),
       component: MarketMyListingsView,
-      meta: { title: '我的出售', subtitle: '把发布、库存和卖单处理收成一个卖家工作面。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketMyListings', { title: '我的出售', subtitle: '把发布、库存和卖单处理收成一个卖家工作面。' })
     },
     {
       path: '/market/my-listings/:listingId/inventory',
-      name: 'marketInventory',
+      name: catalogRouteName('marketInventory'),
       component: MarketInventoryView,
       props: true,
-      meta: { title: '库存管理', subtitle: '维护预存库存商品的卡密或兑换码。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketInventory', { title: '库存管理', subtitle: '维护预存库存商品的卡密或兑换码。' })
     },
     {
       path: '/market/orders/buying',
-      name: 'marketBuyingOrders',
+      name: catalogRouteName('marketBuyingOrders'),
       component: MarketBuyingOrdersView,
-      meta: { title: '我的购买', subtitle: '查看托管、交付、确认与申诉状态。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketBuyingOrders', { title: '我的购买', subtitle: '查看托管、交付、确认与申诉状态。' })
     },
     {
       path: '/market/orders/selling',
-      name: 'marketSellingOrders',
+      name: catalogRouteName('marketSellingOrders'),
       component: MarketSellingOrdersView,
-      meta: { title: '我的出售订单', subtitle: '集中处理交付、确认和争议。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketSellingOrders', { title: '我的出售订单', subtitle: '集中处理交付、确认和争议。' })
     },
     {
       path: '/market/orders/:orderId',
-      name: 'marketOrderDetail',
+      name: catalogRouteName('marketOrderDetail'),
       component: MarketOrderDetailView,
       props: true,
-      meta: { title: '订单详情', subtitle: '查看当前订单的托管、交付和争议状态。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketOrderDetail', { title: '订单详情', subtitle: '查看当前订单的托管、交付和争议状态。' })
     },
     {
       path: '/market/addresses',
-      name: 'marketAddresses',
+      name: catalogRouteName('marketAddresses'),
       component: MarketAddressesView,
-      meta: { title: '收货地址', subtitle: '管理实物商品订单使用的收货地址。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('marketAddresses', { title: '收货地址', subtitle: '管理实物商品订单使用的收货地址。' })
     },
     {
       path: '/drive',
-      name: 'drive',
+      name: catalogRouteName('drive'),
       component: DriveView,
-      meta: { title: '网盘', subtitle: '管理私有文件、分享链接和回收站。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('drive', { title: '网盘', subtitle: '管理私有文件、分享链接和回收站。' })
     },
     {
       path: '/drive/s/:shareToken',
-      name: 'driveShare',
+      name: catalogRouteName('driveShare'),
       component: DriveShareView,
       props: true,
-      meta: { title: '网盘分享', subtitle: '输入提取码后访问分享文件。', navGroup: 'public' }
+      meta: routeMeta('driveShare', { title: '网盘分享', subtitle: '输入提取码后访问分享文件。' })
     },
     {
       path: '/admin/wallet',
-      name: 'walletAdmin',
+      name: catalogRouteName('walletAdmin'),
       component: WalletAdminView,
-      meta: { title: '钱包后台', subtitle: '冻结钱包、回滚交易与查看审计。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
+      meta: routeMeta('walletAdmin', { title: '钱包后台', subtitle: '冻结钱包、回滚交易与查看审计。' })
     },
     {
       path: '/admin/market/disputes',
-      name: 'adminMarketDisputes',
+      name: catalogRouteName('adminMarketDisputes'),
       component: AdminMarketDisputesView,
-      meta: { title: '争议裁定', subtitle: '管理员只处理最终裁定，不处理普通卖家动作。', navGroup: 'admin', requiresAuth: true, roles: ['ROLE_ADMIN'] }
-    },
-    {
-      path: '/preview/editorial',
-      redirect: { name: 'editorialPreviewB' }
-    },
-    {
-      path: '/preview/editorial/a',
-      name: 'editorialPreviewA',
-      component: EditorialPreviewView,
-      props: { variant: 'a' },
-      meta: { title: '预览 A', subtitle: '作者与精选内容优先的首页方案。', navGroup: 'system' }
-    },
-    {
-      path: '/preview/editorial/b',
-      name: 'editorialPreviewB',
-      component: EditorialPreviewView,
-      props: { variant: 'b' },
-      meta: { title: '预览 B', subtitle: '最新讨论流优先的首页方案。', navGroup: 'system' }
-    },
-    {
-      path: '/preview/editorial/c',
-      name: 'editorialPreviewC',
-      component: EditorialPreviewView,
-      props: { variant: 'c' },
-      meta: { title: '预览 C', subtitle: '精选内容与最新讨论并行的混合首页方案。', navGroup: 'system' }
+      meta: routeMeta('adminMarketDisputes', { title: '争议裁定', subtitle: '管理员只处理最终裁定，不处理普通卖家动作。' })
     },
     {
       path: '/messages',
-      name: 'messages',
+      name: catalogRouteName('messages'),
       component: ConversationsView,
-      meta: { title: '私信', subtitle: '在同一个收件箱里处理会话与上下文。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('messages', { title: '私信', subtitle: '在同一个收件箱里处理会话与上下文。' })
     },
     {
       path: '/messages/:conversationId',
-      name: 'messageDetail',
+      name: catalogRouteName('messageDetail'),
       component: ConversationDetailView,
       props: true,
-      meta: {
+      meta: routeMeta('messageDetail', {
         title: '私信线程',
-        subtitle: '聚焦当前线程，而不是被工具式布局打断。',
-        navGroup: 'me',
-        requiresAuth: true
-      }
+        subtitle: '聚焦当前线程，而不是被工具式布局打断。'
+      })
     },
     {
       path: '/notices',
-      name: 'notices',
+      name: catalogRouteName('notices'),
       component: NoticesView,
-      meta: { title: '通知', subtitle: '把互动、关注和治理提醒整理成收件箱。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('notices', { title: '通知', subtitle: '把互动、关注和治理提醒整理成收件箱。' })
     },
     {
       path: '/notices/:topic',
-      name: 'noticeDetail',
+      name: catalogRouteName('noticeDetail'),
       component: NoticeDetailView,
       props: true,
-      meta: {
+      meta: routeMeta('noticeDetail', {
         title: '通知详情',
-        subtitle: '按主题继续阅读，而不是把所有消息混在一起。',
-        navGroup: 'me',
-        requiresAuth: true
-      }
+        subtitle: '按主题继续阅读，而不是把所有消息混在一起。'
+      })
     },
     {
       path: '/bookmarks',
-      name: 'bookmarks',
+      name: catalogRouteName('bookmarks'),
       component: BookmarksView,
-      meta: { title: '收藏', subtitle: '把值得反复回看的帖子留在自己的阅读清单里。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('bookmarks', { title: '收藏', subtitle: '把值得反复回看的帖子留在自己的阅读清单里。' })
     },
     {
       path: '/analytics',
-      name: 'analytics',
+      name: catalogRouteName('analytics'),
       component: AnalyticsView,
-      meta: {
+      meta: routeMeta('analytics', {
         title: '统计',
-        subtitle: '安静地查看关键指标、时间范围与数据成熟度。',
-        navGroup: 'admin',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
-      }
+        subtitle: '安静地查看关键指标、时间范围与数据成熟度。'
+      })
     },
     {
       path: '/moderation',
-      name: 'moderation',
+      name: catalogRouteName('moderation'),
       component: ModerationView,
-      meta: {
+      meta: routeMeta('moderation', {
         title: '治理后台',
-        subtitle: '聚焦待处理举报、处置记录与高风险动作。',
-        navGroup: 'admin',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
-      }
+        subtitle: '聚焦待处理举报、处置记录与高风险动作。'
+      })
     },
     {
       path: '/admin/users',
-      name: 'userManagement',
+      name: catalogRouteName('userManagement'),
       component: UserManagementView,
-      meta: {
+      meta: routeMeta('userManagement', {
         title: '用户管理',
-        subtitle: '在明确理由、风险和审计责任的前提下变更角色。',
-        navGroup: 'admin',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN']
-      }
+        subtitle: '在明确理由、风险和审计责任的前提下变更角色。'
+      })
     },
     {
       path: '/settings',
-      name: 'settings',
+      name: catalogRouteName('settings'),
       component: SettingsView,
-      meta: { title: '设置', subtitle: '维护公开资料、头像与个人身份的一致性。', navGroup: 'me', requiresAuth: true }
+      meta: routeMeta('settings', { title: '设置', subtitle: '维护公开资料、头像与个人身份的一致性。' })
     },
     {
       path: '/users/:userId',
-      name: 'userProfile',
+      name: catalogRouteName('userProfile'),
       component: UserProfileView,
       props: true,
-      meta: { title: '成员主页', subtitle: '查看这个成员的公开身份、关系和社区存在感。', navGroup: 'me' }
+      meta: routeMeta('userProfile', { title: '成员主页', subtitle: '查看这个成员的公开身份、关系和社区存在感。' })
     },
     {
       path: '/users/:userId/followees',
-      name: 'followees',
+      name: catalogRouteName('followees'),
       component: FolloweesView,
       props: true,
-      meta: { title: '关注列表', subtitle: '查看这位成员正在关注哪些人。', navGroup: 'me' }
+      meta: routeMeta('followees', { title: '关注列表', subtitle: '查看这位成员正在关注哪些人。' })
     },
     {
       path: '/users/:userId/followers',
-      name: 'followers',
+      name: catalogRouteName('followers'),
       component: FollowersView,
       props: true,
-      meta: { title: '粉丝列表', subtitle: '查看哪些成员正在留意这位用户的公开动态。', navGroup: 'me' }
+      meta: routeMeta('followers', { title: '粉丝列表', subtitle: '查看哪些成员正在留意这位用户的公开动态。' })
     },
-    {
-      path: '/dev',
-      name: 'dev',
-      component: HomeView,
-      meta: { title: '联调', subtitle: '开发与调试入口，不属于本轮产品级重设计。', navGroup: 'system', requiresAuth: true }
-    },
-    { path: '/403', name: 'forbidden', component: ForbiddenView, meta: { title: '无权限', subtitle: '你当前没有访问这一页所需的权限。', navGroup: 'system' } },
-    { path: '/:pathMatch(.*)*', name: 'notFound', component: NotFoundView, meta: { title: '未找到', subtitle: '当前地址没有对应内容。', navGroup: 'system' } }
+    { path: '/403', name: catalogRouteName('forbidden'), component: ForbiddenView, meta: routeMeta('forbidden', { title: '无权限', subtitle: '你当前没有访问这一页所需的权限。' }) },
+    { path: '/:pathMatch(.*)*', name: catalogRouteName('notFound'), component: NotFoundView, meta: routeMeta('notFound', { title: '未找到', subtitle: '当前地址没有对应内容。' }) }
   ]
 })
 

@@ -1,4 +1,10 @@
 import { hasOpaqueId, normalizeOpaqueId } from '../utils/opaqueId'
+import {
+  getRouteAccess,
+  getRouteBreadcrumbItems,
+  getRouteFamilyNames,
+  getRouteWorkspaceLabel
+} from './routeCatalog'
 
 // 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射，并提供 posts 筛选/排序的纯函数工具。
 
@@ -39,43 +45,7 @@ export function normalizePostsSubscribed(value) {
   return s === '1' || s === 'true' || s === 'yes'
 }
 
-const ROUTE_WORKSPACE_LABELS = Object.freeze({
-  posts: 'Community',
-  postDetail: 'Community',
-  search: 'Community',
-  bookmarks: 'Community',
-  userProfile: 'Community',
-  followees: 'Community',
-  followers: 'Community',
-  notices: 'Inbox',
-  noticeDetail: 'Inbox',
-  messages: 'Inbox',
-  messageDetail: 'Inbox',
-  market: 'Trade & Assets',
-  marketDetail: 'Trade & Assets',
-  marketPublish: 'Trade & Assets',
-  marketMyListings: 'Trade & Assets',
-  marketInventory: 'Trade & Assets',
-  marketBuyingOrders: 'Trade & Assets',
-  marketSellingOrders: 'Trade & Assets',
-  marketOrderDetail: 'Trade & Assets',
-  marketAddresses: 'Trade & Assets',
-  wallet: 'Trade & Assets',
-  drive: 'Files',
-  driveShare: 'Files',
-  settings: 'Account',
-  analytics: 'Operations',
-  moderation: 'Operations',
-  userManagement: 'Operations',
-  walletAdmin: 'Operations',
-  adminMarketDisputes: 'Operations',
-  forbidden: 'System',
-  notFound: 'System'
-})
-
-export function getRouteWorkspaceLabel(routeName) {
-  return ROUTE_WORKSPACE_LABELS[String(routeName || '')] || 'Community'
-}
+export { getRouteWorkspaceLabel }
 
 function normalizeRoles(roles) {
   return Array.isArray(roles) ? roles.filter(Boolean).map(String) : []
@@ -162,22 +132,22 @@ const NAV_DEFS = Object.freeze([
         label: '帖子',
         icon: 'posts',
         to: () => ({ name: 'posts' }),
-        activeNames: ['posts', 'postDetail']
+        activeNames: getRouteFamilyNames('posts')
       },
       {
         key: 'search',
         label: '搜索',
         icon: 'search',
         to: () => ({ name: 'search' }),
-        activeNames: ['search']
+        activeNames: getRouteFamilyNames('search')
       },
       {
         key: 'bookmarks',
         label: '收藏',
         icon: 'bookmark',
-        requiresAuth: true,
+        ...getRouteAccess('bookmarks'),
         to: () => ({ name: 'bookmarks' }),
-        activeNames: ['bookmarks']
+        activeNames: getRouteFamilyNames('bookmarks')
       },
       {
         key: 'profile',
@@ -186,7 +156,7 @@ const NAV_DEFS = Object.freeze([
         requiresAuth: true,
         requiresUserId: true,
         to: (ctx) => ({ name: 'userProfile', params: { userId: String(ctx?.userId || '') } }),
-        activeNames: ['userProfile', 'followees', 'followers']
+        activeNames: getRouteFamilyNames('profile')
       }
     ]
   },
@@ -199,47 +169,47 @@ const NAV_DEFS = Object.freeze([
         label: '市场',
         icon: 'sparkle',
         to: () => ({ name: 'market' }),
-        activeNames: ['market', 'marketDetail']
+        activeNames: getRouteFamilyNames('market')
       },
       {
         key: 'marketPublish',
         label: '发布商品',
         icon: 'posts',
-        requiresAuth: true,
+        ...getRouteAccess('marketPublish'),
         to: () => ({ name: 'marketPublish' }),
-        activeNames: ['marketPublish']
+        activeNames: getRouteFamilyNames('marketPublish')
       },
       {
         key: 'marketMyListings',
         label: '我的出售',
         icon: 'analytics',
-        requiresAuth: true,
+        ...getRouteAccess('marketMyListings'),
         to: () => ({ name: 'marketMyListings' }),
-        activeNames: ['marketMyListings', 'marketInventory']
+        activeNames: getRouteFamilyNames('marketMyListings')
       },
       {
         key: 'marketBuying',
         label: '我的购买',
         icon: 'bookmark',
-        requiresAuth: true,
+        ...getRouteAccess('marketBuyingOrders'),
         to: () => ({ name: 'marketBuyingOrders' }),
-        activeNames: ['marketBuyingOrders', 'marketOrderDetail']
+        activeNames: getRouteFamilyNames('marketBuying')
       },
       {
         key: 'marketSelling',
         label: '出售订单',
         icon: 'analytics',
-        requiresAuth: true,
+        ...getRouteAccess('marketSellingOrders'),
         to: () => ({ name: 'marketSellingOrders' }),
-        activeNames: ['marketSellingOrders', 'marketOrderDetail']
+        activeNames: getRouteFamilyNames('marketSelling')
       },
       {
         key: 'marketAddresses',
         label: '收货地址',
         icon: 'bookmark',
-        requiresAuth: true,
+        ...getRouteAccess('marketAddresses'),
         to: () => ({ name: 'marketAddresses' }),
-        activeNames: ['marketAddresses']
+        activeNames: getRouteFamilyNames('marketAddresses')
       }
     ]
   },
@@ -251,41 +221,41 @@ const NAV_DEFS = Object.freeze([
         key: 'wallet',
         label: '积分钱包',
         icon: 'sparkle',
-        requiresAuth: true,
+        ...getRouteAccess('wallet'),
         to: () => ({ name: 'wallet' }),
-        activeNames: ['wallet']
+        activeNames: getRouteFamilyNames('wallet')
       },
       {
         key: 'drive',
         label: '网盘',
         icon: 'folder',
-        requiresAuth: true,
+        ...getRouteAccess('drive'),
         to: () => ({ name: 'drive' }),
-        activeNames: ['drive']
+        activeNames: getRouteFamilyNames('drive')
       },
       {
         key: 'notices',
         label: '通知',
         icon: 'bell',
-        requiresAuth: true,
+        ...getRouteAccess('notices'),
         to: () => ({ name: 'notices' }),
-        activeNames: ['notices', 'noticeDetail']
+        activeNames: getRouteFamilyNames('notices')
       },
       {
         key: 'messages',
         label: '私信',
         icon: 'messages',
-        requiresAuth: true,
+        ...getRouteAccess('messages'),
         to: () => ({ name: 'messages' }),
-        activeNames: ['messages', 'messageDetail']
+        activeNames: getRouteFamilyNames('messages')
       },
       {
         key: 'settings',
         label: '设置',
         icon: 'settings',
-        requiresAuth: true,
+        ...getRouteAccess('settings'),
         to: () => ({ name: 'settings' }),
-        activeNames: ['settings']
+        activeNames: getRouteFamilyNames('settings')
       }
     ]
   },
@@ -297,46 +267,41 @@ const NAV_DEFS = Object.freeze([
         key: 'moderation',
         label: '治理后台',
         icon: 'shield',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR'],
+        ...getRouteAccess('moderation'),
         to: () => ({ name: 'moderation' }),
-        activeNames: ['moderation']
+        activeNames: getRouteFamilyNames('moderation')
       },
       {
         key: 'analytics',
         label: '统计',
         icon: 'analytics',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN', 'ROLE_MODERATOR'],
+        ...getRouteAccess('analytics'),
         to: () => ({ name: 'analytics' }),
-        activeNames: ['analytics']
+        activeNames: getRouteFamilyNames('analytics')
       },
       {
         key: 'userManagement',
         label: '用户管理',
         icon: 'user',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN'],
+        ...getRouteAccess('userManagement'),
         to: () => ({ name: 'userManagement' }),
-        activeNames: ['userManagement']
+        activeNames: getRouteFamilyNames('userManagement')
       },
       {
         key: 'walletAdmin',
         label: '钱包后台',
         icon: 'analytics',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN'],
+        ...getRouteAccess('walletAdmin'),
         to: () => ({ name: 'walletAdmin' }),
-        activeNames: ['walletAdmin']
+        activeNames: getRouteFamilyNames('walletAdmin')
       },
       {
         key: 'adminMarketDisputes',
         label: '争议裁定',
         icon: 'shield',
-        requiresAuth: true,
-        roles: ['ROLE_ADMIN'],
+        ...getRouteAccess('adminMarketDisputes'),
         to: () => ({ name: 'adminMarketDisputes' }),
-        activeNames: ['adminMarketDisputes']
+        activeNames: getRouteFamilyNames('adminMarketDisputes')
       }
     ]
   },
@@ -350,7 +315,7 @@ const NAV_DEFS = Object.freeze([
         icon: 'login',
         hideWhenAuthed: true,
         to: () => ({ name: 'login' }),
-        activeNames: ['login', 'register', 'passwordReset']
+        activeNames: getRouteFamilyNames('login')
       }
     ]
   }
@@ -408,14 +373,14 @@ export function getMobileNavigation(ctx = {}) {
     label: '帖子',
     icon: 'posts',
     to: { name: 'posts' },
-    activeNames: ['posts', 'postDetail']
+    activeNames: getRouteFamilyNames('posts')
   }
   const search = findNavItem(groups, 'search') || {
     key: 'search',
     label: '搜索',
     icon: 'search',
     to: { name: 'search' },
-    activeNames: ['search']
+    activeNames: getRouteFamilyNames('search')
   }
   const login = findNavItem(groups, 'login')
   const notices = findNavItem(groups, 'notices') || {
@@ -423,14 +388,14 @@ export function getMobileNavigation(ctx = {}) {
     label: '通知',
     icon: 'bell',
     to: login?.to || { name: 'login' },
-    activeNames: ['notices', 'noticeDetail']
+    activeNames: getRouteFamilyNames('notices')
   }
   const messages = findNavItem(groups, 'messages') || {
     key: 'messages',
     label: '私信',
     icon: 'messages',
     to: login?.to || { name: 'login' },
-    activeNames: ['messages', 'messageDetail']
+    activeNames: getRouteFamilyNames('messages')
   }
   const profile = findNavItem(groups, 'profile')
   const personalGroup = groups.find((group) => group?.key === 'personal') || null
@@ -456,31 +421,5 @@ export function getMobileNavigation(ctx = {}) {
 export function getBreadcrumbItems(route) {
   const name = getRouteName(route)
   const params = route?.params && typeof route.params === 'object' ? route.params : {}
-
-  if (name === 'postDetail') {
-    return [
-      { label: '帖子', to: { name: 'posts' } },
-      { label: `帖子 #${params.postId || ''}` }
-    ]
-  }
-
-  if (name === 'userProfile') {
-    return [{ label: '成员档案' }]
-  }
-
-  if (name === 'followees') {
-    return [
-      { label: '成员档案', to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
-      { label: '关注列表' }
-    ]
-  }
-
-  if (name === 'followers') {
-    return [
-      { label: '成员档案', to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
-      { label: '粉丝列表' }
-    ]
-  }
-
-  return []
+  return getRouteBreadcrumbItems(name, params)
 }

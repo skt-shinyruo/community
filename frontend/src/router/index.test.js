@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
+import { getCatalogRouteNames } from './routeCatalog'
 
 function stubRouterGlobals() {
   const historyStub = {
@@ -37,7 +38,7 @@ describe('router/index', () => {
     vi.doUnmock('./authGuard')
   })
 
-  it('should keep the real product entry on posts and expose preview B as the default preview route', async () => {
+  it('should keep the product entry on posts without preview or development routes', async () => {
     vi.doMock('./authGuard', () => ({
       authGuard: () => true
     }))
@@ -45,20 +46,15 @@ describe('router/index', () => {
     stubRouterGlobals()
 
     const { default: router } = await import('./index')
-    const resolvedA = router.resolve('/preview/editorial/a')
-    const resolvedB = router.resolve('/preview/editorial/b')
-    const resolvedC = router.resolve('/preview/editorial/c')
     await router.push('/')
     expect(router.currentRoute.value.name).toBe('posts')
-    await router.push('/preview/editorial')
 
-    expect(router.currentRoute.value.name).toBe('editorialPreviewB')
-    expect(resolvedA.name).toBe('editorialPreviewA')
-    expect(resolvedB.name).toBe('editorialPreviewB')
-    expect(resolvedC.name).toBe('editorialPreviewC')
+    expect(router.resolve('/preview/editorial').name).toBe('notFound')
+    expect(router.resolve('/preview/editorial/a').name).toBe('notFound')
+    expect(router.resolve('/preview/editorial/b').name).toBe('notFound')
+    expect(router.resolve('/preview/editorial/c').name).toBe('notFound')
+    expect(router.resolve('/dev').name).toBe('notFound')
     expect(router.getRoutes().some((route) => route.name === 'activation')).toBe(false)
-    expect(resolvedA.meta?.requiresAuth).not.toBe(true)
-    expect(resolvedA.meta?.navGroup).toBe('system')
   })
 
   it('should keep the approved public route navGroup split', async () => {
@@ -120,6 +116,23 @@ describe('router/index', () => {
     expect(routeNames).not.toContain('growthAdmin')
     expect(routeNames).not.toContain('rewardOps')
     expect(routeNames).not.toContain('leaderboard')
+  })
+
+  it('should register every catalog route exactly once', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    const registeredNames = router.getRoutes()
+      .map((route) => route.name)
+      .filter(Boolean)
+      .map(String)
+      .sort()
+
+    expect(registeredNames).toEqual([...getCatalogRouteNames()].sort())
   })
 
   it('should register authenticated drive route and public share route', async () => {

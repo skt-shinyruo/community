@@ -3,6 +3,7 @@ import axios from 'axios'
 import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { resolveApiBaseUrl } from '../config/endpointResolution'
 import { useAuthStore } from '../stores/auth'
+import { authenticatedRequestConfig, authenticatedRetryConfig } from './authenticatedHttp'
 
 /** @typedef {import('axios').AxiosInstance} AxiosInstance */
 /**
@@ -68,13 +69,6 @@ export function isExternalUploadUrl(url, {
   return !trustedOrigins.has(requestOrigin)
 }
 
-function withAuthorization(headers, accessToken) {
-  return {
-    ...(headers || {}),
-    ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {})
-  }
-}
-
 function progressAdapter(onProgress) {
   if (typeof onProgress !== 'function') return undefined
   return (event = {}) => {
@@ -125,17 +119,16 @@ export function createUploadTransport({
 
       const auth = authProvider()
       const generation = auth.tokenGeneration
-      const config = /** @type {import('axios').AxiosRequestConfig & { _authTokenGeneration: number, _retry?: boolean }} */ ({
+      const config = /** @type {import('axios').AxiosRequestConfig & { _authTokenGeneration: number, _retry?: boolean }} */ (authenticatedRequestConfig({
         url: requestUrl,
         method: requestMethod,
         data,
-        headers: withAuthorization(headers, auth.accessToken),
+        headers,
         withCredentials: true,
         timeout: 0,
         signal,
-        onUploadProgress,
-        _authTokenGeneration: generation
-      })
+        onUploadProgress
+      }, auth))
 
       try {
         return await trustedClient.request(config)
@@ -143,11 +136,7 @@ export function createUploadTransport({
         const error = /** @type {any} */ (cause)
         if (Number(error?.response?.status || 0) !== 401 || config._retry) throw error
         const accessToken = await unauthorizedRecovery({ auth, requestGeneration: generation })
-        return trustedClient.request({
-          ...config,
-          _retry: true,
-          headers: withAuthorization(headers, accessToken)
-        })
+        return trustedClient.request(authenticatedRetryConfig(config, accessToken))
       }
     }
   }

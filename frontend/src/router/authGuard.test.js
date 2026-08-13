@@ -22,9 +22,9 @@ describe('authGuard', () => {
     auth.clear()
     ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
 
-    const to = { name: 'dev', fullPath: '/dev', meta: { requiresAuth: true } }
+    const to = { name: 'settings', fullPath: '/settings', meta: { requiresAuth: true } }
     const result = await authGuard(to)
-    expect(result).toEqual({ name: 'login', query: { redirect: '/dev' } })
+    expect(result).toEqual({ name: 'login', query: { redirect: '/settings' } })
     expect(ensureSessionReady).toHaveBeenCalledTimes(1)
   })
 
@@ -45,7 +45,7 @@ describe('authGuard', () => {
     auth.setAccessToken('t1')
     ensureSessionReady.mockResolvedValue({ state: 'ready' })
 
-    const to = { name: 'dev', fullPath: '/dev', meta: { requiresAuth: true } }
+    const to = { name: 'settings', fullPath: '/settings', meta: { requiresAuth: true } }
     const result = await authGuard(to)
     expect(result).toBeUndefined()
   })

@@ -27,7 +27,7 @@
         </div>
       </div>
 
-      <UiDivider />
+      <div class="chat-divider" role="separator" />
 
       <div class="chat-area" ref="chatArea">
         <div class="chat-timeline-label">消息时间线</div>
@@ -62,7 +62,7 @@
         </div>
       </div>
 
-      <UiDivider />
+      <div class="chat-divider" role="separator" />
 
       <div class="chat-composer">
         <div class="chat-composer-copy">
@@ -89,7 +89,6 @@ import { createLatestRequestTracker } from '../utils/latestRequest'
 import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiDivider from '../components/ui/UiDivider.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
@@ -613,6 +612,12 @@ onMounted(() => {
   color: var(--success);
   background: color-mix(in srgb, var(--success-weak) 70%, white 30%);
   border-color: color-mix(in srgb, var(--success) 22%, var(--border) 78%);
+}
+
+.chat-divider {
+  height: 1px;
+  margin: var(--space-2) 0;
+  background: var(--border);
 }
 
 .chat-area {

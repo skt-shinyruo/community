@@ -3,6 +3,7 @@ import { recoverUnauthorized } from '../auth/refreshCoordinator'
 import { useAuthStore } from '../stores/auth'
 import { resolveImHttpBaseUrl } from '../config/endpointResolution'
 import { showErrorToast } from '../ui/toastService'
+import { installAuthenticatedHttpInterceptors } from './authenticatedHttp'
 
 const imCoreHttp = axios.create({
   baseURL: resolveImHttpBaseUrl(),
@@ -10,22 +11,9 @@ const imCoreHttp = axios.create({
   timeout: 15000
 })
 
-function setAuthorization(config, accessToken) {
-  config.headers = config.headers || {}
-  if (typeof config.headers.set === 'function') {
-    config.headers.set('Authorization', `Bearer ${accessToken}`)
-  } else {
-    config.headers.Authorization = `Bearer ${accessToken}`
-  }
-}
-
-imCoreHttp.interceptors.request.use((config) => {
-  const auth = useAuthStore()
-  config._authTokenGeneration = auth.tokenGeneration
-  if (auth.accessToken) {
-    setAuthorization(config, auth.accessToken)
-  }
-  return config
+installAuthenticatedHttpInterceptors(imCoreHttp, {
+  authProvider: useAuthStore,
+  unauthorizedRecovery: recoverUnauthorized
 })
 
 imCoreHttp.interceptors.response.use(
@@ -36,21 +24,6 @@ imCoreHttp.interceptors.response.use(
     const result = error?.response?.data
     const msg = typeof result?.message === 'string' ? result.message : (error?.message || '请求失败')
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
-
-    if (status === 401 && !original._retry) {
-      original._retry = true
-      const auth = useAuthStore()
-      try {
-        const accessToken = await recoverUnauthorized({
-          auth,
-          requestGeneration: original._authTokenGeneration
-        })
-        setAuthorization(original, accessToken)
-        return imCoreHttp(original)
-      } catch (e) {
-        return Promise.reject(e)
-      }
-    }
 
     if (status >= 400) {
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''

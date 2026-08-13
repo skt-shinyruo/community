@@ -1,0 +1,236 @@
+<template>
+  <div class="page relations-page">
+    <UiBreadcrumb />
+
+    <div v-if="error && items.length > 0" class="error relations-banner">{{ error }}</div>
+
+    <UiCard class="relations-shell">
+      <div class="relations-shell-head">
+        <UiPageHeader>
+          <template #title>{{ policy.title }}</template>
+          <template #subtitle>{{ policy.subtitle }}</template>
+          <template #actions>
+            <UiButton variant="secondary" @click="refresh" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+          </template>
+        </UiPageHeader>
+      </div>
+
+      <div class="relations-toolbar">
+        <UiPagination :page="page" :has-next="hasNext" :disabled="loading" @prev="prevPage" @next="nextPage" />
+      </div>
+
+      <UiState v-if="error && items.length === 0" variant="error" class="relations-state">{{ error }}</UiState>
+      <div v-else-if="loading && items.length === 0" class="muted relations-state">{{ policy.loadingText }}</div>
+      <UiState v-else-if="items.length === 0" class="relations-state">
+        暂无数据
+        <template #description>{{ policy.emptyDescription }}</template>
+      </UiState>
+
+      <div v-else class="relations-list">
+        <article class="relation-card" v-for="it in items" :key="it.targetId">
+          <div class="relation-main">
+            <UiAvatar :src="it.user?.headerUrl || ''" :name="it.user?.username || ''" :size="44" />
+            <div class="relation-copy">
+              <div class="relation-name-row">
+                <RouterLink :to="`/users/${it.targetId}`" class="relation-name">
+                  {{ it.user?.username || '社区成员' }}
+                </RouterLink>
+                <span class="relation-pill">{{ policy.pill }}</span>
+              </div>
+              <div class="relation-summary">{{ policy.summary }}</div>
+              <div class="relation-meta">建立关系于 {{ formatTime(it.followTime) }}</div>
+            </div>
+          </div>
+
+          <div class="relation-actions" v-if="authed && meId !== it.targetId">
+            <UiButton v-if="!it.hasFollowed" :disabled="isMutating(it.targetId)" @click="doFollow(it)">关注</UiButton>
+            <UiButton variant="secondary" v-else :disabled="isMutating(it.targetId)" @click="doUnfollow(it)">取关</UiButton>
+          </div>
+        </article>
+      </div>
+    </UiCard>
+  </div>
+</template>
+
+<script setup>
+import { toRef } from 'vue'
+import { formatTime } from '../utils/time'
+import { useFollowRelationListState } from './followRelation/useFollowRelationListState'
+import UiCard from '../components/ui/UiCard.vue'
+import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiButton from '../components/ui/UiButton.vue'
+import UiPagination from '../components/ui/UiPagination.vue'
+import UiState from '../components/ui/UiState.vue'
+import UiAvatar from '../components/ui/UiAvatar.vue'
+
+const emit = defineEmits(['trace'])
+const props = defineProps({
+  relationKind: {
+    type: String,
+    required: true,
+    validator: (value) => value === 'followees' || value === 'followers'
+  },
+  userId: String
+})
+
+const {
+  authed,
+  cursorHistory,
+  doFollow,
+  doUnfollow,
+  error,
+  hasNext,
+  isMutating,
+  items,
+  load,
+  loading,
+  meId,
+  nextPage,
+  page,
+  policy,
+  prevPage,
+  refresh
+} = useFollowRelationListState({
+  relationKind: toRef(props, 'relationKind'),
+  profileUserId: toRef(props, 'userId'),
+  emitTrace: (traceId) => emit('trace', traceId)
+})
+</script>
+
+<style scoped>
+.relations-page {
+  max-width: 980px;
+  margin: 0 auto;
+  gap: var(--space-5);
+}
+
+.relations-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.relations-banner {
+  margin-top: -6px;
+}
+
+.relations-shell {
+  padding: 0;
+  overflow: hidden;
+}
+
+.relations-shell-head {
+  padding: 22px 24px 12px;
+}
+
+.relations-shell-head :deep(.page-header) {
+  gap: 0;
+}
+
+.relations-shell-head :deep(.page-header-subtitle) {
+  margin: 4px 0 0;
+}
+
+.relations-toolbar {
+  padding: 0 24px 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.relations-state {
+  padding: 48px 24px;
+}
+
+.relations-list {
+  display: grid;
+}
+
+.relation-card {
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  align-items: center;
+}
+
+.relation-card:last-child {
+  border-bottom: none;
+}
+
+.relation-main {
+  display: flex;
+  gap: 14px;
+  align-items: center;
+  min-width: 0;
+  flex: 1;
+}
+
+.relation-copy {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.relation-name-row {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+
+.relation-name {
+  font-weight: 800;
+  color: var(--text-1);
+  text-decoration: none;
+}
+
+.relation-name:hover {
+  color: var(--accent);
+}
+
+.relation-pill {
+  border-radius: 999px;
+  padding: 4px 8px;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 18%, white 82%);
+}
+
+.relation-summary,
+.relation-meta {
+  color: var(--text-2);
+}
+
+.relation-summary {
+  line-height: 1.55;
+}
+
+.relation-meta {
+  font-size: 12px;
+  color: var(--text-3);
+}
+
+.relation-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+@media (max-width: 768px) {
+  .relations-shell-head,
+  .relations-toolbar,
+  .relation-card {
+    padding-left: 18px;
+    padding-right: 18px;
+  }
+
+  .relation-card {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}
+</style>

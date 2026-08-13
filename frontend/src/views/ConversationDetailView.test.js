@@ -73,7 +73,6 @@ function mountView(conversationId) {
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
         },
-        UiDivider: { template: '<hr />' },
         UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
         UiIconButton: {
@@ -130,6 +129,7 @@ describe('ConversationDetailView', () => {
 
     await flushPromises()
 
+    expect(wrapper.findAll('.chat-divider')).toHaveLength(2)
     expect(listImConversationHistory).toHaveBeenCalledWith(conversationId, { limit: 50 })
     expect(markImConversationRead).toHaveBeenCalledWith(conversationId, 8)
     expect(chatArea.scrollTop).toBe(640)

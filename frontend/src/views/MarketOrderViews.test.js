@@ -53,6 +53,7 @@ vi.mock('../stores/auth', async () => {
 
 import MarketBuyingOrdersView from './MarketBuyingOrdersView.vue'
 import MarketSellingOrdersView from './MarketSellingOrdersView.vue'
+import MarketOrderListView from './MarketOrderListView.vue'
 import MarketOrderDetailView from './MarketOrderDetailView.vue'
 import {
   cancelMarketOrder,
@@ -103,6 +104,13 @@ function mountOptions() {
   }
 }
 
+function mountOrderList(side) {
+  return mount(MarketOrderListView, {
+    props: { side },
+    ...mountOptions()
+  })
+}
+
 describe('Unified market order views', () => {
   beforeEach(() => {
     routeState.route.params.orderId = '31'
@@ -118,6 +126,25 @@ describe('Unified market order views', () => {
     listBuyingMarketOrders.mockResolvedValue({ data: [], traceId: 'trace-buying' })
     listSellingMarketOrders.mockResolvedValue({ data: [], traceId: 'trace-selling' })
     getMarketOrderDetail.mockResolvedValue({ data: {}, traceId: 'trace-detail' })
+  })
+
+  it.each([
+    ['buying', MarketBuyingOrdersView],
+    ['selling', MarketSellingOrdersView]
+  ])('binds the %s route adapter to the shared order list', (side, component) => {
+    const wrapper = mount(component, {
+      global: {
+        stubs: {
+          MarketOrderListView: {
+            name: 'MarketOrderListView',
+            props: ['side'],
+            template: '<div />'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.findComponent({ name: 'MarketOrderListView' }).props('side')).toBe(side)
   })
 
   it('loads buying orders on mount and renders goods type and status', async () => {
@@ -136,7 +163,7 @@ describe('Unified market order views', () => {
       traceId: 'trace-buying'
     })
 
-    const wrapper = mount(MarketBuyingOrdersView, mountOptions())
+    const wrapper = mountOrderList('buying')
     await flushPromises()
 
     expect(listBuyingMarketOrders).toHaveBeenCalledTimes(1)
@@ -163,7 +190,7 @@ describe('Unified market order views', () => {
       traceId: 'trace-selling'
     })
 
-    const wrapper = mount(MarketSellingOrdersView, mountOptions())
+    const wrapper = mountOrderList('selling')
     await flushPromises()
 
     expect(listSellingMarketOrders).toHaveBeenCalledTimes(1)
@@ -175,9 +202,9 @@ describe('Unified market order views', () => {
   })
 
   it.each([
-    ['购买', MarketBuyingOrdersView, listBuyingMarketOrders],
-    ['出售', MarketSellingOrdersView, listSellingMarketOrders]
-  ])('discards old %s orders after the authenticated identity changes', async (_label, component, listOrders) => {
+    ['buying', listBuyingMarketOrders],
+    ['selling', listSellingMarketOrders]
+  ])('discards old %s orders after the authenticated identity changes', async (side, listOrders) => {
     const oldOrders = deferred()
     listOrders
       .mockReturnValueOnce(oldOrders.promise)
@@ -188,7 +215,7 @@ describe('Unified market order views', () => {
         size: 20
       })
 
-    const wrapper = mount(component, mountOptions())
+    const wrapper = mountOrderList(side)
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(1))
     installIdentity('22222222-2222-7222-8222-222222222222', 'token-b')
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(2))

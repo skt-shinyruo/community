@@ -30,6 +30,7 @@ vi.mock('../api/services/socialService', () => ({
   listFollowers
 }))
 
+import FollowRelationListView from './FollowRelationListView.vue'
 import FolloweesView from './FolloweesView.vue'
 import FollowersView from './FollowersView.vue'
 
@@ -65,7 +66,7 @@ function deferred() {
   return { promise, resolve, reject }
 }
 
-function mountView(component) {
+function mountView(relationKind) {
   const pinia = createPinia()
   setActivePinia(pinia)
   useAuthStore().installSession({
@@ -73,8 +74,8 @@ function mountView(component) {
     me: { userId: VIEWER_ID, username: 'viewer' }
   })
 
-  return mount(component, {
-    props: { userId: PROFILE_ID },
+  return mount(FollowRelationListView, {
+    props: { relationKind, userId: PROFILE_ID },
     global: {
       plugins: [pinia],
       stubs: {
@@ -112,9 +113,34 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('keeps %s page data and retries the same page after failure', async (_label, component, listRelations) => {
+    ['followees', FolloweesView],
+    ['followers', FollowersView]
+  ])('binds the %s route adapter to the shared relation list', async (relationKind, component) => {
+    const pinia = createPinia()
+    const wrapper = mount(component, {
+      props: { userId: PROFILE_ID },
+      global: {
+        plugins: [pinia],
+        stubs: {
+          FollowRelationListView: {
+            name: 'FollowRelationListView',
+            props: ['relationKind', 'userId'],
+            template: '<div />'
+          }
+        }
+      }
+    })
+
+    expect(wrapper.findComponent({ name: 'FollowRelationListView' }).props()).toMatchObject({
+      relationKind,
+      userId: PROFILE_ID
+    })
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('keeps %s page data and retries the same page after failure', async (relationKind, listRelations) => {
     const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
     const secondPage = [relation(10)]
     listRelations
@@ -122,7 +148,7 @@ describe('follow relation pagination', () => {
       .mockRejectedValueOnce(new Error('temporary relation failure'))
       .mockResolvedValueOnce(relationPage(secondPage, '', 'trace-page-1'))
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
 
     await wrapper.vm.nextPage()
@@ -141,16 +167,16 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('discards stale %s data when the profile route changes', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('discards stale %s data when the profile route changes', async (relationKind, listRelations) => {
     const previousProfileRequest = deferred()
     const currentProfileRequest = deferred()
     listRelations
       .mockImplementationOnce(() => previousProfileRequest.promise)
       .mockImplementationOnce(() => currentProfileRequest.promise)
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
 
     await wrapper.setProps({ userId: NEXT_PROFILE_ID })
@@ -169,9 +195,9 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('keeps the latest %s refresh when an older page request finishes last', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('keeps the latest %s refresh when an older page request finishes last', async (relationKind, listRelations) => {
     const pageRequest = deferred()
     const refreshRequest = deferred()
     const initialPage = Array.from({ length: 10 }, (_, index) => relation(index))
@@ -180,7 +206,7 @@ describe('follow relation pagination', () => {
       .mockImplementationOnce(() => pageRequest.promise)
       .mockImplementationOnce(() => refreshRequest.promise)
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
 
     const pendingPage = wrapper.vm.load(1)
@@ -202,9 +228,9 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('discards stale %s hydration and mutation results after an account switch', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('discards stale %s hydration and mutation results after an account switch', async (relationKind, listRelations) => {
     const previousHydration = deferred()
     const followRequest = deferred()
     batchUserSummary
@@ -216,7 +242,7 @@ describe('follow relation pagination', () => {
       .mockResolvedValueOnce(relationPage([relation(1)], '', 'trace-third-viewer'))
     followUser.mockImplementation(() => followRequest.promise)
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
 
     useAuthStore().installSession({
@@ -249,16 +275,16 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('applies a pending %s mutation to the refreshed item for the same viewer', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('applies a pending %s mutation to the refreshed item for the same viewer', async (relationKind, listRelations) => {
     const followRequest = deferred()
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-refresh'))
     followUser.mockImplementation(() => followRequest.promise)
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
     const previousItem = wrapper.vm.items[0]
     const pendingFollow = wrapper.vm.doFollow(previousItem)
@@ -275,15 +301,15 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('uses the saved %s cursor for forward and backward navigation', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('uses the saved %s cursor for forward and backward navigation', async (relationKind, listRelations) => {
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1', 'trace-page-0'))
       .mockResolvedValueOnce(relationPage([relation(1)], 'cursor-page-2', 'trace-page-1'))
       .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1-new', 'trace-back'))
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
     await wrapper.vm.nextPage()
     await wrapper.vm.prevPage()
@@ -298,14 +324,14 @@ describe('follow relation pagination', () => {
   })
 
   it.each([
-    ['followees', FolloweesView, listFollowees],
-    ['followers', FollowersView, listFollowers]
-  ])('can load %s pages beyond the legacy page-100 limit by cursor', async (_label, component, listRelations) => {
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('can load %s pages beyond the legacy page-100 limit by cursor', async (relationKind, listRelations) => {
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
       .mockResolvedValueOnce(relationPage([relation(101)], '', 'trace-page-101'))
 
-    const wrapper = mountView(component)
+    const wrapper = mountView(relationKind)
     await flushPromises()
     wrapper.vm.cursorHistory[101] = 'cursor-page-101'
 

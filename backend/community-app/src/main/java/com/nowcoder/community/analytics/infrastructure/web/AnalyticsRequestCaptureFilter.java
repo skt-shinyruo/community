@@ -103,6 +103,6 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
                 userId,
                 recordUv,
                 recordDau
-        ), properties != null && properties.isAsyncEnabled());
+        ));
     }
 }

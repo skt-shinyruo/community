@@ -2,9 +2,13 @@ package com.nowcoder.community.search.infrastructure.persistence;
 
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
+import com.nowcoder.community.search.domain.repository.PostSearchRepository;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.boot.test.context.runner.ApplicationContextRunner;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.context.annotation.Import;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.document.Document;
@@ -13,6 +17,7 @@ import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
+import org.springframework.data.redis.core.StringRedisTemplate;
 
 import java.time.Instant;
 import java.util.List;
@@ -31,6 +36,18 @@ import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 
 class ElasticsearchPostSearchRepositoryTest {
+
+    @Test
+    void elasticsearchRuntimeProvidesTheSearchRepositoryAndReindexRegistry() {
+        new ApplicationContextRunner()
+                .withBean(ElasticsearchOperations.class, () -> mock(ElasticsearchOperations.class))
+                .withBean(StringRedisTemplate.class, () -> mock(StringRedisTemplate.class))
+                .withUserConfiguration(SearchRuntimeConfiguration.class)
+                .run(context -> {
+                    assertThat(context).hasSingleBean(PostSearchRepository.class);
+                    assertThat(context).hasSingleBean(SearchReindexTargetRegistry.class);
+                });
+    }
 
     @Test
     void saveShouldUseIndependentAggregateAndScoreVersionCompareAndSet() {
@@ -187,5 +204,10 @@ class ElasticsearchPostSearchRepositoryTest {
                 Instant.parse("2026-03-28T00:00:00Z"),
                 1.5
         );
+    }
+
+    @Configuration(proxyBeanMethods = false)
+    @Import({ElasticsearchPostSearchRepository.class, SearchReindexTargetRegistry.class})
+    static class SearchRuntimeConfiguration {
     }
 }

@@ -12,7 +12,6 @@ import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketInv
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketListingRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketOrderRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketShipmentRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketDeliveryMapper;
@@ -147,7 +146,7 @@ class MarketOrderApplicationServiceUnitTest {
         String requestId = "market:req-replay-after-lock";
 
         when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
-        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(soldOutListing(listingId)));
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(soldOutListing(listingId));
         when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
                 .thenReturn(MarketOrderDataObject.from(existingOrder(requestId, listingId, buyerUserId, 1)));
 
@@ -179,7 +178,7 @@ class MarketOrderApplicationServiceUnitTest {
         MarketOrder duplicated = existingOrder(requestId, listingId, buyerUserId, 1);
 
         when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
-        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(activeListing(listingId)));
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(activeListing(listingId));
         when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
                 .thenReturn(null, MarketOrderDataObject.from(duplicated));
         when(marketOrderMapper.insert(any(MarketOrderDataObject.class)))
@@ -201,7 +200,7 @@ class MarketOrderApplicationServiceUnitTest {
         MarketOrder conflicting = existingOrder(requestId, listingId, buyerUserId, 2);
 
         when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
-        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(activeListing(listingId)));
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(activeListing(listingId));
         when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId))
                 .thenReturn(null, MarketOrderDataObject.from(conflicting));
         when(marketOrderMapper.insert(any(MarketOrderDataObject.class)))
@@ -223,7 +222,7 @@ class MarketOrderApplicationServiceUnitTest {
         DataIntegrityViolationException unknown = new DataIntegrityViolationException("unknown market constraint");
 
         when(marketOrderMapper.selectByBuyerUserIdAndRequestId(buyerUserId, requestId)).thenReturn(null);
-        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(MarketListingDataObject.from(activeListing(listingId)));
+        when(marketListingMapper.selectByIdForUpdate(listingId)).thenReturn(activeListing(listingId));
         when(marketOrderMapper.selectByBuyerUserIdAndRequestIdForUpdate(buyerUserId, requestId)).thenReturn(null);
         when(marketOrderMapper.insert(any(MarketOrderDataObject.class))).thenThrow(unknown);
 

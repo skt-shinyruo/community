@@ -23,11 +23,11 @@ class StartupValidationTest {
     void productionDeploymentSignalsShouldRunValidationEvenWithDevProfile(String propertyName) {
         MockEnvironment environment = secureEnvironment("dev")
                 .withProperty(propertyName, "production")
-                .withProperty("social.storage", "redis");
+                .withProperty("community.web.trusted-proxy.enabled", "true");
 
         assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("social.storage=db");
+                .hasMessageContaining("community.web.trusted-proxy.cidrs");
     }
 
     @Test
@@ -49,16 +49,6 @@ class StartupValidationTest {
                 .withProperty("NACOS_CONFIG_IMPORT_SERVICE", "nacos:community-app.yaml?group=COMMUNITY");
 
         new StartupValidation().validateOrThrow(environment);
-    }
-
-    @Test
-    void prodShouldRejectNonDbSocialStorage() {
-        MockEnvironment environment = prodEnvironment()
-                .withProperty("social.storage", "redis");
-
-        assertThatThrownBy(() -> new StartupValidation().validateOrThrow(environment))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("social.storage=db");
     }
 
     @ParameterizedTest

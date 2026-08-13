@@ -216,7 +216,6 @@ gateway:
 
 auth:
   refresh:
-    store: db
     cleanup:
       enabled: ${AUTH_REFRESH_CLEANUP_ENABLED:true}
       interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
@@ -334,7 +333,6 @@ events:
     worker-fixed-delay-ms: 1000
 
 social:
-  storage: db
   events:
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
@@ -362,7 +360,6 @@ oss:
     token-ttl: ${OSS_CLIENT_TOKEN_TTL:PT5M}
 
 search:
-  storage: es
   projection-enabled: ${SEARCH_PROJECTION_ENABLED:true}
   reindex:
     page-size: ${SEARCH_REINDEX_PAGE_SIZE:500}
@@ -383,7 +380,6 @@ analytics:
   max-days-range: 31
   ingest:
     enabled: false
-    async-enabled: ${ANALYTICS_INGEST_ASYNC_ENABLED:true}
     kafka-topic: ${ANALYTICS_INGEST_KAFKA_TOPIC:analytics.request}
     kafka-group-id: ${ANALYTICS_INGEST_KAFKA_GROUP_ID:analytics-request}
     kafka-concurrency: ${ANALYTICS_INGEST_KAFKA_CONCURRENCY:2}

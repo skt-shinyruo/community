@@ -90,6 +90,18 @@ class NoticeProjectionApplicationServiceTest {
     }
 
     @Test
+    void commentWithoutRecipientShouldNotConsumeProjectionIdentityOrCreateNotice() {
+        NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
+
+        service.projectReliably(commentCommand("evt-no-recipient", uuid(100), null));
+
+        verifyNoInteractions(eventRecorder);
+        verify(noticeService, never()).createNotice(any(CreateNoticeCommand.class));
+    }
+
+    @Test
     void commentProjectionShouldPreserveTopicAndContentJsonShape() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
         NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);

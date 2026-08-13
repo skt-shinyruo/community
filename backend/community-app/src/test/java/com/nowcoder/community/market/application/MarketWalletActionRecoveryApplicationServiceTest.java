@@ -9,7 +9,6 @@ import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
@@ -538,7 +537,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         listing.setMinPurchaseQuantity(1);
         listing.setMaxPurchaseQuantity(1);
         listing.setStatus("SOLD_OUT");
-        marketListingMapper.insert(MarketListingDataObject.from(listing));
+        marketListingMapper.insert(listing);
 
         MarketOrder seededOrder = order(orderId)
                 .requestId(requestId)
@@ -593,7 +592,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         skippedListing.setMinPurchaseQuantity(1);
         skippedListing.setMaxPurchaseQuantity(1);
         skippedListing.setStatus("ACTIVE");
-        marketListingMapper.insert(MarketListingDataObject.from(skippedListing));
+        marketListingMapper.insert(skippedListing);
 
         MarketOrder skippedOrder = order(skippedOrderId)
                 .requestId("recovery:skipped-wallet-txn")

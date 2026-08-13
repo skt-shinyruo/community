@@ -4,11 +4,10 @@ import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationSe
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.infrastructure.event.AnalyticsRequestKafkaListener.AnalyticsRequestEvent;
 import org.junit.jupiter.api.Test;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
+import org.springframework.kafka.core.KafkaTemplate;
 
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
@@ -16,21 +15,35 @@ import static org.mockito.Mockito.verifyNoInteractions;
 class AnalyticsRequestKafkaListenerTest {
 
     @Test
-    void asyncPublisherShouldRequireAnalyticsIngestAndAsyncCaptureToBeEnabled() {
-        ConditionalOnProperty conditional = AnalyticsRequestEventPublisher.class.getAnnotation(ConditionalOnProperty.class);
+    void publisherShouldMapCommandToKafkaEvent() {
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, AnalyticsRequestEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        AnalyticsRequestEventPublisher publisher = new AnalyticsRequestEventPublisher(kafkaTemplate, "custom.analytics");
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        RecordRequestCommand command = new RecordRequestCommand("127.0.0.1", userId, true, false);
 
-        assertThat(conditional.prefix()).isEqualTo("analytics.ingest");
-        assertThat(conditional.name()).containsExactly("enabled", "async-enabled");
-        assertThat(conditional.havingValue()).isEqualTo("true");
+        publisher.publish(command);
+
+        verify(kafkaTemplate).send(
+                "custom.analytics",
+                userId.toString(),
+                new AnalyticsRequestEvent("127.0.0.1", userId, true, false)
+        );
     }
 
     @Test
-    void kafkaListenerShouldRequireAnalyticsIngestAndAsyncCaptureToBeEnabled() {
-        ConditionalOnProperty conditional = AnalyticsRequestKafkaListener.class.getAnnotation(ConditionalOnProperty.class);
+    void publisherShouldUseStableKeyForAnonymousRequest() {
+        @SuppressWarnings("unchecked")
+        KafkaTemplate<String, AnalyticsRequestEvent> kafkaTemplate = mock(KafkaTemplate.class);
+        AnalyticsRequestEventPublisher publisher = new AnalyticsRequestEventPublisher(kafkaTemplate, "analytics.request");
 
-        assertThat(conditional.prefix()).isEqualTo("analytics.ingest");
-        assertThat(conditional.name()).containsExactly("enabled", "async-enabled");
-        assertThat(conditional.havingValue()).isEqualTo("true");
+        publisher.publish(new RecordRequestCommand("127.0.0.1", null, true, false));
+
+        verify(kafkaTemplate).send(
+                "analytics.request",
+                "anonymous",
+                new AnalyticsRequestEvent("127.0.0.1", null, true, false)
+        );
     }
 
     @Test

@@ -5,7 +5,6 @@ import com.nowcoder.community.auth.domain.model.RefreshTokenSessionState;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject;
 import com.nowcoder.community.auth.infrastructure.persistence.mapper.RefreshTokenSessionMapper;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -19,7 +18,6 @@ import java.util.Objects;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "auth.refresh.store", havingValue = "db")
 public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
 
     private static final int CLEANUP_BATCH_SIZE = 500;

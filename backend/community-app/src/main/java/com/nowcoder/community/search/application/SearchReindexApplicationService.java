@@ -7,7 +7,6 @@ import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
 import java.time.Duration;
@@ -18,7 +17,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Service
-@ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class SearchReindexApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(SearchReindexApplicationService.class);

@@ -9,7 +9,6 @@ import com.nowcoder.community.notice.domain.model.NoticeProjection;
 import com.nowcoder.community.notice.domain.model.NoticeProjectionContent;
 import com.nowcoder.community.notice.domain.model.NoticeTopic;
 import com.nowcoder.community.notice.domain.repository.LikeNoticeProjectionStateRepository;
-import com.nowcoder.community.notice.domain.service.NoticeProjectionDomainService;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -26,7 +25,6 @@ public class NoticeProjectionApplicationService {
 
     private final JsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
-    private final NoticeProjectionDomainService noticeProjectionDomainService = new NoticeProjectionDomainService();
     private final NoticePolicyProperties noticePolicyProperties;
     private final Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder;
     private final Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository;
@@ -191,7 +189,10 @@ public class NoticeProjectionApplicationService {
         if (!noticePolicyProperties.getChannels().isInAppEnabled()) {
             return false;
         }
-        return noticeProjectionDomainService.shouldProject(projection);
+        return projection != null
+                && projection.toUserId() != null
+                && StringUtils.hasText(projection.topic())
+                && projection.content() != null;
     }
 
     private void createProjectedNotice(NoticeProjection projection) {

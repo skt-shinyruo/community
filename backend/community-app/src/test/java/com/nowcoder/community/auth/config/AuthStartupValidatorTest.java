@@ -255,19 +255,6 @@ class AuthStartupValidatorTest {
     }
 
     @Test
-    void validateShouldRejectRedisRefreshStoreInProduction() {
-        MockEnvironment environment = secureCommunityAppEnvironment()
-                .withProperty("auth.refresh.store", "redis");
-        List<String> errors = new ArrayList<>();
-
-        new AuthStartupValidator().validate(environment, errors);
-
-        assertThat(errors).anySatisfy(error -> assertThat(error)
-                .contains("auth.refresh.store=redis")
-                .contains("生产环境只支持 db"));
-    }
-
-    @Test
     void validateShouldRejectUnboundedSmtpTimeouts() {
         MockEnvironment environment = secureCommunityAppEnvironment()
                 .withProperty("spring.mail.properties.mail.smtp.timeout", "0");
@@ -404,7 +391,6 @@ class AuthStartupValidatorTest {
                 .withProperty("security.jwt.refresh-token-ttl-seconds", "604800")
                 .withProperty("security.jwt.refresh-reuse-grace-seconds", "10")
                 .withProperty("security.jwt.service-hmac-secret", "service-jwt-secret-at-least-32-bytes")
-                .withProperty("auth.refresh.store", "db")
                 .withProperty("auth.password-reset.reset-base-url", "https://community.example")
                 .withProperty("auth.password-reset.store", "redis")
                 .withProperty(

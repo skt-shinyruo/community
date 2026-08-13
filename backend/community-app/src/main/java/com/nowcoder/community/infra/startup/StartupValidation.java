@@ -56,9 +56,6 @@ public class StartupValidation {
         // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
         validateTrustedProxy(environment, errors);
 
-        // 1.6) social strict chain：当前只支持 DB-backed storage。
-        validateSocialStorage(environment, errors);
-
         // 2) 服务特有的 prod 约束：由各服务自己提供 StartupValidator（避免 common 变大杂烩）。
         for (StartupValidator validator : validators) {
             if (validator == null) {
@@ -191,16 +188,6 @@ public class StartupValidation {
             errors.add("配置不合法：community.web.trusted-proxy.cidrs 无法绑定为 CIDR 列表"
                     + "（请使用逗号分隔字符串或 YAML list）");
             return null;
-        }
-    }
-
-    private void validateSocialStorage(Environment environment, List<String> errors) {
-        String socialStorage = getTrimmed(environment, "social.storage");
-        if (!StringUtils.hasText(socialStorage)) {
-            socialStorage = "db";
-        }
-        if (!"db".equalsIgnoreCase(socialStorage)) {
-            errors.add("配置不安全：social.storage=" + socialStorage + "（strict social chain requires social.storage=db）");
         }
     }
 

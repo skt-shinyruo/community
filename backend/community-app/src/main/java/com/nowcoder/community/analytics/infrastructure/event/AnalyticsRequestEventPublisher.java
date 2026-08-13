@@ -4,12 +4,10 @@ import com.nowcoder.community.analytics.application.AnalyticsRequestCapturePort;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.infrastructure.event.AnalyticsRequestKafkaListener.AnalyticsRequestEvent;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 @Component
-@ConditionalOnProperty(prefix = "analytics.ingest", name = {"enabled", "async-enabled"}, havingValue = "true")
 public class AnalyticsRequestEventPublisher implements AnalyticsRequestCapturePort {
 
     private final KafkaTemplate<String, AnalyticsRequestEvent> kafkaTemplate;

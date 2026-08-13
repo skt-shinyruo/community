@@ -115,7 +115,6 @@ events:
     worker-enabled: false
 
 social:
-  storage: db
   events:
     outbox-topic: ${SOCIAL_EVENTS_OUTBOX_TOPIC:eventbus.social}
     kafka-topic: ${SOCIAL_EVENTS_KAFKA_TOPIC:social.events}
@@ -137,7 +136,6 @@ user:
         concurrency: ${USER_REWARD_KAFKA_CONSUMER_CONCURRENCY:3}
 
 search:
-  storage: es
   reindex:
     page-size: 50
     lock-ttl: PT5M

@@ -4,7 +4,6 @@ package com.nowcoder.community.search.infrastructure.persistence;
 import co.elastic.clients.elasticsearch._types.ElasticsearchException;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.elasticsearch.ResourceNotFoundException;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.IndexInformation;
@@ -30,7 +29,6 @@ import java.util.Set;
 import java.util.regex.Pattern;
 
 @Component
-@ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class PostIndexManager {
 
     private static final DateTimeFormatter VERSION_FORMAT = DateTimeFormatter.ofPattern("yyyyMMddHHmmss");

@@ -27,7 +27,6 @@ public class AuthStartupValidator implements StartupValidator {
         requireTrue(environment, errors, "security.jwt.refresh-cookie-secure", "生产环境必须 Secure=true（HTTPS），请设置 AUTH_REFRESH_COOKIE_SECURE=true");
         requireOneOf(environment, errors, "security.jwt.refresh-cookie-same-site", List.of("Lax", "Strict", "None"), "请设置 AUTH_REFRESH_COOKIE_SAME_SITE（Lax/Strict/None）");
         validateRefreshTokenBounds(environment, errors);
-        requireDatabaseRefreshStore(environment, errors);
         validatePasswordResetBaseUrl(environment, errors);
         requireStore(environment, errors, "auth.password-reset.store", "redis");
         requireStore(environment, errors, "auth.captcha.store", "redis");
@@ -452,14 +451,6 @@ public class AuthStartupValidator implements StartupValidator {
             return 0L;
         }
         return value;
-    }
-
-    private void requireDatabaseRefreshStore(Environment environment, List<String> errors) {
-        String store = getTrimmed(environment, "auth.refresh.store");
-        if (!"db".equalsIgnoreCase(store)) {
-            errors.add("配置不安全：auth.refresh.store=" + store
-                    + "（生产环境只支持 db；Redis refresh store 仅用于非生产兼容测试）");
-        }
     }
 
     private void validatePasswordResetBaseUrl(Environment environment, List<String> errors) {

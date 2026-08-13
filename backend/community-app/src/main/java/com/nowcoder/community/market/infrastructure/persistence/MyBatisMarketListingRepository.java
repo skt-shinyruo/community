@@ -2,7 +2,6 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
 import org.springframework.stereotype.Repository;
 
@@ -20,7 +19,7 @@ public class MyBatisMarketListingRepository implements MarketListingRepository {
 
     @Override
     public int save(MarketListing listing) {
-        return mapper.insert(MarketListingDataObject.from(listing));
+        return mapper.insert(listing);
     }
 
     @Override
@@ -35,17 +34,17 @@ public class MyBatisMarketListingRepository implements MarketListingRepository {
 
     @Override
     public List<MarketListing> findBySellerUserId(UUID sellerUserId, long offset, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectBySellerUserId(sellerUserId, offset, limit));
+        return mapper.selectBySellerUserId(sellerUserId, offset, limit);
     }
 
     @Override
     public List<MarketListing> findPublicListings(long offset, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectPublicListings(offset, limit));
+        return mapper.selectPublicListings(offset, limit);
     }
 
     @Override
     public int saveEditable(MarketListing listing) {
-        return mapper.updateEditable(MarketListingDataObject.from(listing));
+        return mapper.updateEditable(listing);
     }
 
     @Override

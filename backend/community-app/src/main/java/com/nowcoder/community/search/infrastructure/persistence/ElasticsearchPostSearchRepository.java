@@ -7,7 +7,6 @@ import com.nowcoder.community.search.domain.model.PostSearchQuery;
 import com.nowcoder.community.search.domain.repository.PostSearchRepository;
 import com.nowcoder.community.search.domain.service.KeywordHighlightSupport;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
@@ -31,7 +30,6 @@ import java.util.Optional;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class ElasticsearchPostSearchRepository implements PostSearchRepository {
 
     private static final int DELETED_STATUS = 2;

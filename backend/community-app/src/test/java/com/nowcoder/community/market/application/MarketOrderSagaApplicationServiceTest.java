@@ -9,7 +9,6 @@ import com.nowcoder.community.market.domain.model.MarketOrderTransition;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketInventoryUnitMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
@@ -327,7 +326,7 @@ class MarketOrderSagaApplicationServiceTest {
         listing.setMinPurchaseQuantity(1);
         listing.setMaxPurchaseQuantity(1);
         listing.setStatus(stockAvailable == 0 ? "SOLD_OUT" : "ACTIVE");
-        marketListingMapper.insert(MarketListingDataObject.from(listing));
+        marketListingMapper.insert(listing);
 
         MarketOrder seededOrder = order(orderId)
                 .requestId("saga:" + status.toLowerCase())
@@ -364,7 +363,7 @@ class MarketOrderSagaApplicationServiceTest {
         listing.setMinPurchaseQuantity(1);
         listing.setMaxPurchaseQuantity(1);
         listing.setStatus("SOLD_OUT");
-        marketListingMapper.insert(MarketListingDataObject.from(listing));
+        marketListingMapper.insert(listing);
 
         jdbcTemplate.update(
                 "insert into market_inventory_unit(inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status, reserved_order_id, delivered_at) values (?, ?, ?, ?, ?, ?, ?, current_timestamp)",

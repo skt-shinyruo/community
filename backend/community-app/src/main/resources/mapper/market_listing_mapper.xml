@@ -5,7 +5,7 @@
 
 <mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper">
 
-    <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <select id="selectById" resultType="com.nowcoder.community.market.domain.model.MarketListing">
         select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
@@ -13,7 +13,7 @@
         where listing_id = #{listingId, jdbcType=BINARY}
     </select>
 
-    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <select id="selectByIdForUpdate" resultType="com.nowcoder.community.market.domain.model.MarketListing">
         select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
@@ -22,7 +22,7 @@
         for update
     </select>
 
-    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <select id="selectBySellerUserId" resultType="com.nowcoder.community.market.domain.model.MarketListing">
         select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
@@ -32,7 +32,7 @@
         limit #{limit} offset #{offset}
     </select>
 
-    <select id="selectPublicListings" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <select id="selectPublicListings" resultType="com.nowcoder.community.market.domain.model.MarketListing">
         select listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
                stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status,
                create_time, update_time
@@ -42,7 +42,7 @@
         limit #{limit} offset #{offset}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <insert id="insert" parameterType="com.nowcoder.community.market.domain.model.MarketListing">
         insert into market_listing(
             listing_id, seller_user_id, goods_type, title, description, unit_price, delivery_mode, stock_mode,
             stock_total, stock_available, min_purchase_quantity, max_purchase_quantity, status
@@ -53,7 +53,7 @@
         )
     </insert>
 
-    <update id="updateEditable" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject">
+    <update id="updateEditable" parameterType="com.nowcoder.community.market.domain.model.MarketListing">
         update market_listing
         set title = #{title},
             description = #{description},

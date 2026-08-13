@@ -2,14 +2,12 @@ package com.nowcoder.community.analytics.infrastructure.event;
 
 import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
 
 @Component
-@ConditionalOnProperty(prefix = "analytics.ingest", name = {"enabled", "async-enabled"}, havingValue = "true")
 public class AnalyticsRequestKafkaListener {
 
     private final AnalyticsIngestApplicationService analyticsIngestApplicationService;

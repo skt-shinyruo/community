@@ -56,6 +56,9 @@ class MyBatisRefreshTokenRepositoryIntegrationTest {
     @Autowired
     private RefreshTokenApplicationService refreshTokenApplicationService;
 
+    @Autowired
+    private RefreshTokenRepository refreshTokenRepository;
+
     @MockitoBean
     private ClientIpResolver clientIpResolver;
 
@@ -64,6 +67,11 @@ class MyBatisRefreshTokenRepositoryIntegrationTest {
         jdbcTemplate.update("delete from auth_refresh_token_family_lock");
         jdbcTemplate.update("delete from auth_refresh_token_family_revocation");
         jdbcTemplate.update("delete from auth_refresh_token");
+    }
+
+    @Test
+    void jdbcRepositoryIsTheRefreshTokenRepository() {
+        assertThat(refreshTokenRepository).isSameAs(repository);
     }
 
     @Test

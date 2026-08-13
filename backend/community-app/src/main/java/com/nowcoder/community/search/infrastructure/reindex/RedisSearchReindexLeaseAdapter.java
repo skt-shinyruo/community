@@ -4,7 +4,6 @@ import com.nowcoder.community.infra.scheduler.SingleFlightTaskGuard;
 import com.nowcoder.community.search.application.SearchReindexLeasePort;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
@@ -16,7 +15,6 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
-@ConditionalOnProperty(name = "search.storage", havingValue = "es")
 public class RedisSearchReindexLeaseAdapter implements SearchReindexLeasePort {
 
     private static final String TASK_NAME = "search:reindex";

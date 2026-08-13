@@ -7,8 +7,8 @@ import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketShipment;
+import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketListingDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketShipmentDataObject;
@@ -47,6 +47,9 @@ class MarketPersistenceTest {
     private MarketListingMapper marketListingMapper;
 
     @Autowired
+    private MarketListingRepository marketListingRepository;
+
+    @Autowired
     private MarketAddressMapper marketAddressMapper;
 
     @Autowired
@@ -82,7 +85,7 @@ class MarketPersistenceTest {
         listing.setMinPurchaseQuantity(1);
         listing.setMaxPurchaseQuantity(1);
         listing.setStatus("ACTIVE");
-        marketListingMapper.insert(MarketListingDataObject.from(listing));
+        marketListingMapper.insert(listing);
 
         MarketAddress address = new MarketAddress();
         address.setUserId(buyerUserId);
@@ -140,6 +143,53 @@ class MarketPersistenceTest {
         assertUuidProperty(MarketAddress.class.getMethod("getAddressId").invoke(address));
         assertUuidProperty(MarketOrder.class.getMethod("getOrderId").invoke(order));
         assertUuidProperty(MarketShipment.class.getMethod("getShipmentId").invoke(shipment));
+    }
+
+    @Test
+    void listingRepositoryShouldRoundTripDomainModelAndReturnDomainCollections() {
+        UUID listingId = ID_GENERATOR.next();
+        UUID sellerUserId = uuid(701);
+        MarketListing listing = new MarketListing();
+        listing.setListingId(listingId);
+        listing.setSellerUserId(sellerUserId);
+        listing.setGoodsType("PHYSICAL");
+        listing.setTitle("repository listing");
+        listing.setDescription("mapped without a mirror row type");
+        listing.setUnitPrice(2_500L);
+        listing.setDeliveryMode(null);
+        listing.setStockMode(null);
+        listing.setStockTotal(4);
+        listing.setStockAvailable(4);
+        listing.setMinPurchaseQuantity(1);
+        listing.setMaxPurchaseQuantity(2);
+        listing.setStatus("ACTIVE");
+
+        assertThat(marketListingRepository.save(listing)).isEqualTo(1);
+
+        MarketListing stored = marketListingRepository.findById(listingId);
+        assertThat(stored).isNotNull();
+        assertThat(stored.getListingId()).isEqualTo(listingId);
+        assertThat(stored.getSellerUserId()).isEqualTo(sellerUserId);
+        assertThat(stored.getGoodsType()).isEqualTo("PHYSICAL");
+        assertThat(stored.getTitle()).isEqualTo("repository listing");
+        assertThat(stored.getDescription()).isEqualTo("mapped without a mirror row type");
+        assertThat(stored.getUnitPrice()).isEqualTo(2_500L);
+        assertThat(stored.getDeliveryMode()).isNull();
+        assertThat(stored.getStockMode()).isNull();
+        assertThat(stored.getStockTotal()).isEqualTo(4);
+        assertThat(stored.getStockAvailable()).isEqualTo(4);
+        assertThat(stored.getMinPurchaseQuantity()).isEqualTo(1);
+        assertThat(stored.getMaxPurchaseQuantity()).isEqualTo(2);
+        assertThat(stored.getStatus()).isEqualTo("ACTIVE");
+        assertThat(stored.getCreateTime()).isNotNull();
+        assertThat(stored.getUpdateTime()).isNotNull();
+
+        assertThat(marketListingRepository.findBySellerUserId(sellerUserId, 0, 10))
+                .extracting(MarketListing::getListingId)
+                .containsExactly(listingId);
+        assertThat(marketListingRepository.findPublicListings(0, 100))
+                .extracting(MarketListing::getListingId)
+                .contains(listingId);
     }
 
     @Test

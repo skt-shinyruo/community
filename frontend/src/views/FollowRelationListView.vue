@@ -96,6 +96,8 @@ const {
   profileUserId: toRef(props, 'userId'),
   emitTrace: (traceId) => emit('trace', traceId)
 })
+
+defineExpose({ cursorHistory, load })
 </script>
 
 <style scoped>

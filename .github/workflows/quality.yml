@@ -93,5 +93,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "20"
+      - name: Install deployment contract dependencies
+        run: sudo apt-get update && sudo apt-get install --yes ripgrep
       - name: Validate schemas, topics, configuration and observability
         run: ./deploy/tests/run-contracts.sh

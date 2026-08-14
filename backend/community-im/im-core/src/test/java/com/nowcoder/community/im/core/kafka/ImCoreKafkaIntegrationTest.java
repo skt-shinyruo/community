@@ -22,6 +22,7 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.kafka.core.DefaultKafkaConsumerFactory;
 import org.springframework.kafka.core.KafkaTemplate;
@@ -38,6 +39,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanAll;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
@@ -87,6 +89,9 @@ class ImCoreKafkaIntegrationTest {
     @Autowired
     private PrivateMessageRepository privateMessageRepository;
 
+    @Autowired
+    private JdbcTemplate jdbcTemplate;
+
     @MockitoBean
     private PrivateMessagePolicyVerifier privateMessagePolicyVerifier;
 
@@ -94,6 +99,7 @@ class ImCoreKafkaIntegrationTest {
 
     @BeforeEach
     void setUp() {
+        cleanAll(jdbcTemplate);
         when(privateMessagePolicyVerifier.verify(any(UUID.class), any(UUID.class)))
                 .thenReturn(PrivateMessagePolicyDecision.allow());
     }
@@ -106,6 +112,7 @@ class ImCoreKafkaIntegrationTest {
             } catch (RuntimeException ignore) {
             }
         }
+        cleanAll(jdbcTemplate);
     }
 
     @Test

@@ -14,6 +14,7 @@ import org.apache.kafka.clients.producer.ProducerRecord;
 import org.apache.kafka.common.serialization.StringDeserializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;
@@ -39,6 +40,7 @@ import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.TimeUnit;
 
+import static com.nowcoder.community.im.core.support.ImCoreTestDatabaseCleaner.cleanAll;
 import static org.assertj.core.api.Assertions.assertThat;
 
 @SpringBootTest
@@ -80,6 +82,11 @@ class CommandConsumerIsolationIntegrationTest {
 
     private Consumer<String, String> consumer;
 
+    @BeforeEach
+    void setUp() {
+        cleanAll(jdbcTemplate);
+    }
+
     @AfterEach
     void tearDown() {
         if (consumer != null) {
@@ -88,6 +95,7 @@ class CommandConsumerIsolationIntegrationTest {
             } catch (RuntimeException ignore) {
             }
         }
+        cleanAll(jdbcTemplate);
     }
 
     @Test

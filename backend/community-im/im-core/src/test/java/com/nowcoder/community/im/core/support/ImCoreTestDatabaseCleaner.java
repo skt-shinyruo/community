@@ -27,5 +27,6 @@ public final class ImCoreTestDatabaseCleaner {
         jdbcTemplate.update("delete from im_room_member");
         jdbcTemplate.update("delete from im_room");
         jdbcTemplate.update("delete from im_conversation");
+        jdbcTemplate.update("update im_membership_version_counter set current_version = 0 where id = 1");
     }
 }

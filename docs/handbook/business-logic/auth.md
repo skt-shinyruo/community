@@ -35,7 +35,7 @@ HTTP 入口位于 `AuthController`：
 - `LoginApplicationService`：登录、refresh、logout、token 签发。
 - `RegistrationApplicationService`：注册开始、生成 draft 和验证码。
 - `RegistrationVerificationApplicationService`：重发注册验证码、验证注册验证码并登录。
-- `RegistrationCodeMailDeliveryApplicationService`：校验 outbox delivery fencing、发送注册邮件并提升 replacement code。
+- `RegistrationCodeMailDeliveryApplicationService`：取得带 fencing 的 `DeliveryClaim`、发送注册邮件，再请求 claim 完成投递；重新认领和 replacement 提升由 claim 封装。
 - `CaptchaApplicationService`：图片验证码生成和校验。
 - `PasswordResetApplicationService`：密码重置请求和确认。
 - `LoginRateLimitApplicationService`：登录失败计数、验证码触发和封锁。
@@ -63,8 +63,8 @@ auth 不直接写 user 表；refresh session 通过 auth 自己的 `RefreshToken
 5. user owner 规范化用户名和邮箱，先检查用户名/邮箱是否已存在，再生成预备用户 ID、计算 BCrypt 密码、准备默认头像，但不插入 `user` row。
 6. auth application 生成 256-bit base64url opaque `registrationToken`，把 `PreparedRegistrationDraft` 存入 draft store；token 冲突最多重试 5 次。
 7. auth 域用安全随机生成器签发 6 位注册验证码，将随机 delivery ID 与 active code 一起写入 Redis，再持久化 `auth.registration-code-mail` outbox；HTTP 成功表示邮件任务已受理。
-8. `verifyRegisterCode(...)` 根据 `registrationToken` 找回 draft，用随机 lease 把验证码转入 `PENDING_VERIFICATION`。
-9. 验证通过后调用 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户；创建成功后只有同一 lease 能 consume pending code 并删除 draft。若创建前失败，同一 lease 才能 restore；lease 过期后可由新请求接管，旧 owner 不能覆盖新状态。
+8. `verifyRegisterCode(...)` 根据 `registrationToken` 找回 draft，通过仓储取得绑定随机 lease 的 `VerificationClaim`，把验证码转入 `PENDING_VERIFICATION`。
+9. 验证通过后调用 `UserRegistrationActionApi.createVerifiedRegistrationUser(...)`，由 user owner 插入 active 用户；创建成功后只有该 claim 能 consume pending code 并删除 draft。若创建前失败，只有该 claim 能 restore；lease 过期后可由新请求接管，旧 claim 不能覆盖新状态。
 10. 注册验证成功后复用登录签发能力，直接返回 access token 和 refresh cookie。
 11. 注册验证成功后会 best-effort 删除 draft/code；失败不应让已创建用户回滚到未注册状态。
 
@@ -73,7 +73,8 @@ auth 不直接写 user 表；refresh session 通过 auth 自己的 `RefreshToken
 - 验证码错误或过期返回认证错误，不创建用户。
 - 用户名或邮箱冲突由 user owner 判断；prepare 阶段做前置查重，最终插入仍依赖数据库唯一约束兜住并发竞态。
 - 初次签发或重发只有在 outbox 持久化失败时才同步回滚 draft/code 或 replacement；SMTP 失败由共享 outbox 重试，不能把暂时不可达伪装成已投递。
-- 重发先通过一个 Redis Lua 原子消费可信客户端 IP、规范化邮箱和 registration identity 三个 HMAC 配额，再以同一 UUID 作为 delivery ID 与 replacement lease 写 `PENDING_REPLACEMENT`。worker 发送前必须核对 exact delivery/code/lease 并续租，SMTP 成功后只有该 lease 能 promote；失败保持 pending 供 outbox 重试，新的 replacement 接管后旧事件会被 fencing 丢弃。原 active code 在 replacement 成功前继续保存。
+- 重发先通过一个 Redis Lua 原子消费可信客户端 IP、规范化邮箱和 registration identity 三个 HMAC 配额，再取得 `ReplacementLease`，其 UUID 同时作为 delivery ID 与 replacement lease 写 `PENDING_REPLACEMENT`。worker 先取得 exact delivery/code/lease 对应的 `DeliveryClaim` 并续租，ApplicationService 执行 SMTP；成功后 `DeliveryClaim.complete()` 内部负责完成、必要时重新认领并再次完成。失败保持 pending 供 outbox 重试，新的 replacement 接管后旧事件会被 fencing 丢弃。原 active code 在 replacement 成功前继续保存。
+- `RegistrationCodeRepository` 不向 application 暴露 prepare/promote/abort/consume/restore 的自由组合；`ReplacementLease`、`DeliveryClaim`、`VerificationClaim` 分别只提供当前阶段允许的转换。Redis adapter 只拥有状态机和恢复策略，SMTP、用户创建、draft 终态与登录签发仍在 ApplicationService。
 - 验证失败达到上限时 Redis 不删除 key，而是移除 code、写 `EXHAUSTED` 冷却墓碑并从耗尽时刻重新计算 resend cooldown；correct-code 重试和立即 beginReplacement 都不能绕过失败预算。
 - Redis 使用 `auth:regcode:v2:{<userId>}` 结构化 Hash。首次访问用只操作 legacy key 的 Lua 原子执行 `GET + PTTL + DEL`，再解析并用只操作 v2 key 的 Lua 条件导入；两个 key 不会进入同一 Lua，兼容 Redis Cluster。该一次性 drain 要求旧 writer 已完全停止，发布约束见 [运行与排障](../operations.md#注册验证码-redis-v2-切换)。
 - active 用户创建成功但自动登录 token 签发失败时，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端应清理注册上下文并提示直接登录。

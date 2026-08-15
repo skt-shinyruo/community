@@ -1,76 +1,71 @@
 package com.nowcoder.community.auth.domain.repository;
 
 import java.time.Duration;
-import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 public interface RegistrationCodeRepository {
 
     IssueResult issue(UUID userId, String code, Duration ttl, Duration cooldown, UUID deliveryId);
 
-    IssueResult beginReplacement(
+    Optional<ReplacementLease> tryBeginReplacement(
             UUID userId,
             String code,
             Duration ttl,
             Duration cooldown,
-            Instant leaseExpiresAt,
-            UUID leaseId
+            Duration leaseTtl
     );
-
-    boolean promoteReplacement(UUID userId, UUID leaseId);
-
-    boolean promoteReplacement(UUID userId, UUID leaseId, Duration minimumRemainingValidity);
-
-    boolean abortReplacement(UUID userId, UUID leaseId);
 
     /**
      * Fences an outbox delivery against the currently active code (initial mail) or
-     * the exact replacement lease (resend mail). Replacement delivery also renews
-     * its lease so an SMTP attempt cannot be displaced by another resend.
+     * the exact replacement lease (resend mail). The returned claim owns completion
+     * and lease recovery after SMTP succeeds.
      */
-    boolean prepareMailDelivery(
+    Optional<DeliveryClaim> claimMailDelivery(
             UUID userId,
             UUID deliveryId,
             String code,
             UUID replacementLeaseId,
-            Instant leaseExpiresAt
-    );
-
-    boolean prepareMailDelivery(
-            UUID userId,
-            UUID deliveryId,
-            String code,
-            UUID replacementLeaseId,
-            Instant leaseExpiresAt,
+            Duration leaseTtl,
             Duration minimumRemainingValidity
     );
 
-    boolean completeInitialDelivery(
-            UUID userId,
-            UUID deliveryId,
-            String code,
-            Duration minimumRemainingValidity
-    );
+    VerificationResult claimVerification(UUID userId, String code, Duration leaseTtl);
 
     void delete(UUID userId);
-
-    VerifyResult verifyForConsumption(UUID userId, String code, Instant leaseExpiresAt, UUID leaseId);
-
-    boolean consumePending(UUID userId, UUID leaseId);
-
-    boolean restorePending(UUID userId, UUID leaseId);
 
     enum IssueResult {
         ISSUED,
         COOLDOWN_ACTIVE
     }
 
-    enum VerifyResult {
+    interface ReplacementLease {
+
+        UUID id();
+
+        boolean abort();
+    }
+
+    interface DeliveryClaim {
+
+        boolean complete();
+    }
+
+    interface VerificationResult {
+    }
+
+    interface VerificationClaim extends VerificationResult {
+
+        boolean consume();
+
+        boolean restore();
+    }
+
+    enum VerificationFailure implements VerificationResult {
         NOT_FOUND,
         EXPIRED,
         MISMATCH,
         TOO_MANY_ATTEMPTS,
-        PENDING,
         PENDING_CONFLICT
     }
 }

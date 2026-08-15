@@ -24,6 +24,7 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 import static org.mockito.Mockito.lenient;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 
 @ExtendWith(MockitoExtension.class)
 class RedisRegistrationCodeRepositoryTest {
@@ -76,48 +77,44 @@ class RedisRegistrationCodeRepositoryTest {
     }
 
     @Test
-    void replacementLifecycleShouldCarryTheSameLeaseThroughEveryMutation() {
+    void replacementLeaseShouldOwnItsAbortTransition() {
         UUID userId = uuid(8);
-        UUID leaseId = uuid(81);
-        Instant leaseExpiresAt = Instant.now().plusSeconds(60);
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(keys(userId)),
                 eq("333333"),
                 eq("300000"),
                 eq("0"),
-                eq(leaseId.toString()),
+                any(String.class),
                 any(String.class)))
                 .thenReturn("ISSUED");
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(keys(userId)),
-                eq(leaseId.toString()),
-                eq("0")))
-                .thenReturn(1L);
-        when(redisTemplate.execute(
-                any(RedisScript.class),
-                eq(keys(userId)),
-                eq(leaseId.toString())))
+                any(String.class)))
                 .thenReturn(1L);
         RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
-        assertThat(repository.beginReplacement(
-                userId, "333333", Duration.ofMinutes(5), Duration.ZERO, leaseExpiresAt, leaseId))
-                .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
-        assertThat(repository.promoteReplacement(userId, leaseId)).isTrue();
-        assertThat(repository.abortReplacement(userId, leaseId)).isTrue();
+        RegistrationCodeRepository.ReplacementLease lease = repository.tryBeginReplacement(
+                        userId, "333333", Duration.ofMinutes(5), Duration.ZERO, Duration.ofMinutes(1))
+                .orElseThrow();
+
+        assertThat(lease.abort()).isTrue();
+        assertThat(lease.abort()).isFalse();
 
         ArgumentCaptor<RedisScript<String>> beginScriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
+        ArgumentCaptor<String> leaseIdCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisTemplate).execute(
                 beginScriptCaptor.capture(),
                 eq(keys(userId)),
                 eq("333333"),
                 eq("300000"),
                 eq("0"),
-                eq(leaseId.toString()),
+                leaseIdCaptor.capture(),
                 any(String.class)
         );
+        assertThat(leaseIdCaptor.getValue()).isEqualTo(lease.id().toString());
+        verify(redisTemplate).execute(any(RedisScript.class), eq(keys(userId)), eq(lease.id().toString()));
         String script = ((DefaultRedisScript<?>) beginScriptCaptor.getValue()).getScriptAsString();
         assertThat(script)
                 .contains("replacement_lease_id", "replacement_lease_expires_at_ms", "PENDING_REPLACEMENT")
@@ -125,30 +122,94 @@ class RedisRegistrationCodeRepositoryTest {
     }
 
     @Test
-    void verificationLifecycleShouldBeFencedByLease() {
+    void deliveryClaimShouldRecoverItsLeaseBeforeRetryingCompletion() {
+        UUID userId = uuid(85);
+        UUID deliveryId = uuid(86);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(deliveryId.toString()),
+                eq("333333"),
+                eq(deliveryId.toString()),
+                any(String.class),
+                eq("120000")))
+                .thenReturn(1L, 1L);
+        when(redisTemplate.execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(deliveryId.toString()),
+                eq("120000")))
+                .thenReturn(0L, 1L);
+        RedisRegistrationCodeRepository repository = repository(redisTemplate);
+
+        RegistrationCodeRepository.DeliveryClaim claim = repository.claimMailDelivery(
+                        userId,
+                        deliveryId,
+                        "333333",
+                        deliveryId,
+                        Duration.ofMinutes(2),
+                        Duration.ofMinutes(2)
+                )
+                .orElseThrow();
+
+        assertThat(claim.complete()).isTrue();
+        assertThat(claim.complete()).isFalse();
+        verify(redisTemplate, times(2)).execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(deliveryId.toString()),
+                eq("333333"),
+                eq(deliveryId.toString()),
+                any(String.class),
+                eq("120000"));
+        verify(redisTemplate, times(2)).execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(deliveryId.toString()),
+                eq("120000"));
+    }
+
+    @Test
+    void verificationClaimShouldFenceAndAllowOnlyOneTerminalTransition() {
         UUID userId = uuid(9);
-        UUID leaseId = uuid(91);
-        Instant leaseExpiresAt = Instant.now().plusSeconds(60);
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(keys(userId)),
                 eq("222222"),
                 eq("3"),
                 any(String.class),
-                eq(leaseId.toString()),
+                any(String.class),
                 any(String.class)))
                 .thenReturn("PENDING");
         when(redisTemplate.execute(
                 any(RedisScript.class),
                 eq(keys(userId)),
-                eq(leaseId.toString())))
-                .thenReturn(1L, 1L);
+                any(String.class)))
+                .thenReturn(1L);
         RedisRegistrationCodeRepository repository = repository(redisTemplate);
 
-        assertThat(repository.verifyForConsumption(userId, "222222", leaseExpiresAt, leaseId))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
-        assertThat(repository.consumePending(userId, leaseId)).isTrue();
-        assertThat(repository.restorePending(userId, leaseId)).isTrue();
+        RegistrationCodeRepository.VerificationResult result = repository.claimVerification(
+                userId, "222222", Duration.ofMinutes(1));
+
+        assertThat(result).isInstanceOf(RegistrationCodeRepository.VerificationClaim.class);
+        RegistrationCodeRepository.VerificationClaim claim =
+                (RegistrationCodeRepository.VerificationClaim) result;
+        assertThat(claim.consume()).isTrue();
+        assertThat(claim.restore()).isFalse();
+
+        ArgumentCaptor<String> verificationLeaseCaptor = ArgumentCaptor.forClass(String.class);
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq("222222"),
+                eq("3"),
+                any(String.class),
+                verificationLeaseCaptor.capture(),
+                any(String.class));
+        verify(redisTemplate).execute(
+                any(RedisScript.class),
+                eq(keys(userId)),
+                eq(verificationLeaseCaptor.getValue()));
     }
 
     @Test
@@ -169,7 +230,7 @@ class RedisRegistrationCodeRepositoryTest {
                 .isEqualTo(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
         assertThat(repository.verifyForConsumption(
                 userId, "222222", Instant.now().minusSeconds(1), UUID.randomUUID()))
-                .isEqualTo(RegistrationCodeRepository.VerifyResult.NOT_FOUND);
+                .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.NOT_FOUND);
     }
 
     @Test

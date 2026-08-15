@@ -44,10 +44,13 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import static com.nowcoder.community.oss.application.ObjectUploadApplicationServiceFixture.builder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
 import static org.junit.jupiter.api.Assertions.assertAll;
+import static org.mockito.Mockito.doAnswer;
+import static org.mockito.Mockito.spy;
 
 class ObjectUploadApplicationServiceTest {
 
@@ -59,15 +62,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
 
         Throwable failure = catchThrowable(() -> service.prepareInternalUpload(
                 "profile-service",
@@ -101,15 +101,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
 
         Throwable failure = catchThrowable(() -> service.prepareInternalUpload(
                 "community-app",
@@ -143,15 +140,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
 
         ObjectUploadSessionResult prepared = service.prepareInternalUpload(
                 "community-app",
@@ -187,15 +181,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         UUID requestId = uuid(803);
         ObjectUploadSessionResult first = service.prepareInternalUpload(
                 "service-a",
@@ -228,15 +219,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         UUID requestId = uuid(804);
         PrepareObjectUploadCommand command = internalPrepareCommand(requestId, "service-a", "actor-a");
         ObjectUploadSessionResult first = service.prepareInternalUpload("service-a", command);
@@ -270,21 +258,16 @@ class ObjectUploadApplicationServiceTest {
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
         AtomicInteger publicEntryCalls = new AtomicInteger();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = spy(builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        ) {
-            @Override
-            public ObjectUploadSessionResult prepareUpload(PrepareObjectUploadCommand command) {
-                publicEntryCalls.incrementAndGet();
-                return super.prepareUpload(command);
-            }
-        };
+                objectStore
+        ).clock(CLOCK).build());
+        doAnswer(invocation -> {
+            publicEntryCalls.incrementAndGet();
+            return invocation.callRealMethod();
+        }).when(service).prepareUpload(org.mockito.ArgumentMatchers.any());
 
         service.prepareInternalUpload(
                 "service-a",
@@ -426,15 +409,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         ObjectUploadSessionResult prepared = service.prepareInternalUpload(
                 "community-app",
                 new PrepareObjectUploadCommand(
@@ -479,15 +459,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         ObjectUploadSessionResult prepared = service.prepareInternalUpload(
                 "community-app",
                 new PrepareObjectUploadCommand(
@@ -723,15 +700,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         UUID ownerId = uuid(7);
 
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
@@ -782,15 +756,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
                 "community-app",
@@ -908,16 +879,14 @@ class ObjectUploadApplicationServiceTest {
                 0,
                 0
         ));
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                policyRepository,
-                new CapturingObjectStore(),
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                new CapturingObjectStore()
+        ).policyRepository(policyRepository)
+                .clock(CLOCK)
+                .build();
 
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
@@ -957,16 +926,14 @@ class ObjectUploadApplicationServiceTest {
                 0,
                 0
         ));
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
-                policyRepository,
-                new CapturingObjectStore(),
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                new CapturingObjectStore()
+        ).policyRepository(policyRepository)
+                .clock(CLOCK)
+                .build();
 
         assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
@@ -990,17 +957,14 @@ class ObjectUploadApplicationServiceTest {
         uploadPolicy.setAllowedMimeTypes(List.of("image/png"));
         uploadPolicy.setAllowedExtensions(List.of("png"));
         uploadPolicy.setMaxFileSize(org.springframework.util.unit.DataSize.ofBytes(5));
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
-                null,
-                new CapturingObjectStore(),
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK,
-                new UploadPolicyDecisions(uploadPolicy)
-        );
+                new CapturingObjectStore()
+        ).clock(CLOCK)
+                .uploadPolicyDecisions(new UploadPolicyDecisions(uploadPolicy))
+                .build();
 
         assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
@@ -1037,18 +1001,14 @@ class ObjectUploadApplicationServiceTest {
     void prepareUploadShouldRejectWhenNacosFileUploadFeatureIsDisabled() {
         FeatureFlagProperties flags = new FeatureFlagProperties();
         flags.getFlags().put("file-upload", false);
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
-                null,
-                new CapturingObjectStore(),
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK,
-                new UploadPolicyDecisions(new UploadPolicyProperties()),
-                new FeatureFlagDecisions(flags)
-        );
+                new CapturingObjectStore()
+        ).clock(CLOCK)
+                .featureFlags(new FeatureFlagDecisions(flags))
+                .build();
 
         assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
@@ -1129,16 +1089,14 @@ class ObjectUploadApplicationServiceTest {
                 0
         ));
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                policyRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).policyRepository(policyRepository)
+                .clock(CLOCK)
+                .build();
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
                 "USER_AVATAR",
                 "community-app",
@@ -1177,17 +1135,14 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository uploadSessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 uploadSessionRepository,
-                null,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK,
-                uploadPolicyDecisions
-        );
+                objectStore
+        ).clock(CLOCK)
+                .uploadPolicyDecisions(uploadPolicyDecisions)
+                .build();
         ObjectUploadSessionResult prepared = service.prepareUpload(new PrepareObjectUploadCommand(
                 "DRIVE_FILE",
                 "community-app",
@@ -1263,15 +1218,12 @@ class ObjectUploadApplicationServiceTest {
         objectRepository.rows.put(objectId, object);
         versionRepository.rows.put(versionId, version);
         sessionRepository.rows.put(sessionId, session);
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         return new CompletedReplayFixture(
                 objectId,
                 versionId,
@@ -1422,15 +1374,12 @@ class ObjectUploadApplicationServiceTest {
         FakeObjectVersionRepository versionRepository = new FakeObjectVersionRepository();
         FakeUploadSessionRepository sessionRepository = new FakeUploadSessionRepository();
         CapturingObjectStore objectStore = new CapturingObjectStore();
-        ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK
-        );
+                objectStore
+        ).clock(CLOCK).build();
         ObjectUploadSessionResult prepared = service.prepareInternalUpload(
                 "community-app",
                 new PrepareObjectUploadCommand(
@@ -1494,17 +1443,14 @@ class ObjectUploadApplicationServiceTest {
     }
 
     private static ObjectUploadApplicationService serviceWithUploadPolicy(UploadPolicyProperties uploadPolicy) {
-        return new ObjectUploadApplicationService(
+        return builder(
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
-                null,
-                new CapturingObjectStore(),
-                "community-oss",
-                "http://localhost:12880",
-                CLOCK,
-                new UploadPolicyDecisions(uploadPolicy)
-        );
+                new CapturingObjectStore()
+        ).clock(CLOCK)
+                .uploadPolicyDecisions(new UploadPolicyDecisions(uploadPolicy))
+                .build();
     }
 
     private static final class FakeObjectRepository implements OssObjectRepository {

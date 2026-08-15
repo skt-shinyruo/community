@@ -8,6 +8,8 @@ let pendingSessionPromise = null
 let pendingSessionAuth = null
 let pendingSessionGeneration = null
 
+/** @typedef {ReturnType<typeof useAuthStore>} AuthStore */
+
 function setTraceId(traceId) {
   if (!traceId) return
   try {
@@ -75,6 +77,7 @@ async function doEnsureSessionReady(auth) {
   }
 }
 
+/** @param {{ auth?: AuthStore }} [options] */
 export async function ensureSessionReady({ auth } = {}) {
   const authStore = auth || useAuthStore()
   if (authStore.accessToken && authStore.me) {
@@ -100,6 +103,7 @@ export async function ensureSessionReady({ auth } = {}) {
   return pendingSessionPromise
 }
 
+/** @param {{ auth?: AuthStore }} [options] */
 export function shouldBootstrapSession({ auth } = {}) {
   const authStore = auth || useAuthStore()
   return !!authStore.accessToken || hasSessionHint()

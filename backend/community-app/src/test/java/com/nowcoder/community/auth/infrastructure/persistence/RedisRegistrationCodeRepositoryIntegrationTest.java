@@ -38,6 +38,58 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             .withExposedPorts(REDIS_PORT);
 
     @Test
+    void typedCapabilitiesShouldOwnTheReplacementDeliveryAndVerificationLifecycle() {
+        LettuceConnectionFactory connectionFactory = connectionFactory();
+        StringRedisTemplate redis = redisTemplate(connectionFactory);
+        RedisRegistrationCodeRepository repository = repository(redis);
+        UUID userId = uuid(90);
+        try {
+            assertThat(issue(repository, userId, "111111", Duration.ofMinutes(5), Duration.ZERO))
+                    .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+
+            RegistrationCodeRepository.ReplacementLease replacement = repository.tryBeginReplacement(
+                            userId,
+                            "222222",
+                            Duration.ofMinutes(5),
+                            Duration.ZERO,
+                            Duration.ofMinutes(1)
+                    )
+                    .orElseThrow();
+            RegistrationCodeRepository.DeliveryClaim delivery = repository.claimMailDelivery(
+                            userId,
+                            replacement.id(),
+                            "222222",
+                            replacement.id(),
+                            Duration.ofMinutes(1),
+                            Duration.ZERO
+                    )
+                    .orElseThrow();
+
+            assertThat(delivery.complete()).isTrue();
+            assertThat(delivery.complete()).isFalse();
+            assertThat(redis.opsForHash().entries(key(userId)))
+                    .containsEntry("state", "ACTIVE")
+                    .containsEntry("active_code", "222222");
+
+            RegistrationCodeRepository.VerificationResult firstAttempt = repository.claimVerification(
+                    userId, "222222", Duration.ofMinutes(1));
+            assertThat(firstAttempt).isInstanceOf(RegistrationCodeRepository.VerificationClaim.class);
+            RegistrationCodeRepository.VerificationClaim restorable =
+                    (RegistrationCodeRepository.VerificationClaim) firstAttempt;
+            assertThat(restorable.restore()).isTrue();
+            assertThat(restorable.consume()).isFalse();
+
+            RegistrationCodeRepository.VerificationResult secondAttempt = repository.claimVerification(
+                    userId, "222222", Duration.ofMinutes(1));
+            assertThat(secondAttempt).isInstanceOf(RegistrationCodeRepository.VerificationClaim.class);
+            assertThat(((RegistrationCodeRepository.VerificationClaim) secondAttempt).consume()).isTrue();
+            assertThat(redis.hasKey(key(userId))).isFalse();
+        } finally {
+            connectionFactory.destroy();
+        }
+    }
+
+    @Test
     void cooldownAndAbortShouldPreserveThePreviouslyDeliveredCode() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
@@ -68,13 +120,13 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             assertThat(repository.abortReplacement(userId, wrongLease)).isFalse();
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), uuid(13)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
 
             assertThat(repository.abortReplacement(userId, replacementLease)).isTrue();
             UUID verificationLease = uuid(14);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(repository.restorePending(userId, verificationLease)).isTrue();
 
             Map<Object, Object> fields = redis.opsForHash().entries(key(userId));
@@ -114,13 +166,13 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             UUID verificationLease = uuid(23);
             assertThat(repository.verifyForConsumption(
                     userId, "222222", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(repository.consumePending(userId, wrongLease)).isFalse();
             assertThat(repository.restorePending(userId, wrongLease)).isFalse();
             assertThat(repository.consumePending(userId, verificationLease)).isTrue();
             assertThat(repository.verifyForConsumption(
                     userId, "222222", Instant.now().plusSeconds(30), uuid(24)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.NOT_FOUND);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.NOT_FOUND);
         } finally {
             connectionFactory.destroy();
         }
@@ -171,7 +223,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             UUID verificationLease = uuid(33);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(repository.restorePending(userId, verificationLease)).isTrue();
         } finally {
             executor.shutdownNow();
@@ -192,16 +244,16 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
                     .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(1), expiredLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), currentLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
 
             awaitRedisDeadline(redis, userId, "verification_lease_expires_at_ms", Duration.ZERO);
 
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), currentLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(repository.restorePending(userId, expiredLease)).isFalse();
             assertThat(repository.consumePending(userId, expiredLease)).isFalse();
             assertThat(repository.restorePending(userId, currentLease)).isTrue();
@@ -222,14 +274,14 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
                     .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusMillis(500), expiredLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
 
             awaitRedisDeadline(redis, userId, "verification_lease_expires_at_ms", Duration.ZERO);
 
             assertThat(repository.consumePending(userId, expiredLease)).isFalse();
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), uuid(45)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
         } finally {
             connectionFactory.destroy();
         }
@@ -246,13 +298,13 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
                     .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
             assertThat(repository.verifyForConsumption(
                     userId, "000000", Instant.now().plusSeconds(30), uuid(47)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.MISMATCH);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.MISMATCH);
             assertThat(repository.verifyForConsumption(
                     userId, "000000", Instant.now().plusSeconds(30), uuid(48)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.MISMATCH);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.MISMATCH);
             assertThat(repository.verifyForConsumption(
                     userId, "000000", Instant.now().plusSeconds(30), uuid(49)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
 
             assertThat(redis.opsForHash().entries(key(userId)))
                     .containsEntry("state", "EXHAUSTED")
@@ -260,7 +312,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
                     .doesNotContainKeys("active_code", "active_delivery_id");
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), uuid(50)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS);
             assertThat(repository.beginReplacement(
                     userId,
                     "222222",
@@ -344,7 +396,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             )).isEqualTo(RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), uuid(59)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING_CONFLICT);
             assertThat(redis.opsForHash().entries(key(userId)))
                     .containsEntry("state", "PENDING_INITIAL_DELIVERY")
                     .containsEntry("initial_delivery_id", initialDelivery.toString());
@@ -436,7 +488,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
                     .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
 
             assertThat(repository.beginReplacement(
                     userId,
@@ -597,7 +649,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             UUID verificationLease = uuid(61);
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
 
             assertThat(redis.hasKey(legacyKey(userId))).isFalse();
             assertThat(redis.opsForHash().entries(key(userId)))
@@ -622,7 +674,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
 
             assertThat(repository.verifyForConsumption(
                     userId, "111111", Instant.now().plusSeconds(30), uuid(71)))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.NOT_FOUND);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.NOT_FOUND);
 
             assertThat(redis.hasKey(legacyKey(userId))).isFalse();
             assertThat(redis.hasKey(key(userId))).isFalse();
@@ -650,7 +702,7 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             UUID verificationLease = uuid(81);
             assertThat(repository.verifyForConsumption(
                     userId, "222222", Instant.now().plusSeconds(30), verificationLease))
-                    .isEqualTo(RegistrationCodeRepository.VerifyResult.PENDING);
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
             assertThat(redis.hasKey(legacyKey(userId))).isFalse();
             assertThat(redis.opsForHash().get(key(userId), "active_code")).isEqualTo("222222");
         } finally {

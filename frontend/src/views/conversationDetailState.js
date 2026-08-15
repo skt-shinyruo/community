@@ -72,6 +72,9 @@ export function mapConversationMessage(raw) {
   }
 }
 
+/**
+ * @param {{ clientMsgId?: unknown, fromId?: unknown, toId?: unknown, content?: unknown, createTime?: number }} [message]
+ */
 export function createPendingConversationMessage({ clientMsgId, fromId, toId, content, createTime = Date.now() } = {}) {
   const clientId = String(clientMsgId || '').trim()
   if (!clientId) throw new Error('clientMsgId 缺失')

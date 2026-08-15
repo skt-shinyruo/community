@@ -43,6 +43,25 @@ describe('view complexity guardrails', () => {
     expect(returnBlock).toContain('upload,')
     expect(returnBlock).toContain('shares')
   })
+
+  it('keeps conversation transport and synchronization behind its workflow seam', () => {
+    const conversation = read('src/views/ConversationDetailView.vue')
+    const script = conversation.match(/<script setup>([\s\S]*?)<\/script>/)?.[1] || ''
+    const workflow = read('src/views/useConversationDetailWorkflow.js')
+    const returnBlock = workflow.slice(workflow.lastIndexOf('return {'))
+
+    expect(script).not.toContain("../api/services/imCoreChatService")
+    expect(script).not.toContain("../im/imRealtimeClient")
+    expect(script).not.toContain('createLatestRequestTracker')
+    expect(script).not.toContain('useAuthStore')
+    expect(script).toContain("./useConversationDetailWorkflow")
+    expect(lineCount('src/views/ConversationDetailView.vue')).toBeLessThanOrEqual(350)
+    expect(lineCount('src/views/useConversationDetailWorkflow.js')).toBeLessThanOrEqual(475)
+    expect(returnBlock).toContain('return { model, actions, lifecycle }')
+    expect(returnBlock).not.toContain('items,')
+    expect(returnBlock).not.toContain('backfillAfterReconnect')
+    expect(returnBlock).not.toContain('handlePrivateMessage')
+  })
 })
 
 describe('product redesign CSS guardrails', () => {

@@ -49,6 +49,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.concurrent.atomic.AtomicReference;
 
+import static com.nowcoder.community.oss.application.ObjectUploadApplicationServiceFixture.builder;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.catchThrowable;
@@ -1233,15 +1234,14 @@ class ObjectUploadReliabilityContractTest {
             return org.mockito.Answers.RETURNS_DEFAULTS.answer(invocation);
         });
         private final CountingObjectStore objectStore = new CountingObjectStore();
-        private final ObjectUploadApplicationService service = new ObjectUploadApplicationService(
+        private final ObjectUploadApplicationService service = builder(
                 objectRepository,
                 versionRepository,
                 sessionRepository,
-                objectStore,
-                "community-oss",
-                "https://cdn.example.test",
-                CLOCK
-        );
+                objectStore
+        ).publicBaseUrl("https://cdn.example.test")
+                .clock(CLOCK)
+                .build();
 
         private ObjectUploadSessionResult prepareLegacy() {
             return service.prepareUpload(new PrepareObjectUploadCommand(

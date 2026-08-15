@@ -120,6 +120,7 @@ export class ImRealtimeClient {
     this._emitStateChanged()
   }
 
+  /** @param {{ toUserId?: unknown, content?: unknown, clientMsgId?: unknown }} [message] */
   sendPrivateText({ toUserId, content, clientMsgId } = {}) {
     const toId = normalizeOpaqueId(toUserId)
     const c = String(content || '')
@@ -134,6 +135,7 @@ export class ImRealtimeClient {
     return cmid
   }
 
+  /** @param {{ roomId?: unknown, content?: unknown, clientMsgId?: unknown }} [message] */
   sendRoomText({ roomId, content, clientMsgId } = {}) {
     const rid = requireApiOpaqueId(roomId, 'roomId')
     const c = String(content || '')

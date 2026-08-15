@@ -14,11 +14,11 @@
 | 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
 | 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
-| IM 长连 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/conversationDetailState.js` |
+| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js` |
 | 页面纯状态 | `frontend/src/views/*State.js` |
 | 全局读侧缓存 | `frontend/src/stores/*.js` |
 
-前端尽量把可测试的状态转换放到纯函数文件，例如 `marketState.js`、`walletState.js`、`postsViewState.js`、`postDetailState.js`、`conversationDetailState.js`。Vue 单文件组件负责加载数据、绑定 UI 和调用 service，不应把复杂规则散落在模板里。
+前端尽量把可测试的状态转换放到纯函数文件，例如 `marketState.js`、`walletState.js`、`postsViewState.js`、`postDetailState.js`、`conversationDetailState.js`。复杂、有状态的 transport 流程集中在 `use*Workflow.js`，Vue 单文件组件只绑定其公开页面模型和动作，不应把请求生命周期或复杂规则散落在模板里。
 
 ## 路由和页面鉴权
 
@@ -162,7 +162,7 @@ connect(accessToken)
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
 - 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。
-- 会话详情页先等待首次 `limit=50` history 建立 scope-bound 基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续 `seq` 水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
+- 会话详情流程集中在 `frontend/src/views/useConversationDetailWorkflow.js`，只向组件公开 `model/actions/lifecycle`；HTTP/WS transport、请求竞态、订阅清理和滚动锚定不由组件直接管理。该流程先等待首次 `limit=50` history 建立 scope-bound 基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续 `seq` 水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
 - backfill 按会话 scope 单飞串行执行；执行期间再次出现重连上升沿时排队一轮，当前轮结束后从最新水位继续补，不能吞掉新的恢复请求。
 - HTTP 持久化消息通过 `seq`、`messageId`、`fromId + clientMsgId` 与 pending send 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。
 - 消息合并和排序逻辑在 `frontend/src/views/conversationDetailState.js`，优先按 `seq` 去重和排序，再回退到时间 / id。
@@ -177,6 +177,7 @@ connect(accessToken)
 | `postsViewState.js` | 发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合、评论回复状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
+| `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
 | `marketState.js` | 商品、订单、争议、地址的状态标签和展示文本。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |

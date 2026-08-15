@@ -47,14 +47,14 @@ public class RegistrationCodeMailDeliveryApplicationService {
             return DeliveryOutcome.EXPIRED;
         }
 
-        Instant leaseExpiresAt = now.plus(operationLeaseTtl());
-        if (!registrationCodeRepository.prepareMailDelivery(
+        RegistrationCodeRepository.DeliveryClaim deliveryClaim = registrationCodeRepository.claimMailDelivery(
                 command.registrationId(),
                 command.deliveryId(),
                 command.code(),
                 command.replacementLeaseId(),
-                leaseExpiresAt,
-                validityMargin)) {
+                operationLeaseTtl(),
+                validityMargin).orElse(null);
+        if (deliveryClaim == null) {
             return DeliveryOutcome.OBSOLETE;
         }
 
@@ -63,53 +63,12 @@ public class RegistrationCodeMailDeliveryApplicationService {
                 command.code().trim(),
                 deliveryReference(command.deliveryId())
         );
-        if (command.replacementLeaseId() == null) {
-            if (registrationCodeRepository.completeInitialDelivery(
-                    command.registrationId(),
-                    command.deliveryId(),
-                    command.code(),
-                    validityMargin)) {
-                return DeliveryOutcome.DELIVERED;
-            }
-            boolean recovered = registrationCodeRepository.prepareMailDelivery(
-                    command.registrationId(),
-                    command.deliveryId(),
-                    command.code(),
-                    null,
-                    clock.instant().plus(operationLeaseTtl()),
-                    validityMargin
-            ) && registrationCodeRepository.completeInitialDelivery(
-                    command.registrationId(),
-                    command.deliveryId(),
-                    command.code(),
-                    validityMargin);
-            if (!recovered) {
-                log.warn("[registration] delivered initial code lost its state lease; registrationId={}, deliveryId={}",
-                        command.registrationId(), command.deliveryId());
-            }
-            return recovered ? DeliveryOutcome.DELIVERED : DeliveryOutcome.OBSOLETE;
-        }
-
-        if (registrationCodeRepository.promoteReplacement(
-                command.registrationId(), command.replacementLeaseId(), validityMargin)) {
+        if (deliveryClaim.complete()) {
             return DeliveryOutcome.DELIVERED;
         }
-
-        Instant recoveryLeaseExpiresAt = clock.instant().plus(operationLeaseTtl());
-        boolean recovered = registrationCodeRepository.prepareMailDelivery(
-                command.registrationId(),
-                command.deliveryId(),
-                command.code(),
-                command.replacementLeaseId(),
-                recoveryLeaseExpiresAt,
-                validityMargin
-        ) && registrationCodeRepository.promoteReplacement(
-                command.registrationId(), command.replacementLeaseId(), validityMargin);
-        if (!recovered) {
-            log.warn("[registration] delivered replacement code lost its state lease; registrationId={}, deliveryId={}",
-                    command.registrationId(), command.deliveryId());
-        }
-        return recovered ? DeliveryOutcome.DELIVERED : DeliveryOutcome.OBSOLETE;
+        log.warn("[registration] delivered code lost its state claim; registrationId={}, deliveryId={}",
+                command.registrationId(), command.deliveryId());
+        return DeliveryOutcome.OBSOLETE;
     }
 
     private boolean valid(RegistrationCodeMailDispatcher.Delivery command) {

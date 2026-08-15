@@ -24,7 +24,6 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Objects;
-import java.util.UUID;
 
 @Service
 public class RegistrationVerificationApplicationService {
@@ -106,25 +105,24 @@ public class RegistrationVerificationApplicationService {
         String code = generateCode();
         Duration ttl = codeTtlWithinDraftLifetime(registrationToken, draft);
         Duration cooldown = Duration.ofSeconds(Math.max(0, properties.getCode().getResendCooldownSeconds()));
-        UUID leaseId = UUID.randomUUID();
         Instant issuedAt = clock.instant();
-        Instant leaseExpiresAt = issuedAt.plus(operationLeaseTtl());
-        RegistrationCodeRepository.IssueResult issueResult = registrationCodeStore.beginReplacement(
-                draft.userId(), code, ttl, cooldown, leaseExpiresAt, leaseId);
-        if (issueResult == RegistrationCodeRepository.IssueResult.COOLDOWN_ACTIVE) {
+        RegistrationCodeRepository.ReplacementLease replacementLease = registrationCodeStore.tryBeginReplacement(
+                        draft.userId(), code, ttl, cooldown, operationLeaseTtl())
+                .orElse(null);
+        if (replacementLease == null) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_RESEND_COOLDOWN);
         }
         try {
             mailDispatcher.dispatch(new RegistrationCodeMailDispatcher.Delivery(
-                    leaseId,
+                    replacementLease.id(),
                     draft.userId(),
-                    leaseId,
+                    replacementLease.id(),
                     draft.email(),
                     code,
                     issuedAt.plus(ttl)
             ));
         } catch (RuntimeException ex) {
-            registrationCodeStore.abortReplacement(draft.userId(), leaseId);
+            replacementLease.abort();
             throw ex;
         }
 
@@ -145,11 +143,9 @@ public class RegistrationVerificationApplicationService {
 
         PreparedRegistrationDraft draft = resolveDraftOrThrow(registrationToken);
 
-        UUID leaseId = UUID.randomUUID();
-        Instant leaseExpiresAt = clock.instant().plus(operationLeaseTtl());
-        RegistrationCodeRepository.VerifyResult result = registrationCodeStore.verifyForConsumption(
-                draft.userId(), code.trim(), leaseExpiresAt, leaseId);
-        if (result == RegistrationCodeRepository.VerifyResult.PENDING) {
+        RegistrationCodeRepository.VerificationResult result = registrationCodeStore.claimVerification(
+                draft.userId(), code.trim(), operationLeaseTtl());
+        if (result instanceof RegistrationCodeRepository.VerificationClaim verificationClaim) {
             UserRegistrationActionApi.VerifiedRegistrationResult activation;
             try {
                 activation = userRegistrationActionApi.createVerifiedRegistrationUser(
@@ -165,7 +161,7 @@ public class RegistrationVerificationApplicationService {
                     throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "创建用户失败");
                 }
             } catch (RuntimeException ex) {
-                registrationCodeStore.restorePending(draft.userId(), leaseId);
+                verificationClaim.restore();
                 throw ex;
             }
 
@@ -174,7 +170,7 @@ public class RegistrationVerificationApplicationService {
 
             boolean consumed;
             try {
-                consumed = registrationCodeStore.consumePending(draft.userId(), leaseId);
+                consumed = verificationClaim.consume();
             } catch (RuntimeException ex) {
                 throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
             }
@@ -199,13 +195,13 @@ public class RegistrationVerificationApplicationService {
                 throw new BusinessException(AuthErrorCode.REGISTRATION_ACTIVATED_LOGIN_REQUIRED, ex);
             }
         }
-        if (result == RegistrationCodeRepository.VerifyResult.EXPIRED) {
+        if (result == RegistrationCodeRepository.VerificationFailure.EXPIRED) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_EXPIRED);
         }
-        if (result == RegistrationCodeRepository.VerifyResult.TOO_MANY_ATTEMPTS) {
+        if (result == RegistrationCodeRepository.VerificationFailure.TOO_MANY_ATTEMPTS) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_TOO_MANY_ATTEMPTS);
         }
-        if (result == RegistrationCodeRepository.VerifyResult.PENDING_CONFLICT) {
+        if (result == RegistrationCodeRepository.VerificationFailure.PENDING_CONFLICT) {
             throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);
         }
         throw new BusinessException(AuthErrorCode.REGISTRATION_CODE_INVALID);

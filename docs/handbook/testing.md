@@ -156,9 +156,11 @@ npm run test:coverage
 npm run build
 ```
 
-`npm run typecheck` 同时运行全量 Vue SFC/模板检查，以及 `jsconfig.checked.json` 中基础模块和
-Drive / PostDetail 工作流的显式 `checkJs` 检查。历史 JavaScript 按模块逐步加入受控清单；清单内
-错误会阻断 CI，未纳管文件不应被描述为已完成静态类型检查。
+`npm run typecheck` 同时运行全量 Vue SFC/模板检查，以及 `jsconfig.checked.json` 中共享基础模块、
+认证与 HTTP 恢复、用户 / 社交读侧缓存、IM 实时协议与会话状态 / 拆分工作流，以及 Drive / PostDetail
+工作流的显式 `checkJs` 检查。TypeScript 还会递归检查这些入口的 JavaScript import 依赖，但依赖被其他入口
+间接带入不能替代清单中的显式纳管。历史 JavaScript 按依赖顺序逐模块加入受控清单；清单内错误会
+阻断 CI，未纳管文件不应被描述为已完成静态类型检查，也不应一次性开启全库 `checkJs`。
 `npm run test:coverage` 除全局阈值外，还对拆分后的关键 Drive / PostDetail 工作流设置按文件阈值，防止
 高覆盖旧模块掩盖关键流程覆盖率退化。
 

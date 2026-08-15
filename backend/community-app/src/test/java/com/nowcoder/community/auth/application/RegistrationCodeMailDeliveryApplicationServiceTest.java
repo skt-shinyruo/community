@@ -11,13 +11,14 @@ import org.mockito.InOrder;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
-import java.time.Instant;
 import java.time.Clock;
+import java.time.Duration;
+import java.time.Instant;
+import java.util.Optional;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -34,6 +35,9 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
     @Mock
     private MailPort mailPort;
 
+    @Mock
+    private RegistrationCodeRepository.DeliveryClaim deliveryClaim;
+
     private RegistrationCodeMailDeliveryApplicationService service;
 
     @BeforeEach
@@ -47,10 +51,10 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
     @Test
     void initialDeliveryShouldSendOnlyWhileItsExactCodeStateIsActive() {
         RegistrationCodeMailDispatcher.Delivery stale = initialDelivery(uuid(1), uuid(2));
-        when(registrationCodeRepository.prepareMailDelivery(
+        when(registrationCodeRepository.claimMailDelivery(
                 eq(stale.registrationId()), eq(stale.deliveryId()), eq(stale.code()),
-                eq(null), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(false);
+                eq(null), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120))))
+                .thenReturn(Optional.empty());
 
         assertThat(service.deliver(stale))
                 .isEqualTo(RegistrationCodeMailDeliveryApplicationService.DeliveryOutcome.OBSOLETE);
@@ -58,12 +62,11 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
         verifyNoInteractions(mailPort);
 
         RegistrationCodeMailDispatcher.Delivery current = initialDelivery(uuid(3), stale.registrationId());
-        when(registrationCodeRepository.prepareMailDelivery(
+        when(registrationCodeRepository.claimMailDelivery(
                 eq(current.registrationId()), eq(current.deliveryId()), eq(current.code()),
-                eq(null), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(true);
-        when(registrationCodeRepository.completeInitialDelivery(
-                current.registrationId(), current.deliveryId(), current.code(), java.time.Duration.ofSeconds(120)))
+                eq(null), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120))))
+                .thenReturn(Optional.of(deliveryClaim));
+        when(deliveryClaim.complete())
                 .thenReturn(true);
 
         assertThat(service.deliver(current))
@@ -77,35 +80,33 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
     void replacementDeliveryShouldPrepareSendAndPromoteTheSameLease() {
         UUID deliveryId = uuid(4);
         RegistrationCodeMailDispatcher.Delivery delivery = replacementDelivery(deliveryId, uuid(5));
-        when(registrationCodeRepository.prepareMailDelivery(
+        when(registrationCodeRepository.claimMailDelivery(
                 eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(true);
-        when(registrationCodeRepository.promoteReplacement(
-                delivery.registrationId(), deliveryId, java.time.Duration.ofSeconds(120)))
+                eq(deliveryId), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120))))
+                .thenReturn(Optional.of(deliveryClaim));
+        when(deliveryClaim.complete())
                 .thenReturn(true);
 
         assertThat(service.deliver(delivery))
                 .isEqualTo(RegistrationCodeMailDeliveryApplicationService.DeliveryOutcome.DELIVERED);
 
-        InOrder order = inOrder(registrationCodeRepository, mailPort);
-        order.verify(registrationCodeRepository).prepareMailDelivery(
+        InOrder order = inOrder(registrationCodeRepository, mailPort, deliveryClaim);
+        order.verify(registrationCodeRepository).claimMailDelivery(
                 eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120)));
+                eq(deliveryId), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120)));
         order.verify(mailPort).sendRegistrationCodeMail(
                 "alice@example.com", "654321", deliveryReference(deliveryId));
-        order.verify(registrationCodeRepository).promoteReplacement(
-                delivery.registrationId(), deliveryId, java.time.Duration.ofSeconds(120));
+        order.verify(deliveryClaim).complete();
     }
 
     @Test
     void smtpFailureShouldPropagateForOutboxRetryWithoutPromotion() {
         UUID deliveryId = uuid(6);
         RegistrationCodeMailDispatcher.Delivery delivery = replacementDelivery(deliveryId, uuid(7));
-        when(registrationCodeRepository.prepareMailDelivery(
+        when(registrationCodeRepository.claimMailDelivery(
                 eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(true);
+                eq(deliveryId), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120))))
+                .thenReturn(Optional.of(deliveryClaim));
         org.mockito.Mockito.doThrow(new IllegalStateException("smtp down"))
                 .when(mailPort).sendRegistrationCodeMail(
                         "alice@example.com", "654321", deliveryReference(deliveryId));
@@ -114,31 +115,7 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessage("smtp down");
 
-        verify(registrationCodeRepository, never()).promoteReplacement(any(), any(), any());
-    }
-
-    @Test
-    void replacementShouldRecoverItsOwnExpiredLeaseBeforeGivingUpPromotion() {
-        UUID deliveryId = uuid(8);
-        RegistrationCodeMailDispatcher.Delivery delivery = replacementDelivery(deliveryId, uuid(9));
-        when(registrationCodeRepository.prepareMailDelivery(
-                eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(true, true);
-        when(registrationCodeRepository.promoteReplacement(
-                delivery.registrationId(), deliveryId, java.time.Duration.ofSeconds(120)))
-                .thenReturn(false, true);
-
-        assertThat(service.deliver(delivery))
-                .isEqualTo(RegistrationCodeMailDeliveryApplicationService.DeliveryOutcome.DELIVERED);
-
-        verify(registrationCodeRepository, org.mockito.Mockito.times(2)).prepareMailDelivery(
-                eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120)));
-        verify(registrationCodeRepository, org.mockito.Mockito.times(2))
-                .promoteReplacement(delivery.registrationId(), deliveryId, java.time.Duration.ofSeconds(120));
-        verify(mailPort).sendRegistrationCodeMail(
-                "alice@example.com", "654321", deliveryReference(deliveryId));
+        verify(deliveryClaim, never()).complete();
     }
 
     @Test
@@ -162,13 +139,11 @@ class RegistrationCodeMailDeliveryApplicationServiceTest {
     void replacementShouldNotReportDeliveredWhenItsStateCannotBeRecoveredAfterSmtp() {
         UUID deliveryId = uuid(82);
         RegistrationCodeMailDispatcher.Delivery delivery = replacementDelivery(deliveryId, uuid(83));
-        when(registrationCodeRepository.prepareMailDelivery(
+        when(registrationCodeRepository.claimMailDelivery(
                 eq(delivery.registrationId()), eq(deliveryId), eq(delivery.code()),
-                eq(deliveryId), any(Instant.class), eq(java.time.Duration.ofSeconds(120))))
-                .thenReturn(true, false);
-        when(registrationCodeRepository.promoteReplacement(
-                delivery.registrationId(), deliveryId, java.time.Duration.ofSeconds(120)))
-                .thenReturn(false);
+                eq(deliveryId), eq(Duration.ofSeconds(120)), eq(Duration.ofSeconds(120))))
+                .thenReturn(Optional.of(deliveryClaim));
+        when(deliveryClaim.complete()).thenReturn(false);
 
         assertThat(service.deliver(delivery))
                 .isEqualTo(RegistrationCodeMailDeliveryApplicationService.DeliveryOutcome.OBSOLETE);

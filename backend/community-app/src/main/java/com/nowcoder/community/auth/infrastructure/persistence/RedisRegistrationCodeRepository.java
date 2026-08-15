@@ -10,11 +10,14 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
 import java.time.Clock;
+import java.time.DateTimeException;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
+import java.util.Optional;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
 @ConditionalOnProperty(name = "auth.registration.code.store", havingValue = "redis", matchIfMissing = true)
@@ -646,7 +649,23 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
     }
 
     @Override
-    public IssueResult beginReplacement(
+    public Optional<ReplacementLease> tryBeginReplacement(
+            UUID userId,
+            String code,
+            Duration ttl,
+            Duration cooldown,
+            Duration leaseTtl
+    ) {
+        Instant leaseExpiresAt = leaseDeadline(leaseTtl);
+        UUID leaseId = UUID.randomUUID();
+        if (leaseExpiresAt == null || beginReplacement(
+                userId, code, ttl, cooldown, leaseExpiresAt, leaseId) != IssueResult.ISSUED) {
+            return Optional.empty();
+        }
+        return Optional.of(new RedisReplacementLease(userId, leaseId));
+    }
+
+    IssueResult beginReplacement(
             UUID userId,
             String code,
             Duration ttl,
@@ -673,13 +692,11 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         return issueResult(result);
     }
 
-    @Override
-    public boolean promoteReplacement(UUID userId, UUID leaseId) {
+    boolean promoteReplacement(UUID userId, UUID leaseId) {
         return promoteReplacement(userId, leaseId, Duration.ZERO);
     }
 
-    @Override
-    public boolean promoteReplacement(UUID userId, UUID leaseId, Duration minimumRemainingValidity) {
+    boolean promoteReplacement(UUID userId, UUID leaseId, Duration minimumRemainingValidity) {
         if (userId == null || leaseId == null) {
             return false;
         }
@@ -693,8 +710,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         return Long.valueOf(1L).equals(result);
     }
 
-    @Override
-    public boolean abortReplacement(UUID userId, UUID leaseId) {
+    boolean abortReplacement(UUID userId, UUID leaseId) {
         if (userId == null || leaseId == null) {
             return false;
         }
@@ -708,7 +724,36 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
     }
 
     @Override
-    public boolean prepareMailDelivery(
+    public Optional<DeliveryClaim> claimMailDelivery(
+            UUID userId,
+            UUID deliveryId,
+            String code,
+            UUID replacementLeaseId,
+            Duration leaseTtl,
+            Duration minimumRemainingValidity
+    ) {
+        Instant leaseExpiresAt = leaseDeadline(leaseTtl);
+        if (leaseExpiresAt == null || !prepareMailDelivery(
+                userId,
+                deliveryId,
+                code,
+                replacementLeaseId,
+                leaseExpiresAt,
+                minimumRemainingValidity
+        )) {
+            return Optional.empty();
+        }
+        return Optional.of(new RedisDeliveryClaim(
+                userId,
+                deliveryId,
+                code.trim(),
+                replacementLeaseId,
+                leaseTtl,
+                minimumRemainingValidity
+        ));
+    }
+
+    boolean prepareMailDelivery(
             UUID userId,
             UUID deliveryId,
             String code,
@@ -719,8 +764,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                 userId, deliveryId, code, replacementLeaseId, leaseExpiresAt, Duration.ZERO);
     }
 
-    @Override
-    public boolean prepareMailDelivery(
+    boolean prepareMailDelivery(
             UUID userId,
             UUID deliveryId,
             String code,
@@ -745,8 +789,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         return Long.valueOf(1L).equals(result);
     }
 
-    @Override
-    public boolean completeInitialDelivery(
+    boolean completeInitialDelivery(
             UUID userId,
             UUID deliveryId,
             String code,
@@ -767,6 +810,28 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
     }
 
     @Override
+    public VerificationResult claimVerification(
+            UUID userId,
+            String code,
+            Duration leaseTtl
+    ) {
+        Instant leaseExpiresAt = leaseDeadline(leaseTtl);
+        UUID leaseId = UUID.randomUUID();
+        VerifyResult result = verifyForConsumption(userId, code, leaseExpiresAt, leaseId);
+        if (result == VerifyResult.PENDING) {
+            return new RedisVerificationClaim(userId, leaseId);
+        }
+        return switch (result) {
+            case NOT_FOUND -> VerificationFailure.NOT_FOUND;
+            case EXPIRED -> VerificationFailure.EXPIRED;
+            case MISMATCH -> VerificationFailure.MISMATCH;
+            case TOO_MANY_ATTEMPTS -> VerificationFailure.TOO_MANY_ATTEMPTS;
+            case PENDING_CONFLICT -> VerificationFailure.PENDING_CONFLICT;
+            case PENDING -> throw new IllegalStateException("pending verification must create a claim");
+        };
+    }
+
+    @Override
     public void delete(UUID userId) {
         if (userId == null) {
             return;
@@ -779,8 +844,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
     }
 
-    @Override
-    public VerifyResult verifyForConsumption(UUID userId, String code, Instant leaseExpiresAt, UUID leaseId) {
+    VerifyResult verifyForConsumption(UUID userId, String code, Instant leaseExpiresAt, UUID leaseId) {
         long leaseTtlMs = remainingLeaseMillis(leaseExpiresAt);
         if (userId == null || !StringUtils.hasText(code) || leaseExpiresAt == null || leaseId == null
                 || leaseTtlMs <= 0) {
@@ -807,8 +871,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
     }
 
-    @Override
-    public boolean consumePending(UUID userId, UUID leaseId) {
+    boolean consumePending(UUID userId, UUID leaseId) {
         if (userId == null || leaseId == null) {
             return false;
         }
@@ -821,8 +884,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         return Long.valueOf(1L).equals(result);
     }
 
-    @Override
-    public boolean restorePending(UUID userId, UUID leaseId) {
+    boolean restorePending(UUID userId, UUID leaseId) {
         if (userId == null || leaseId == null) {
             return false;
         }
@@ -833,6 +895,30 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
                 leaseId.toString()
         );
         return Long.valueOf(1L).equals(result);
+    }
+
+    private boolean completeMailDelivery(
+            UUID userId,
+            UUID deliveryId,
+            String code,
+            UUID replacementLeaseId,
+            Duration minimumRemainingValidity
+    ) {
+        if (replacementLeaseId == null) {
+            return completeInitialDelivery(userId, deliveryId, code, minimumRemainingValidity);
+        }
+        return promoteReplacement(userId, replacementLeaseId, minimumRemainingValidity);
+    }
+
+    private Instant leaseDeadline(Duration leaseTtl) {
+        if (leaseTtl == null || leaseTtl.isZero() || leaseTtl.isNegative()) {
+            return null;
+        }
+        try {
+            return clock.instant().plus(leaseTtl);
+        } catch (DateTimeException | ArithmeticException exception) {
+            return null;
+        }
     }
 
     private boolean validIssue(UUID userId, String code, Duration ttl) {
@@ -860,6 +946,112 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         } catch (IllegalArgumentException ex) {
             return IssueResult.COOLDOWN_ACTIVE;
         }
+    }
+
+    private final class RedisReplacementLease implements ReplacementLease {
+
+        private final UUID userId;
+        private final UUID leaseId;
+        private final AtomicBoolean resolved = new AtomicBoolean();
+
+        private RedisReplacementLease(UUID userId, UUID leaseId) {
+            this.userId = userId;
+            this.leaseId = leaseId;
+        }
+
+        @Override
+        public UUID id() {
+            return leaseId;
+        }
+
+        @Override
+        public boolean abort() {
+            return resolved.compareAndSet(false, true)
+                    && abortReplacement(userId, leaseId);
+        }
+    }
+
+    private final class RedisDeliveryClaim implements DeliveryClaim {
+
+        private final UUID userId;
+        private final UUID deliveryId;
+        private final String code;
+        private final UUID replacementLeaseId;
+        private final Duration leaseTtl;
+        private final Duration minimumRemainingValidity;
+        private final AtomicBoolean completed = new AtomicBoolean();
+
+        private RedisDeliveryClaim(
+                UUID userId,
+                UUID deliveryId,
+                String code,
+                UUID replacementLeaseId,
+                Duration leaseTtl,
+                Duration minimumRemainingValidity
+        ) {
+            this.userId = userId;
+            this.deliveryId = deliveryId;
+            this.code = code;
+            this.replacementLeaseId = replacementLeaseId;
+            this.leaseTtl = leaseTtl;
+            this.minimumRemainingValidity = minimumRemainingValidity;
+        }
+
+        @Override
+        public boolean complete() {
+            if (!completed.compareAndSet(false, true)) {
+                return false;
+            }
+            if (completeMailDelivery(
+                    userId, deliveryId, code, replacementLeaseId, minimumRemainingValidity)) {
+                return true;
+            }
+            Instant recoveryDeadline = leaseDeadline(leaseTtl);
+            return recoveryDeadline != null
+                    && prepareMailDelivery(
+                            userId,
+                            deliveryId,
+                            code,
+                            replacementLeaseId,
+                            recoveryDeadline,
+                            minimumRemainingValidity
+                    )
+                    && completeMailDelivery(
+                            userId, deliveryId, code, replacementLeaseId, minimumRemainingValidity);
+        }
+    }
+
+    private final class RedisVerificationClaim implements VerificationClaim {
+
+        private final UUID userId;
+        private final UUID leaseId;
+        private final AtomicBoolean resolved = new AtomicBoolean();
+
+        private RedisVerificationClaim(UUID userId, UUID leaseId) {
+            this.userId = userId;
+            this.leaseId = leaseId;
+        }
+
+        @Override
+        public boolean consume() {
+            return resolved.compareAndSet(false, true)
+                    && consumePending(userId, leaseId);
+        }
+
+        @Override
+        public boolean restore() {
+            return resolved.compareAndSet(false, true)
+                    && restorePending(userId, leaseId);
+        }
+    }
+
+    enum VerifyResult {
+        NOT_FOUND,
+        EXPIRED,
+        MISMATCH,
+        TOO_MANY_ATTEMPTS,
+        PENDING,
+        PENDING_CONFLICT
     }
 
     private String key(UUID userId) {

@@ -124,7 +124,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void unauthenticatedUserProfileShouldBeAllowed() throws Exception {
-        when(userProfileApplicationService.get(any(), eq(USER_ID)))
+        when(userProfileApplicationService.get(eq(USER_ID)))
                 .thenReturn(new UserProfilePageResult(
                         USER_ID,
                         "u42",
@@ -137,8 +137,7 @@ class PublicReadEndpointSecurityTest {
                         null,
                         0L,
                         0L,
-                        0L,
-                        false
+                        0L
                 ));
 
         mockMvc.perform(get("/api/users/" + USER_ID))
@@ -173,7 +172,7 @@ class PublicReadEndpointSecurityTest {
 
     @Test
     void directUserProfileReadEndpointShouldNotEmitCorsHeaders() throws Exception {
-        when(userProfileApplicationService.get(any(), eq(USER_ID)))
+        when(userProfileApplicationService.get(eq(USER_ID)))
                 .thenReturn(new UserProfilePageResult(
                         USER_ID,
                         "u42",
@@ -186,8 +185,7 @@ class PublicReadEndpointSecurityTest {
                         null,
                         0L,
                         0L,
-                        0L,
-                        false
+                        0L
                 ));
 
         mockMvc.perform(get("/api/users/" + USER_ID).header("Origin", "http://localhost:12881"))

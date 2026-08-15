@@ -237,6 +237,7 @@ Idempotency-Key: <unique-key>
 
 字段约定：
 
+- profile 用户资料：`GET /api/users/{userId}` 只返回查看者无关的身份、等级和聚合计数字段，不返回 `hasFollowed`；当前查看者的关注关系由 `/api/follows/status` 返回。
 - content 批量摘要：`POST /api/posts/batch-summary` 的 `postIds` 最多 `200` 个；超过上限返回 `400`，同一限制也由 application entry 执行。
 - social 公共关注列表：SPA 默认使用 `/api/follows/{userId}/followees/page` 或 `/followers/page` 的 opaque `cursor`，响应包含 `items`、`nextCursor`、`hasNext`，并保存游标历史支持前后翻页；旧 `page/size` 数组响应仅作兼容且 `page > 100` 返回 `400`。
 - notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。

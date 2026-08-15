@@ -5,7 +5,7 @@
 ## Owner / SSOT
 
 - `user` 拥有账号、用户名、头像、角色、状态和创建时间。
-- `social` 拥有获赞数、关注数、粉丝数和当前 viewer 的关注关系。
+- `social` 拥有获赞数、关注数、粉丝数和查看者关注关系；profile 只聚合前三类查看者无关的数据。
 - `content` 拥有最近帖子和最近评论。
 - `growth` 拥有等级及等级统计。
 - `profile` 只拥有“如何组装用户主页”这一应用用例，不持久化上述事实，也不把聚合结果反向写回 owner。
@@ -16,18 +16,19 @@
 - `GET /api/users/{userId}/recent-posts`
 - `GET /api/users/{userId}/recent-comments`
 
-`UserProfileController` 只解析 path/query 参数、提取可选 viewer，并把 application result 转为 HTTP response。
+`UserProfileController` 只解析 path/query 参数，并把 application result 转为 HTTP response。
 
 ## 聚合流程
 
-`UserProfileQueryApplicationService.get(viewerId, userId)`：
+`UserProfileQueryApplicationService.get(userId)`：
 
 1. 通过 `UserProfileQueryApi.getProfile(...)` 读取 user 主事实；用户不存在时由 user owner 返回失败。
 2. 通过 `UserLevelQueryApi.evaluateLevel(...)` 读取 growth 等级。返回 `null` 或 `enabled=false` 时，主页明确返回等级功能未启用，不伪造等级值。
 3. 通过 `SocialLikeQueryApi.userLikeCount(...)` 读取获赞数。
 4. 通过 `SocialFollowQueryApi` 读取关注数和粉丝数。
-5. viewer 未登录、目标为空或查看自己时，`hasFollowed=false`；其他情况回源 social 判断关注关系。
-6. 组装 `UserProfilePageResult`，controller 再完成 transport DTO 转换。
+5. 组装不含查看者状态的 `UserProfilePageResult`，controller 再完成 transport DTO 转换。
+
+`GET /api/users/{userId}` 不返回 `hasFollowed`。查看者与目标用户的关注关系由 social 的 `/api/follows/status` 返回，避免查看者相关状态进入可跨登录代际复用的资料缓存。
 
 最近内容：
 

@@ -3,6 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
+import { useAuthStore } from '../../stores/auth'
 import { batchUserSummary, clearUserProfileCache, getUserProfile, invalidateUserProfile } from './userService'
 
 describe('api/services/userService', () => {
@@ -33,6 +34,37 @@ describe('api/services/userService', () => {
     expect((await getUserProfile(userId)).username).toBe('before-expiry')
     await vi.advanceTimersByTimeAsync(5 * 60 * 1000 + 1)
     expect((await getUserProfile(userId)).username).toBe('after-expiry')
+  })
+
+  it('keeps cached profiles viewer-independent across logout and login', async () => {
+    const targetUserId = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    const auth = useAuthStore()
+    mock = new MockAdapter(http)
+    mock.onGet(`/api/users/${targetUserId}`).replyOnce(200, {
+      code: 0,
+      data: {
+        id: targetUserId,
+        username: 'target-user',
+        hasFollowed: true
+      }
+    })
+
+    auth.installSession({
+      accessToken: 'viewer-a-token',
+      me: { userId: 'viewer-a', username: 'viewer-a' }
+    })
+    const viewerAProfile = await getUserProfile(targetUserId)
+
+    auth.clear()
+    auth.installSession({
+      accessToken: 'viewer-b-token',
+      me: { userId: 'viewer-b', username: 'viewer-b' }
+    })
+    const viewerBProfile = await getUserProfile(targetUserId)
+
+    expect(viewerBProfile).not.toHaveProperty('hasFollowed')
+    expect(viewerAProfile).not.toHaveProperty('hasFollowed')
+    expect(mock.history.get).toHaveLength(1)
   })
 
   it('does not let an invalidated in-flight request repopulate the cache', async () => {

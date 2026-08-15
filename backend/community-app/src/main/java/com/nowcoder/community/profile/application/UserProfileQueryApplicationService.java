@@ -40,7 +40,7 @@ public class UserProfileQueryApplicationService {
         this.userLevelQueryApi = userLevelQueryApi;
     }
 
-    public UserProfilePageResult get(UUID viewerId, UUID userId) {
+    public UserProfilePageResult get(UUID userId) {
         UserProfileView user = userProfileQueryApi.getProfile(userId);
         UserLevelSummaryView levelSummary = userLevelQueryApi.evaluateLevel(userId);
         boolean userLevelEnabled = levelSummary != null && levelSummary.enabled();
@@ -56,8 +56,7 @@ public class UserProfileQueryApplicationService {
                 userLevelEnabled ? levelSummary.signInDaysInWindow() : null,
                 userLikeCount(userId),
                 followeeCount(userId),
-                followerCount(userId),
-                hasFollowed(viewerId, userId)
+                followerCount(userId)
         );
     }
 
@@ -89,13 +88,6 @@ public class UserProfileQueryApplicationService {
 
     private long followerCount(UUID userId) {
         return userId == null ? 0L : socialFollowQueryApi.followerCount(USER, userId);
-    }
-
-    private boolean hasFollowed(UUID viewerId, UUID userId) {
-        if (viewerId == null || userId == null || viewerId.equals(userId)) {
-            return false;
-        }
-        return socialFollowQueryApi.hasFollowed(viewerId, USER, userId);
     }
 
     private static UserProfilePageResult.RecentPostSummaryResult toRecentPostSummaryResult(PostSummaryView view) {

@@ -11,14 +11,10 @@ import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
-import org.springframework.security.authentication.TestingAuthenticationToken;
-import org.springframework.security.core.Authentication;
-import org.springframework.security.oauth2.jwt.Jwt;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 
 import java.lang.reflect.Field;
-import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.UUID;
@@ -45,7 +41,7 @@ class UserProfileControllerTest {
     void shouldKeepExistingProfileRoutesAndDependOnlyOnSameDomainApplicationService() throws Exception {
         assertThat(UserProfileController.class.getAnnotation(RequestMapping.class).value())
                 .containsExactly("/api/users");
-        assertThat(mapping("getUser", Authentication.class, UUID.class)).containsExactly("/{userId}");
+        assertThat(mapping("getUser", UUID.class)).containsExactly("/{userId}");
         assertThat(mapping("recentPosts", UUID.class, Integer.class, Integer.class))
                 .containsExactly("/{userId}/recent-posts");
         assertThat(mapping("recentComments", UUID.class, Integer.class, Integer.class))
@@ -56,15 +52,14 @@ class UserProfileControllerTest {
     }
 
     @Test
-    void getUserShouldPreserveProfileJsonWireWithoutWalletFields() throws Exception {
-        UUID viewerId = uuid(42);
+    void getUserShouldReturnViewerIndependentProfileWire() throws Exception {
         UUID userId = uuid(7);
         Date createTime = new Date(1_720_000_000_000L);
-        when(applicationService.get(viewerId, userId)).thenReturn(new UserProfilePageResult(
-                userId, "alice", "h7", 2, 0, createTime, true, 2, 13, 12, 5, 8, true
+        when(applicationService.get(userId)).thenReturn(new UserProfilePageResult(
+                userId, "alice", "h7", 2, 0, createTime, true, 2, 13, 12, 5, 8
         ));
 
-        Result<UserProfileResponse> result = controller.getUser(authentication(viewerId), userId);
+        Result<UserProfileResponse> result = controller.getUser(userId);
 
         JsonNode data = objectMapper.valueToTree(result).path("data");
         assertThat(data.path("id").asText()).isEqualTo(userId.toString());
@@ -76,10 +71,10 @@ class UserProfileControllerTest {
         assertThat(data.path("likeCount").asLong()).isEqualTo(12);
         assertThat(data.path("followeeCount").asLong()).isEqualTo(5);
         assertThat(data.path("followerCount").asLong()).isEqualTo(8);
-        assertThat(data.path("hasFollowed").asBoolean()).isTrue();
+        assertThat(data.has("hasFollowed")).isFalse();
         assertThat(data.has("walletBalance")).isFalse();
         assertThat(data.has("walletStatus")).isFalse();
-        verify(applicationService).get(viewerId, userId);
+        verify(applicationService).get(userId);
     }
 
     @Test
@@ -122,16 +117,6 @@ class UserProfileControllerTest {
         return UserProfileController.class.getDeclaredMethod(method, parameterTypes)
                 .getAnnotation(GetMapping.class)
                 .value();
-    }
-
-    private Authentication authentication(UUID userId) {
-        Jwt jwt = Jwt.withTokenValue("token-" + userId)
-                .header("alg", "none")
-                .subject(userId.toString())
-                .issuedAt(Instant.now())
-                .expiresAt(Instant.now().plusSeconds(60))
-                .build();
-        return new TestingAuthenticationToken(jwt, null);
     }
 
     private static UUID uuid(long suffix) {

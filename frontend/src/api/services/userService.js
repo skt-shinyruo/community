@@ -6,6 +6,20 @@ import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../ut
 
 const USER_CACHE_TTL_MS = 5 * 60 * 1000
 const USER_CACHE_MAX_ENTRIES = 100
+const USER_PROFILE_CACHE_FIELDS = [
+  'id',
+  'username',
+  'headerUrl',
+  'type',
+  'status',
+  'createTime',
+  'userLevelEnabled',
+  'userLevel',
+  'signInDaysInWindow',
+  'likeCount',
+  'followeeCount',
+  'followerCount'
+]
 const userCache = new Map()
 const userInflight = new Map()
 
@@ -65,6 +79,20 @@ function normalizeUserLevelProfileFields(raw) {
   }
 }
 
+function normalizeUserProfile(raw, traceId) {
+  const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
+  const profile = {}
+  for (const field of USER_PROFILE_CACHE_FIELDS) {
+    if (Object.hasOwn(source, field)) profile[field] = source[field]
+  }
+  if (Object.hasOwn(profile, 'id')) profile.id = normalizeOpaqueId(profile.id)
+  return {
+    ...profile,
+    ...normalizeUserLevelProfileFields(source),
+    _traceId: traceId
+  }
+}
+
 export async function getUserProfile(userId, { force = false } = {}) {
   const uid = requireOpaqueId(userId, 'userId')
   if (!force) {
@@ -85,12 +113,7 @@ export async function getUserProfile(userId, { force = false } = {}) {
   const p = (async () => {
     const resp = await http.get(`/api/users/${uid}`)
     const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
-    const profile = data && typeof data === 'object' && !Array.isArray(data) ? data : {}
-    const value = {
-      ...profile,
-      ...normalizeUserLevelProfileFields(data),
-      _traceId: traceId
-    }
+    const value = normalizeUserProfile(data, traceId)
     if (request.cacheable) {
       writeCachedProfile(uid, value)
     }

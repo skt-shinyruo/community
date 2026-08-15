@@ -16,8 +16,7 @@ public record UserProfilePageResult(
         Integer signInDaysInWindow,
         long likeCount,
         long followeeCount,
-        long followerCount,
-        boolean hasFollowed
+        long followerCount
 ) {
 
     public record RecentPostSummaryResult(

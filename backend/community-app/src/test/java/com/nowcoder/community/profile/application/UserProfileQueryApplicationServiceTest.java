@@ -22,6 +22,8 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.USER;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -42,20 +44,18 @@ class UserProfileQueryApplicationServiceTest {
     private UserLevelQueryApi userLevelQueryApi;
 
     @Test
-    void getShouldComposeOwnerApiViewsWithoutEnteringUserApplication() {
+    void getShouldComposeViewerIndependentOwnerApiViews() {
         UserProfileQueryApplicationService service = service();
         UUID userId = uuid(7);
-        UUID viewerId = uuid(42);
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(userId))
                 .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 1, createTime));
         when(socialLikeQueryApi.userLikeCount(userId)).thenReturn(12L);
         when(socialFollowQueryApi.followeeCount(userId, USER)).thenReturn(5L);
         when(socialFollowQueryApi.followerCount(USER, userId)).thenReturn(8L);
-        when(socialFollowQueryApi.hasFollowed(viewerId, USER, userId)).thenReturn(true);
         when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(new UserLevelSummaryView(4, 13, 30, 7, 14, true));
 
-        UserProfilePageResult page = service.get(viewerId, userId);
+        UserProfilePageResult page = service.get(userId);
 
         assertThat(page).extracting(
                 UserProfilePageResult::userId,
@@ -63,23 +63,9 @@ class UserProfileQueryApplicationServiceTest {
                 UserProfilePageResult::userLevel,
                 UserProfilePageResult::likeCount,
                 UserProfilePageResult::followeeCount,
-                UserProfilePageResult::followerCount,
-                UserProfilePageResult::hasFollowed
-        ).containsExactly(userId, "alice", 4, 12L, 5L, 8L, true);
-    }
-
-    @Test
-    void getShouldNotQueryFollowRelationForAnonymousViewerOrSelf() {
-        UserProfileQueryApplicationService service = service();
-        UUID userId = uuid(7);
-        when(userProfileQueryApi.getProfile(userId))
-                .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 1, new Date()));
-        when(userLevelQueryApi.evaluateLevel(userId)).thenReturn(null);
-
-        service.get(null, userId);
-        service.get(userId, userId);
-
-        verify(socialFollowQueryApi, never()).hasFollowed(userId, USER, userId);
+                UserProfilePageResult::followerCount
+        ).containsExactly(userId, "alice", 4, 12L, 5L, 8L);
+        verify(socialFollowQueryApi, never()).hasFollowed(any(), anyInt(), any());
     }
 
     @Test

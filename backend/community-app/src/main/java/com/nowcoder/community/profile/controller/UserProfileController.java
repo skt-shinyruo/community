@@ -1,11 +1,9 @@
 package com.nowcoder.community.profile.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.infra.security.auth.CurrentUser;
 import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
 import com.nowcoder.community.profile.controller.dto.UserProfileResponse;
-import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,9 +24,8 @@ public class UserProfileController {
     }
 
     @GetMapping("/{userId}")
-    public Result<UserProfileResponse> getUser(Authentication authentication, @PathVariable UUID userId) {
-        UUID viewerId = CurrentUser.tryUserUuid(authentication);
-        UserProfilePageResult user = applicationService.get(viewerId, userId);
+    public Result<UserProfileResponse> getUser(@PathVariable UUID userId) {
+        UserProfilePageResult user = applicationService.get(userId);
         UserProfileResponse response = new UserProfileResponse();
         response.setId(user.userId());
         response.setUsername(user.username());
@@ -42,7 +39,6 @@ public class UserProfileController {
         response.setLikeCount(user.likeCount());
         response.setFolloweeCount(user.followeeCount());
         response.setFollowerCount(user.followerCount());
-        response.setHasFollowed(user.hasFollowed());
         return Result.ok(response);
     }
 

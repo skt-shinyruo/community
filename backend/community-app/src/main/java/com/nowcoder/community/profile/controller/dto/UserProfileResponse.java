@@ -18,7 +18,6 @@ public class UserProfileResponse {
     private long likeCount;
     private long followeeCount;
     private long followerCount;
-    private Boolean hasFollowed;
 
     public UUID getId() {
         return id;
@@ -114,14 +113,6 @@ public class UserProfileResponse {
 
     public void setFollowerCount(long followerCount) {
         this.followerCount = followerCount;
-    }
-
-    public Boolean getHasFollowed() {
-        return hasFollowed;
-    }
-
-    public void setHasFollowed(Boolean hasFollowed) {
-        this.hasFollowed = hasFollowed;
     }
 
 }

@@ -2,7 +2,7 @@ package com.nowcoder.community.analytics.infrastructure.api;
 
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.analytics.application.AnalyticsIngestApplicationService;
-import com.nowcoder.community.analytics.infrastructure.web.AnalyticsIngestProperties;
+import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;

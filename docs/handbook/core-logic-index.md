@@ -215,9 +215,8 @@
 | `analytics.controller.AnalyticsController` | analytics HTTP binding | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | IndexOnly |
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入，失败节流日志 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `analytics.application.AnalyticsRequestCaptureApplicationService` | Kafka analytics 采集发布边界 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
-| `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 analytics 采集过滤器 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `analytics.infrastructure.web.AnalyticsRequestClassifier` | include / exclude / status / method 采集判定 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `analytics.application.AnalyticsRequestCaptureApplicationService` | 请求分类、UV / DAU 策略、命令组装和 Kafka analytics 发布边界 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
+| `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 Servlet、IP 和 principal 观察值适配 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `analytics.request` 到 ingest application | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
 
 ## Ops Governance

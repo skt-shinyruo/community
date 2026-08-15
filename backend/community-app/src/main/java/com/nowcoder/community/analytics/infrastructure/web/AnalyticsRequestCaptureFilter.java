@@ -1,7 +1,7 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService;
-import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService.RequestObservation;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -27,23 +27,17 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AnalyticsRequestCaptureFilter.class);
     private final AtomicLong captureFailureCount = new AtomicLong();
 
-    private final AnalyticsRequestClassifier classifier;
     private final ClientIpResolver clientIpResolver;
     private final AnalyticsPrincipalResolver principalResolver;
-    private final AnalyticsIngestProperties properties;
     private final AnalyticsRequestCaptureApplicationService analyticsRequestCaptureApplicationService;
 
     public AnalyticsRequestCaptureFilter(
-            AnalyticsRequestClassifier classifier,
             ClientIpResolver clientIpResolver,
             AnalyticsPrincipalResolver principalResolver,
-            AnalyticsIngestProperties properties,
             AnalyticsRequestCaptureApplicationService analyticsRequestCaptureApplicationService
     ) {
-        this.classifier = classifier;
         this.clientIpResolver = clientIpResolver;
         this.principalResolver = principalResolver;
-        this.properties = properties;
         this.analyticsRequestCaptureApplicationService = analyticsRequestCaptureApplicationService;
     }
 
@@ -63,7 +57,7 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
 
     private void recordSafely(HttpServletRequest request, HttpServletResponse response) {
         try {
-            recordIfEligible(request, response);
+            captureObservation(request, response);
         } catch (RuntimeException e) {
             logCaptureFailure(request, response, e);
         }
@@ -83,26 +77,17 @@ public class AnalyticsRequestCaptureFilter extends OncePerRequestFilter {
         }
     }
 
-    private void recordIfEligible(HttpServletRequest request, HttpServletResponse response) {
-        AnalyticsRequestClassifier.Decision decision = classifier.classify(
-                request == null ? null : request.getMethod(),
-                request == null ? null : request.getRequestURI(),
-                response == null ? 0 : response.getStatus()
-        );
-        if (decision == null || !decision.capture()) {
-            return;
-        }
-        ClientIpResolver.ResolvedClientIp resolved = clientIpResolver.resolve(request);
+    private void captureObservation(HttpServletRequest request, HttpServletResponse response) {
+        ClientIpResolver.ResolvedClientIp resolved = request == null ? null : clientIpResolver.resolve(request);
         String ip = resolved == null ? null : resolved.ip();
         Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
         UUID userId = principalResolver.resolveUserUuid(authentication);
-        boolean recordUv = properties != null && properties.isRecordUv();
-        boolean recordDau = properties != null && properties.isRecordDau();
-        analyticsRequestCaptureApplicationService.capture(new RecordRequestCommand(
+        analyticsRequestCaptureApplicationService.capture(new RequestObservation(
+                request == null ? null : request.getMethod(),
+                request == null ? null : request.getRequestURI(),
+                response == null ? 0 : response.getStatus(),
                 ip,
-                userId,
-                recordUv,
-                recordDau
+                userId
         ));
     }
 }

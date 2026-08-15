@@ -102,7 +102,7 @@ AnalyticsRequestCaptureFilter
           -> AnalyticsRequestKafkaListener -> AnalyticsIngestApplicationService
 ```
 
-filter 先让业务 filter chain 完成，再在 `finally` 中采集；采集异常由 filter 捕获并限频记录，不能改写已经产生的 HTTP 响应。采集只有 Kafka 一条写入路径；`analytics.ingest.enabled=false` 让 classifier 停止发布新事件，常驻 listener 仍可排空已有消息。
+filter 先让业务 filter chain 完成，再在 `finally` 中提取请求观察值并进入 capture application；采集异常由 filter 捕获并限频记录，不能改写已经产生的 HTTP 响应。采集只有 Kafka 一条写入路径；`analytics.ingest.enabled=false` 让 capture application 停止发布新事件，常驻 listener 仍可排空已有消息。
 
 ## 重试和 DLQ
 

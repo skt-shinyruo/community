@@ -1,8 +1,7 @@
 package com.nowcoder.community.analytics.infrastructure.web;
 
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService;
-import com.nowcoder.community.analytics.application.AnalyticsRequestCapturePort;
-import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService.RequestObservation;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -23,93 +22,69 @@ import static org.mockito.Mockito.when;
 class AnalyticsRequestCaptureFilterTest {
 
     @Test
-    void shouldPublishEligibleRequestAfterChain() throws Exception {
-        AnalyticsRequestClassifier classifier = mock(AnalyticsRequestClassifier.class);
+    void shouldCaptureRequestObservationAfterChain() throws Exception {
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsPrincipalResolver principalResolver = mock(AnalyticsPrincipalResolver.class);
-        AnalyticsIngestProperties properties = enabledProperties();
-        AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
+        AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                classifier,
                 clientIpResolver,
                 principalResolver,
-                properties,
-                new AnalyticsRequestCaptureApplicationService(capturePort)
+                applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = (req, res) -> ((MockHttpServletResponse) res).setStatus(200);
         UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
-        when(classifier.classify("GET", "/api/posts/123", 200))
-                .thenReturn(new AnalyticsRequestClassifier.Decision(true, "/api/posts/{id}", "captured"));
         when(clientIpResolver.resolve(request)).thenReturn(new ClientIpResolver.ResolvedClientIp("1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
         when(principalResolver.resolveUserUuid(null)).thenReturn(userId);
 
         filter.doFilter(request, response, chain);
 
-        verify(capturePort).publish(new RecordRequestCommand("1.1.1.1", userId, true, true));
-    }
-
-    @Test
-    void shouldSkipWhenClassifierSkips() throws Exception {
-        AnalyticsRequestClassifier classifier = mock(AnalyticsRequestClassifier.class);
-        ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
-        AnalyticsPrincipalResolver principalResolver = mock(AnalyticsPrincipalResolver.class);
-        AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
-        AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                classifier,
-                clientIpResolver,
-                principalResolver,
-                enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(capturePort)
-        );
-        MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/analytics/uv");
-        MockHttpServletResponse response = new MockHttpServletResponse();
-
-        when(classifier.classify("GET", "/api/analytics/uv", 200))
-                .thenReturn(new AnalyticsRequestClassifier.Decision(false, null, "excluded_path"));
-
-        filter.doFilter(request, response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
-
-        verifyNoInteractions(capturePort);
+        verify(applicationService).capture(new RequestObservation(
+                "GET",
+                "/api/posts/123",
+                200,
+                "1.1.1.1",
+                userId
+        ));
     }
 
     @Test
     void shouldFailOpenWhenAnalyticsCaptureThrows() throws Exception {
-        AnalyticsRequestClassifier classifier = mock(AnalyticsRequestClassifier.class);
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsPrincipalResolver principalResolver = mock(AnalyticsPrincipalResolver.class);
-        AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
+        AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                classifier,
                 clientIpResolver,
                 principalResolver,
-                enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(capturePort)
+                applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
-        doThrow(new RuntimeException("classifier failed")).when(classifier).classify("GET", "/api/posts/123", 200);
+        doThrow(new RuntimeException("capture failed")).when(applicationService).capture(new RequestObservation(
+                "GET",
+                "/api/posts/123",
+                200,
+                null,
+                null
+        ));
 
         filter.doFilter(request, response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
 
         assertThat(response.getStatus()).isEqualTo(200);
-        verifyNoInteractions(capturePort);
+        verify(applicationService).capture(new RequestObservation("GET", "/api/posts/123", 200, null, null));
     }
 
     @Test
     void shouldNotRecordWhenDownstreamRequestThrows() {
-        AnalyticsRequestClassifier classifier = mock(AnalyticsRequestClassifier.class);
         ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsPrincipalResolver principalResolver = mock(AnalyticsPrincipalResolver.class);
-        AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
+        AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                classifier,
                 clientIpResolver,
                 principalResolver,
-                enabledProperties(),
-                new AnalyticsRequestCaptureApplicationService(capturePort)
+                applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
         MockHttpServletResponse response = new MockHttpServletResponse();
@@ -118,12 +93,6 @@ class AnalyticsRequestCaptureFilterTest {
             throw new ServletException("downstream failed");
         })).isInstanceOf(ServletException.class);
 
-        verifyNoInteractions(classifier, clientIpResolver, principalResolver, capturePort);
-    }
-
-    private AnalyticsIngestProperties enabledProperties() {
-        AnalyticsIngestProperties properties = new AnalyticsIngestProperties();
-        properties.setEnabled(true);
-        return properties;
+        verifyNoInteractions(clientIpResolver, principalResolver, applicationService);
     }
 }

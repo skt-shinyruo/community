@@ -681,19 +681,18 @@ Entry：
 Current state：
 
 - 当前 analytics 对外 HTTP 面主要是查询，不是任意客户端埋点写入。
-- `analytics.ingest.enabled` 默认为 `false`；未开启时 filter 直接跳过采集。
+- `analytics.ingest.enabled` 默认为 `false`；未开启时 capture application 跳过采集发布。
 - 默认采集路径包括 `/api/posts/**`、`/api/search/**`、`/api/notices/**`。
 - 默认排除 `/api/analytics/**`、`/api/auth/**`、`/api/ops/**`、`/actuator/**`、`/internal/**`、`/files/**`。
 - `OPTIONS` 和 HTTP `5xx` 响应不采集。
 
 Ingest path：
 
-1. `AnalyticsRequestCaptureFilter` 在请求链路完成后执行采集判断。
-2. `AnalyticsRequestClassifier` 根据开关、method、path、status、include / exclude path 决定是否采集。
-3. filter 从 `ClientIpResolver` 解析 IP，从当前 `Authentication` 解析用户 UUID。
-4. filter 进入 `AnalyticsRequestCaptureApplicationService`，通过必需的 capture port 发布 `analytics.request`。
-5. `AnalyticsRequestKafkaListener` 把异步事件转换回 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService.recordRequest(...)` 记录 UV / DAU。
-6. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
+1. `AnalyticsRequestCaptureFilter` 在请求链路完成后提取 method、path、status、IP 和当前用户 UUID。
+2. `AnalyticsRequestCaptureApplicationService` 根据总开关、动态 feature flag、method、path、status 和 include / exclude path 决定是否采集。
+3. ApplicationService 把 UV / DAU 配置组装进 `RecordRequestCommand`，通过必需的 capture port 发布 `analytics.request`。
+4. `AnalyticsRequestKafkaListener` 把异步事件转换回 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService.recordRequest(...)` 记录 UV / DAU。
+5. 登录成功可通过 `AnalyticsIngestActionApi.recordLoginSuccess(...)` 记录 DAU，但同样受 analytics ingest 开关和 `recordDau` 约束。
 
 UV：
 
@@ -721,7 +720,6 @@ Key code：
 - `analytics.application.AnalyticsRequestCaptureApplicationService`
 - `analytics.infrastructure.event.AnalyticsRequestKafkaListener`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
-- `analytics.infrastructure.web.AnalyticsRequestClassifier`
 - `analytics.infrastructure.api.AnalyticsIngestActionApiAdapter`
 - `analytics.security.AnalyticsSecurityRules`
 

@@ -51,8 +51,8 @@ ES 是读模型，不是帖子事实。
 ## Analytics 采集
 
 1. 请求完成后，`AnalyticsRequestCaptureFilter` 采集请求信息。
-2. classifier 判断是否记录 UV / DAU。
-3. filter 进入 `AnalyticsRequestCaptureApplicationService`，由 capture port 发布到 Kafka，不阻塞请求线程写统计。
+2. `AnalyticsRequestCaptureApplicationService` 根据请求观察值和配置判断是否记录 UV / DAU。
+3. ApplicationService 组装采集命令，由 capture port 发布到 Kafka，不阻塞请求线程写统计。
 4. `AnalyticsRequestKafkaListener` 将事件转换成 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService`。
 5. `AnalyticsIngestApplicationService` 写 Redis 统计结构。
 6. 登录成功也可以通过 action API 计入 DAU。
@@ -61,7 +61,7 @@ analytics 不拥有用户、会话或内容事实。它只是统计读模型。
 
 运维开关：
 
-- `analytics.ingest.enabled=false`：classifier 跳过请求采集；Kafka listener 继续排空已经发布的事件。
+- `analytics.ingest.enabled=false`：capture application 跳过请求采集；Kafka listener 继续排空已经发布的事件。
 
 ## Ops 入口
 
@@ -79,5 +79,5 @@ ops 本身不拥有业务事实。它只提供管理员触发重建、清理、�
 | --- | --- |
 | 通知缺失 | owner Kafka event、notice consumer lag / DLQ、投影规则。 |
 | 搜索结果缺失 | `content.events` consumer lag / DLQ、ES alias、必要时 reindex。 |
-| 访问统计异常 | capture filter、classifier、Redis 统计 key。 |
+| 访问统计异常 | capture filter、capture application、Redis 统计 key。 |
 | 运维任务重复跑 | single-flight lock、job 状态、ops 分发入口。 |

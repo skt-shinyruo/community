@@ -99,7 +99,7 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 | Outbox | `backend/community-app/src/test/java/com/nowcoder/community/infra/outbox/OutboxWorkerRetryTest.java`、`JdbcOutboxEventStoreTest.java`、`OutboxWorkerSchedulerTest.java` |
 | Search projection | `SearchPostProjectionApplicationServiceTest.java`、`SearchPostProjectionKafkaListenerTest.java` |
 | Canonical owner consumers | `TaskProgressEventBackboneKafkaListenerTest.java`、`WalletRewardKafkaListenerTest.java`、`NoticeProjectionKafkaListenerTest.java`、`PostHotFeedProjectionKafkaListenerTest.java` |
-| Analytics capture | `AnalyticsRequestCaptureFilterTest.java`、`AnalyticsRequestKafkaListenerTest.java` |
+| Analytics capture | `AnalyticsRequestCaptureApplicationServiceTest.java`、`AnalyticsRequestCaptureFilterTest.java`、`AnalyticsRequestKafkaListenerTest.java` |
 | Content media recovery | `PostMediaUploadReliabilityContractTest.java`、`PostMediaUploadTransactionBoundaryTest.java`、`PostMediaReferenceApplicationServiceTest.java`、`PostMediaReferenceReconciliationApplicationServiceTest.java` |
 | Social deletion cleanup | `SocialContentDeletionKafkaListenerTest.java`、`LikeCleanupReconciliationApplicationServiceTest.java` |
 | OSS upload claim recovery | `community-oss/src/test/java/.../ObjectUploadReliabilityContractTest.java` |

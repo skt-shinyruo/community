@@ -3,7 +3,6 @@ package com.nowcoder.community.analytics.application;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRepository;
-import com.nowcoder.community.analytics.domain.service.AnalyticsIngestDomainService;
 import org.junit.jupiter.api.Test;
 
 import java.time.Clock;
@@ -101,6 +100,18 @@ class AnalyticsIngestApplicationServiceTest {
     }
 
     @Test
+    void shouldIgnoreBlankUvIpAndMissingDauUser() {
+        AnalyticsRepository analyticsRepository = mock(AnalyticsRepository.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        AnalyticsIngestApplicationService service = newService(analyticsRepository, ordinalRepository);
+
+        service.recordRequest(new RecordRequestCommand(" ", null, true, true));
+        service.recordLoginSuccess(new AnalyticsIngestApplicationService.RecordLoginSuccess(null, true));
+
+        verifyNoInteractions(analyticsRepository, ordinalRepository);
+    }
+
+    @Test
     void recordRequestShouldRejectNullCommand() {
         AnalyticsIngestApplicationService service = newService(mock(AnalyticsRepository.class), mock(AnalyticsUserOrdinalRepository.class));
 
@@ -125,7 +136,6 @@ class AnalyticsIngestApplicationServiceTest {
         return new AnalyticsIngestApplicationService(
                 analyticsRepository,
                 ordinalRepository,
-                new AnalyticsIngestDomainService(),
                 clock
         );
     }

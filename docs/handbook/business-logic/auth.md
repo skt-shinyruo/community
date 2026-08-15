@@ -133,17 +133,17 @@ logout：
 校验：
 
 1. 空 captchaId 或空 code 直接返回 `false`。
-2. `CaptchaDomainService.normalizeCode(...)` 只做 trim；大小写规则由具体 repository 负责。
+2. application 只对 code 做 trim；大小写规则由具体 repository 负责。
 3. repository 用同一个 Lua 完成取值、大小写无关比较、成功消费或失败计数递增，避免正确请求与并发错误请求穿透阈值。
 4. `MATCHED` 会同时删除验证码和失败计数；`NOT_FOUND` 直接失败。
 5. `MISMATCH` 的失败计数 TTL 对齐验证码剩余 TTL；达到 `captcha.maxFailures` 时脚本返回 `EXHAUSTED` 并同时删除两者，要求重新获取。
 7. repository 读写异常返回验证码服务不可用。
 
-`CaptchaDomainService.requireCaptcha(...)` 是同步规则：captchaId 或 code 缺失时抛 `CAPTCHA_REQUIRED`。当前登录主路径先在 application 层判断缺参，再调用验证码校验。
+登录和重置流程在各自 application 入口检查 captchaId/code，缺失时抛 `CAPTCHA_REQUIRED`，再调用验证码校验。
 
 登录风控按 IP、临时输入和 authoritative subject 分阶段处理：
 
-- `LoginRateLimitDomainService.keyOf(...)` 只 trim 输入，不尝试在 Java 中复制 MySQL Unicode 排序规则。查 user owner 前的 `auth:login:fail:input:v3-<hmac>` 使用精确输入和 `login-input` HMAC scope，只持有 provisional lease。
+- `LoginRateLimitKey` 在构造时只 trim 输入，不尝试在 Java 中复制 MySQL Unicode 排序规则。查 user owner 前的 `auth:login:fail:input:v3-<hmac>` 使用精确输入和 `login-input` HMAC scope，只持有 provisional lease。
 - user owner 通过 MySQL `utf8mb4_unicode_ci` 的 `WEIGHT_STRING` scalar 生成存在性无关的 `utf8mb4_unicode_ci:v1:<digest>`；auth 再以 `login-subject` scope 生成 `auth:login:fail:subject:v3-<hmac>`。因此排序规则别名、已知账号和未知账号使用相同的主体推导路径，无 userId 分支，也不在 Redis 暴露输入或数据库权重。
 - IP 桶继续使用 `auth:login:fail:ip:v2-<hmac>` 和 `login-ip` scope。auth 获取 subject lease 后才释放 input lease，IP lease 全程不断档。
 - 身份查询和密码哈希共享 `auth:login:inflight:{<完整 failure key>}:<完整 failure key>` ZSET permit；常规 key 的 hash tag 就是对应 failure String 的完整 key。每个请求使用独立 UUID token，脚本原子比较失败数与活跃 lease 之和。ZSET 的 `PEXPIREAT` 来自最大存活 score 加清理余量，混合租约配置不会由短租约截断长租约。
@@ -157,8 +157,7 @@ logout：
 基础凭据规则：
 
 - `AuthDomainService.requireCredentials(...)` 要求 username 和 password 非空，否则统一抛 `INVALID_CREDENTIALS`，避免暴露是用户名还是密码缺失。
-- `PasswordResetDomainService.requireResetRequestEmail(...)` 要求密码重置请求必须有 email。
-- `PasswordResetDomainService.requireConfirmFields(...)` 要求 resetToken 和 newPassword 同时存在。
+- `PasswordResetApplicationService` 要求密码重置请求必须有 email，并要求确认请求同时提供 resetToken 和 newPassword。
 - `RegistrationDomainService.requireRegisterFields(...)` 要求注册 username、password、email 非空；密码字段不做静默 trim，首尾空白由 user owner 密码策略拒绝。
 - `RegistrationDomainService.maskEmail(...)` 用于注册验证码响应：非法邮箱原样返回；单字符 local 部分显示 `*`；两字符 local 保留首字符；更长 local 保留首尾，中间变 `***`。
 

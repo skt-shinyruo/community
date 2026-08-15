@@ -8,7 +8,6 @@ import com.nowcoder.community.auth.application.port.PasswordResetTransactionComp
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
-import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
@@ -89,7 +88,6 @@ class PasswordResetApplicationServiceTest {
                 transactionCompletion,
                 captchaChallenge,
                 tokenDeriver,
-                new PasswordResetDomainService(),
                 Clock.systemUTC()
         );
     }
@@ -106,6 +104,30 @@ class PasswordResetApplicationServiceTest {
         assertThatThrownBy(() -> service.confirmReset(null))
                 .isInstanceOf(NullPointerException.class)
                 .hasMessage("command must not be null");
+    }
+
+    @Test
+    void requestResetShouldRejectBlankEmailBeforeDependencies() {
+        assertThatThrownBy(() -> service.requestReset(new RequestPasswordResetCommand(
+                " ", "cid", "1234", null
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
+
+        verifyNoInteractions(captchaChallenge, userCredentialQueryApi, tokenStore);
+    }
+
+    @Test
+    void confirmResetShouldRejectMissingFieldsBeforeDependencies() {
+        assertThatThrownBy(() -> service.confirmReset(new ConfirmPasswordResetCommand(
+                "token", " ", "cid", "1234"
+        )))
+                .isInstanceOf(BusinessException.class)
+                .extracting(ex -> ((BusinessException) ex).getErrorCode())
+                .isEqualTo(CommonErrorCode.INVALID_ARGUMENT);
+
+        verifyNoInteractions(captchaChallenge, userCredentialActionApi, tokenStore);
     }
 
     @Test

@@ -35,11 +35,9 @@
     "src/views/post-detail/usePostDetailActions.js",
     "src/views/post-detail/usePostDetailDiscussion.js",
     "src/views/post-detail/usePostDetailDrafts.js",
-    "src/views/post-detail/usePostDetailInteractions.js",
     "src/views/post-detail/usePostDetailLoader.js",
     "src/views/post-detail/usePostDetailModeration.js",
     "src/views/postDetailState.js",
-    "src/views/posts/usePostComposer.js",
     "src/views/postsViewState.js",
     "src/views/searchResultSurface.js",
     "src/views/userProfileTimeline.js"

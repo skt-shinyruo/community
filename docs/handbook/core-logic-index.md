@@ -27,9 +27,7 @@
 | `auth.application.TokenFreshnessApplicationService` | 带 access JWT 的 `/api/**` 请求 `security_version` 新鲜度校验 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
 | `auth.domain.service.AuthDomainService` | token / credential 基础规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.AuthSecretGenerator` | 256-bit opaque token 和安全随机数字验证码生成 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.domain.service.CaptchaDomainService` | 验证码规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.domain.service.LoginRateLimitDomainService` | 登录风控规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
-| `auth.domain.service.PasswordResetDomainService` | reset token 和重置规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
+| `auth.domain.model.LoginRateLimitKey` | 登录风控 subject/IP 归一化 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.service.RefreshTokenDomainService` | refresh token 旋转 / family 规则 | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `auth.domain.repository.RefreshTokenRepository` | auth refresh session、rotation、family 撤销和 cleanup 持久化契约 | [登录与会话链路](auth-login-session-flow.md) | Covered |
 | `auth.domain.service.RegistrationDomainService` | registration input and Verify-First draft/code rules | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
@@ -218,8 +216,6 @@
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入，失败节流日志 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.application.AnalyticsRequestCaptureApplicationService` | Kafka analytics 采集发布边界 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
-| `analytics.domain.service.AnalyticsDomainService` | UV / DAU 查询区间规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `analytics.domain.service.AnalyticsIngestDomainService` | UV / DAU 是否记录规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 analytics 采集过滤器 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.web.AnalyticsRequestClassifier` | include / exclude / status / method 采集判定 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `analytics.request` 到 ingest application | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md#analytics-分析) | Covered |
@@ -244,9 +240,7 @@
 | --- | --- | --- | --- |
 | `growth.application.TaskProgressApplicationService` | 任务模板匹配、事件去重、进度推进、自动发奖 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.application.UserLevelApplicationService` | 等级规则配置和等级计算 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
-| `growth.domain.service.TaskPeriodKeyResolver` | 任务 periodKey 解析 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
-| `growth.domain.service.TaskProgressDomainService` | 任务进度推进和达成规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
-| `growth.domain.service.RewardGrantDomainService` | 奖励发放幂等规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
+| `growth.domain.service.TaskProgressDomainService` | 任务 periodKey 解析和进度封顶规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.domain.service.UserLevelDomainService` | 等级计算和配置规则 | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.application.GrowthBusinessTimeService` | growth daily/weekly/monthly business time source | [Growth 成长业务逻辑](business-logic/growth.md) | Covered |
 | `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | content / social Kafka event 到 growth task listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |

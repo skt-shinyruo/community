@@ -1,6 +1,8 @@
 package com.nowcoder.community.growth.domain.service;
 
 import java.time.LocalDate;
+import java.time.temporal.WeekFields;
+import java.util.Locale;
 import java.util.UUID;
 
 public final class TaskProgressDomainService {
@@ -15,7 +17,23 @@ public final class TaskProgressDomainService {
     }
 
     public String periodKey(String periodType, LocalDate bizDate) {
-        return TaskPeriodKeyResolver.resolve(periodType, bizDate);
+        if (bizDate == null) {
+            throw new IllegalArgumentException("bizDate must not be null");
+        }
+        if (periodType == null || periodType.isBlank()) {
+            return String.valueOf(bizDate);
+        }
+        return switch (periodType.trim()) {
+            case "DAILY" -> String.valueOf(bizDate);
+            case "WEEKLY" -> {
+                WeekFields weekFields = WeekFields.ISO;
+                int week = bizDate.get(weekFields.weekOfWeekBasedYear());
+                int year = bizDate.get(weekFields.weekBasedYear());
+                yield String.format(Locale.ROOT, "%04d-W%02d", year, week);
+            }
+            case "LIFETIME" -> "LIFETIME";
+            default -> throw new IllegalArgumentException("unsupported period type: " + periodType.trim());
+        };
     }
 
     public int cappedDelta(int currentProgress, int targetProgress, int increment) {

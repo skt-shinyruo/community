@@ -3,7 +3,6 @@ package com.nowcoder.community.auth.application;
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.domain.model.LoginRateLimitKey;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
-import com.nowcoder.community.auth.domain.service.LoginRateLimitDomainService;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -39,7 +38,6 @@ public class LoginRateLimitApplicationService {
     private static final String METRIC = "auth_login_rate_limit_total";
     private final LoginRateLimitProperties properties;
     private final LoginRateLimitRepository loginRateLimitRepository;
-    private final LoginRateLimitDomainService loginRateLimitDomainService;
     private final PasswordResetTokenDeriver identifierDeriver;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final ScheduledExecutorService leaseRenewer;
@@ -47,7 +45,6 @@ public class LoginRateLimitApplicationService {
     public LoginRateLimitApplicationService(
             LoginRateLimitProperties properties,
             LoginRateLimitRepository loginRateLimitRepository,
-            LoginRateLimitDomainService loginRateLimitDomainService,
             PasswordResetTokenDeriver identifierDeriver,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             @Qualifier("loginRateLimitLeaseRenewer") ScheduledExecutorService leaseRenewer
@@ -55,8 +52,6 @@ public class LoginRateLimitApplicationService {
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.loginRateLimitRepository = Objects.requireNonNull(
                 loginRateLimitRepository, "loginRateLimitRepository must not be null");
-        this.loginRateLimitDomainService = Objects.requireNonNull(
-                loginRateLimitDomainService, "loginRateLimitDomainService must not be null");
         this.identifierDeriver = Objects.requireNonNull(identifierDeriver, "identifierDeriver must not be null");
         this.meterRegistryProvider = Objects.requireNonNull(
                 meterRegistryProvider, "meterRegistryProvider must not be null");
@@ -71,7 +66,7 @@ public class LoginRateLimitApplicationService {
         try {
             int ipLimit = Math.max(1, properties.getMaxFailuresPerIp());
             int subjectLimit = Math.max(1, properties.getMaxFailuresPerUser());
-            LoginRateLimitKey key = loginRateLimitDomainService.keyOf(subject, ip);
+            LoginRateLimitKey key = new LoginRateLimitKey(subject, ip);
 
             int ipCount = StringUtils.hasText(key.ip()) ? increment(ipKey(key)) : 0;
             int subjectCount = StringUtils.hasText(key.subject())
@@ -99,7 +94,7 @@ public class LoginRateLimitApplicationService {
             return;
         }
         try {
-            LoginRateLimitKey key = loginRateLimitDomainService.keyOf(subject, null);
+            LoginRateLimitKey key = new LoginRateLimitKey(subject, null);
             if (StringUtils.hasText(key.subject())) {
                 loginRateLimitRepository.delete(subjectKey(key.subject()));
             }
@@ -113,7 +108,7 @@ public class LoginRateLimitApplicationService {
         if (!properties.isEnabled()) {
             return PasswordCheckPermit.none();
         }
-        LoginRateLimitKey key = loginRateLimitDomainService.keyOf(username, ip);
+        LoginRateLimitKey key = new LoginRateLimitKey(username, ip);
         List<Slot> slots = new ArrayList<>(2);
         if (StringUtils.hasText(key.ip())) {
             String failureKey = ipKey(key);
@@ -174,8 +169,8 @@ public class LoginRateLimitApplicationService {
                 throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
                         "登录风控租约已失效，请稍后重试");
             }
-            LoginRateLimitKey input = loginRateLimitDomainService.keyOf(provisionalInput, null);
-            LoginRateLimitKey subject = loginRateLimitDomainService.keyOf(authoritativeSubject, null);
+            LoginRateLimitKey input = new LoginRateLimitKey(provisionalInput, null);
+            LoginRateLimitKey subject = new LoginRateLimitKey(authoritativeSubject, null);
             if (!StringUtils.hasText(input.subject()) || !StringUtils.hasText(subject.subject())) {
                 throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
                         "登录风控身份无效，请稍后重试");
@@ -273,7 +268,7 @@ public class LoginRateLimitApplicationService {
         try {
             int ipThreshold = properties.getCaptchaRequiredFailuresPerIp();
             int subjectThreshold = properties.getCaptchaRequiredFailuresPerUser();
-            LoginRateLimitKey key = loginRateLimitDomainService.keyOf(subject, ip);
+            LoginRateLimitKey key = new LoginRateLimitKey(subject, ip);
 
             if (StringUtils.hasText(key.ip())) {
                 int count = getBudgetCount(ipKey(key), permit);

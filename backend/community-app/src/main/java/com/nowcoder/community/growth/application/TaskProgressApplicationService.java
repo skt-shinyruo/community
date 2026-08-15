@@ -8,7 +8,6 @@ import com.nowcoder.community.growth.domain.repository.LikeTaskLifecycleStateRep
 import com.nowcoder.community.growth.domain.repository.TaskTemplateRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
-import com.nowcoder.community.growth.domain.service.RewardGrantDomainService;
 import com.nowcoder.community.growth.domain.service.TaskProgressDomainService;
 import com.nowcoder.community.wallet.api.action.WalletRewardActionApi;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -70,7 +69,6 @@ public class TaskProgressApplicationService {
     private final WalletRewardActionApi walletRewardActionApi;
     private final GrowthBusinessTimeService growthBusinessTimeService;
     private final TaskProgressDomainService taskProgressDomainService = new TaskProgressDomainService();
-    private final RewardGrantDomainService rewardGrantDomainService = new RewardGrantDomainService();
     private final UuidV7Generator idGenerator;
 
     @Autowired
@@ -289,8 +287,8 @@ public class TaskProgressApplicationService {
             if (template.isClaimRequired()) {
                 nextStatus = STATUS_CLAIMABLE;
             } else if (rewardGrantId == null) {
-                rewardGrantId = rewardGrantDomainService.taskRewardGrantId(userId, template.getTaskCode(), periodKey);
-                long rewardAmount = rewardGrantDomainService.walletRewardAmount(template.getRewardBalanceDelta());
+                rewardGrantId = taskRewardGrantId(userId, template.getTaskCode(), periodKey);
+                long rewardAmount = template.getRewardBalanceDelta();
                 if (rewardAmount > 0) {
                     walletRewardActionApi.issue(rewardGrantId, userId, rewardAmount, template.getTaskCode());
                 }
@@ -319,10 +317,10 @@ public class TaskProgressApplicationService {
             String sourceEventId,
             String dedupAlias
     ) {
-        if (!rewardGrantDomainService.hasValidSourceEventId(sourceEventId)) {
+        if (sourceEventId == null || sourceEventId.isBlank()) {
             return false;
         }
-        if (rewardGrantDomainService.hasValidSourceEventId(dedupAlias)
+        if (dedupAlias != null && !dedupAlias.isBlank()
                 && !sourceEventId.equals(dedupAlias)
                 && userTaskEventLogRepository.exists(userId, taskCode, periodKey, dedupAlias.trim())) {
             return false;
@@ -334,6 +332,10 @@ public class TaskProgressApplicationService {
             case ALREADY_EXISTS -> false;
             case CONFLICT -> throw new IllegalStateException("task event log create conflict: taskCode=" + taskCode);
         };
+    }
+
+    private String taskRewardGrantId(UUID userId, String taskCode, String periodKey) {
+        return "task:" + userId + ":" + taskCode + ":" + periodKey;
     }
 
     private void ensureProgressRowExists(UUID userId, TaskTemplate template, String periodKey) {

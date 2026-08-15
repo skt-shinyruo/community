@@ -5,7 +5,7 @@
 ## 先读顺序
 
 1. `TaskProgressApplicationService`
-2. `RewardGrantDomainService`
+2. `TaskProgressDomainService`
 3. `UserLevelApplicationService`
 4. `UserLevelDomainService`
 5. `GrowthBusinessTimeService`
@@ -22,8 +22,7 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `growth.domain.service.TaskProgressDomainService` | 任务模板、进度推进和事件去重规则。 |
-| `growth.domain.service.RewardGrantDomainService` | 奖励发放幂等规则。 |
+| `growth.domain.service.TaskProgressDomainService` | 任务 periodKey 解析和进度封顶规则。 |
 | `growth.domain.service.UserLevelDomainService` | 等级计算和配置规则。 |
 
 ## 基础设施

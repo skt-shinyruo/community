@@ -150,10 +150,9 @@ HTTP：
 `AnalyticsIngestApplicationService.recordRequest(...)`：
 
 1. 解析请求日期。
-2. `AnalyticsIngestDomainService.shouldRecordUv(...)` 判断是否记录 UV。
-3. `shouldRecordDau(...)` 判断是否记录 DAU。
-4. UV 使用 IP 写 Redis HyperLogLog。
-5. DAU 使用 user UUID 映射到 analytics ordinal 后写 Redis Bitmap。
+2. 根据采集命令中的 UV / DAU 开关以及 IP / userId 是否存在，跳过不可记录的数据。
+3. UV 使用 IP 写 Redis HyperLogLog。
+4. DAU 使用 user UUID 映射到 analytics ordinal 后写 Redis Bitmap。
 
 采集编排：
 
@@ -166,7 +165,7 @@ HTTP：
 
 - `AnalyticsApplicationService.calculateUv(...)`
 - `calculateDau(...)`
-- `AnalyticsDomainService.validateRange(...)` 校验查询日期范围。
+- ApplicationService 在进入 repository 前校验查询日期范围。
 
 失败语义：
 
@@ -211,8 +210,6 @@ Analytics：
 - `analytics.application.AnalyticsApplicationService`
 - `analytics.application.AnalyticsIngestApplicationService`
 - `analytics.application.AnalyticsRequestCaptureApplicationService`
-- `analytics.domain.service.AnalyticsDomainService`
-- `analytics.domain.service.AnalyticsIngestDomainService`
 - `analytics.infrastructure.event.AnalyticsRequestKafkaListener`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
 - `analytics.infrastructure.web.AnalyticsRequestClassifier`

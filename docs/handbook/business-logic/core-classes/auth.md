@@ -34,9 +34,7 @@
 | --- | --- |
 | `auth.domain.service.AuthDomainService` | 凭据字段最小校验，避免暴露到底是用户名还是密码缺失。 |
 | `auth.domain.service.AuthSecretGenerator` | 统一生成 256-bit base64url opaque token 和安全随机数字验证码。 |
-| `auth.domain.service.CaptchaDomainService` | captchaId/code 必填、验证码归一化。 |
-| `auth.domain.service.LoginRateLimitDomainService` | 风控 key 归一化、封锁判断和验证码触发规则。 |
-| `auth.domain.service.PasswordResetDomainService` | reset token、email 和新密码的约束。 |
+| `auth.domain.model.LoginRateLimitKey` | 风控 subject/IP 的最小 trim 归一化，不复制数据库 Unicode 排序规则。 |
 | `auth.domain.service.RefreshTokenDomainService` | refresh token family、旋转和复用检测规则。 |
 | `auth.domain.service.RegistrationDomainService` | Verify-First 注册字段校验、邮箱遮罩、注册草稿规则。 |
 

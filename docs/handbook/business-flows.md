@@ -720,8 +720,6 @@ Key code：
 - `analytics.application.AnalyticsIngestApplicationService`
 - `analytics.application.AnalyticsRequestCaptureApplicationService`
 - `analytics.infrastructure.event.AnalyticsRequestKafkaListener`
-- `analytics.domain.service.AnalyticsDomainService`
-- `analytics.domain.service.AnalyticsIngestDomainService`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
 - `analytics.infrastructure.web.AnalyticsRequestClassifier`
 - `analytics.infrastructure.api.AnalyticsIngestActionApiAdapter`

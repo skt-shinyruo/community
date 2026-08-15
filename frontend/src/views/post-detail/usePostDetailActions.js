@@ -17,8 +17,13 @@ import {
   updateComment,
   updatePost
 } from '../../api/services/postService'
-import { isWithinEditWindow } from './usePostDetailInteractions'
 import { isDangerConfirmation, resolvePostDetailConfirmation } from './usePostDetailModeration'
+
+function isWithinEditWindow(createTime, windowMs) {
+  const createdAt = new Date(createTime).getTime()
+  if (!Number.isFinite(createdAt) || createdAt <= 0) return false
+  return Date.now() - createdAt <= windowMs
+}
 
 export function usePostDetailActions({
   auth,

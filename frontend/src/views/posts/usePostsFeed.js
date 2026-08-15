@@ -22,11 +22,19 @@ import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import {
   normalizePostsBoardId
 } from '../../router/navigation'
-import { buildComposerCategoryOptions } from './usePostComposer'
 import { createWriteAttempt } from '../../api/writeAttempt'
 import { useTagSuggestions } from '../../composables/useTagSuggestions'
 import { showErrorToast } from '../../ui/toastService'
 
+function buildComposerCategoryOptions(categories) {
+  return [
+    { label: '不选择', value: '' },
+    ...(Array.isArray(categories) ? categories : []).map((category) => ({
+      label: category.name,
+      value: String(category.id)
+    }))
+  ]
+}
 
 export function usePostsFeed(emit) {
   const showToast = inject('showToast', () => {})

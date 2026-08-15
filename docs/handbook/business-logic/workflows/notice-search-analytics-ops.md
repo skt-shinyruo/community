@@ -52,7 +52,7 @@ ES 是读模型，不是帖子事实。
 
 1. 请求完成后，`AnalyticsRequestCaptureFilter` 采集请求信息。
 2. classifier 判断是否记录 UV / DAU。
-3. filter 发布 `AnalyticsRequestEvent` 到 Kafka，不阻塞请求线程写统计。
+3. filter 进入 `AnalyticsRequestCaptureApplicationService`，由 capture port 发布到 Kafka，不阻塞请求线程写统计。
 4. `AnalyticsRequestKafkaListener` 将事件转换成 `RecordRequestCommand`，进入 `AnalyticsIngestApplicationService`。
 5. `AnalyticsIngestApplicationService` 写 Redis 统计结构。
 6. 登录成功也可以通过 action API 计入 DAU。

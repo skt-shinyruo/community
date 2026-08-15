@@ -1,10 +1,8 @@
 package com.nowcoder.community.analytics.application;
 
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
-import com.nowcoder.community.analytics.domain.model.AnalyticsRequestEvent;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRepository;
-import com.nowcoder.community.analytics.domain.service.AnalyticsIngestDomainService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
@@ -23,7 +21,6 @@ public class AnalyticsIngestApplicationService {
 
     private final AnalyticsRepository analyticsRepository;
     private final AnalyticsUserOrdinalRepository ordinalRepository;
-    private final AnalyticsIngestDomainService analyticsIngestDomainService;
     private final Clock clock;
     private final AtomicLong uvFailureCount = new AtomicLong();
     private final AtomicLong dauFailureCount = new AtomicLong();
@@ -31,32 +28,21 @@ public class AnalyticsIngestApplicationService {
     public AnalyticsIngestApplicationService(
             AnalyticsRepository analyticsRepository,
             AnalyticsUserOrdinalRepository ordinalRepository,
-            AnalyticsIngestDomainService analyticsIngestDomainService,
             Clock clock
     ) {
         this.analyticsRepository = Objects.requireNonNull(analyticsRepository, "analyticsRepository must not be null");
         this.ordinalRepository = Objects.requireNonNull(ordinalRepository, "ordinalRepository must not be null");
-        this.analyticsIngestDomainService = Objects.requireNonNull(
-                analyticsIngestDomainService,
-                "analyticsIngestDomainService must not be null"
-        );
         this.clock = Objects.requireNonNull(clock, "clock must not be null").withZone(ZoneId.systemDefault());
     }
 
     public void recordRequest(RecordRequestCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         LocalDate today = LocalDate.now(clock);
-        AnalyticsRequestEvent event = new AnalyticsRequestEvent(
-                command.ip(),
-                command.userId(),
-                command.recordUv(),
-                command.recordDau()
-        );
-        if (analyticsIngestDomainService.shouldRecordUv(event)) {
-            recordUv(today, event.ip());
+        if (command.recordUv() && hasText(command.ip())) {
+            recordUv(today, command.ip());
         }
-        if (analyticsIngestDomainService.shouldRecordDau(event)) {
-            recordDau(today, event.userId());
+        if (command.recordDau()) {
+            recordDau(today, command.userId());
         }
     }
 
@@ -65,10 +51,11 @@ public class AnalyticsIngestApplicationService {
         if (!command.recordDau()) {
             return;
         }
-        AnalyticsRequestEvent event = new AnalyticsRequestEvent(null, command.userId(), false, true);
-        if (analyticsIngestDomainService.shouldRecordDau(event)) {
-            recordDau(LocalDate.now(clock), event.userId());
-        }
+        recordDau(LocalDate.now(clock), command.userId());
+    }
+
+    private boolean hasText(String value) {
+        return value != null && !value.trim().isEmpty();
     }
 
     private void recordUv(LocalDate date, String ip) {

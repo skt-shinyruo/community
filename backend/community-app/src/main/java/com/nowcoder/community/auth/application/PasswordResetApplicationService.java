@@ -6,7 +6,6 @@ import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.config.PasswordResetUrlPolicy;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
-import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.auth.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
@@ -66,7 +65,6 @@ public class PasswordResetApplicationService {
     private final PasswordResetTransactionCompletion transactionCompletion;
     private final CaptchaChallengeComponent captchaChallenge;
     private final PasswordResetTokenDeriver passwordResetTokenDeriver;
-    private final PasswordResetDomainService passwordResetDomainService;
     private final Clock clock;
 
     public PasswordResetApplicationService(
@@ -79,7 +77,6 @@ public class PasswordResetApplicationService {
             PasswordResetTransactionCompletion transactionCompletion,
             CaptchaChallengeComponent captchaChallenge,
             PasswordResetTokenDeriver passwordResetTokenDeriver,
-            PasswordResetDomainService passwordResetDomainService,
             Clock clock
     ) {
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
@@ -97,8 +94,6 @@ public class PasswordResetApplicationService {
         this.captchaChallenge = Objects.requireNonNull(captchaChallenge, "captchaChallenge must not be null");
         this.passwordResetTokenDeriver = Objects.requireNonNull(
                 passwordResetTokenDeriver, "passwordResetTokenDeriver must not be null");
-        this.passwordResetDomainService = Objects.requireNonNull(
-                passwordResetDomainService, "passwordResetDomainService must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -109,7 +104,7 @@ public class PasswordResetApplicationService {
         String captchaId = command.captchaId();
         String captchaCode = command.captchaCode();
         String clientIp = command.clientIp();
-        passwordResetDomainService.requireResetRequestEmail(email);
+        requireResetRequestEmail(email);
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         // 先做配置校验：避免“部分邮箱成功/部分失败”导致用户枚举；也避免签发 token 后才发现链接无法生成。
@@ -172,7 +167,7 @@ public class PasswordResetApplicationService {
         String newPassword = command.newPassword();
         String captchaId = command.captchaId();
         String captchaCode = command.captchaCode();
-        passwordResetDomainService.requireConfirmFields(resetToken, newPassword);
+        requireConfirmFields(resetToken, newPassword);
         captchaChallenge.requireValidCaptcha(captchaId, captchaCode);
 
         userCredentialActionApi.validatePasswordPolicy(newPassword);
@@ -212,6 +207,18 @@ public class PasswordResetApplicationService {
         SecurityEventLogger.info(log, "password_reset_confirm", "success",
                 "user.id", userId);
         return true;
+    }
+
+    private void requireResetRequestEmail(String email) {
+        if (!StringUtils.hasText(email)) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "email 不能为空");
+        }
+    }
+
+    private void requireConfirmFields(String resetToken, String newPassword) {
+        if (!StringUtils.hasText(resetToken) || !StringUtils.hasText(newPassword)) {
+            throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "resetToken/newPassword 不能为空");
+        }
     }
 
     private String normalizeResetBaseUrlOrThrow() {

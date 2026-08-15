@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
-import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
@@ -38,16 +37,13 @@ public class CaptchaApplicationService {
 
     private final CaptchaProperties properties;
     private final CaptchaRepository captchaStore;
-    private final CaptchaDomainService captchaDomainService;
 
     public CaptchaApplicationService(
             CaptchaProperties properties,
-            CaptchaRepository captchaStore,
-            CaptchaDomainService captchaDomainService
+            CaptchaRepository captchaStore
     ) {
         this.properties = properties;
         this.captchaStore = captchaStore;
-        this.captchaDomainService = captchaDomainService;
     }
 
     public CaptchaIssueResult issue(IssueCaptchaCommand command) {
@@ -89,7 +85,7 @@ public class CaptchaApplicationService {
         try {
             CaptchaRepository.VerifyResult verifyResult = captchaStore.verifyAndConsume(
                     captchaId,
-                    captchaDomainService.normalizeCode(code),
+                    code.trim(),
                     maxFailures,
                     Duration.ofSeconds(ttlSeconds)
             );

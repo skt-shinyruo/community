@@ -3,7 +3,6 @@ package com.nowcoder.community.auth.application;
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
-import com.nowcoder.community.auth.domain.service.LoginRateLimitDomainService;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import io.micrometer.core.instrument.MeterRegistry;
@@ -56,7 +55,6 @@ class LoginRateLimitApplicationServiceTest {
         service = new LoginRateLimitApplicationService(
                 properties,
                 loginRateLimitRepository,
-                new LoginRateLimitDomainService(),
                 new PasswordResetTokenDeriver(passwordResetProperties),
                 meterRegistryProvider,
                 mock(ScheduledExecutorService.class)
@@ -363,7 +361,6 @@ class LoginRateLimitApplicationServiceTest {
         LoginRateLimitApplicationService renewingService = new LoginRateLimitApplicationService(
                 new LoginRateLimitProperties(),
                 loginRateLimitRepository,
-                new LoginRateLimitDomainService(),
                 identifierDeriver(),
                 meterRegistryProvider,
                 scheduler

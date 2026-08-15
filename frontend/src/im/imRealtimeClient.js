@@ -1,16 +1,9 @@
 // IM realtime client: open a server-side session, then connect to the assigned worker.
 import { normalizeOpaqueId, requireApiOpaqueId } from '../utils/opaqueId'
+import { safeJsonParse } from '../utils/safeJson'
 import imCoreHttp from '../api/imCoreHttp'
 
 const IM_SCHEMA_VERSION = 1
-
-function safeJsonParse(s) {
-  try {
-    return JSON.parse(s)
-  } catch {
-    return null
-  }
-}
 
 function randomId() {
   try {

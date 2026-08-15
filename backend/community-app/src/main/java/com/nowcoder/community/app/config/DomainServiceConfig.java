@@ -1,12 +1,7 @@
 package com.nowcoder.community.app.config;
 
-import com.nowcoder.community.analytics.domain.service.AnalyticsDomainService;
-import com.nowcoder.community.analytics.domain.service.AnalyticsIngestDomainService;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
-import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
-import com.nowcoder.community.auth.domain.service.LoginRateLimitDomainService;
-import com.nowcoder.community.auth.domain.service.PasswordResetDomainService;
 import com.nowcoder.community.auth.domain.service.RefreshTokenDomainService;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.content.domain.service.CommentDomainService;
@@ -33,16 +28,6 @@ import org.springframework.context.annotation.Configuration;
 public class DomainServiceConfig {
 
     @Bean
-    AnalyticsDomainService analyticsDomainService() {
-        return new AnalyticsDomainService();
-    }
-
-    @Bean
-    AnalyticsIngestDomainService analyticsIngestDomainService() {
-        return new AnalyticsIngestDomainService();
-    }
-
-    @Bean
     AuthDomainService authDomainService() {
         return new AuthDomainService();
     }
@@ -50,21 +35,6 @@ public class DomainServiceConfig {
     @Bean
     AuthSecretGenerator authSecretGenerator() {
         return new AuthSecretGenerator();
-    }
-
-    @Bean
-    CaptchaDomainService captchaDomainService() {
-        return new CaptchaDomainService();
-    }
-
-    @Bean
-    LoginRateLimitDomainService loginRateLimitDomainService() {
-        return new LoginRateLimitDomainService();
-    }
-
-    @Bean
-    PasswordResetDomainService passwordResetDomainService() {
-        return new PasswordResetDomainService();
     }
 
     @Bean

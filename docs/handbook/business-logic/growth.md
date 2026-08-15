@@ -79,11 +79,11 @@
 
 ## 奖励
 
-`RewardGrantDomainService` 提供奖励幂等规则：
+奖励幂等由 `TaskProgressApplicationService` 在任务推进事务中编排：
 
 - sourceEventId 必须有效。
 - task reward grant id 格式为 `task:<userId>:<taskCode>:<periodKey>`。
-- reward amount 当前由 growth delta 和 balance delta 合并计算。
+- wallet reward amount 仅使用模板的 balance delta；growth delta 不进入钱包账。
 
 真正余额入账由 `WalletRewardActionApi.issue(...)` 完成。wallet owner 通过 requestId 和总账规则保证不重复记账。
 
@@ -126,8 +126,6 @@
 - `growth.application.UserLevelApplicationService`
 - `growth.application.GrowthBusinessTimeService`
 - `growth.domain.service.TaskProgressDomainService`
-- `growth.domain.service.TaskPeriodKeyResolver`
-- `growth.domain.service.RewardGrantDomainService`
 - `growth.domain.service.UserLevelDomainService`
 - `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener`
 - `growth.application.UserLevelApplicationService` 直接实现 `UserLevelQueryApi`

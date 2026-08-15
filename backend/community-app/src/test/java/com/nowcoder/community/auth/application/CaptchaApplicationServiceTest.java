@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.config.CaptchaProperties;
 import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
-import com.nowcoder.community.auth.domain.service.CaptchaDomainService;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import org.junit.jupiter.api.BeforeEach;
@@ -40,7 +39,7 @@ class CaptchaApplicationServiceTest {
         properties.setTtlSeconds(60);
         properties.setMaxFailures(3);
         properties.setMaxIssueRequestsPerIp(1);
-        service = new CaptchaApplicationService(properties, captchaStore, new CaptchaDomainService());
+        service = new CaptchaApplicationService(properties, captchaStore);
     }
 
     @Test

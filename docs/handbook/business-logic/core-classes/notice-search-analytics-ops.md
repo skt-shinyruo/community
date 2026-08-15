@@ -38,8 +38,6 @@
 | `analytics.application.AnalyticsApplicationService` | UV / DAU 查询和区间校验。 |
 | `analytics.application.AnalyticsRequestCaptureApplicationService` | 通过必需的 capture port 发布 analytics 请求事件。 |
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入。 |
-| `analytics.domain.service.AnalyticsDomainService` | UV / DAU 查询区间规则。 |
-| `analytics.domain.service.AnalyticsIngestDomainService` | UV / DAU 是否记录规则。 |
 | `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的采集过滤器。 |
 | `analytics.infrastructure.web.AnalyticsRequestClassifier` | include / exclude / status / method 判定。 |
 | `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `analytics.request` 到 ingest application。 |

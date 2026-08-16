@@ -59,8 +59,6 @@ public class ImGatewaySessionProperties {
     public static class Worker {
         private String serviceId = "im-realtime-worker";
         private String workerIdMetadataKey = "workerId";
-        private String wsPathMetadataKey = "wsPath";
-        private String wsPortMetadataKey = "wsPort";
 
         public String getServiceId() {
             return serviceId;
@@ -78,21 +76,6 @@ public class ImGatewaySessionProperties {
             this.workerIdMetadataKey = workerIdMetadataKey;
         }
 
-        public String getWsPathMetadataKey() {
-            return wsPathMetadataKey;
-        }
-
-        public void setWsPathMetadataKey(String wsPathMetadataKey) {
-            this.wsPathMetadataKey = wsPathMetadataKey;
-        }
-
-        public String getWsPortMetadataKey() {
-            return wsPortMetadataKey;
-        }
-
-        public void setWsPortMetadataKey(String wsPortMetadataKey) {
-            this.wsPortMetadataKey = wsPortMetadataKey;
-        }
     }
 
     public static class Ws {

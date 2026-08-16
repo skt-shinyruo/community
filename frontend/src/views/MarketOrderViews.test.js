@@ -88,14 +88,6 @@ function mountOptions() {
         UiButton: {
           props: ['disabled'],
           template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
-        },
-        UiInput: {
-          props: ['modelValue'],
-          template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
-        },
-        UiTextarea: {
-          props: ['modelValue'],
-          template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         }
       }
     }

@@ -13,6 +13,8 @@ import java.util.Optional;
 @Component
 public class DiscoveredWorkerDescriptorFactory {
 
+    private static final String INTERNAL_WS_PATH = "/internal/ws/im";
+
     private final ImGatewaySessionProperties properties;
 
     public DiscoveredWorkerDescriptorFactory(ImGatewaySessionProperties properties) {
@@ -25,36 +27,26 @@ public class DiscoveredWorkerDescriptorFactory {
         }
         Map<String, String> metadata = instance.getMetadata();
         ImGatewaySessionProperties.Worker workerProperties = properties.getWorker();
-        if (!StringUtils.hasText(workerProperties.getWorkerIdMetadataKey())
-                || !StringUtils.hasText(workerProperties.getWsPathMetadataKey())
-                || !StringUtils.hasText(workerProperties.getWsPortMetadataKey())) {
+        if (!StringUtils.hasText(workerProperties.getWorkerIdMetadataKey())) {
             return Optional.empty();
         }
         String workerId = metadata.get(workerProperties.getWorkerIdMetadataKey());
-        String wsPath = metadata.get(workerProperties.getWsPathMetadataKey());
-        String wsPort = metadata.get(workerProperties.getWsPortMetadataKey());
         boolean draining = parseBoolean(metadata.get("draining"));
         int maxConnections = parseNonNegativeInt(metadata.get("maxConnections"));
         int activeConnectionHint = parseNonNegativeInt(metadata.get("activeConnectionHint"));
-        String shardGroup = metadata.get("shardGroup");
-        if (!StringUtils.hasText(workerId) || !StringUtils.hasText(wsPath) || !StringUtils.hasText(wsPort)
-                || !StringUtils.hasText(instance.getHost())) {
+        if (!StringUtils.hasText(workerId) || !StringUtils.hasText(instance.getHost())
+                || instance.getPort() < 1 || instance.getPort() > 65535) {
             return Optional.empty();
         }
 
         String scheme = instance.isSecure() ? "wss" : "ws";
-        String normalizedPath = wsPath.trim().startsWith("/") ? wsPath.trim() : "/" + wsPath.trim();
-        Integer port = parsePort(wsPort);
-        if (port == null) {
-            return Optional.empty();
-        }
         try {
-            URI uri = new URI(scheme, null, instance.getHost().trim(), port, normalizedPath, null, null);
-            if (!scheme.equals(uri.getScheme()) || uri.getHost() == null || uri.getPort() != port) {
+            URI uri = new URI(scheme, null, instance.getHost().trim(), instance.getPort(), INTERNAL_WS_PATH, null, null);
+            if (!scheme.equals(uri.getScheme()) || uri.getHost() == null || uri.getPort() != instance.getPort()) {
                 return Optional.empty();
             }
             return Optional.of(new WorkerDescriptor(
-                    workerId.trim(), uri, draining, maxConnections, activeConnectionHint, shardGroup
+                    workerId.trim(), uri, draining, maxConnections, activeConnectionHint
             ));
         } catch (IllegalArgumentException | URISyntaxException ex) {
             return Optional.empty();
@@ -76,12 +68,4 @@ public class DiscoveredWorkerDescriptorFactory {
         }
     }
 
-    private static Integer parsePort(String value) {
-        try {
-            int port = Integer.parseInt(value.trim());
-            return port >= 1 && port <= 65535 ? port : null;
-        } catch (NumberFormatException ignored) {
-            return null;
-        }
-    }
 }

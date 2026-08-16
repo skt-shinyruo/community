@@ -112,9 +112,7 @@ render_config() {
 data_ids="
 community-shared.yaml
 community-feature-flags.yaml
-community-degradation.yaml
 community-frontend-runtime.yaml
-community-cache-policy.yaml
 community-search-policy.yaml
 community-upload-policy.yaml
 community-notification-policy.yaml

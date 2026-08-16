@@ -2,17 +2,12 @@ import { describe, expect, it } from 'vitest'
 
 import {
   collectPostsHydrationIds,
-  commitComposerTagDraft,
-  normalizeComposerTagToken
+  commitComposerTagDraft
 } from './postsViewState'
 
 describe('postsViewState', () => {
-  it('normalizes composer tag tokens by trimming hash prefixes and whitespace', () => {
-    expect(normalizeComposerTagToken(' #Java Spring ')).toBe('Java-Spring')
-  })
-
   it('commits deduplicated composer tags and keeps invalid drafts as errors', () => {
-    expect(commitComposerTagDraft(['Java'], 'Spring Java')).toEqual({
+    expect(commitComposerTagDraft(['Java'], '#Spring Java')).toEqual({
       tags: ['Java', 'Spring'],
       error: '',
       draft: ''

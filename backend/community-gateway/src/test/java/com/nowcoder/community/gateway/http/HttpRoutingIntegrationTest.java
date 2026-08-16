@@ -51,18 +51,23 @@ class HttpRoutingIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("gateway.http.routes[0].id", () -> "oss-api");
-        registry.add("gateway.http.routes[0].path-prefix", () -> "/api/oss");
-        registry.add("gateway.http.routes[0].service-id", () -> "community-oss");
-        registry.add("gateway.http.routes[1].id", () -> "im-core");
-        registry.add("gateway.http.routes[1].path-prefix", () -> "/api/im");
-        registry.add("gateway.http.routes[1].service-id", () -> "im-core");
-        registry.add("gateway.http.routes[2].id", () -> "bootstrap-api");
-        registry.add("gateway.http.routes[2].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[2].service-id", () -> "community-app");
-        registry.add("gateway.http.routes[3].id", () -> "oss-files");
-        registry.add("gateway.http.routes[3].path-prefix", () -> "/files");
-        registry.add("gateway.http.routes[3].service-id", () -> "community-oss");
+        String routes = "spring.cloud.gateway.server.webflux.routes";
+        registry.add("spring.cloud.gateway.server.webflux.default-filters[0]",
+                () -> "DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Headers Access-Control-Allow-Methods Access-Control-Expose-Headers Access-Control-Max-Age, RETAIN_FIRST");
+        registry.add(routes + "[0].id", () -> "oss-api");
+        registry.add(routes + "[0].order", () -> -20);
+        registry.add(routes + "[0].uri", () -> "lb://community-oss");
+        registry.add(routes + "[0].predicates[0]", () -> "Path=/api/oss,/api/oss/**");
+        registry.add(routes + "[1].id", () -> "im-core");
+        registry.add(routes + "[1].order", () -> -10);
+        registry.add(routes + "[1].uri", () -> "lb://im-core");
+        registry.add(routes + "[1].predicates[0]", () -> "Path=/api/im,/api/im/**");
+        registry.add(routes + "[2].id", () -> "bootstrap-api");
+        registry.add(routes + "[2].uri", () -> "lb://community-app");
+        registry.add(routes + "[2].predicates[0]", () -> "Path=/api,/api/**");
+        registry.add(routes + "[3].id", () -> "oss-files");
+        registry.add(routes + "[3].uri", () -> "lb://community-oss");
+        registry.add(routes + "[3].predicates[0]", () -> "Path=/files,/files/**");
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri", HttpRoutingIntegrationTest::bootstrapBaseUrl);
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri", HttpRoutingIntegrationTest::imBaseUrl);
         registry.add("spring.cloud.discovery.client.simple.instances.community-oss[0].uri", HttpRoutingIntegrationTest::ossBaseUrl);

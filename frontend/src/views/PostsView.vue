@@ -58,7 +58,7 @@
                   ×
                 </UiIconButton>
               </div>
-              <UiInput v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="posts-composer-input" :disabled="creating" />
+              <input v-model.trim="newTitle" name="post-title" placeholder="标题" autocomplete="off" class="input posts-composer-input" :disabled="creating" />
               <PostBlockEditor
                 v-model="newBlocks"
                 class="posts-composer-block-editor"
@@ -68,14 +68,22 @@
               <div class="posts-composer-meta">
                 <div class="posts-composer-field posts-composer-field--category">
                   <div class="posts-composer-label">分类（可选）</div>
-                  <UiSelect
+                  <select
                     v-model="newCategoryId"
                     name="post-category"
-                    class="posts-composer-category-select"
+                    class="input posts-composer-category-select"
+                    aria-label="分类（可选）"
                     :disabled="creating"
-                    :options="composerCategoryOptions"
-                    placeholder="不选择"
-                  />
+                  >
+                    <option
+                      v-for="option in composerCategoryOptions"
+                      :key="String(option.value)"
+                      :value="option.value"
+                      :disabled="option.disabled"
+                    >
+                      {{ option.label }}
+                    </option>
+                  </select>
                 </div>
 
                 <div class="posts-composer-field posts-composer-field--tags">
@@ -287,8 +295,6 @@ import UiState from '../components/ui/UiState.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
-import UiInput from '../components/ui/UiInput.vue'
-import UiSelect from '../components/ui/UiSelect.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'

@@ -214,7 +214,7 @@ connect(accessToken)
 
 `frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影；需要对象卡片强调时显式使用 `.object-card`。
 
-`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块；页面空态、错误态和开发态都直接使用它。`UiToolbar.vue` 是页面工具栏基础件，使用 leading / filters / actions 三个 slot 表达常见工作区操作结构。
+`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块；页面空态、错误态和开发态都直接使用它。
 
 所有 dialog 使用 `useModalFocus.js`：打开后聚焦首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。
 

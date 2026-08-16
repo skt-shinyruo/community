@@ -52,20 +52,10 @@ function mountView() {
       stubs: {
         UiCard: { props: ['flat'], template: '<section><slot /></section>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-        UiInput: {
-          props: ['modelValue'],
-          emits: ['update:modelValue'],
-          template: '<input v-bind="$attrs" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
-        },
         UiButton: {
           props: ['disabled', 'variant'],
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiSelect: {
-          props: ['modelValue', 'options'],
-          emits: ['update:modelValue'],
-          template: '<select v-bind="$attrs" :value="modelValue" @change="$emit(\'update:modelValue\', Number($event.target.value))"><option v-for="option in options" :key="option.value" :value="option.value">{{ option.label }}</option></select>'
         },
         UiModalConfirm: {
           props: ['title', 'message', 'confirmText', 'confirmVariant'],

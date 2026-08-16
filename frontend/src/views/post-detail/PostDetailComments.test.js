@@ -24,11 +24,6 @@ const stubs = {
   },
   UiRoleBadge: { template: '<span class="role" />' },
   UiState: { template: '<div class="state"><slot /></div>' },
-  UiTextarea: {
-    props: ['modelValue'],
-    emits: ['update:modelValue'],
-    template: '<textarea :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
-  },
   UiUserCard: { template: '<span><slot /></span>' }
 }
 

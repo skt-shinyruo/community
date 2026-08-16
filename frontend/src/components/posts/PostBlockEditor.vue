@@ -2,22 +2,22 @@
   <div class="post-block-editor">
     <div v-for="(block, index) in blocks" :key="block.clientId" class="post-block">
       <template v-if="isTextBlock(block)">
-        <UiTextarea
-          :model-value="block.text"
+        <textarea
+          :value="block.text"
           :data-test="`block-text-${index}`"
           :disabled="disabled"
           :placeholder="block.type === 'code' ? '代码' : '正文内容...'"
           :rows="block.type === 'code' ? 5 : 4"
-          class="post-block-editor-textarea"
-          @update:modelValue="updateBlock(index, { text: $event })"
+          class="input multiline post-block-editor-textarea"
+          @input="updateBlock(index, { text: $event.target.value })"
         />
-        <UiInput
+        <input
           v-if="block.type === 'code'"
-          :model-value="block.language"
+          :value="block.language"
           :disabled="disabled"
           placeholder="语言"
-          class="post-block-editor-language"
-          @update:modelValue="updateBlock(index, { language: $event })"
+          class="input post-block-editor-language"
+          @input="updateBlock(index, { language: $event.target.value })"
         />
         <div class="post-block-editor-actions">
           <UiButton
@@ -64,8 +64,6 @@
 <script setup>
 import { ref, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
-import UiInput from '../ui/UiInput.vue'
-import UiTextarea from '../ui/UiTextarea.vue'
 import PostMediaUploadBlock from './PostMediaUploadBlock.vue'
 
 const props = defineProps({

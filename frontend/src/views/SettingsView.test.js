@@ -7,7 +7,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '../stores/auth'
 import UiButton from '../components/ui/UiButton.vue'
-import UiFileInput from '../components/ui/UiFileInput.vue'
 
 const { apiMe, invalidateUserProfile, uploadTransport } = vi.hoisted(() => ({
   apiMe: vi.fn(),
@@ -52,6 +51,13 @@ function deferred() {
     resolve = resolvePromise
   })
   return { promise, resolve }
+}
+
+async function selectFile(wrapper, file) {
+  const input = wrapper.get('input[type="file"]')
+  Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
+  await input.trigger('change')
+  return input
 }
 
 describe('SettingsView', () => {
@@ -140,11 +146,11 @@ describe('SettingsView', () => {
     http.put.mockResolvedValue(okResult({}, 'trace-update'))
   })
 
-  it('uses the shared file input and keeps upload disabled until a file is selected', async () => {
+  it('keeps upload disabled until a file is selected', async () => {
     const wrapper = mountView()
 
     const uploadButton = findUiButton(wrapper, '上传并保存')
-    const fileInput = wrapper.getComponent(UiFileInput)
+    const fileInput = wrapper.get('input[type="file"]')
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
 
     expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
@@ -154,20 +160,21 @@ describe('SettingsView', () => {
     expect(wrapper.text()).not.toContain('本地文件')
     expect(wrapper.text()).not.toContain('排行榜')
 
-    await fileInput.vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
 
     expect(uploadButton.get('button').attributes('disabled')).toBeUndefined()
-    expect(fileInput.text()).toContain('picked-avatar.png')
+    expect(fileInput.element.files[0]).toBe(file)
+
+    await findUiButton(wrapper, '清除').trigger('click')
+    expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
   })
 
   it('passes the selected File through the existing upload flow', async () => {
     const wrapper = mountView()
 
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    const fileInput = wrapper.getComponent(UiFileInput)
-
-    await fileInput.vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await flushPromises()
@@ -200,7 +207,7 @@ describe('SettingsView', () => {
     })
     const wrapper = mountView()
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await vi.waitFor(() => expect(uploadTransport.upload).toHaveBeenCalledTimes(1))
@@ -221,7 +228,7 @@ describe('SettingsView', () => {
     http.put.mockReturnValue(pendingUpdate.promise)
     const wrapper = mountView()
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await vi.waitFor(() => expect(http.put).toHaveBeenCalledTimes(1))
@@ -248,7 +255,7 @@ describe('SettingsView', () => {
     })
     const wrapper = mountView()
     const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
     await findUiButton(wrapper, '上传并保存').trigger('click')
 
@@ -273,7 +280,7 @@ describe('SettingsView', () => {
     apiMe.mockReturnValue(pendingMe.promise)
     const wrapper = mountView()
     const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await nextTick()
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await flushPromises()

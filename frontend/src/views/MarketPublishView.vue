@@ -25,7 +25,7 @@
           </label>
           <label class="market-field">
             <span>标题</span>
-            <UiInput v-model="form.title" placeholder="例如：Steam 兑换码" />
+            <input v-model="form.title" class="input" placeholder="例如：Steam 兑换码" />
           </label>
           <label class="market-field">
             <span>描述</span>
@@ -33,7 +33,7 @@
           </label>
           <label class="market-field">
             <span>价格</span>
-            <UiInput v-model.number="form.unitPrice" type="number" min="1" placeholder="输入积分价格" />
+            <input v-model.number="form.unitPrice" class="input" type="number" min="1" placeholder="输入积分价格" />
           </label>
         </div>
       </section>
@@ -50,7 +50,7 @@
           </label>
           <label class="market-field">
             <span>库存数量</span>
-            <UiInput v-model.number="form.stockTotal" type="number" min="1" placeholder="输入库存数量" />
+            <input v-model.number="form.stockTotal" class="input" type="number" min="1" placeholder="输入库存数量" />
           </label>
         </div>
       </section>
@@ -84,7 +84,6 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { createMarketListing } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'

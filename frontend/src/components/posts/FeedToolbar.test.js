@@ -5,7 +5,6 @@ import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
 
 import FeedToolbar from './FeedToolbar.vue'
-import UiSelect from '../ui/UiSelect.vue'
 
 function mountToolbar(props = {}) {
   return mount(FeedToolbar, {
@@ -23,7 +22,7 @@ describe('FeedToolbar', () => {
   it('emits update:boardId from the board select', async () => {
     const wrapper = mountToolbar()
 
-    await wrapper.getComponent(UiSelect).vm.$emit('update:modelValue', 'board-1')
+    await wrapper.get('select[name="posts-board-filter"]').setValue('board-1')
 
     expect(wrapper.emitted('update:boardId')).toEqual([['board-1']])
   })

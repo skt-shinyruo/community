@@ -23,7 +23,6 @@ public class WorkerRegistry {
     private static final Logger log = LoggerFactory.getLogger(WorkerRegistry.class);
 
     private final Supplier<List<WorkerDescriptor>> workerSupplier;
-    private final Set<String> unhealthyWorkerIds = new LinkedHashSet<>();
 
     @Autowired
     public WorkerRegistry(
@@ -49,15 +48,11 @@ public class WorkerRegistry {
         this.workerSupplier = workerSupplier;
     }
 
-    public synchronized List<WorkerDescriptor> allWorkers() {
-        return currentWorkers();
-    }
-
     public synchronized List<WorkerDescriptor> healthyWorkers() {
         List<WorkerDescriptor> workers = currentWorkers();
         ArrayList<WorkerDescriptor> healthy = new ArrayList<>();
         for (WorkerDescriptor worker : workers) {
-            if (!worker.isDraining() && !unhealthyWorkerIds.contains(worker.getId())) {
+            if (!worker.draining()) {
                 healthy.add(worker);
             }
         }
@@ -69,18 +64,8 @@ public class WorkerRegistry {
             return Optional.empty();
         }
         return currentWorkers().stream()
-                .filter(worker -> workerId.equals(worker.getId()))
+                .filter(worker -> workerId.equals(worker.id()))
                 .findFirst();
-    }
-
-    public synchronized void markUnhealthy(String workerId) {
-        if (StringUtils.hasText(workerId)) {
-            unhealthyWorkerIds.add(workerId);
-        }
-    }
-
-    public synchronized void markHealthy(String workerId) {
-        unhealthyWorkerIds.remove(workerId);
     }
 
     private static void assertNoDuplicateWorkerIds(List<WorkerDescriptor> workers) {
@@ -89,8 +74,8 @@ public class WorkerRegistry {
             if (!isValid(worker)) {
                 continue;
             }
-            if (!ids.add(worker.getId())) {
-                throw new IllegalArgumentException("Duplicate worker id: " + worker.getId());
+            if (!ids.add(worker.id())) {
+                throw new IllegalArgumentException("Duplicate worker id: " + worker.id());
             }
         }
     }
@@ -101,14 +86,13 @@ public class WorkerRegistry {
             if (!isValid(worker)) {
                 continue;
             }
-            WorkerDescriptor previous = byId.putIfAbsent(worker.getId(), worker);
+            WorkerDescriptor previous = byId.putIfAbsent(worker.id(), worker);
             if (previous != null) {
                 log.warn("Duplicate IM websocket worker id discovered; failing worker selection closed: workerId={}",
-                        worker.getId());
-                throw new DuplicateWorkerIdException(worker.getId());
+                        worker.id());
+                throw new DuplicateWorkerIdException(worker.id());
             }
         }
-        unhealthyWorkerIds.retainAll(byId.keySet());
         return List.copyOf(byId.values());
     }
 
@@ -126,21 +110,14 @@ public class WorkerRegistry {
     }
 
     private static boolean isValid(WorkerDescriptor worker) {
-        return worker != null && StringUtils.hasText(worker.getId()) && worker.getUri() != null;
+        return worker != null && StringUtils.hasText(worker.id()) && worker.uri() != null;
     }
 }
 
 class DuplicateWorkerIdException extends RuntimeException {
 
-    private final String workerId;
-
     DuplicateWorkerIdException(String workerId) {
         super("Duplicate worker id: " + workerId);
-        this.workerId = workerId;
-    }
-
-    String getWorkerId() {
-        return workerId;
     }
 }
 

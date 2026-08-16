@@ -4,15 +4,10 @@ const TAG_MAX = 5
 const TAG_MAX_LEN = 20
 const TAG_PATTERN = /^[\p{L}\p{N}_-]{1,20}$/u
 
-export function normalizeComposerTagToken(raw) {
+function appendComposerTag(currentTags, raw) {
   let token = String(raw || '').trim()
   if (token.startsWith('#')) token = token.slice(1).trim()
-  token = token.replaceAll(/\s+/g, '-').trim()
-  return token
-}
-
-function appendComposerTag(currentTags, token) {
-  const nextToken = normalizeComposerTagToken(token)
+  const nextToken = token
   if (!nextToken) return Array.isArray(currentTags) ? [...currentTags] : []
 
   if (nextToken.length > TAG_MAX_LEN) {

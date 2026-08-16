@@ -5,7 +5,7 @@
 ## 先读顺序
 
 1. `ImSessionService` / `PublicWsUrlFactory`
-2. `ExternalImEdgeWebSocketHandler` / `InternalWorkerBridgeFactory`
+2. `ExternalImEdgeWebSocketHandler` / `InternalWorkerBridge`
 3. `ImWebSocketHandler` / `ProjectionSyncCoordinator`
 4. `MessageCommandIngressService`
 5. `PrivateMessageApplicationService` / `RoomMessageApplicationService` / `RoomApplicationService`
@@ -22,8 +22,7 @@
 | `im.gateway.shard.WorkerRegistry` | 健康 worker 注册表。 |
 | `im.gateway.ws.ConnectTicketRouter` | 首帧 ticket 路由到 worker。 |
 | `im.gateway.ws.ExternalImEdgeWebSocketHandler` | `/ws/im` 的外部桥接和首帧控制。 |
-| `im.gateway.ws.InternalWorkerBridgeFactory` | 内部 worker bridge 创建和 traceparent 透传。 |
-| `im.gateway.ws.ImGatewayFrameCodec` | gateway connect frame 编解码。 |
+| `im.gateway.ws.InternalWorkerBridge` | 内部 worker bridge 和 traceparent 透传。 |
 
 ## Realtime
 
@@ -43,7 +42,6 @@
 | `im.realtime.presence.RedisRoomPresenceDirectory` | 分布式 room -> worker presence。 |
 | `im.realtime.fanout.RoomPersistedOwnerConsumer` | 共享 consumer group 的 room persisted 入口。 |
 | `im.realtime.fanout.RoomFanoutOwnerService` | owner route planning 与 Kafka target dispatch。 |
-| `im.realtime.fanout.RoomFanoutRoutingService` | 基于 Redis presence 生成 worker route。 |
 | `im.realtime.fanout.KafkaRoomFanoutDispatcher` | 把 target command 写入固定 worker inbox partition。 |
 | `im.realtime.fanout.RealtimeWorkerDirectory` | 校验 worker ID、inbox slot 和 discovery metadata。 |
 | `im.realtime.fanout.RoomFanoutTargetConsumer` | 只消费本 worker 固定 partition 的 target command。 |

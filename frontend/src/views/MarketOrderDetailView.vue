@@ -52,7 +52,7 @@
             <template v-if="canDeliver">
               <label class="market-field">
                 <span>交付内容</span>
-                <UiTextarea v-model.trim="deliveryForm.deliveryContent" rows="4" placeholder="输入卡密、邀请码或其他交付内容" />
+                <textarea v-model.trim="deliveryForm.deliveryContent" class="input multiline" rows="4" placeholder="输入卡密、邀请码或其他交付内容" />
               </label>
               <div class="market-inline-actions">
                 <UiButton :disabled="actionSubmitting" @click="submitDelivery">
@@ -65,16 +65,16 @@
               <div class="market-form-grid market-form-grid--wide">
                 <label class="market-field">
                   <span>承运商</span>
-                  <UiInput v-model.trim="shipForm.carrierName" placeholder="例如：顺丰" autocomplete="off" />
+                  <input v-model.trim="shipForm.carrierName" class="input" placeholder="例如：顺丰" autocomplete="off" />
                 </label>
                 <label class="market-field">
                   <span>运单号</span>
-                  <UiInput v-model.trim="shipForm.trackingNo" placeholder="输入运单号" autocomplete="off" />
+                  <input v-model.trim="shipForm.trackingNo" class="input" placeholder="输入运单号" autocomplete="off" />
                 </label>
               </div>
               <label class="market-field">
                 <span>发货备注</span>
-                <UiTextarea v-model.trim="shipForm.shippingRemark" rows="3" placeholder="可选，补充配送说明" />
+                <textarea v-model.trim="shipForm.shippingRemark" class="input multiline" rows="3" placeholder="可选，补充配送说明" />
               </label>
               <div class="market-inline-actions">
                 <UiButton :disabled="actionSubmitting" @click="submitShipment">
@@ -96,12 +96,12 @@
               <div class="market-form-grid market-form-grid--wide">
                 <label class="market-field">
                   <span>申诉原因</span>
-                  <UiInput v-model.trim="disputeForm.reason" placeholder="简要说明问题" autocomplete="off" />
+                  <input v-model.trim="disputeForm.reason" class="input" placeholder="简要说明问题" autocomplete="off" />
                 </label>
               </div>
               <label class="market-field">
                 <span>申诉说明</span>
-                <UiTextarea v-model.trim="disputeForm.buyerNote" rows="3" placeholder="描述未收到、内容无效或其他异常" />
+                <textarea v-model.trim="disputeForm.buyerNote" class="input multiline" rows="3" placeholder="描述未收到、内容无效或其他异常" />
               </label>
               <div class="market-inline-actions">
                 <UiButton variant="secondary" :disabled="actionSubmitting" @click="submitDispute">
@@ -171,9 +171,7 @@ import { useRoute } from 'vue-router'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   cancelMarketOrder,

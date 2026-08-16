@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.gateway.ws;
 
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ws.RejectFrame;
@@ -33,20 +34,20 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
     private static final String REASON_INBOUND_BUFFER_OVERFLOW = "inbound_buffer_overflow";
 
     private final ConnectTicketRouter connectTicketRouter;
-    private final InternalWorkerBridgeFactory bridgeFactory;
-    private final ImGatewayFrameCodec frameCodec;
+    private final InternalWorkerBridge bridge;
+    private final JsonCodec frameCodec;
     private final ImGatewaySessionProperties properties;
     private final ImGatewayMetrics metrics;
 
     public ExternalImEdgeWebSocketHandler(
             ConnectTicketRouter connectTicketRouter,
-            InternalWorkerBridgeFactory bridgeFactory,
-            ImGatewayFrameCodec frameCodec,
+            InternalWorkerBridge bridge,
+            JsonCodec frameCodec,
             ImGatewaySessionProperties properties,
             ImGatewayMetrics metrics
     ) {
         this.connectTicketRouter = connectTicketRouter;
-        this.bridgeFactory = bridgeFactory;
+        this.bridge = bridge;
         this.frameCodec = frameCodec;
         this.properties = properties;
         this.metrics = metrics;
@@ -126,8 +127,7 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
 
         Flux<String> outbound = Flux.concat(Mono.just(firstFrame), subsequentTextFrames(session, subsequentFrames));
         return Mono.defer(() -> {
-                    InternalWorkerBridge bridge = bridgeFactory.create(decision.workerUri());
-                    return bridge.bridge(session, outbound, metrics::bridgeOpened);
+                    return bridge.bridge(decision.workerUri(), session, outbound, metrics::bridgeOpened);
                 })
                 .onErrorResume(ex -> {
                     recordBridgeFailure(bridgeFailureRecorded, ex);
@@ -140,7 +140,7 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
         return Mono.defer(() -> {
             recordRejectedRoute(reasonCode);
             RejectFrame reject = new RejectFrame("reject", "connect", "", "", code, reasonCode, message);
-            return session.send(Mono.just(session.textMessage(frameCodec.write(reject))))
+            return session.send(Mono.just(session.textMessage(frameCodec.toJson(reject))))
                     .then(session.close());
         });
     }

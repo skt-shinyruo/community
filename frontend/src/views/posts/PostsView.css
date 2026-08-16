@@ -215,10 +215,6 @@
   width: 100%;
 }
 
-.posts-composer-category-select .ui-select-trigger {
-  width: 100%;
-}
-
 .posts-composer-field--tags {
   flex: 1;
   min-width: 240px;

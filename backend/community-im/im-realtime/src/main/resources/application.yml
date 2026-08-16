@@ -4,8 +4,6 @@ spring:
       - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:im-realtime.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_FEATURE_FLAGS:optional:nacos:community-feature-flags.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: im-realtime
@@ -30,13 +28,10 @@ spring:
           management.port: ${MANAGEMENT_SERVER_PORT:${SERVER_PORT}}
           draining: ${im.realtime.worker.drain-enabled:${SERVICE_DRAINING:false}}
           role: ws-worker
-          wsPath: ${im.ws.path:/internal/ws/im}
-          wsPort: ${SERVER_PORT:18081}
           workerId: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
           roomFanoutInboxSlot: ${im.room-fanout.worker-inbox-slot}
           maxConnections: ${im.realtime.worker.max-connections:${IM_REALTIME_MAX_CONNECTIONS:10000}}
           activeConnectionHint: ${im.realtime.worker.active-connection-hint:${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}}
-          shardGroup: ${im.realtime.worker.shard-group:${IM_REALTIME_SHARD_GROUP:default}}
           capacityWeight: ${im.realtime.worker.capacity-weight:${SERVICE_WEIGHT:100}}
       config:
         server-addr: ${SPRING_CLOUD_NACOS_CONFIG_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
@@ -96,14 +91,10 @@ im:
     issuer: ${IM_SESSION_TICKET_ISSUER:community-im-gateway}
     audience: ${IM_SESSION_TICKET_AUDIENCE:im-realtime}
   clients:
-    community-service-id: ${IM_COMMUNITY_SERVICE_ID:community-app}
-    im-core-service-id: ${IM_CORE_SERVICE_ID:im-core}
     membership-snapshot-service-id: ${IM_MEMBERSHIP_SNAPSHOT_SERVICE_ID:${IM_CORE_SERVICE_ID:im-core}}
     policy-snapshot-service-id: ${IM_POLICY_SNAPSHOT_SERVICE_ID:${IM_COMMUNITY_SERVICE_ID:community-app}}
     snapshot-timeout-ms: ${IM_SNAPSHOT_TIMEOUT_MS:3000}
     internal-scope: ${IM_INTERNAL_SCOPE:im.realtime.internal}
-  community:
-    timeout-ms: ${IM_COMMUNITY_TIMEOUT_MS:1500}
   projection:
     bootstrap-on-startup: ${IM_PROJECTION_BOOTSTRAP_ON_STARTUP:true}
     bootstrap-retry-initial-backoff: ${IM_PROJECTION_BOOTSTRAP_RETRY_INITIAL_BACKOFF:PT1S}
@@ -126,11 +117,7 @@ im:
     # Public session bootstrap routing moved to community-im-gateway.
     worker-service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-    ws-base-url: "${IM_SESSION_WS_BASE_URL:ws://127.0.0.1:${SERVER_PORT:18081}${im.ws.path:/internal/ws/im}}"
-    ticket-ttl: ${IM_SESSION_TICKET_TTL:PT2M}
     worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
-    ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}
-    ws-port-metadata-key: ${IM_SESSION_WS_PORT_METADATA_KEY:wsPort}
   kafka:
     event:
       concurrency: ${IM_REALTIME_KAFKA_EVENT_CONCURRENCY:3}
@@ -146,7 +133,6 @@ im:
       max-connections: ${IM_REALTIME_MAX_CONNECTIONS:10000}
       active-connection-hint: ${IM_REALTIME_ACTIVE_CONNECTION_HINT:0}
       drain-enabled: ${SERVICE_DRAINING:false}
-      shard-group: ${IM_REALTIME_SHARD_GROUP:default}
       capacity-weight: ${SERVICE_WEIGHT:100}
 
 management:

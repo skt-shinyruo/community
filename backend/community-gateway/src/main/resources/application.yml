@@ -7,8 +7,6 @@ spring:
       - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:community-gateway.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_FEATURE_FLAGS:optional:nacos:community-feature-flags.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-gateway
@@ -24,6 +22,39 @@ spring:
             enabled: false
           x-forwarded:
             enabled: false
+          default-filters:
+            - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Headers Access-Control-Allow-Methods Access-Control-Expose-Headers Access-Control-Max-Age, RETAIN_FIRST
+          routes:
+            - id: im-session-edge
+              order: -100
+              uri: lb://${GATEWAY_IM_EDGE_SERVICE_ID:community-im-gateway}
+              predicates:
+                - Method=POST
+                - Path=/api/im/sessions
+            - id: im-ws-edge
+              order: -100
+              uri: lb:ws://${GATEWAY_IM_EDGE_SERVICE_ID:community-im-gateway}
+              predicates:
+                - Path=/ws/im
+                - Header=Upgrade, (?i)websocket
+            - id: oss-api
+              order: -20
+              uri: lb://community-oss
+              predicates:
+                - Path=/api/oss,/api/oss/**
+            - id: im-core
+              order: -10
+              uri: lb://im-core
+              predicates:
+                - Path=/api/im,/api/im/**
+            - id: bootstrap-api
+              uri: lb://community-app
+              predicates:
+                - Path=/api,/api/**
+            - id: oss-files
+              uri: lb://community-oss
+              predicates:
+                - Path=/files,/files/**
     nacos:
       discovery:
         server-addr: ${SPRING_CLOUD_NACOS_DISCOVERY_SERVER_ADDR:${NACOS_SERVER_ADDR:localhost:8848}}
@@ -75,24 +106,7 @@ gateway:
     source: application-default
   cors:
     allowed-origins: ${GATEWAY_CORS_ALLOWED_ORIGINS:}
-  im-edge:
-    service-id: ${GATEWAY_IM_EDGE_SERVICE_ID:community-im-gateway}
-    session-path: /api/im/sessions
-    ws-path: /ws/im
   http:
-    routes:
-      - id: oss-api
-        path-prefix: /api/oss
-        service-id: community-oss
-      - id: im-core
-        path-prefix: /api/im
-        service-id: im-core
-      - id: bootstrap-api
-        path-prefix: /api
-        service-id: community-app
-      - id: oss-files
-        path-prefix: /files
-        service-id: community-oss
     rate-limit:
       enabled: true
       fail-open-on-error: false
@@ -101,8 +115,3 @@ gateway:
           enabled: true
           limit: 10
           window: 1m
-    traffic-policy:
-      default-policy-id: baseline
-      default-tags:
-        plane: http
-      rules: []

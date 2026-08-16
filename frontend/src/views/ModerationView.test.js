@@ -61,21 +61,6 @@ function mountModerationView() {
           props: ['disabled', 'variant'],
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiInput: {
-          props: ['modelValue', 'disabled'],
-          emits: ['update:modelValue'],
-          template: '<input :disabled="disabled" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
-        },
-        UiSelect: {
-          props: ['modelValue', 'disabled', 'options'],
-          emits: ['update:modelValue'],
-          template: '<select :disabled="disabled" :value="modelValue" @change="$emit(\'update:modelValue\', $event.target.value)"><option v-for="option in options" :key="option.value" :value="option.value">{{ option.label }}</option></select>'
-        },
-        UiTextarea: {
-          props: ['modelValue', 'disabled'],
-          emits: ['update:modelValue'],
-          template: '<textarea :disabled="disabled" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         }
       }
     }

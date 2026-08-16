@@ -20,34 +20,35 @@
         <div class="market-form-grid market-form-grid--wide">
           <label class="market-field">
             <span>收货人</span>
-            <UiInput v-model="form.receiverName" />
+            <input v-model="form.receiverName" class="input" />
           </label>
           <label class="market-field">
             <span>手机号</span>
-            <UiInput v-model="form.receiverPhone" />
+            <input v-model="form.receiverPhone" class="input" />
           </label>
           <label class="market-field">
             <span>省份</span>
-            <UiInput v-model="form.province" />
+            <input v-model="form.province" class="input" />
           </label>
           <label class="market-field">
             <span>城市</span>
-            <UiInput v-model="form.city" />
+            <input v-model="form.city" class="input" />
           </label>
           <label class="market-field">
             <span>区县</span>
-            <UiInput v-model="form.district" />
+            <input v-model="form.district" class="input" />
           </label>
           <label class="market-field">
             <span>详细地址</span>
-            <UiInput v-model="form.detailAddress" />
+            <input v-model="form.detailAddress" class="input" />
           </label>
           <label class="market-field">
             <span>邮编</span>
-            <UiInput v-model="form.postalCode" />
+            <input v-model="form.postalCode" class="input" />
           </label>
-          <label class="market-field market-field--inline">
-            <UiCheckbox v-model="form.defaultAddress">设为默认地址</UiCheckbox>
+          <label class="market-field--inline ui-checkbox">
+            <input v-model="form.defaultAddress" class="ui-checkbox-input" type="checkbox" />
+            <span class="ui-checkbox-copy">设为默认地址</span>
           </label>
         </div>
 
@@ -88,34 +89,35 @@
               <div class="market-form-grid market-form-grid--wide">
                 <label class="market-field">
                   <span>收货人</span>
-                  <UiInput v-model="editForm.receiverName" />
+                  <input v-model="editForm.receiverName" class="input" />
                 </label>
                 <label class="market-field">
                   <span>手机号</span>
-                  <UiInput v-model="editForm.receiverPhone" />
+                  <input v-model="editForm.receiverPhone" class="input" />
                 </label>
                 <label class="market-field">
                   <span>省份</span>
-                  <UiInput v-model="editForm.province" />
+                  <input v-model="editForm.province" class="input" />
                 </label>
                 <label class="market-field">
                   <span>城市</span>
-                  <UiInput v-model="editForm.city" />
+                  <input v-model="editForm.city" class="input" />
                 </label>
                 <label class="market-field">
                   <span>区县</span>
-                  <UiInput v-model="editForm.district" />
+                  <input v-model="editForm.district" class="input" />
                 </label>
                 <label class="market-field">
                   <span>详细地址</span>
-                  <UiInput v-model="editForm.detailAddress" />
+                  <input v-model="editForm.detailAddress" class="input" />
                 </label>
                 <label class="market-field">
                   <span>邮编</span>
-                  <UiInput v-model="editForm.postalCode" />
+                  <input v-model="editForm.postalCode" class="input" />
                 </label>
-                <label class="market-field market-field--inline">
-                  <UiCheckbox v-model="editForm.defaultAddress">设为默认地址</UiCheckbox>
+                <label class="market-field--inline ui-checkbox">
+                  <input v-model="editForm.defaultAddress" class="ui-checkbox-input" type="checkbox" />
+                  <span class="ui-checkbox-copy">设为默认地址</span>
                 </label>
               </div>
 
@@ -138,9 +140,7 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
-import UiCheckbox from '../components/ui/UiCheckbox.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   createMarketAddress,

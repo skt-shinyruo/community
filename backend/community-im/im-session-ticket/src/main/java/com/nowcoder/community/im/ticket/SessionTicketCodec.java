@@ -2,25 +2,24 @@ package com.nowcoder.community.im.ticket;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2Error;
-import org.springframework.security.oauth2.core.OAuth2TokenValidator;
-import org.springframework.security.oauth2.core.OAuth2TokenValidatorResult;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.security.oauth2.jwt.JwtAudienceValidator;
+import org.springframework.security.oauth2.jwt.JwtClaimValidator;
 import org.springframework.security.oauth2.jwt.JwtClaimsSet;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
 import org.springframework.security.oauth2.jwt.JwtIssuerValidator;
+import org.springframework.security.oauth2.jwt.JwtTimestampValidator;
 import org.springframework.security.oauth2.jwt.MappedJwtClaimSetConverter;
 import org.springframework.security.oauth2.jwt.NimbusJwtDecoder;
 import org.springframework.security.oauth2.jwt.NimbusJwtEncoder;
 import org.springframework.util.StringUtils;
 
 import javax.crypto.SecretKey;
-import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Date;
@@ -42,7 +41,6 @@ public class SessionTicketCodec {
     private static final String TOKEN_TYPE = "im-session-ticket";
     private static final String INVALID_TICKET_MESSAGE = "invalid IM session ticket";
     private static final Duration DEFAULT_CLOCK_SKEW = Duration.ofSeconds(60);
-    private static final Clock VALIDATION_CLOCK = Clock.systemUTC();
     private static final MappedJwtClaimSetConverter DEFAULT_CLAIM_SET_CONVERTER =
             MappedJwtClaimSetConverter.withDefaults(Map.of());
 
@@ -62,10 +60,10 @@ public class SessionTicketCodec {
                 .build();
         decoder.setClaimSetConverter(SessionTicketCodec::convertClaimSet);
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
-                ticketTimestampValidator(),
+                new JwtTimestampValidator(DEFAULT_CLOCK_SKEW),
                 new JwtIssuerValidator(issuer),
-                audienceValidator(audience),
-                ticketTypeValidator()
+                new JwtAudienceValidator(audience),
+                new JwtClaimValidator<>(CLAIM_TOKEN_TYPE, TOKEN_TYPE::equals)
         ));
         this.jwtDecoder = decoder;
     }
@@ -101,7 +99,6 @@ public class SessionTicketCodec {
         } catch (RuntimeException ignored) {
             throw invalidTicketValidationFailure();
         }
-        requireTokenType(jwt.getClaimAsString(CLAIM_TOKEN_TYPE));
         return new TicketClaims(
                 parseUserId(jwt.getSubject()),
                 requiredText(jwt.getClaimAsString(CLAIM_SESSION_ID), CLAIM_SESSION_ID),
@@ -147,56 +144,8 @@ public class SessionTicketCodec {
         return new BadJwtException("invalid IM session ticket claim: " + claimName);
     }
 
-    private static OAuth2TokenValidator<Jwt> ticketTimestampValidator() {
-        return jwt -> {
-            Instant expiresAt = jwt.getExpiresAt();
-            if (expiresAt != null && Instant.now(VALIDATION_CLOCK).minus(DEFAULT_CLOCK_SKEW).isAfter(expiresAt)) {
-                return invalidTicketValidationResult();
-            }
-            Instant notBefore = jwt.getNotBefore();
-            if (notBefore != null && Instant.now(VALIDATION_CLOCK).plus(DEFAULT_CLOCK_SKEW).isBefore(notBefore)) {
-                return invalidTicketValidationResult();
-            }
-            return OAuth2TokenValidatorResult.success();
-        };
-    }
-
-    private static OAuth2TokenValidatorResult invalidTicketValidationResult() {
-        return OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                "invalid_token",
-                INVALID_TICKET_MESSAGE,
-                null
-        ));
-    }
-
     private static BadJwtException invalidTicketValidationFailure() {
         return new BadJwtException(INVALID_TICKET_MESSAGE);
-    }
-
-    private static void requireTokenType(String tokenType) {
-        if (!TOKEN_TYPE.equals(tokenType)) {
-            throw new BadJwtException("invalid IM session ticket type");
-        }
-    }
-
-    private static OAuth2TokenValidator<Jwt> audienceValidator(String expectedAudience) {
-        return jwt -> jwt.getAudience() != null && jwt.getAudience().contains(expectedAudience)
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token",
-                        "invalid IM session ticket audience",
-                        null
-                ));
-    }
-
-    private static OAuth2TokenValidator<Jwt> ticketTypeValidator() {
-        return jwt -> TOKEN_TYPE.equals(jwt.getClaimAsString(CLAIM_TOKEN_TYPE))
-                ? OAuth2TokenValidatorResult.success()
-                : OAuth2TokenValidatorResult.failure(new OAuth2Error(
-                        "invalid_token",
-                        "invalid IM session ticket type",
-                        null
-                ));
     }
 
     private static UUID parseUserId(String subject) {

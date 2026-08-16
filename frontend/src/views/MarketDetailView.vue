@@ -28,7 +28,7 @@
           <div class="market-form-grid">
             <label class="market-field">
               <span>购买数量</span>
-              <UiInput v-model.number="quantity" type="number" min="1" placeholder="输入购买数量" :disabled="submitting" />
+              <input v-model.number="quantity" class="input" type="number" min="1" placeholder="输入购买数量" :disabled="submitting" />
             </label>
             <label v-if="detail.goodsType === 'PHYSICAL' && auth.authed" class="market-field">
               <span>收货地址</span>
@@ -96,7 +96,6 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   createMarketOrder,

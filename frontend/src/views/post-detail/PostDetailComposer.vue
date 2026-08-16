@@ -11,12 +11,12 @@
     </UiPageHeader>
 
     <div class="stack comment-composer">
-      <UiTextarea
-        :model-value="composer.draft"
-        :model-modifiers="{ trim: true }"
+      <textarea
+        :value="composer.draft"
         placeholder="写下你的观点…（支持 Markdown）"
         :rows="4"
-        @update:modelValue="composer.setDraft"
+        class="input multiline"
+        @input="composer.setDraft($event.target.value.trim())"
       />
       <div v-if="composer.error" class="error">{{ composer.error }}</div>
     </div>
@@ -32,7 +32,6 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiPageHeader from '../../components/ui/UiPageHeader.vue'
 import UiState from '../../components/ui/UiState.vue'
-import UiTextarea from '../../components/ui/UiTextarea.vue'
 
 defineProps({
   authed: Boolean,

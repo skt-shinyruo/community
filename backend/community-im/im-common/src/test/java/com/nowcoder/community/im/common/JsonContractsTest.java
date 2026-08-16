@@ -32,13 +32,10 @@ import com.nowcoder.community.im.common.ws.PingFrame;
 import com.nowcoder.community.im.common.ws.PongFrame;
 import com.nowcoder.community.im.common.ws.PrivateMessageFrame;
 import com.nowcoder.community.im.common.ws.RejectFrame;
-import com.nowcoder.community.im.common.ws.RoomMessageFrame;
 import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
 import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Array;
-import java.lang.reflect.Constructor;
 import java.lang.reflect.RecordComponent;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -70,7 +67,7 @@ class JsonContractsTest {
 
         SendPrivateTextCommand back = roundTrip(cmd, SendPrivateTextCommand.class);
         assertEquals(cmd, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -87,7 +84,7 @@ class JsonContractsTest {
 
         SendRoomTextCommand back = roundTrip(cmd, SendRoomTextCommand.class);
         assertEquals(cmd, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -103,7 +100,7 @@ class JsonContractsTest {
         RoomFanoutCommand back = roundTrip(cmd, RoomFanoutCommand.class);
 
         assertEquals(cmd, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -126,7 +123,7 @@ class JsonContractsTest {
         assertEquals("cmsg-future-room", back.clientMsgId());
         assertEquals(uuid(1001), back.roomId());
         assertEquals("future room hello", back.content());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -146,7 +143,7 @@ class JsonContractsTest {
 
         PrivateMessagePersistedEvent back = roundTrip(event, PrivateMessagePersistedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -163,7 +160,7 @@ class JsonContractsTest {
 
         RoomMessagePersistedEvent back = roundTrip(event, RoomMessagePersistedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -184,7 +181,7 @@ class JsonContractsTest {
 
         PrivateMessageCommittedEvent back = roundTrip(event, PrivateMessageCommittedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -203,7 +200,7 @@ class JsonContractsTest {
 
         RoomMessageCommittedEvent back = roundTrip(event, RoomMessageCommittedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -225,7 +222,7 @@ class JsonContractsTest {
 
         PrivateMessageRejectedEvent back = roundTrip(event, PrivateMessageRejectedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -244,7 +241,7 @@ class JsonContractsTest {
 
         RoomMessageRejectedEvent back = roundTrip(event, RoomMessageRejectedEvent.class);
         assertEquals(event, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -266,7 +263,7 @@ class JsonContractsTest {
         assertEquals(uuid(1001), back.roomId());
         assertEquals(11L, back.seq());
         assertEquals(uuid(20001), back.messageId());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -292,7 +289,7 @@ class JsonContractsTest {
 
         ConnectFrame back = roundTrip(frame, ConnectFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -306,7 +303,7 @@ class JsonContractsTest {
 
         SendPrivateTextFrame back = roundTrip(frame, SendPrivateTextFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -320,7 +317,7 @@ class JsonContractsTest {
 
         SendRoomTextFrame back = roundTrip(frame, SendRoomTextFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -329,7 +326,7 @@ class JsonContractsTest {
 
         AckFrame back = roundTrip(frame, AckFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -346,7 +343,7 @@ class JsonContractsTest {
 
         RejectFrame back = roundTrip(frame, RejectFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -364,7 +361,7 @@ class JsonContractsTest {
 
         CommittedFrame back = roundTrip(frame, CommittedFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -382,23 +379,7 @@ class JsonContractsTest {
 
         PrivateMessageFrame back = roundTrip(frame, PrivateMessageFrame.class);
         assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-    }
-
-    @Test
-    void shouldRoundTripRoomMessageFrame() throws Exception {
-        RoomMessageFrame frame = new RoomMessageFrame(
-                "roomMessage",
-                uuid(3001),
-                14L,
-                uuid(14001),
-                uuid(41),
-                1_712_345_678_902L
-        );
-
-        RoomMessageFrame back = roundTrip(frame, RoomMessageFrame.class);
-        assertEquals(frame, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -411,8 +392,8 @@ class JsonContractsTest {
 
         assertEquals(ping, pingBack);
         assertEquals(pong, pongBack);
-        assertEquals(1, recordComponentValue(pingBack, "schemaVersion"));
-        assertEquals(1, recordComponentValue(pongBack, "schemaVersion"));
+        assertEquals(1, pingBack.schemaVersion());
+        assertEquals(1, pongBack.schemaVersion());
     }
 
     @Test
@@ -438,7 +419,7 @@ class JsonContractsTest {
         assertEquals("req-future-frame", back.requestId());
         assertEquals(uuid(10001), back.messageId());
         assertEquals(18L, back.seq());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -447,7 +428,7 @@ class JsonContractsTest {
 
         RoomMembershipEntry back = roundTrip(entry, RoomMembershipEntry.class);
         assertEquals(entry, back);
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -474,14 +455,14 @@ class JsonContractsTest {
         assertEquals(snapshot.nextUserId(), back.nextUserId());
         assertFalse(back.hasMore());
         assertEquals(1_712_345_678_904L, back.snapshotHighWatermark());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
+        assertEquals(1, back.entries().get(0).schemaVersion());
     }
 
     @Test
     void shouldRoundTripUserMessagingPolicySnapshot() throws Exception {
         UserMessagingPolicySnapshot snapshot = new UserMessagingPolicySnapshot(
-                List.of(newRecord(UserMessagingPolicyEntry.class, userMessagingPolicyEntryValues(
+                List.of(new UserMessagingPolicyEntry(
                         uuid(51),
                         true,
                         false,
@@ -491,7 +472,7 @@ class JsonContractsTest {
                         false,
                         1_712_345_678_901L,
                         1_712_345_678_900L
-                ))),
+                )),
                 uuid(52),
                 true,
                 1_712_345_678_901L
@@ -500,14 +481,14 @@ class JsonContractsTest {
         UserMessagingPolicySnapshot back = roundTrip(snapshot, UserMessagingPolicySnapshot.class);
 
         assertEquals(snapshot, back);
-        assertEquals(1_712_345_678_906L, recordComponentValue(back.entries().get(0), "muteUntil"));
-        assertEquals(null, recordComponentValue(back.entries().get(0), "banUntil"));
-        assertEquals(1_712_345_678_901L, recordComponentValue(back.entries().get(0), "version"));
-        assertEquals(1_712_345_678_900L, recordComponentValue(back.entries().get(0), "occurredAtEpochMillis"));
+        assertEquals(1_712_345_678_906L, back.entries().get(0).muteUntil());
+        assertEquals(null, back.entries().get(0).banUntil());
+        assertEquals(1_712_345_678_901L, back.entries().get(0).version());
+        assertEquals(1_712_345_678_900L, back.entries().get(0).occurredAtEpochMillis());
         assertTrue(back.hasMore());
         assertEquals(1_712_345_678_901L, back.snapshotHighWatermark());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
+        assertEquals(1, back.entries().get(0).schemaVersion());
     }
 
     @Test
@@ -531,8 +512,8 @@ class JsonContractsTest {
         assertEquals(snapshot, back);
         assertFalse(back.hasMore());
         assertEquals(1_712_345_678_902L, back.snapshotHighWatermark());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
+        assertEquals(1, back.entries().get(0).schemaVersion());
     }
 
     @Test
@@ -563,8 +544,8 @@ class JsonContractsTest {
         assertEquals(uuid(1), back.entries().get(0).userId());
         assertFalse(back.hasMore());
         assertEquals(1_712_345_678_904L, back.snapshotHighWatermark());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
-        assertEquals(1, recordComponentValue(back.entries().get(0), "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
+        assertEquals(1, back.entries().get(0).schemaVersion());
     }
 
     @Test
@@ -648,7 +629,7 @@ class JsonContractsTest {
 
     @Test
     void shouldRoundTripUserMessagingPolicyChanged() throws Exception {
-        UserMessagingPolicyChanged event = newRecord(UserMessagingPolicyChanged.class, userMessagingPolicyChangedValues(
+        UserMessagingPolicyChanged event = new UserMessagingPolicyChanged(
                 "evt-policy-1",
                 uuid(81),
                 true,
@@ -659,13 +640,13 @@ class JsonContractsTest {
                 false,
                 1_712_345_678_905L,
                 1_712_345_678_906L
-        ));
+        );
 
         UserMessagingPolicyChanged back = roundTrip(event, UserMessagingPolicyChanged.class);
         assertEquals(event, back);
-        assertEquals(1_712_345_678_907L, recordComponentValue(back, "muteUntil"));
-        assertEquals(null, recordComponentValue(back, "banUntil"));
-        assertEquals(1_712_345_678_906L, recordComponentValue(back, "version"));
+        assertEquals(1_712_345_678_907L, back.muteUntil());
+        assertEquals(null, back.banUntil());
+        assertEquals(1_712_345_678_906L, back.version());
     }
 
     @Test
@@ -687,7 +668,7 @@ class JsonContractsTest {
         assertEquals("evt-policy-unknown", back.eventId());
         assertEquals(UUID.fromString("00000000-0000-7000-8000-000000000081"), back.userId());
         assertFalse(back.canSendPrivate());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -709,7 +690,7 @@ class JsonContractsTest {
         assertEquals(event.blockedUserId(), back.blockedUserId());
         assertEquals(1_712_345_678_901L, back.occurredAtEpochMillis());
         assertEquals(1_712_345_678_902L, back.version());
-        assertEquals(1, recordComponentValue(back, "schemaVersion"));
+        assertEquals(1, back.schemaVersion());
     }
 
     @Test
@@ -724,8 +705,8 @@ class JsonContractsTest {
 
     @Test
     void shouldExposeContractVersionConstants() throws Exception {
-        assertEquals(1, classConstant("com.nowcoder.community.im.common.ImContractVersions", "CURRENT_SCHEMA_VERSION"));
-        assertEquals(1, classConstant("com.nowcoder.community.im.common.ImContractVersions", "WS_FRAME_VERSION"));
+        assertEquals(1, ImContractVersions.CURRENT_SCHEMA_VERSION);
+        assertEquals(1, ImContractVersions.WS_FRAME_VERSION);
         assertEquals("im.event.private-committed", ImTopics.EVENT_PRIVATE_COMMITTED);
     }
 
@@ -758,7 +739,6 @@ class JsonContractsTest {
                 RejectFrame.class,
                 CommittedFrame.class,
                 PrivateMessageFrame.class,
-                RoomMessageFrame.class,
                 PingFrame.class,
                 PongFrame.class
         )) {
@@ -889,9 +869,6 @@ class JsonContractsTest {
         if (recordType == RejectFrame.class) {
             return "reject";
         }
-        if (recordType == RoomMessageFrame.class) {
-            return "roomMessage";
-        }
         if (recordType == SendPrivateTextFrame.class) {
             return "sendPrivateText";
         }
@@ -899,133 +876,6 @@ class JsonContractsTest {
             return "sendRoomText";
         }
         throw new AssertionError("No frame type test value for " + recordType.getSimpleName());
-    }
-
-    private static Map<String, Object> userMessagingPolicyEntryValues(
-            UUID userId,
-            boolean userExists,
-            boolean suspended,
-            boolean muted,
-            Long muteUntil,
-            Long banUntil,
-            boolean canSendPrivate,
-            Long version,
-            Long occurredAtEpochMillis
-    ) {
-        Map<String, Object> values = new LinkedHashMap<>();
-        values.put("userId", userId);
-        values.put("userExists", userExists);
-        values.put("suspended", suspended);
-        values.put("muted", muted);
-        values.put("muteUntil", muteUntil);
-        values.put("banUntil", banUntil);
-        values.put("canSendPrivate", canSendPrivate);
-        values.put("version", version);
-        values.put("occurredAtEpochMillis", occurredAtEpochMillis);
-        values.put("schemaVersion", ImContractVersions.PROJECTION_SCHEMA_VERSION);
-        return values;
-    }
-
-    private static Map<String, Object> userMessagingPolicyChangedValues(
-            String eventId,
-            UUID userId,
-            boolean userExists,
-            boolean suspended,
-            boolean muted,
-            Long muteUntil,
-            Long banUntil,
-            boolean canSendPrivate,
-            long occurredAtEpochMillis,
-            Long version
-    ) {
-        Map<String, Object> values = new LinkedHashMap<>();
-        values.put("eventId", eventId);
-        values.put("userId", userId);
-        values.put("userExists", userExists);
-        values.put("suspended", suspended);
-        values.put("muted", muted);
-        values.put("muteUntil", muteUntil);
-        values.put("banUntil", banUntil);
-        values.put("canSendPrivate", canSendPrivate);
-        values.put("occurredAtEpochMillis", occurredAtEpochMillis);
-        values.put("version", version);
-        values.put("schemaVersion", ImContractVersions.KAFKA_EVENT_SCHEMA_VERSION);
-        return values;
-    }
-
-    private static <T> T newRecord(Class<T> recordType, Map<String, Object> values) throws Exception {
-        assertTrue(recordType.isRecord(), recordType.getSimpleName() + " must be a record");
-
-        RecordComponent[] components = recordType.getRecordComponents();
-        for (String expected : values.keySet()) {
-            boolean present = false;
-            for (RecordComponent component : components) {
-                if (component.getName().equals(expected)) {
-                    present = true;
-                    break;
-                }
-            }
-            assertTrue(present, recordType.getSimpleName() + " missing component: " + expected);
-        }
-
-        Class<?>[] parameterTypes = new Class<?>[components.length];
-        Object[] args = new Object[components.length];
-        for (int i = 0; i < components.length; i++) {
-            parameterTypes[i] = components[i].getType();
-            args[i] = constructorValue(components[i], values.get(components[i].getName()));
-        }
-
-        Constructor<T> constructor = recordType.getDeclaredConstructor(parameterTypes);
-        return constructor.newInstance(args);
-    }
-
-    private static Object constructorValue(RecordComponent component, Object value) {
-        if (value != null) {
-            return value;
-        }
-        Class<?> type = component.getType();
-        if (!type.isPrimitive()) {
-            return null;
-        }
-        if (type == boolean.class) {
-            return false;
-        }
-        if (type == int.class) {
-            return 0;
-        }
-        if (type == long.class) {
-            return 0L;
-        }
-        if (type == double.class) {
-            return 0D;
-        }
-        if (type == float.class) {
-            return 0F;
-        }
-        if (type == short.class) {
-            return (short) 0;
-        }
-        if (type == byte.class) {
-            return (byte) 0;
-        }
-        if (type == char.class) {
-            return '\0';
-        }
-        return Array.get(Array.newInstance(type, 1), 0);
-    }
-
-    private static Object recordComponentValue(Object record, String componentName) throws Exception {
-        for (RecordComponent component : record.getClass().getRecordComponents()) {
-            if (component.getName().equals(componentName)) {
-                return component.getAccessor().invoke(record);
-            }
-        }
-        throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
-    }
-
-    private static Object classConstant(String className, String fieldName) throws Exception {
-        Class<?> type = Class.forName(className);
-        return type.getField(fieldName).get(null);
     }
 
     private static UUID uuid(long suffix) {

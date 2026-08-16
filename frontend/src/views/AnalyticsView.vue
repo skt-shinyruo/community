@@ -25,12 +25,12 @@
         <div class="analytics-filter-grid">
           <div class="analytics-filter-field">
             <div class="analytics-label">开始日期</div>
-            <UiInput type="date" v-model="start" />
+            <input v-model="start" class="input" type="date" />
           </div>
           <div class="analytics-filter-arrow">→</div>
           <div class="analytics-filter-field">
             <div class="analytics-label">结束日期</div>
-            <UiInput type="date" v-model="end" />
+            <input v-model="end" class="input" type="date" />
           </div>
         </div>
       </UiCard>
@@ -76,7 +76,6 @@ import { uv, dau } from '../api/services/analyticsService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { settleNamedRequests } from '../utils/settledRequests'

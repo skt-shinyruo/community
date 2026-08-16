@@ -9,23 +9,23 @@
       <template v-if="flow.step === 'form'">
         <div class="auth-field">
           <div class="field-label">用户名</div>
-          <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+          <input v-model.trim="form.username" class="input" placeholder="请输入用户名" autocomplete="username" />
         </div>
 
         <div class="auth-field">
           <div class="field-label">邮箱</div>
-          <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+          <input v-model.trim="form.email" class="input" placeholder="name@example.com" autocomplete="email" />
         </div>
 
         <div class="auth-field">
           <div class="field-label">密码</div>
-          <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
+          <input v-model="form.password" class="input" placeholder="请输入密码" type="password" autocomplete="new-password" />
         </div>
 
         <div class="auth-field">
           <div class="field-label">图形验证码</div>
           <div class="row captcha-row">
-            <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
+            <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input captcha-input" />
             <img
               v-if="captchaSrc"
               :src="captchaSrc"
@@ -49,7 +49,7 @@
 
           <div class="auth-field">
             <div class="field-label">邮箱验证码</div>
-            <UiInput v-model.trim="form.emailCode" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
+            <input v-model.trim="form.emailCode" class="input" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
           </div>
 
           <UiButton @click="onVerifyCode" :disabled="loading" class="auth-submit-btn">
@@ -68,7 +68,7 @@
           <div class="auth-field">
             <div class="field-label">图形验证码（重发用）</div>
             <div class="row captcha-row">
-              <UiInput v-model.trim="form.captcha" placeholder="请输入重发所需的图形验证码" autocomplete="off" class="captcha-input" />
+              <input v-model.trim="form.captcha" placeholder="请输入重发所需的图形验证码" autocomplete="off" class="input captcha-input" />
               <img
                 v-if="captchaSrc"
                 :src="captchaSrc"
@@ -121,7 +121,6 @@ import { backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { buildRegisterFlowState, clearRegisterFlowState, persistRegisterFlowState, resolveRegisterFlowError, restoreRegisterFlowState } from './registerFlowState'
 import { register as apiRegister, resendRegisterCode, verifyRegisterCode, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiState from '../components/ui/UiState.vue'

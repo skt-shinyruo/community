@@ -11,7 +11,6 @@ spring:
           draining: ${im.realtime.worker.drain-enabled:false}
           maxConnections: ${im.realtime.worker.max-connections:10000}
           activeConnectionHint: ${im.realtime.worker.active-connection-hint:0}
-          shardGroup: ${im.realtime.worker.shard-group:default}
           capacityWeight: ${im.realtime.worker.capacity-weight:100}
           roomFanoutInboxSlot: ${im.room-fanout.worker-inbox-slot}
   kafka:
@@ -21,14 +20,10 @@ spring:
 
 im:
   clients:
-    community-service-id: community-app
-    im-core-service-id: im-core
     membership-snapshot-service-id: im-core
     policy-snapshot-service-id: community-app
     snapshot-timeout-ms: 3000
     internal-scope: im.realtime.internal
-  community:
-    timeout-ms: 1500
   projection:
     bootstrap-on-startup: true
   room-presence:
@@ -47,11 +42,7 @@ im:
   session:
     worker-service-id: im-realtime-worker
     worker-id: ${IM_REALTIME_WORKER_ID:${HOSTNAME:local}}
-    ws-base-url: ws://127.0.0.1:18081/internal/ws/im
-    ticket-ttl: PT2M
     worker-id-metadata-key: workerId
-    ws-path-metadata-key: wsPath
-    ws-port-metadata-key: wsPort
   kafka:
     event:
       concurrency: 3
@@ -68,5 +59,4 @@ im:
       max-connections: 10000
       active-connection-hint: 0
       drain-enabled: false
-      shard-group: default
       capacity-weight: 100

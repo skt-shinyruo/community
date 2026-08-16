@@ -10,7 +10,6 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @Configuration(proxyBeanMethods = false)
 @EnableConfigurationProperties({
         RateLimitProperties.class,
-        TrafficPolicyProperties.class,
         EdgeTrustedProxyProperties.class
 })
 public class EdgeConfig {
@@ -36,11 +35,6 @@ public class EdgeConfig {
     @Bean
     CanonicalForwardedForHttpHeadersFilter canonicalForwardedForHttpHeadersFilter() {
         return new CanonicalForwardedForHttpHeadersFilter();
-    }
-
-    @Bean
-    TrafficPolicyEvaluator trafficPolicyEvaluator(TrafficPolicyProperties properties) {
-        return new TrafficPolicyEvaluator(properties);
     }
 
     @Bean

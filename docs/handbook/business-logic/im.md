@@ -99,7 +99,7 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 桥接语义：
 
 - `ExternalImEdgeWebSocketHandler` 要求首帧在 `firstFrameTimeoutMs` 内到达，且首帧必须是文本 connect frame；缺失、超时、格式错误、ticket 无效或 worker 不可用都会返回 reject frame 后关闭连接。文本帧受 `maxInboundChars` 限制，等待 worker 消费的入站帧最多保留 `maxInboundBufferFrames` 条；超限连接会关闭，避免慢 worker 导致连接内存无界增长。
-- `InternalWorkerBridgeFactory` 用 Reactor Netty 连接选中的 worker，并把外部握手里的 `traceparent` 透传到内部 worker 连接。IM gateway 只转发文本帧；worker 返回非文本帧会被当作内部 bridge 错误并关闭外部连接。
+- `InternalWorkerBridge` 用 Reactor Netty 连接选中的 worker，并把外部握手里的 `traceparent` 透传到内部 worker 连接。IM gateway 只转发文本帧；worker 返回非文本帧会被当作内部 bridge 错误并关闭外部连接。
 
 ## 私信发送
 
@@ -218,7 +218,7 @@ projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构�
 
 - 路由 `/api/**` 到主业务或 IM HTTP。
 - 路由 `/api/im/sessions` 和 `/ws/im` 到 IM gateway。
-- 处理 CORS、安全、访问日志、限流和流量策略。
+- 处理 CORS、安全、访问日志和限流。
 - 对 WebSocket 做透明代理和 worker bridge。
 
 `community-im-gateway` 专注 IM session 与 WS edge，避免浏览器直接接触 realtime worker 内部地址。
@@ -245,8 +245,7 @@ IM gateway：
 - `im.gateway.shard.RendezvousWorkerSelector`
 - `im.gateway.ws.ExternalImEdgeWebSocketHandler`
 - `im.gateway.ws.ConnectTicketRouter`
-- `im.gateway.ws.InternalWorkerBridgeFactory`
-- `im.gateway.ws.ImGatewayFrameCodec`
+- `im.gateway.ws.InternalWorkerBridge`
 
 共享 session ticket：
 
@@ -264,7 +263,6 @@ Realtime：
 - `im.realtime.presence.RedisRoomPresenceDirectory`
 - `im.realtime.fanout.RoomPersistedOwnerConsumer`
 - `im.realtime.fanout.RoomFanoutOwnerService`
-- `im.realtime.fanout.RoomFanoutRoutingService`
 - `im.realtime.fanout.KafkaRoomFanoutDispatcher`
 - `im.realtime.fanout.RoomFanoutTargetConsumer`
 - `im.realtime.fanout.RoomFanoutTargetService`

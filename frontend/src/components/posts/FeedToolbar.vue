@@ -3,17 +3,24 @@
   <div class="feed-toolbar">
     <div class="feed-toolbar-left">
       <div class="taxonomy-controls" v-if="categories.length > 0">
-        <UiSelect
+        <select
           id="posts-board-filter"
           name="posts-board-filter"
-          class="taxonomy-select"
+          class="input taxonomy-select"
           :disabled="disabled"
-          :model-value="String(boardId || '')"
+          :value="String(boardId || '')"
           aria-label="版块"
-          :options="boardOptions"
-          placeholder="全部版块"
-          @update:modelValue="$emit('update:boardId', $event || '')"
-        />
+          @change="$emit('update:boardId', $event.target.value || '')"
+        >
+          <option
+            v-for="option in boardOptions"
+            :key="String(option.value)"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            {{ option.label }}
+          </option>
+        </select>
       </div>
     </div>
 
@@ -39,7 +46,6 @@
 <script setup>
 import { computed } from 'vue'
 import UiButton from '../ui/UiButton.vue'
-import UiSelect from '../ui/UiSelect.vue'
 
 const props = defineProps({
   boardId: { type: [String, Number], default: '' },
@@ -87,9 +93,6 @@ const boardOptions = computed(() => [
 .taxonomy-select {
   width: auto;
   min-width: 160px;
-}
-
-.taxonomy-select :deep(.ui-select-trigger) {
   height: 32px;
   font-size: 13px;
 }

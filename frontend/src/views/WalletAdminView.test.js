@@ -36,10 +36,6 @@ function mountAdminView() {
         UiButton: {
           props: ['disabled'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiInput: {
-          props: ['modelValue'],
-          template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         }
       }
     }

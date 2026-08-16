@@ -332,7 +332,6 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `community-gateway.config.GatewayConfigRefreshListener` | HTTP route / IM edge config refresh to route rebuild | [Gateway Runtime](core-logic/gateway-runtime.md) | Covered |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
@@ -344,9 +343,7 @@
 | `im.gateway.shard.WorkerRegistry` | configured healthy realtime worker registry | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.ws.ConnectTicketRouter` | route first connect ticket to realtime worker | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.gateway.ws.ExternalImEdgeWebSocketHandler` | stable external `/ws/im` bridge to selected realtime worker | [IM 消息业务逻辑](business-logic/im.md) | Covered |
-| `im.gateway.ws.InternalWorkerBridge` | IM gateway bridge port from external session to selected realtime worker | [IM 消息业务逻辑](business-logic/im.md#websocket-连接) | IndexOnly |
-| `im.gateway.ws.InternalWorkerBridgeFactory` | text-frame-only worker bridge and traceparent propagation | [IM 消息业务逻辑](business-logic/im.md#websocket-连接) | Covered |
-| `im.gateway.ws.ImGatewayFrameCodec` | gateway connect frame parsing / encoding | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.gateway.ws.InternalWorkerBridge` | text-frame-only worker bridge and traceparent propagation | [IM 消息业务逻辑](business-logic/im.md#websocket-连接) | Covered |
 
 ## IM Realtime
 
@@ -370,7 +367,6 @@
 | `im.realtime.presence.RedisRoomPresenceDirectory` | distributed room-to-worker presence | [IM 消息业务逻辑](business-logic/im.md#projection) | Covered |
 | `im.realtime.fanout.RoomPersistedOwnerConsumer` | shared owner consumer for room persisted events | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.RoomFanoutOwnerService` | route planning and Kafka target dispatch | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
-| `im.realtime.fanout.RoomFanoutRoutingService` | Redis presence 到 worker route | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.KafkaRoomFanoutDispatcher` | target command 到固定 inbox partition | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.RealtimeWorkerDirectory` | worker ID / inbox slot discovery validation | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.realtime.fanout.RoomFanoutTargetConsumer` | consume local worker inbox partition | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |

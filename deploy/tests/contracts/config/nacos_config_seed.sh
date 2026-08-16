@@ -15,9 +15,7 @@ trap 'rm -rf "${tmp_dir}"' EXIT
 required_data_ids=(
   community-shared.yaml
   community-feature-flags.yaml
-  community-degradation.yaml
   community-frontend-runtime.yaml
-  community-cache-policy.yaml
   community-search-policy.yaml
   community-upload-policy.yaml
   community-notification-policy.yaml
@@ -106,7 +104,7 @@ if [ "$(grep -Fc '/nacos/v3/admin/core/state/readiness' "${curl_log}")" -ne 2 ];
   echo 'seed script must call the Nacos v3 readiness endpoint until code=0' >&2
   exit 1
 fi
-if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 16 ]; then
+if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 14 ]; then
   echo 'seed script must publish every required Nacos configuration after readiness' >&2
   exit 1
 fi
@@ -237,8 +235,6 @@ backend_application_ymls=(
 
 common_policy_imports=(
   community-feature-flags.yaml
-  community-degradation.yaml
-  community-cache-policy.yaml
   community-kafka-policy.yaml
 )
 
@@ -373,7 +369,6 @@ grep -F 'concurrency: 3' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'draining: ${im.realtime.worker.drain-enabled:false}' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'maxConnections: ${im.realtime.worker.max-connections:10000}' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'activeConnectionHint: ${im.realtime.worker.active-connection-hint:0}' "${CONFIG_DIR}/im-realtime.yaml"
-grep -F 'shardGroup: ${im.realtime.worker.shard-group:default}' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'capacityWeight: ${im.realtime.worker.capacity-weight:100}' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'acks: all' "${CONFIG_DIR}/community-kafka-policy.yaml"
 grep -F 'metadata-max-age-ms: 1000' "${CONFIG_DIR}/community-kafka-policy.yaml"

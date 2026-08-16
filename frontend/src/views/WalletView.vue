@@ -46,7 +46,7 @@
           <section v-if="testCredits.grant.enabled" class="wallet-action-card">
             <h2>领取测试积分</h2>
             <p>本账号剩余 {{ testCredits.grant.remainingAmount }}，单次最多 {{ testCredits.grant.maxAmountPerRequest }}。</p>
-            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
+            <input v-model.number="rechargeForm.amount" class="input" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.grant.remainingAmount <= 0" @click="submitRecharge">
               {{ submittingKey === 'recharge' ? '领取中…' : '领取测试积分' }}
             </UiButton>
@@ -55,7 +55,7 @@
           <section v-if="testCredits.discard.enabled" class="wallet-action-card">
             <h2>销毁测试积分</h2>
             <p>本账号剩余配额 {{ testCredits.discard.remainingAmount }}；该操作不会产生外部出款。</p>
-            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
+            <input v-model.number="withdrawForm.amount" class="input" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="submitWithdrawal">
               {{ submittingKey === 'withdraw' ? '销毁中…' : '销毁测试积分' }}
             </UiButton>
@@ -64,8 +64,8 @@
           <section class="wallet-action-card">
             <h2>转账</h2>
             <p>直接把积分转给另一位成员。</p>
-            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
-            <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
+            <input v-model.trim="transferForm.toUserId" class="input" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
+            <input v-model.number="transferForm.amount" class="input" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== ''" @click="submitTransfer">
               {{ submittingKey === 'transfer' ? '转账中…' : '发起转账' }}
             </UiButton>
@@ -115,7 +115,6 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'

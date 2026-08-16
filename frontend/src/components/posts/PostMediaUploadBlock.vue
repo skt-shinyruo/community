@@ -2,34 +2,33 @@
   <div class="post-media-upload-block">
     <div class="post-media-upload-status" aria-live="polite">{{ statusText }}</div>
 
-    <UiFileInput
+    <input
       v-if="!hasAsset"
+      ref="mediaFileInput"
+      class="input"
+      type="file"
       :id="`post-media-file-${index}`"
       :name="`post-media-file-${index}`"
-      :model-value="selectedFile"
       :disabled="disabled || isUploading"
       :accept="accept"
-      button-text="选择文件"
-      empty-text="未选择文件"
-      clearable
-      @update:modelValue="onFilePicked"
+      @change="onFileChange"
     />
 
-    <UiInput
+    <input
       v-if="isFile"
-      :model-value="displayName"
+      :value="displayName"
       :disabled="disabled"
       placeholder="文件名"
-      class="post-media-upload-input"
-      @update:modelValue="updateBlock({ displayName: $event })"
+      class="input post-media-upload-input"
+      @input="updateBlock({ displayName: $event.target.value })"
     />
-    <UiInput
+    <input
       v-else
-      :model-value="caption"
+      :value="caption"
       :disabled="disabled"
       placeholder="说明"
-      class="post-media-upload-input"
-      @update:modelValue="updateBlock({ caption: $event })"
+      class="input post-media-upload-input"
+      @input="updateBlock({ caption: $event.target.value })"
     />
 
     <div class="post-media-upload-actions">
@@ -38,6 +37,9 @@
       </UiButton>
       <UiButton v-if="isFailed" variant="secondary" :disabled="disabled || isUploading || !selectedFile" @click="retryUpload">
         重试
+      </UiButton>
+      <UiButton v-if="selectedFile && !isUploading && !hasAsset" variant="ghost" :disabled="disabled" @click="clearSelectedFile">
+        清除
       </UiButton>
       <UiButton variant="ghost" :disabled="disabled || isUploading" :aria-label="removeLabel" @click="$emit('remove')">
         移除
@@ -49,8 +51,6 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import UiButton from '../ui/UiButton.vue'
-import UiFileInput from '../ui/UiFileInput.vue'
-import UiInput from '../ui/UiInput.vue'
 import { inferMediaKind, preparePostMediaUpload, uploadPostMediaFile } from '../../api/services/postMediaService'
 
 const props = defineProps({
@@ -62,6 +62,7 @@ const props = defineProps({
 const emit = defineEmits(['update:block', 'remove'])
 
 const selectedFile = ref(null)
+const mediaFileInput = ref(null)
 let uploadController = null
 let uploadRun = 0
 
@@ -104,6 +105,15 @@ function updateBlock(patch) {
     ...props.block,
     ...patch
   })
+}
+
+function onFileChange(event) {
+  onFilePicked(event?.target?.files?.[0] || null)
+}
+
+function clearSelectedFile() {
+  if (mediaFileInput.value) mediaFileInput.value.value = ''
+  onFilePicked(null)
 }
 
 async function onFilePicked(file) {

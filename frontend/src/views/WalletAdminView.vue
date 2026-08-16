@@ -14,8 +14,8 @@
         <section class="wallet-admin-card">
           <h2>冻结钱包</h2>
           <p>对风险用户做人工止损，避免继续转账、测试积分销毁或消费。</p>
-          <UiInput v-model.trim="freezeForm.userId" placeholder="目标用户 ID" />
-          <UiInput v-model.trim="freezeForm.reason" placeholder="冻结原因" />
+          <input v-model.trim="freezeForm.userId" class="input" placeholder="目标用户 ID" />
+          <input v-model.trim="freezeForm.reason" class="input" placeholder="冻结原因" />
           <UiButton :disabled="submittingKey !== ''" @click="submitFreeze">
             {{ submittingKey === 'freeze' ? '提交中…' : '执行冻结' }}
           </UiButton>
@@ -24,8 +24,8 @@
         <section class="wallet-admin-card">
           <h2>回滚交易</h2>
           <p>只追加反向交易，不直接篡改原始余额。</p>
-          <UiInput v-model.trim="reverseForm.txnRef" placeholder="交易请求号，如 transfer:req-1" />
-          <UiInput v-model.trim="reverseForm.reason" placeholder="回滚原因" />
+          <input v-model.trim="reverseForm.txnRef" class="input" placeholder="交易请求号，如 transfer:req-1" />
+          <input v-model.trim="reverseForm.reason" class="input" placeholder="回滚原因" />
           <UiButton :disabled="submittingKey !== ''" @click="submitReverse">
             {{ submittingKey === 'reverse' ? '提交中…' : '执行回滚' }}
           </UiButton>
@@ -61,7 +61,6 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'

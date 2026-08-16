@@ -13,35 +13,27 @@ class DiscoveredWorkerDescriptorFactoryTest {
     @Test
     void shouldBuildWorkerDescriptorFromServiceInstanceMetadata() {
         WorkerDescriptor descriptor = new DiscoveredWorkerDescriptorFactory(new ImGatewaySessionProperties())
-                .from(instanceWithPort("18081"))
+                .from(instanceWithPort(18081))
                 .orElseThrow();
 
-        assertThat(descriptor.getId()).isEqualTo("worker-a");
-        assertThat(descriptor.getUri()).isEqualTo(URI.create("ws://127.0.0.1:18081/internal/ws/im"));
-        assertThat(descriptor.isDraining()).isFalse();
-        assertThat(descriptor.getMaxConnections()).isEqualTo(100);
-        assertThat(descriptor.getActiveConnectionHint()).isEqualTo(25);
-        assertThat(descriptor.getShardGroup()).isEqualTo("local-a");
-    }
-
-    @Test
-    void shouldIgnoreMalformedWorkerPorts() {
-        assertThat(new DiscoveredWorkerDescriptorFactory(new ImGatewaySessionProperties())
-                .from(instanceWithPort("not-a-port")))
-                .isEmpty();
+        assertThat(descriptor.id()).isEqualTo("worker-a");
+        assertThat(descriptor.uri()).isEqualTo(URI.create("ws://127.0.0.1:18081/internal/ws/im"));
+        assertThat(descriptor.draining()).isFalse();
+        assertThat(descriptor.maxConnections()).isEqualTo(100);
+        assertThat(descriptor.activeConnectionHint()).isEqualTo(25);
     }
 
     @Test
     void shouldIgnoreOutOfRangeWorkerPorts() {
         DiscoveredWorkerDescriptorFactory factory = new DiscoveredWorkerDescriptorFactory(new ImGatewaySessionProperties());
 
-        assertThat(factory.from(instanceWithPort("0"))).isEmpty();
-        assertThat(factory.from(instanceWithPort("65536"))).isEmpty();
+        assertThat(factory.from(instanceWithPort(0))).isEmpty();
+        assertThat(factory.from(instanceWithPort(65536))).isEmpty();
     }
 
     @Test
     void shouldDefaultInvalidConnectionMetadataToZero() {
-        DefaultServiceInstance instance = instanceWithPort("18081");
+        DefaultServiceInstance instance = instanceWithPort(18081);
         instance.getMetadata().put("maxConnections", "-1");
         instance.getMetadata().put("activeConnectionHint", "2147483648");
 
@@ -49,21 +41,18 @@ class DiscoveredWorkerDescriptorFactoryTest {
                 .from(instance)
                 .orElseThrow();
 
-        assertThat(descriptor.getMaxConnections()).isZero();
-        assertThat(descriptor.getActiveConnectionHint()).isZero();
+        assertThat(descriptor.maxConnections()).isZero();
+        assertThat(descriptor.activeConnectionHint()).isZero();
     }
 
-    private static DefaultServiceInstance instanceWithPort(String wsPort) {
+    private static DefaultServiceInstance instanceWithPort(int port) {
         DefaultServiceInstance instance = new DefaultServiceInstance(
-                "instance-1", "im-realtime-worker", "127.0.0.1", 18081, false
+                "instance-1", "im-realtime-worker", "127.0.0.1", port, false
         );
         instance.getMetadata().put("workerId", "worker-a");
-        instance.getMetadata().put("wsPath", "/internal/ws/im");
-        instance.getMetadata().put("wsPort", wsPort);
         instance.getMetadata().put("draining", "false");
         instance.getMetadata().put("maxConnections", "100");
         instance.getMetadata().put("activeConnectionHint", "25");
-        instance.getMetadata().put("shardGroup", "local-a");
         return instance;
     }
 }

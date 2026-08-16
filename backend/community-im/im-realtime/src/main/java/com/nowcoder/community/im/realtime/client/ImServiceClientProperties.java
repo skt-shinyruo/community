@@ -5,28 +5,10 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 @ConfigurationProperties(prefix = "im.clients")
 public class ImServiceClientProperties {
 
-    private String communityServiceId = "community-app";
-    private String imCoreServiceId = "im-core";
     private String membershipSnapshotServiceId = "im-core";
     private String policySnapshotServiceId = "community-app";
     private long snapshotTimeoutMs = 3000;
     private String internalScope = "im.realtime.internal";
-
-    public String getCommunityServiceId() {
-        return communityServiceId;
-    }
-
-    public void setCommunityServiceId(String communityServiceId) {
-        this.communityServiceId = communityServiceId;
-    }
-
-    public String getImCoreServiceId() {
-        return imCoreServiceId;
-    }
-
-    public void setImCoreServiceId(String imCoreServiceId) {
-        this.imCoreServiceId = imCoreServiceId;
-    }
 
     public String getMembershipSnapshotServiceId() {
         return membershipSnapshotServiceId;

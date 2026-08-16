@@ -7,8 +7,6 @@ spring:
       - ${NACOS_CONFIG_IMPORT_SHARED:optional:nacos:community-shared.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_SERVICE:optional:nacos:community-im-gateway.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_FEATURE_FLAGS:optional:nacos:community-feature-flags.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-im-gateway
@@ -73,8 +71,6 @@ im:
     worker:
       service-id: ${IM_REALTIME_WORKER_SERVICE_ID:im-realtime-worker}
       worker-id-metadata-key: ${IM_SESSION_WORKER_ID_METADATA_KEY:workerId}
-      ws-path-metadata-key: ${IM_SESSION_WS_PATH_METADATA_KEY:wsPath}
-      ws-port-metadata-key: ${IM_SESSION_WS_PORT_METADATA_KEY:wsPort}
     ws:
       path: ${IM_GATEWAY_WS_PATH:/ws/im}
       first-frame-timeout-ms: ${IM_GATEWAY_FIRST_FRAME_TIMEOUT_MS:5000}

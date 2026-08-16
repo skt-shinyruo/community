@@ -123,7 +123,7 @@ caller ApplicationService
 - `social.contracts.event.*`
 - `user.contracts.event.*`
 
-`common.event.EventEnvelope` 保留为通用 envelope 能力，但不是包级单体内部投影协作的默认入口。同步 `api.model` 和异步 `contracts.event` 是两套 public contract，即使字段相同也不复用类型。
+同步 `api.model` 和异步 `contracts.event` 是两套 public contract，即使字段相同也不复用类型。
 
 content、social、user 的 owner event dispatch 共用 `common-json` 提供的 envelope 校验、codec 调用和 handler dispatch 支撑；各 owner 仍保留自己的 application 入口、contract event、错误文本和 wire contract。IM policy 的异构事件翻译不复用这层支撑。
 
@@ -281,7 +281,8 @@ HMAC secret、数据库密码、对象存储 access key 和 Nacos 凭据必须�
 manager 或部署平台 Secret，不进入 Nacos Config dataId。
 
 服务注册 metadata 只放低基数运行态标签，例如 role、release track、draining、
-workerId、wsPath、wsPort、capacity 和 shardGroup。metadata 不承载用户态数据、
+workerId、capacity 和 roomFanoutInboxSlot。服务地址与端口直接使用注册实例信息，
+WebSocket 内部路径固定为 `/internal/ws/im`。metadata 不承载用户态数据、
 业务明细、token、凭据或带认证信息的 URL。
 
 ## Runtime Observability 设计

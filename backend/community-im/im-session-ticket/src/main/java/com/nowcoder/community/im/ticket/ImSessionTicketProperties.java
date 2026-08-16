@@ -1,6 +1,5 @@
 package com.nowcoder.community.im.ticket;
 
-import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.springframework.boot.context.properties.ConfigurationProperties;
 
 import javax.crypto.SecretKey;
@@ -38,13 +37,13 @@ public class ImSessionTicketProperties {
         this.audience = audience;
     }
 
-    public SecretKey secretKeyOrThrow(JwtProperties jwtProperties) {
+    public SecretKey secretKeyOrThrow(String serviceHmacSecret) {
         String secret = requireText("hmac-secret", hmacSecret);
         byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (secretBytes.length < 32) {
             throw new IllegalArgumentException("im.session-ticket.hmac-secret must be >= 32 bytes");
         }
-        String serviceSecret = jwtProperties == null ? null : normalize(jwtProperties.getServiceHmacSecret());
+        String serviceSecret = normalize(serviceHmacSecret);
         if (secret.equals(serviceSecret)) {
             throw new IllegalArgumentException(
                     "im.session-ticket.hmac-secret must differ from security.jwt.service-hmac-secret"

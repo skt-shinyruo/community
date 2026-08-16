@@ -34,7 +34,7 @@
       <form class="drive-share-form" @submit.prevent="verify">
         <label class="drive-field">
           <span>提取码</span>
-          <UiInput v-model.trim="password" type="password" autocomplete="off" />
+          <input v-model.trim="password" class="input" type="password" autocomplete="off" />
         </label>
         <UiButton :disabled="submitting" type="submit">
           {{ ticket ? '重新验证' : '访问分享' }}
@@ -106,7 +106,6 @@ import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   getDriveShareDownloadUrl,

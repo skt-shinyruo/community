@@ -65,15 +65,16 @@
             </div>
 
             <div class="settings-upload-actions">
-              <UiFileInput
-                v-model="pickedFile"
+              <input
+                ref="avatarFileInput"
+                class="input settings-avatar-file-input"
+                type="file"
                 name="avatar-file"
                 accept="image/*"
-                button-text="选择图片"
                 :disabled="loading"
-                clearable
-                class="settings-avatar-file-input"
+                @change="onAvatarFilePicked"
               />
+              <UiButton v-if="pickedFile" variant="ghost" :disabled="loading" @click="clearAvatarFile">清除</UiButton>
               <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
                 {{ uploadActionText }}
               </UiButton>
@@ -115,7 +116,6 @@ import { executeUploadSession, normalizeUploadSession } from '../api/uploadSessi
 import UiCard from '../components/ui/UiCard.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiFileInput from '../components/ui/UiFileInput.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const emit = defineEmits(['trace'])
@@ -127,6 +127,7 @@ const successMsg = ref('')
 const uploadSession = reactive(normalizeUploadSession())
 
 const pickedFile = ref(null)
+const avatarFileInput = ref(null)
 const uploadProgress = ref(null)
 const uploadPhase = ref('idle')
 const selectedPreviewUrl = ref('')
@@ -152,6 +153,15 @@ const uploadActionText = computed(() => {
   if (uploadPhase.value === 'saving') return '保存中…'
   return uploadProgress.value == null ? '上传中…' : `上传中 ${uploadProgress.value}%`
 })
+
+function onAvatarFilePicked(event) {
+  pickedFile.value = event?.target?.files?.[0] || null
+}
+
+function clearAvatarFile() {
+  if (avatarFileInput.value) avatarFileInput.value.value = ''
+  pickedFile.value = null
+}
 
 watch(pickedFile, (file, _previousFile, onCleanup) => {
   if (selectedPreviewUrl.value && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
@@ -279,7 +289,7 @@ watch(sessionScope, () => {
   loading.value = false
   error.value = ''
   successMsg.value = ''
-  pickedFile.value = null
+  clearAvatarFile()
   Object.assign(uploadSession, normalizeUploadSession())
 })
 onBeforeUnmount(() => {

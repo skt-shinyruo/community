@@ -70,7 +70,7 @@ public class ImSessionService {
         WorkerDescriptor worker = workerSelector.select(userId);
         String sessionId = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(properties.getSession().getTicketTtl());
-        String ticket = sessionTicketCodec.encode(sessionId, userId, worker.getId(), expiresAt);
+        String ticket = sessionTicketCodec.encode(sessionId, userId, worker.id(), expiresAt);
         return new OpenImSessionResponse(
                 sessionId,
                 publicWsUrlFactory.build(request),

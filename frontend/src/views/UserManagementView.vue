@@ -17,9 +17,9 @@
       <div class="muted user-card-note">输入 `userId`、`username` 或 `email` 任意一个即可定位目标用户。</div>
 
       <div class="user-search-grid">
-          <UiInput v-model.trim="qUserId" name="user-search-id" placeholder="userId" autocomplete="off" class="user-input user-input--id" :disabled="loading" />
-          <UiInput v-model.trim="qUsername" name="user-search-username" placeholder="username" autocomplete="off" class="user-input user-input--name" :disabled="loading" />
-          <UiInput v-model.trim="qEmail" name="user-search-email" placeholder="email" autocomplete="off" class="user-input user-input--email" :disabled="loading" />
+          <input v-model.trim="qUserId" name="user-search-id" placeholder="userId" autocomplete="off" class="input user-input user-input--id" :disabled="loading" />
+          <input v-model.trim="qUsername" name="user-search-username" placeholder="username" autocomplete="off" class="input user-input user-input--name" :disabled="loading" />
+          <input v-model.trim="qEmail" name="user-search-email" placeholder="email" autocomplete="off" class="input user-input user-input--email" :disabled="loading" />
           <UiButton variant="secondary" :disabled="loading" @click="onSearch">
             {{ loading ? '搜索中…' : '搜索' }}
           </UiButton>
@@ -46,14 +46,22 @@
       <div class="user-role-grid">
         <div class="user-field">
           <div class="user-field-label">目标角色</div>
-          <UiSelect
+          <select
             v-model="nextType"
             name="user-next-role"
-            class="user-select"
+            class="input user-select"
             aria-label="目标角色"
             :disabled="loading"
-            :options="roleOptions"
-          />
+          >
+            <option
+              v-for="option in roleOptions"
+              :key="String(option.value)"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
+              {{ option.label }}
+            </option>
+          </select>
           <div class="muted user-field-help">
             提示：提升为 ADMIN 风险较高；建议填写明确原因并避免误操作。禁止降级自己（避免锁死管理入口）。
           </div>
@@ -61,7 +69,7 @@
 
         <div class="user-field">
           <div class="user-field-label">审计原因（必填）</div>
-          <UiInput v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" :disabled="loading" />
+          <input v-model.trim="reason" name="user-role-reason" placeholder="例如：自托管初始管理员 / 运营团队授予版主权限" autocomplete="off" class="input" :disabled="loading" />
         </div>
       </div>
 
@@ -86,10 +94,8 @@
 import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
-import UiSelect from '../components/ui/UiSelect.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
@@ -316,10 +322,6 @@ onBeforeUnmount(() => {
 
 .user-select {
   max-width: 260px;
-}
-
-.user-select :deep(.ui-select-trigger) {
-  height: var(--control-height);
 }
 
 .user-field-help {

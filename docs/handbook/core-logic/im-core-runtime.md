@@ -75,7 +75,7 @@ membership、user policy 和 block relation 的 entry / delta 都要求显式正
 1. `RoomLocalIndex` 是本进程 room -> connection ID 的权威本地状态。
 2. `RoomLocalPresenceService` 在第一个本地连接加入时 activate，最后一个离开时 deactivate；Redis 操作失败会保留 pending room 并重试，本地连接与索引状态不回滚。
 3. `RedisRoomPresenceDirectory` 维护分布式 room -> worker set，并用 worker liveness 过滤过期 worker。
-4. `RoomPersistedOwnerConsumer` 以共享 consumer group 消费 persisted event，调用 `RoomFanoutOwnerService`、`RoomFanoutRoutingService` 和 `RoomFanoutPlanner`。
+4. `RoomPersistedOwnerConsumer` 以共享 consumer group 消费 persisted event，由 `RoomFanoutOwnerService` 读取 presence、归一化 worker 集合并规划命令。
 5. `KafkaRoomFanoutDispatcher` 将 state-only `RoomFanoutCommand` 写入 `im.command.room-fanout-routed` 的目标 worker partition。
 6. `RoomFanoutTargetConsumer` 只消费本 worker 的固定 partition，调用 `RoomFanoutTargetService` 后进入本地 `RoomFanoutCoalescer`。
 
@@ -94,4 +94,4 @@ target delivery 是 state-idempotent at-least-once，不是跨重启 exactly-onc
 - private persist：`PrivateMessageApplicationService`、`PrivateMessageDomainService`、`PrivateMessageRepository`、`PrivateMessagePolicyVerifier`、`SeqAllocator`
 - room persist：`RoomMessageApplicationService`、`RoomMessageDomainService`、`RoomMembershipDomainService`、`RoomApplicationService`、`RoomMessageRepository`
 - unread：`UserInboxRepository`、`ConversationReadStateRepository`、`RoomReadStateRepository`、`UnreadApplicationService`
-- fanout / presence：`RoomPersistedOwnerConsumer`、`RoomFanoutOwnerService`、`RoomFanoutRoutingService`、`RoomFanoutPlanner`、`KafkaRoomFanoutDispatcher`、`RealtimeWorkerDirectory`、`RoomFanoutTargetConsumer`、`RoomFanoutTargetService`、`RoomFanoutCoalescer`、`RoomUpdateCoalescer`、`RoomLocalIndex`、`RoomLocalPresenceService`、`RedisRoomPresenceDirectory`、`RoomPresenceHeartbeat`
+- fanout / presence：`RoomPersistedOwnerConsumer`、`RoomFanoutOwnerService`、`KafkaRoomFanoutDispatcher`、`RealtimeWorkerDirectory`、`RoomFanoutTargetConsumer`、`RoomFanoutTargetService`、`RoomFanoutCoalescer`、`RoomUpdateCoalescer`、`RoomLocalIndex`、`RoomLocalPresenceService`、`RedisRoomPresenceDirectory`、`RoomPresenceHeartbeat`

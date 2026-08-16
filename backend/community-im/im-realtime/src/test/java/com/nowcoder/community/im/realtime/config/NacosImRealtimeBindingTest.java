@@ -28,10 +28,7 @@ class NacosImRealtimeBindingTest {
                 .bind("im.session", ImSessionProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
-        assertThat(environment.containsProperty("im.clients.community-service-id")).isTrue();
-        assertThat(environment.containsProperty("im.clients.im-core-service-id")).isTrue();
         assertThat(environment.containsProperty("im.clients.snapshot-timeout-ms")).isTrue();
-        assertThat(environment.containsProperty("im.community.timeout-ms")).isTrue();
         assertThat(environment.containsProperty("im.projection.bootstrap-on-startup")).isTrue();
         assertThat(environment.containsProperty("im.room-presence.enabled")).isFalse();
         assertThat(environment.containsProperty("im.room-fanout.mode")).isFalse();
@@ -45,10 +42,7 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.containsProperty("im.kafka.event.concurrency")).isTrue();
         assertThat(environment.containsProperty("im.ws.room-flush-interval-ms")).isTrue();
         assertThat(environment.containsProperty("im.ws.max-inbound-chars")).isTrue();
-        assertThat(properties.getCommunityServiceId()).isEqualTo("community-app");
-        assertThat(properties.getImCoreServiceId()).isEqualTo("im-core");
         assertThat(properties.getSnapshotTimeoutMs()).isEqualTo(3000);
-        assertThat(environment.getProperty("im.community.timeout-ms", Integer.class)).isEqualTo(1500);
         assertThat(environment.getProperty("im.ws.max-inbound-chars", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("im.ws.room-flush-interval-ms", Integer.class)).isEqualTo(50);
         assertThat(environment.getProperty("im.room-presence.key-prefix")).isEqualTo("im:");
@@ -69,7 +63,6 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.draining", Boolean.class)).isFalse();
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.maxConnections", Integer.class)).isEqualTo(10000);
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.activeConnectionHint", Integer.class)).isZero();
-        assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.shardGroup")).isEqualTo("default");
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.capacityWeight", Integer.class)).isEqualTo(100);
         assertThat(environment.getProperty("spring.cloud.nacos.discovery.metadata.roomFanoutInboxSlot", Integer.class))
                 .isZero();

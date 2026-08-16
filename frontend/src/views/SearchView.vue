@@ -6,33 +6,41 @@
     </UiPageHeader>
 
     <section class="search-workbench">
-      <UiToolbar>
-        <template #leading>
+      <section class="ui-toolbar" aria-label="页面工具栏">
+        <div class="ui-toolbar-leading">
           <div class="search-searchbar">
-            <UiInput
+            <input
               v-model.trim="keyword"
               name="search-keyword"
               placeholder="输入关键词…"
               autocomplete="off"
+              class="input"
               @keydown.enter="onSearch"
             />
             <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
               {{ loading ? '搜索中…' : '搜索' }}
             </UiButton>
           </div>
-        </template>
+        </div>
 
-        <template #filters>
-          <UiSelect
+        <div class="ui-toolbar-filters">
+          <select
             name="search-category-filter"
-            class="search-select"
+            class="input search-select"
             :disabled="loading"
-            :model-value="String(categoryId || '')"
+            :value="String(categoryId || '')"
             aria-label="分类筛选"
-            :options="categoryOptions"
-            placeholder="全部分类"
-            @update:modelValue="replaceQuery({ categoryId: $event || '' })"
-          />
+            @change="replaceQuery({ categoryId: $event.target.value || '' })"
+          >
+            <option
+              v-for="option in categoryOptions"
+              :key="String(option.value)"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
+              {{ option.label }}
+            </option>
+          </select>
 
           <div class="search-tag">
             <UiAutosuggestInput
@@ -48,12 +56,12 @@
               @commit="commitTag"
             />
           </div>
-        </template>
+        </div>
 
-        <template #actions>
+        <div class="ui-toolbar-actions">
           <UiButton variant="ghost" @click="clearFilters" :disabled="loading">清空筛选</UiButton>
-        </template>
-      </UiToolbar>
+        </div>
+      </section>
 
       <div class="search-toolbar-note">
         <div class="search-active-summary">
@@ -192,12 +200,9 @@ import { useTaxonomyStore } from '../stores/taxonomy'
 import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiSelect from '../components/ui/UiSelect.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiToolbar from '../components/ui/UiToolbar.vue'
 import { useTagSuggestions } from '../composables/useTagSuggestions'
 
 const emit = defineEmits(['trace'])
@@ -503,9 +508,6 @@ function searchActivity(item) {
 .search-select {
   width: auto;
   min-width: 160px;
-}
-
-.search-select :deep(.ui-select-trigger) {
   height: 38px;
   font-size: 13px;
 }

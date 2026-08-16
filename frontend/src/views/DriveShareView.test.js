@@ -52,8 +52,7 @@ describe('DriveShareView', () => {
           UiCard: { template: '<section><slot /></section>' },
           UiBreadcrumb: true,
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })
@@ -99,8 +98,7 @@ describe('DriveShareView', () => {
           UiCard: { template: '<section><slot /></section>' },
           UiBreadcrumb: true,
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })
@@ -146,8 +144,7 @@ describe('DriveShareView', () => {
           UiCard: { template: '<section><slot /></section>' },
           UiBreadcrumb: true,
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })
@@ -183,8 +180,7 @@ describe('DriveShareView', () => {
         stubs: {
           UiCard: { template: '<section><slot /></section>' },
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })
@@ -235,8 +231,7 @@ describe('DriveShareView', () => {
         stubs: {
           UiCard: { template: '<section><slot /></section>' },
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })
@@ -279,8 +274,7 @@ describe('DriveShareView', () => {
         stubs: {
           UiCard: { template: '<section><slot /></section>' },
           UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' },
-          UiInput: { props: ['modelValue', 'type'], emits: ['update:modelValue'], template: '<input :type="type" :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />' }
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
         }
       }
     })

@@ -8,18 +8,18 @@
     <form class="stack auth-form" @submit.prevent="onLogin">
       <div class="auth-field">
         <div class="field-label">用户名</div>
-        <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+        <input v-model.trim="form.username" class="input" placeholder="请输入用户名" autocomplete="username" />
       </div>
 
       <div class="auth-field">
         <div class="field-label">密码</div>
-        <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
+        <input v-model="form.password" class="input" placeholder="请输入密码" type="password" autocomplete="current-password" />
       </div>
 
       <div v-if="captchaRequired" class="auth-field">
         <div class="field-label">验证码</div>
         <div class="row captcha-row">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
+          <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input captcha-input" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
@@ -59,7 +59,6 @@ import { useAuthStore } from '../stores/auth'
 import { backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { login as apiLogin, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 

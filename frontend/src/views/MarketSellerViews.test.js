@@ -64,11 +64,6 @@ function mountOptions() {
           props: ['disabled', 'variant'],
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiInput: {
-          props: ['modelValue'],
-          emits: ['update:modelValue'],
-          template: '<input :value="modelValue" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         }
       }
     }

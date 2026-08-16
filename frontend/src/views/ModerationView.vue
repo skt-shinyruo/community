@@ -24,13 +24,21 @@
         <template v-if="tab === 'reports'">
           <div class="moderation-filter-bar">
             <div class="moderation-filter-label muted">状态</div>
-            <UiSelect
+            <select
               v-model="statusFilter"
               name="moderation-status-filter"
-              class="moderation-filter-select"
+              class="input moderation-filter-select"
               aria-label="举报状态"
-              :options="statusFilterOptions"
-            />
+            >
+              <option
+                v-for="option in statusFilterOptions"
+                :key="String(option.value)"
+                :value="option.value"
+                :disabled="option.disabled"
+              >
+                {{ option.label }}
+              </option>
+            </select>
           </div>
 
           <UiState v-if="reports.length === 0">暂无举报</UiState>
@@ -122,38 +130,54 @@
 
         <div class="moderation-modal-field">
           <div class="muted moderation-modal-label">动作</div>
-          <UiSelect
+          <select
             v-model="actionForm.action"
             name="moderation-action-type"
-            class="moderation-modal-select"
+            class="input moderation-modal-select"
             aria-label="处置动作"
             :disabled="actionLoading"
-            :options="actionOptions"
-          />
+          >
+            <option
+              v-for="option in actionOptions"
+              :key="String(option.value)"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
+              {{ option.label }}
+            </option>
+          </select>
         </div>
 
         <div class="moderation-modal-field">
           <div class="muted moderation-modal-label">理由（必填）</div>
-            <UiTextarea v-model.trim="actionForm.reason" name="moderation-action-reason" :rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
+            <textarea v-model.trim="actionForm.reason" name="moderation-action-reason" class="input multiline" rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
         </div>
 
         <div v-if="actionNeedsDuration" class="moderation-modal-field">
           <div class="muted moderation-modal-label">时长</div>
           <div class="moderation-modal-duration">
-            <UiSelect
+            <select
               v-model="actionForm.durationPreset"
               name="moderation-duration-preset"
-              class="moderation-modal-select moderation-modal-select--duration"
+              class="input moderation-modal-select moderation-modal-select--duration"
               aria-label="处置时长"
               :disabled="actionLoading"
-              :options="durationPresetOptions"
-            />
+            >
+              <option
+                v-for="option in durationPresetOptions"
+                :key="String(option.value)"
+                :value="option.value"
+                :disabled="option.disabled"
+              >
+                {{ option.label }}
+              </option>
+            </select>
 
-            <UiInput
+            <input
               v-if="actionForm.durationPreset === 'custom'"
               v-model.trim="actionForm.durationSeconds"
               name="moderation-duration-seconds"
-              class="moderation-modal-custom-duration"
+              class="input moderation-modal-custom-duration"
               placeholder="秒，例如 600"
               :disabled="actionLoading"
             />
@@ -179,10 +203,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiSelect from '../components/ui/UiSelect.vue'
-import UiTextarea from '../components/ui/UiTextarea.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { useModalFocus } from '../composables/useModalFocus'
 import { formatTime } from '../utils/time'
@@ -507,9 +528,6 @@ onBeforeUnmount(() => {
 
 .moderation-filter-select {
   width: 160px;
-}
-
-.moderation-filter-select :deep(.ui-select-trigger) {
   height: 32px;
 }
 
@@ -625,9 +643,6 @@ onBeforeUnmount(() => {
 
 .moderation-modal-select {
   width: 100%;
-}
-
-.moderation-modal-select :deep(.ui-select-trigger) {
   height: 36px;
 }
 

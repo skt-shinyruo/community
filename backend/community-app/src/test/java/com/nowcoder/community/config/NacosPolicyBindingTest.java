@@ -2,9 +2,7 @@ package com.nowcoder.community.config;
 
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
-import com.nowcoder.community.common.spring.degradation.DegradationProperties;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
-import com.nowcoder.community.common.spring.policy.CachePolicyProperties;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.common.web.net.TrustedProxyProperties;
@@ -201,19 +199,6 @@ class NacosPolicyBindingTest {
                 .containsEntry("post-publishing", true)
                 .containsEntry("analytics-ingest", false);
 
-        assertThat(Binder.get(environmentFrom("community-degradation.yaml"))
-                .bind("community", DegradationProperties.class)
-                .orElseThrow(IllegalStateException::new)
-                .getModes())
-                .containsEntry("search", "strict")
-                .containsEntry("analytics", "best-effort");
-
-        CachePolicyProperties cache = Binder.get(environmentFrom("community-cache-policy.yaml"))
-                .bind("community.cache", CachePolicyProperties.class)
-                .orElseThrow(IllegalStateException::new);
-        assertThat(cache.getDefaultTtl()).isEqualTo(Duration.ofSeconds(300));
-        assertThat(cache.getNullTtl()).isEqualTo(Duration.ofSeconds(30));
-
         UploadPolicyProperties upload = Binder.get(environmentFrom("community-upload-policy.yaml"))
                 .bind("community.upload", UploadPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
@@ -226,6 +211,7 @@ class NacosPolicyBindingTest {
                 .orElseThrow(IllegalStateException::new);
         assertThat(search.getIndex().isInitialize()).isTrue();
         assertThat(search.getQuery().getMaxPageSize()).isEqualTo(50);
+        assertThat(search.getDegradation().isEnabled()).isFalse();
 
         NoticePolicyProperties notice = Binder.get(environmentFrom("community-notification-policy.yaml"))
                 .bind("notice", NoticePolicyProperties.class)

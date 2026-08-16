@@ -56,15 +56,24 @@ class GatewayImEdgeRouteIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
-        registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].service-id", () -> "community-app");
-        registry.add("gateway.http.routes[1].id", () -> "im-core");
-        registry.add("gateway.http.routes[1].path-prefix", () -> "/api/im");
-        registry.add("gateway.http.routes[1].service-id", () -> "im-core");
-        registry.add("gateway.im-edge.service-id", () -> "community-im-gateway");
-        registry.add("gateway.im-edge.session-path", () -> "/api/im/sessions");
-        registry.add("gateway.im-edge.ws-path", () -> "/ws/im");
+        String routes = "spring.cloud.gateway.server.webflux.routes";
+        registry.add(routes + "[0].id", () -> "im-session-edge");
+        registry.add(routes + "[0].order", () -> -100);
+        registry.add(routes + "[0].uri", () -> "lb://community-im-gateway");
+        registry.add(routes + "[0].predicates[0]", () -> "Method=POST");
+        registry.add(routes + "[0].predicates[1]", () -> "Path=/api/im/sessions");
+        registry.add(routes + "[1].id", () -> "im-ws-edge");
+        registry.add(routes + "[1].order", () -> -100);
+        registry.add(routes + "[1].uri", () -> "lb:ws://community-im-gateway");
+        registry.add(routes + "[1].predicates[0]", () -> "Path=/ws/im");
+        registry.add(routes + "[1].predicates[1]", () -> "Header=Upgrade, (?i)websocket");
+        registry.add(routes + "[2].id", () -> "im-core");
+        registry.add(routes + "[2].order", () -> -10);
+        registry.add(routes + "[2].uri", () -> "lb://im-core");
+        registry.add(routes + "[2].predicates[0]", () -> "Path=/api/im,/api/im/**");
+        registry.add(routes + "[3].id", () -> "bootstrap-api");
+        registry.add(routes + "[3].uri", () -> "lb://community-app");
+        registry.add(routes + "[3].predicates[0]", () -> "Path=/api,/api/**");
         registry.add("spring.cloud.discovery.client.simple.instances.community-im-gateway[0].uri",
                 () -> "http://127.0.0.1:" + imEdgePort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-core[0].uri",

@@ -18,14 +18,14 @@
       <div v-if="mode === 'request'" class="reset-stack">
         <div class="reset-field">
           <div class="reset-label">邮箱</div>
-          <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+          <input v-model.trim="form.email" class="input" placeholder="name@example.com" autocomplete="email" />
         </div>
       </div>
 
       <div v-else class="reset-stack">
         <div class="reset-field">
           <div class="reset-label">新密码</div>
-          <UiInput v-model="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
+          <input v-model="form.newPassword" class="input" placeholder="请输入新密码" type="password" autocomplete="new-password" />
         </div>
         <div class="muted reset-token-note">resetToken：{{ shortToken }}</div>
       </div>
@@ -36,7 +36,7 @@
           <UiButton variant="secondary" @click="refreshCaptcha" :disabled="loading">刷新</UiButton>
         </div>
         <div class="reset-captcha-row">
-          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="reset-captcha-input" />
+          <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input reset-captcha-input" />
           <img
             v-if="captchaSrc"
             :src="captchaSrc"
@@ -81,7 +81,6 @@ import { backendErrorCode, backendErrorMessage, isCaptchaRejected } from '../api
 import { issueCaptcha, requestPasswordReset, confirmPasswordReset } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 

@@ -6,43 +6,10 @@ import {
   getRouteWorkspaceLabel
 } from './routeCatalog'
 
-// 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射，并提供 posts 筛选/排序的纯函数工具。
-
-export const POSTS_ORDER = Object.freeze({
-  LATEST: 'latest',
-  HOT: 'hot'
-})
-
-export const POSTS_FILTER = Object.freeze({
-  ALL: '',
-  TOP: 'top',
-  WONDERFUL: 'wonderful',
-  UNREAD: 'unread'
-})
-
-export function normalizePostsCategoryId(value) {
-  return normalizeOpaqueId(value)
-}
+// 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射。
 
 export function normalizePostsBoardId(value) {
   return normalizeOpaqueId(value)
-}
-
-export function normalizePostsOrder(value) {
-  return value === POSTS_ORDER.HOT ? POSTS_ORDER.HOT : POSTS_ORDER.LATEST
-}
-
-export function normalizePostsFilter(value) {
-  if (value === POSTS_FILTER.TOP) return POSTS_FILTER.TOP
-  if (value === POSTS_FILTER.WONDERFUL) return POSTS_FILTER.WONDERFUL
-  if (value === POSTS_FILTER.UNREAD) return POSTS_FILTER.UNREAD
-  return POSTS_FILTER.ALL
-}
-
-export function normalizePostsSubscribed(value) {
-  if (value === true) return true
-  const s = String(value || '').trim().toLowerCase()
-  return s === '1' || s === 'true' || s === 'yes'
 }
 
 export { getRouteWorkspaceLabel }

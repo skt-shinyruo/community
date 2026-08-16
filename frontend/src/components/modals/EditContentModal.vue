@@ -18,7 +18,7 @@
 
         <div v-if="mode === 'post'" class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">标题</div>
-          <UiInput v-model.trim="title" class="input" placeholder="标题" :disabled="loading" />
+          <input v-model.trim="title" class="input" placeholder="标题" :disabled="loading" />
         </div>
 
         <div class="stack" style="gap: 8px">
@@ -28,12 +28,13 @@
             v-model="blocks"
             :disabled="loading"
           />
-          <UiTextarea
+          <textarea
             v-else
             v-model.trim="content"
             :rows="6"
             placeholder="支持 Markdown"
             :disabled="loading"
+            class="input multiline"
           />
         </div>
 
@@ -52,8 +53,6 @@
 import { computed, ref, useId, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
-import UiInput from '../ui/UiInput.vue'
-import UiTextarea from '../ui/UiTextarea.vue'
 import PostBlockEditor from '../posts/PostBlockEditor.vue'
 import { useModalFocus } from '../../composables/useModalFocus'
 

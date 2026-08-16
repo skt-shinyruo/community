@@ -71,10 +71,6 @@ class ImSessionApiIntegrationTest {
                 () -> "http://127.0.0.1:18081");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId",
                 () -> "worker-a");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath",
-                () -> "/internal/ws/im");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort",
-                () -> "18081");
     }
 
     @Test

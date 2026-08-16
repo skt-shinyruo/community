@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.gateway.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.gateway.shard.WorkerDescriptor;
 import com.nowcoder.community.im.gateway.shard.WorkerRegistry;
@@ -19,12 +20,12 @@ public class ConnectTicketRouter {
     static final String REASON_INVALID_TICKET = "invalid_ticket";
     static final String REASON_WORKER_UNAVAILABLE = "worker_unavailable";
 
-    private final ImGatewayFrameCodec frameCodec;
+    private final JsonCodec frameCodec;
     private final SessionTicketCodec sessionTicketCodec;
     private final WorkerRegistry workerRegistry;
 
     public ConnectTicketRouter(
-            ImGatewayFrameCodec frameCodec,
+            JsonCodec frameCodec,
             SessionTicketCodec sessionTicketCodec,
             WorkerRegistry workerRegistry
     ) {
@@ -41,7 +42,7 @@ public class ConnectTicketRouter {
         ConnectFrame frame = readConnectFrame(node);
         SessionTicketCodec.TicketClaims claims = decodeTicket(frame.ticket());
         WorkerDescriptor worker = findWorker(claims.workerId());
-        return new RoutingDecision(claims.sessionId(), claims.workerId(), worker.getUri());
+        return new RoutingDecision(claims.sessionId(), claims.workerId(), worker.uri());
     }
 
     private JsonNode readFirstFrame(String firstFrame) {
@@ -57,7 +58,7 @@ public class ConnectTicketRouter {
 
     private ConnectFrame readConnectFrame(JsonNode node) {
         try {
-            return frameCodec.read(node, ConnectFrame.class);
+            return frameCodec.treeToValue(node, ConnectFrame.class);
         } catch (RuntimeException ignored) {
             throw invalidTicket();
         }

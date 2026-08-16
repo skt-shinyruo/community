@@ -35,6 +35,8 @@ class RoomFanoutOwnerServiceTest {
         UUID roomId = uuid(2);
         RecordingPresenceDirectory presenceDirectory = new RecordingPresenceDirectory();
         presenceDirectory.activate(roomId, "worker-a");
+        presenceDirectory.activate(roomId, " worker-a ");
+        presenceDirectory.activate(roomId, "");
         presenceDirectory.activate(roomId, "worker-b");
         RecordingDispatcher dispatcher = new RecordingDispatcher();
         RoomFanoutOwnerService ownerService = ownerService(presenceDirectory, dispatcher);
@@ -107,7 +109,7 @@ class RoomFanoutOwnerServiceTest {
             RoomFanoutDispatcher dispatcher
     ) {
         return new RoomFanoutOwnerService(
-                new RoomFanoutRoutingService(presenceDirectory, new RoomFanoutPlanner()),
+                presenceDirectory,
                 dispatcher,
                 RoomFanoutMetrics.noop()
         );

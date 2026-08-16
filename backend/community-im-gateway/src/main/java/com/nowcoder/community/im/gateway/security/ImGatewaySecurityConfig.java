@@ -36,7 +36,7 @@ public class ImGatewaySecurityConfig {
     ) {
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(accessProperties)
+                ticketProperties.secretKeyOrThrow(accessProperties.getServiceHmacSecret())
         );
     }
 

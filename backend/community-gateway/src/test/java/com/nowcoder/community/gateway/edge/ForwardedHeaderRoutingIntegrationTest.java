@@ -61,9 +61,10 @@ class ForwardedHeaderRoutingIntegrationTest {
 
     @DynamicPropertySource
     static void registerProperties(DynamicPropertyRegistry registry) {
-        registry.add("gateway.http.routes[0].id", () -> "bootstrap-api");
-        registry.add("gateway.http.routes[0].path-prefix", () -> "/api");
-        registry.add("gateway.http.routes[0].service-id", () -> "community-app");
+        String routes = "spring.cloud.gateway.server.webflux.routes";
+        registry.add(routes + "[0].id", () -> "bootstrap-api");
+        registry.add(routes + "[0].uri", () -> "lb://community-app");
+        registry.add(routes + "[0].predicates[0]", () -> "Path=/api,/api/**");
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 ForwardedHeaderRoutingIntegrationTest::downstreamBaseUrl);
         registry.add("spring.cloud.gateway.discovery.locator.enabled", () -> "false");

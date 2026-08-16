@@ -1,8 +1,3 @@
-function toCount(value) {
-  const count = Number(value || 0)
-  return Number.isFinite(count) && count > 0 ? count : 0
-}
-
 export function buildProfileWalletAsset({ authed, isSelf } = {}) {
   if (authed && isSelf) {
     return {
@@ -30,44 +25,6 @@ export function describeFollowStatusText({ followStatus, followStatusState = 'id
   return '公开可见'
 }
 
-export function buildCommunitySignals({
-  profile,
-  joinedYear,
-  followStatus,
-  followStatusState,
-  authed,
-  isSelf
-} = {}) {
-  const username = profile?.username || '该成员'
-  const joined = joinedYear || '—'
-  const followerCount = toCount(profile?.followerCount)
-  const followeeCount = toCount(profile?.followeeCount)
-  const walletAsset = buildProfileWalletAsset({ profile, authed, isSelf })
-
-  const statusValue = describeFollowStatusText({ followStatus, followStatusState, authed, isSelf })
-
-  return [
-    {
-      key: 'status',
-      label: '当前状态',
-      value: statusValue,
-      text: `${username} 于 ${joined} 加入社区，当前主页优先展示公开身份与关系线索。`
-    },
-    {
-      key: 'wallet',
-      label: '钱包资产',
-      value: walletAsset.valueText,
-      text: formatWalletText(walletAsset.description, username)
-    },
-    {
-      key: 'network',
-      label: '关系网络',
-      value: `${followeeCount} 关注 · ${followerCount} 粉丝`,
-      text: '通过关注与粉丝可以快速判断这个成员在社区中的连接范围。'
-    }
-  ]
-}
-
 export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
   if (authed && isSelf) {
     return [
@@ -82,8 +39,4 @@ export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
     { key: 'followees', label: '查看关注', to: { name: 'followees', params: { userId: String(userId || '') } }, variant: 'ghost' },
     { key: 'followers', label: '查看粉丝', to: { name: 'followers', params: { userId: String(userId || '') } }, variant: 'ghost' }
   ]
-}
-
-function formatWalletText(text, username) {
-  return text.replace(/^主页资产展示/, `${username} 的主页资产展示`)
 }

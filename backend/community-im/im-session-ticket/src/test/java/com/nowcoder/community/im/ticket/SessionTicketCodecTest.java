@@ -7,7 +7,6 @@ import com.nimbusds.jose.JWSObject;
 import com.nimbusds.jose.Payload;
 import com.nimbusds.jose.crypto.MACSigner;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
-import com.nowcoder.community.common.security.jwt.JwtProperties;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
@@ -307,32 +306,29 @@ class SessionTicketCodecTest {
 
     @Test
     void properties_shouldRejectMissingTicketSecret() {
-        assertThatThrownBy(() -> ticketProperties(null).secretKeyOrThrow(accessProperties()))
+        assertThatThrownBy(() -> ticketProperties(null).secretKeyOrThrow(ACCESS_SECRET))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("im.session-ticket.hmac-secret");
     }
 
     @Test
     void properties_shouldRejectBlankTicketSecret() {
-        assertThatThrownBy(() -> ticketProperties("  ").secretKeyOrThrow(accessProperties()))
+        assertThatThrownBy(() -> ticketProperties("  ").secretKeyOrThrow(ACCESS_SECRET))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("im.session-ticket.hmac-secret");
     }
 
     @Test
     void properties_shouldRejectShortTicketSecret() {
-        assertThatThrownBy(() -> ticketProperties("too-short").secretKeyOrThrow(accessProperties()))
+        assertThatThrownBy(() -> ticketProperties("too-short").secretKeyOrThrow(ACCESS_SECRET))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(">= 32 bytes");
     }
 
     @Test
     void properties_shouldRejectNormalizedTicketSecretEqualToTrimmedServiceSecret() {
-        JwtProperties accessProperties = accessProperties();
-        accessProperties.setServiceHmacSecret("  " + ACCESS_SECRET + "  ");
-
         assertThatThrownBy(() -> ticketProperties("\t" + ACCESS_SECRET + "\n")
-                .secretKeyOrThrow(accessProperties))
+                .secretKeyOrThrow("  " + ACCESS_SECRET + "  "))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("must differ from security.jwt.service-hmac-secret");
     }
@@ -341,7 +337,7 @@ class SessionTicketCodecTest {
     void properties_shouldCountTicketSecretLengthInUtf8Bytes() {
         ImSessionTicketProperties properties = ticketProperties("\u754c".repeat(11));
 
-        assertThatCode(() -> properties.secretKeyOrThrow(accessProperties())).doesNotThrowAnyException();
+        assertThatCode(() -> properties.secretKeyOrThrow(ACCESS_SECRET)).doesNotThrowAnyException();
     }
 
     @Test
@@ -367,15 +363,8 @@ class SessionTicketCodecTest {
     private static SessionTicketCodec codec(ImSessionTicketProperties ticketProperties) {
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(accessProperties())
+                ticketProperties.secretKeyOrThrow(ACCESS_SECRET)
         );
-    }
-
-    private static JwtProperties accessProperties() {
-        JwtProperties properties = new JwtProperties();
-        properties.setServiceHmacSecret(ACCESS_SECRET);
-        properties.setIssuer("community-auth");
-        return properties;
     }
 
     private static ImSessionTicketProperties ticketProperties(String secret) {

@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.gateway.ws;
 
+import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.im.gateway.observability.ImGatewayMetrics;
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -27,15 +28,15 @@ class ExternalImEdgeWebSocketHandlerTest {
     @Test
     void shouldRejectAnOversizedFirstTextFrameBeforeRouting() {
         ConnectTicketRouter router = mock(ConnectTicketRouter.class);
-        InternalWorkerBridgeFactory bridgeFactory = mock(InternalWorkerBridgeFactory.class);
-        ImGatewayFrameCodec frameCodec = mock(ImGatewayFrameCodec.class);
+        InternalWorkerBridge bridge = mock(InternalWorkerBridge.class);
+        JsonCodec frameCodec = mock(JsonCodec.class);
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
         properties.getWs().setMaxInboundChars(4);
         WebSocketSession session = sessionWithInbound(Flux.just(textFrame("12345")));
-        when(frameCodec.write(any())).thenReturn("{\"reasonCode\":\"payload_too_large\"}");
+        when(frameCodec.toJson(any())).thenReturn("{\"reasonCode\":\"payload_too_large\"}");
 
         ExternalImEdgeWebSocketHandler handler = handler(
-                router, bridgeFactory, frameCodec, properties);
+                router, bridge, frameCodec, properties);
 
         StepVerifier.create(handler.handle(session))
                 .verifyComplete();
@@ -48,9 +49,8 @@ class ExternalImEdgeWebSocketHandlerTest {
     @Test
     void shouldCloseInsteadOfBufferingAnUnboundedNumberOfFramesBeforeWorkerConsumes() {
         ConnectTicketRouter router = mock(ConnectTicketRouter.class);
-        InternalWorkerBridgeFactory bridgeFactory = mock(InternalWorkerBridgeFactory.class);
         InternalWorkerBridge bridge = mock(InternalWorkerBridge.class);
-        ImGatewayFrameCodec frameCodec = mock(ImGatewayFrameCodec.class);
+        JsonCodec frameCodec = mock(JsonCodec.class);
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
         properties.getWs().setMaxInboundBufferFrames(2);
         Flux<WebSocketMessage> inbound = Flux.concat(
@@ -61,11 +61,10 @@ class ExternalImEdgeWebSocketHandlerTest {
         SimpleMeterRegistry registry = new SimpleMeterRegistry();
         when(router.route("connect")).thenReturn(new ConnectTicketRouter.RoutingDecision(
                 "session-1", "worker-1", URI.create("ws://worker.test/internal/ws/im")));
-        when(bridgeFactory.create(any())).thenReturn(bridge);
-        when(bridge.bridge(any(), any(), any())).thenReturn(Mono.never());
+        when(bridge.bridge(any(), any(), any(), any())).thenReturn(Mono.never());
 
         ExternalImEdgeWebSocketHandler handler = handler(
-                router, bridgeFactory, frameCodec, properties, registry);
+                router, bridge, frameCodec, properties, registry);
 
         StepVerifier.create(handler.handle(session))
                 .expectComplete()
@@ -81,23 +80,23 @@ class ExternalImEdgeWebSocketHandlerTest {
 
     private static ExternalImEdgeWebSocketHandler handler(
             ConnectTicketRouter router,
-            InternalWorkerBridgeFactory bridgeFactory,
-            ImGatewayFrameCodec frameCodec,
+            InternalWorkerBridge bridge,
+            JsonCodec frameCodec,
             ImGatewaySessionProperties properties
     ) {
-        return handler(router, bridgeFactory, frameCodec, properties, new SimpleMeterRegistry());
+        return handler(router, bridge, frameCodec, properties, new SimpleMeterRegistry());
     }
 
     private static ExternalImEdgeWebSocketHandler handler(
             ConnectTicketRouter router,
-            InternalWorkerBridgeFactory bridgeFactory,
-            ImGatewayFrameCodec frameCodec,
+            InternalWorkerBridge bridge,
+            JsonCodec frameCodec,
             ImGatewaySessionProperties properties,
             SimpleMeterRegistry registry
     ) {
         return new ExternalImEdgeWebSocketHandler(
                 router,
-                bridgeFactory,
+                bridge,
                 frameCodec,
                 properties,
                 new ImGatewayMetrics(registry)

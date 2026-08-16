@@ -48,7 +48,7 @@ public class RendezvousWorkerSelector {
                     if (byScore != 0) {
                         return byScore;
                     }
-                    return left.getId().compareTo(right.getId());
+                    return left.id().compareTo(right.id());
                 })
                 .orElseThrow(() -> new ResponseStatusException(
                         HttpStatus.SERVICE_UNAVAILABLE,
@@ -57,9 +57,9 @@ public class RendezvousWorkerSelector {
     }
 
     private static BigInteger capacityAwareScore(UUID userId, WorkerDescriptor worker) {
-        long score = score(userId, worker.getId());
+        long score = score(userId, worker.id());
         BigInteger rawScore = BigInteger.valueOf(score);
-        if (worker.getMaxConnections() <= 0) {
+        if (worker.maxConnections() <= 0) {
             return capacityBase().add(rawScore);
         }
         int availableCapacity = worker.availableCapacity();
@@ -68,7 +68,7 @@ public class RendezvousWorkerSelector {
         }
         return capacityBase().add(rawScore
                 .multiply(BigInteger.valueOf(availableCapacity))
-                .divide(BigInteger.valueOf(worker.getMaxConnections())));
+                .divide(BigInteger.valueOf(worker.maxConnections())));
     }
 
     private static BigInteger capacityBase() {

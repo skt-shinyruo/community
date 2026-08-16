@@ -2,12 +2,12 @@ package com.nowcoder.community.gateway.config;
 
 import com.nowcoder.community.gateway.edge.EdgeTrustedProxyProperties;
 import com.nowcoder.community.gateway.edge.RateLimitProperties;
-import com.nowcoder.community.gateway.edge.TrafficPolicyProperties;
-import com.nowcoder.community.gateway.http.GatewayHttpRouteProperties;
 import com.nowcoder.community.gateway.security.GatewayCorsProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
+import org.springframework.cloud.gateway.config.GatewayProperties;
+import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
@@ -26,18 +26,22 @@ class NacosGatewayBindingTest {
         StandardEnvironment environment = environmentFrom("community-gateway.yaml");
         Binder binder = Binder.get(environment);
 
-        GatewayHttpRouteProperties routes = binder.bind("gateway.http", GatewayHttpRouteProperties.class)
+        GatewayProperties gateway = binder.bind("spring.cloud.gateway.server.webflux", GatewayProperties.class)
                 .orElseThrow(IllegalStateException::new);
         RateLimitProperties rateLimit = binder.bind("gateway.http.rate-limit", RateLimitProperties.class)
-                .orElseThrow(IllegalStateException::new);
-        TrafficPolicyProperties traffic = binder.bind("gateway.http.traffic-policy", TrafficPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
         GatewayCorsProperties cors = binder.bind("gateway.cors", GatewayCorsProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
-        assertThat(routes.getRoutes())
-                .extracting(GatewayHttpRouteProperties.Route::getServiceId)
-                .contains("community-app", "community-oss", "im-core");
+        assertThat(gateway.getRoutes())
+                .extracting(RouteDefinition::getId)
+                .containsExactly("im-session-edge", "im-ws-edge", "oss-api", "im-core", "bootstrap-api", "oss-files");
+        assertThat(gateway.getRoutes())
+                .extracting(route -> route.getUri().toString())
+                .contains("lb://community-im-gateway", "lb://community-app", "lb://community-oss", "lb://im-core");
+        assertThat(gateway.getDefaultFilters())
+                .singleElement()
+                .satisfies(filter -> assertThat(filter.getName()).isEqualTo("DedupeResponseHeader"));
         assertThat(environment.containsProperty("gateway.http.rate-limit.fail-open-on-error")).isTrue();
         assertThat(rateLimit.isEnabled()).isTrue();
         assertThat(rateLimit.isFailOpenOnError()).isFalse();
@@ -45,7 +49,6 @@ class NacosGatewayBindingTest {
                 .containsKey("/api/drive/shares/{shareToken}/verify");
         assertThat(rateLimit.getPolicies().get("/api/drive/shares/{shareToken}/verify").getLimit())
                 .isEqualTo(10);
-        assertThat(traffic.getDefaultPolicyId()).isEqualTo("baseline");
         assertThat(cors.getAllowedOrigins()).containsExactly(
                 "http://localhost:5173",
                 "http://127.0.0.1:5173",

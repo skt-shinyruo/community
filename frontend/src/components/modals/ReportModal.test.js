@@ -42,9 +42,7 @@ describe('ReportModal identity scope', () => {
         plugins: [pinia],
         stubs: {
           UiButton: true,
-          UiIconButton: true,
-          UiSelect: true,
-          UiTextarea: true
+          UiIconButton: true
         }
       }
     })

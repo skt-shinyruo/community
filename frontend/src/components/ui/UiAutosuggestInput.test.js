@@ -7,7 +7,6 @@ import UiAutosuggestInput from './UiAutosuggestInput.vue'
 
 function mountInput(props = {}) {
   return mount(UiAutosuggestInput, {
-    attachTo: document.body,
     props: {
       modelValue: '',
       suggestions: ['java', 'spring'],
@@ -20,22 +19,20 @@ function mountInput(props = {}) {
 
 describe('UiAutosuggestInput', () => {
   it('emits update:modelValue on typing', async () => {
-    const wrapper = mountInput()
+    const wrapper = mountInput({ modelModifiers: { trim: true } })
 
-    await wrapper.get('input').setValue('ja')
+    await wrapper.get('input').setValue('  ja  ')
 
     expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['ja'])
   })
 
-  it('does not auto-commit when a suggestion is selected', async () => {
+  it('uses a native datalist for suggestions', () => {
     const wrapper = mountInput()
+    const input = wrapper.get('input')
+    const datalist = wrapper.get('datalist')
 
-    await wrapper.get('input').setValue('ja')
-    await wrapper.get('[role="option"][data-value="java"]').trigger('click')
-
-    expect(wrapper.emitted('update:modelValue')?.at(-1)).toEqual(['java'])
-    expect(wrapper.emitted('select')).toEqual([['java']])
-    expect(wrapper.emitted('commit')).toBeFalsy()
+    expect(input.attributes('list')).toBe(datalist.attributes('id'))
+    expect(wrapper.findAll('option').map((option) => option.attributes('value'))).toEqual(['java', 'spring'])
   })
 
   it('commits on Enter when enabled', async () => {
@@ -54,19 +51,9 @@ describe('UiAutosuggestInput', () => {
     expect(wrapper.emitted('commit')).toEqual([['spring']])
   })
 
-  it('supports arrow-key suggestion movement', async () => {
-    const wrapper = mountInput()
-
-    await wrapper.get('input').trigger('focus')
-    await wrapper.get('input').trigger('keydown', { key: 'ArrowDown' })
-
-    expect(wrapper.get('[role="option"][data-value="java"]').classes()).toContain('is-active')
-  })
-
   it('does not react when disabled', async () => {
     const wrapper = mountInput({ disabled: true })
 
-    await wrapper.get('input').trigger('focus')
     await wrapper.get('input').setValue('java')
     await wrapper.get('input').trigger('keydown', { key: 'Enter' })
 

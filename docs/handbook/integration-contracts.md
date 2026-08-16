@@ -155,7 +155,7 @@ Contract inventory：
 | Send-result events | `PrivateMessageCommittedEvent`, `RoomMessageCommittedEvent`, `PrivateMessageRejectedEvent`, `RoomMessageRejectedEvent` |
 | Projection events | `RoomMemberChanged`, `UserMessagingPolicyChanged`, `UserBlockRelationChanged` |
 | Projection snapshots | `RoomMembershipSnapshot` / `RoomMembershipEntry`, `UserMessagingPolicySnapshot` / `UserMessagingPolicyEntry`, `UserBlockRelationSnapshot` / `UserBlockRelationEntry` |
-| Browser WebSocket frames | `ConnectFrame`, `ConnectedFrame`, `SendPrivateTextFrame`, `SendRoomTextFrame`, `AckFrame`, `RejectFrame`, `CommittedFrame`, `PrivateMessageFrame`, `RoomMessageFrame`, `PingFrame`, `PongFrame` |
+| Browser WebSocket frames | `ConnectFrame`, `ConnectedFrame`, `SendPrivateTextFrame`, `SendRoomTextFrame`, `AckFrame`, `RejectFrame`, `CommittedFrame`, `PrivateMessageFrame`, `PingFrame`, `PongFrame` |
 
 Versioning and schema evolution：
 

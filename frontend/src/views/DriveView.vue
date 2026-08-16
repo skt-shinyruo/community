@@ -64,11 +64,12 @@
           </div>
 
           <div class="drive-search">
-            <UiInput
+            <input
               v-model.trim="workspace.searchKeyword"
               type="search"
               placeholder="搜索文件"
               autocomplete="off"
+              class="input"
               @keydown.enter.prevent="workspace.search"
             />
             <UiButton variant="secondary" :disabled="page.isBusy" @click="workspace.search">搜索</UiButton>
@@ -79,7 +80,7 @@
         <div v-if="entries.creatingFolder && workspace.mode !== 'trash'" class="drive-inline-form">
           <label class="drive-field">
             <span>文件夹名称</span>
-            <UiInput v-model.trim="entries.folderNameDraft" placeholder="输入文件夹名称" autocomplete="off" />
+            <input v-model.trim="entries.folderNameDraft" class="input" placeholder="输入文件夹名称" autocomplete="off" />
           </label>
           <div class="drive-inline-actions">
             <UiButton :disabled="page.isBusy" @click="entries.createFolder">确认</UiButton>
@@ -186,7 +187,7 @@
           <div v-if="workspace.mode !== 'trash'" class="drive-action-stack">
             <label class="drive-field">
               <span>重命名</span>
-              <UiInput v-model.trim="workspace.renameDraft" placeholder="输入新名称" autocomplete="off" />
+              <input v-model.trim="workspace.renameDraft" class="input" placeholder="输入新名称" autocomplete="off" />
             </label>
             <div class="drive-action-row">
               <UiButton :disabled="page.isBusy || !workspace.renameDraft.trim()" @click="entries.renameSelected">重命名</UiButton>
@@ -231,7 +232,7 @@
           <div class="drive-share-form">
             <label class="drive-field">
               <span>提取码</span>
-              <UiInput v-model.trim="shares.password" type="password" autocomplete="off" />
+              <input v-model.trim="shares.password" class="input" type="password" autocomplete="off" />
             </label>
             <label class="drive-field">
               <span>有效期</span>
@@ -271,7 +272,6 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { formatDriveBytes } from './driveState'
 import { useDrivePageState } from './drive/useDrivePageState'

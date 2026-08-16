@@ -1,71 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import { POSTS_FILTER, POSTS_ORDER } from '../router/navigation'
 import {
   canJumpToLastSeenDivider,
   findLastSeenDividerIndex,
-  hasLastSeenDivider,
-  isDefaultLatestFeedView
+  hasLastSeenDivider
 } from './postsFeedState'
 
 describe('postsFeedState', () => {
-  it('treats only the plain latest homepage as the default latest feed view', () => {
-    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
-    expect(
-      isDefaultLatestFeedView({
-        order: POSTS_ORDER.LATEST,
-        filter: POSTS_FILTER.ALL,
-        subscribed: false,
-        categoryId: '',
-        tag: '',
-        page: 0
-      })
-    ).toBe(true)
-
-    expect(
-      isDefaultLatestFeedView({
-        order: POSTS_ORDER.LATEST,
-        filter: POSTS_FILTER.ALL,
-        subscribed: true,
-        categoryId: '',
-        tag: '',
-        page: 0
-      })
-    ).toBe(false)
-
-    expect(
-      isDefaultLatestFeedView({
-        order: POSTS_ORDER.LATEST,
-        filter: POSTS_FILTER.ALL,
-        subscribed: false,
-        categoryId,
-        tag: '',
-        page: 0
-      })
-    ).toBe(false)
-
-    expect(
-      isDefaultLatestFeedView({
-        order: POSTS_ORDER.LATEST,
-        filter: POSTS_FILTER.ALL,
-        subscribed: false,
-        categoryId: '',
-        tag: 'java',
-        page: 0
-      })
-    ).toBe(false)
-
-    expect(
-      isDefaultLatestFeedView({
-        order: POSTS_ORDER.HOT,
-        filter: POSTS_FILTER.ALL,
-        subscribed: false,
-        categoryId: '',
-        tag: '',
-        page: 0
-      })
-    ).toBe(false)
-  })
-
   it('enables last-seen jump only when a divider exists inside the current feed', () => {
     const dividerIndex = findLastSeenDividerIndex(
       [

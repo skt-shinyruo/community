@@ -1,24 +1,3 @@
-import { POSTS_FILTER, POSTS_ORDER } from '../router/navigation'
-import { hasOpaqueId } from '../utils/opaqueId'
-
-export function isDefaultLatestFeedView({
-  order = POSTS_ORDER.LATEST,
-  filter = POSTS_FILTER.ALL,
-  subscribed = false,
-  categoryId = '',
-  tag = '',
-  page = 0
-} = {}) {
-  return (
-    order === POSTS_ORDER.LATEST &&
-    filter === POSTS_FILTER.ALL &&
-    subscribed !== true &&
-    !hasOpaqueId(categoryId) &&
-    !String(tag || '').trim() &&
-    Number(page || 0) === 0
-  )
-}
-
 export function findLastSeenDividerIndex(items, baselineAt, getActivityAt = (item) => item?.activityAt) {
   const baseline = Number(baselineAt || 0)
   if (!Number.isFinite(baseline) || baseline <= 0) return -1

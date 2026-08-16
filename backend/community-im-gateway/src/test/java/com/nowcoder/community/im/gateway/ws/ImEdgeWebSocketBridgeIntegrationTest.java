@@ -78,26 +78,14 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 () -> "http://127.0.0.1:" + workerPort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId",
                 () -> "worker-a");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPath",
-                () -> "/internal/ws/im");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.wsPort",
-                () -> String.valueOf(workerPort()));
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].uri",
                 () -> "http://127.0.0.1:" + binaryWorkerPort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.workerId",
                 () -> "worker-binary");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.wsPath",
-                () -> "/internal/ws/im");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[1].metadata.wsPort",
-                () -> String.valueOf(binaryWorkerPort()));
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].uri",
                 () -> "http://127.0.0.1:" + refusedWorkerPort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.workerId",
                 () -> "worker-refused");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.wsPath",
-                () -> "/internal/ws/im");
-        registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[2].metadata.wsPort",
-                () -> String.valueOf(refusedWorkerPort()));
     }
 
     @AfterAll
@@ -485,7 +473,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         ticketProperties.setHmacSecret(TICKET_SECRET);
         SessionTicketCodec codec = new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(properties)
+                ticketProperties.secretKeyOrThrow(properties.getServiceHmacSecret())
         );
         return codec.encode(
                 "sess-1",

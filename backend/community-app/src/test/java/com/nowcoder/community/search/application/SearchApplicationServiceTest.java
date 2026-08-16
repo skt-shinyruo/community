@@ -1,7 +1,5 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.degradation.DegradationDecisions;
-import com.nowcoder.community.common.spring.degradation.DegradationProperties;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.SearchApplicationService.DeleteIndexedPostCommand;
@@ -76,8 +74,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagDecisions(new FeatureFlagProperties()),
-                new DegradationDecisions(new DegradationProperties())
+                new FeatureFlagDecisions(new FeatureFlagProperties())
         );
         PostSearchQuery expectedQuery = new PostSearchQuery("spring", null, null, 0, 20);
         when(repository.search(expectedQuery)).thenReturn(List.of());
@@ -98,28 +95,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagDecisions(new FeatureFlagProperties()),
-                new DegradationDecisions(new DegradationProperties())
-        );
-        when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
-                .thenThrow(new IllegalStateException("es unavailable"));
-
-        var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
-
-        assertThat(results).isEmpty();
-    }
-
-    @Test
-    void searchPostsShouldReturnEmptyResultsWhenNacosSearchDegradationIsBestEffort() {
-        PostSearchRepository repository = mock(PostSearchRepository.class);
-        DegradationProperties degradationProperties = new DegradationProperties();
-        degradationProperties.getModes().put("search", "best-effort");
-        SearchApplicationService service = new SearchApplicationService(
-                repository,
-                new PostSearchDomainService(),
-                new SearchPolicyProperties(),
-                new FeatureFlagDecisions(new FeatureFlagProperties()),
-                new DegradationDecisions(degradationProperties)
+                new FeatureFlagDecisions(new FeatureFlagProperties())
         );
         when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
                 .thenThrow(new IllegalStateException("es unavailable"));
@@ -138,8 +114,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                new FeatureFlagDecisions(featureFlagProperties),
-                new DegradationDecisions(new DegradationProperties())
+                new FeatureFlagDecisions(featureFlagProperties)
         );
 
         var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
@@ -250,8 +225,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                new FeatureFlagDecisions(new FeatureFlagProperties()),
-                new DegradationDecisions(new DegradationProperties())
+                new FeatureFlagDecisions(new FeatureFlagProperties())
         );
     }
 }

@@ -2,23 +2,25 @@ package com.nowcoder.community.im.realtime.fanout;
 
 import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
+import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.util.List;
 
 @Service
 public class RoomFanoutOwnerService {
 
-    private final RoomFanoutRoutingService routingService;
+    private final RoomPresenceDirectory roomPresenceDirectory;
     private final RoomFanoutDispatcher dispatcher;
     private final RoomFanoutMetrics metrics;
 
     public RoomFanoutOwnerService(
-            RoomFanoutRoutingService routingService,
+            RoomPresenceDirectory roomPresenceDirectory,
             RoomFanoutDispatcher dispatcher,
             RoomFanoutMetrics metrics
     ) {
-        this.routingService = routingService;
+        this.roomPresenceDirectory = roomPresenceDirectory;
         this.dispatcher = dispatcher;
         this.metrics = metrics;
     }
@@ -27,22 +29,32 @@ public class RoomFanoutOwnerService {
         if (event == null || event.roomId() == null || event.seq() <= 0) {
             return;
         }
-        List<RoomFanoutRoute> routes;
+        List<String> workerIds;
         try {
-            routes = routingService.routesFor(event.roomId(), event.seq());
+            workerIds = roomPresenceDirectory.activeWorkerIds(event.roomId()).stream()
+                    .filter(StringUtils::hasText)
+                    .map(String::trim)
+                    .distinct()
+                    .toList();
         } catch (RuntimeException failure) {
             metrics.routeFailed();
             throw failure;
         }
-        if (routes.isEmpty()) {
+        if (workerIds.isEmpty()) {
             metrics.emptyTargetSet();
             return;
         }
-        metrics.routesPlanned(routes.size());
+        metrics.routesPlanned(workerIds.size());
         RuntimeException firstFailure = null;
-        for (RoomFanoutRoute route : routes) {
+        for (String workerId : workerIds) {
             try {
-                dispatcher.dispatch(commandFor(event, route));
+                dispatcher.dispatch(new RoomFanoutCommand(
+                        workerId,
+                        event.roomId(),
+                        event.seq(),
+                        event.eventId(),
+                        event.createdAtEpochMs()
+                ));
                 metrics.commandSent();
             } catch (RuntimeException failure) {
                 metrics.routeFailed();
@@ -59,13 +71,4 @@ public class RoomFanoutOwnerService {
         }
     }
 
-    private static RoomFanoutCommand commandFor(RoomMessagePersistedEvent event, RoomFanoutRoute route) {
-        return new RoomFanoutCommand(
-                route.targetWorkerId(),
-                route.roomId(),
-                route.lastSeq(),
-                event.eventId(),
-                event.createdAtEpochMs()
-        );
-    }
 }

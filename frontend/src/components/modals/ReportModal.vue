@@ -23,23 +23,33 @@
 
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">原因</div>
-          <UiSelect
+          <select
             v-model="reason"
             name="report-reason"
-            class="report-reason-select"
+            class="input report-reason-select"
+            aria-label="举报原因"
             :disabled="submitting"
-            :options="reasonOptions"
-          />
+          >
+            <option
+              v-for="option in reasonOptions"
+              :key="String(option.value)"
+              :value="option.value"
+              :disabled="option.disabled"
+            >
+              {{ option.label }}
+            </option>
+          </select>
         </div>
 
         <div class="stack" style="gap: 8px">
           <div class="muted" style="font-size: 12px">补充说明（可选）</div>
-          <UiTextarea
+          <textarea
             v-model.trim="detail"
             name="report-detail"
             :rows="4"
             placeholder="请描述具体情况（例如：违规内容位置、截图说明等）"
             :disabled="submitting"
+            class="input multiline"
           />
         </div>
 
@@ -61,8 +71,6 @@ import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
-import UiSelect from '../ui/UiSelect.vue'
-import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { showToast } from '../../ui/toastService'
@@ -171,10 +179,6 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .report-reason-select {
-  width: 100%;
-}
-
-.report-reason-select :deep(.ui-select-trigger) {
   width: 100%;
 }
 </style>

@@ -69,10 +69,4 @@ class JsonBoundaryArchTest {
                     .should().dependOnClassesThat().haveFullyQualifiedName("com.fasterxml.jackson.databind.DeserializationFeature")
                     .because("explicit JSON serialization should use community-common-json");
 
-    @ArchTest
-    static final ArchRule common_core_must_not_depend_on_jackson_databind =
-            noClasses()
-                    .that().resideInAnyPackage("com.nowcoder.community.common.event..")
-                    .should().dependOnClassesThat().resideInAnyPackage("com.fasterxml.jackson.databind..")
-                    .because("common-core event models must stay JSON-library neutral");
 }

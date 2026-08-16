@@ -27,7 +27,7 @@ public class LoadBalancedWebClientConfig {
     ) {
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(accessProperties)
+                ticketProperties.secretKeyOrThrow(accessProperties.getServiceHmacSecret())
         );
     }
 
@@ -37,26 +37,6 @@ public class LoadBalancedWebClientConfig {
         WebClient.Builder builder = WebClient.builder();
         customizers.orderedStream().forEach(customizer -> customizer.customize(builder));
         return builder;
-    }
-
-    @Bean("communityGovernanceWebClient")
-    WebClient communityGovernanceWebClient(
-            @LoadBalanced WebClient.Builder builder,
-            ImServiceClientProperties properties
-    ) {
-        return builder.clone()
-                .baseUrl("http://" + properties.getCommunityServiceId())
-                .build();
-    }
-
-    @Bean("imCoreWebClient")
-    WebClient imCoreWebClient(
-            @LoadBalanced WebClient.Builder builder,
-            ImServiceClientProperties properties
-    ) {
-        return builder.clone()
-                .baseUrl("http://" + properties.getImCoreServiceId())
-                .build();
     }
 
     @Bean("membershipSnapshotWebClient")

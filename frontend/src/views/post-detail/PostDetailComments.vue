@@ -105,12 +105,12 @@
                 <div class="reply-quote-content">{{ comment._replyQuote?.preview || '' }}</div>
               </div>
 
-              <UiTextarea
-                :model-value="comment._replyDraft"
-                :model-modifiers="{ trim: true }"
+              <textarea
+                :value="comment._replyDraft"
                 :rows="3"
                 placeholder="回复…（支持 Markdown）"
-                @update:modelValue="(value) => discussion.setReplyDraft(comment, value)"
+                class="input multiline"
+                @input="discussion.setReplyDraft(comment, $event.target.value.trim())"
               />
               <div v-if="comment._replyError" class="error reply-editor-error">{{ comment._replyError }}</div>
               <div class="reply-editor-actions">
@@ -197,7 +197,6 @@ import UiMarkdown from '../../components/ui/UiMarkdown.vue'
 import UiPagination from '../../components/ui/UiPagination.vue'
 import UiRoleBadge from '../../components/ui/UiRoleBadge.vue'
 import UiState from '../../components/ui/UiState.vue'
-import UiTextarea from '../../components/ui/UiTextarea.vue'
 import UiUserCard from '../../components/ui/UiUserCard.vue'
 import { formatTime } from '../../utils/time'
 import { sameOpaqueId } from '../../utils/opaqueId'

@@ -1,6 +1,5 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.degradation.DegradationDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
@@ -22,20 +21,17 @@ public class SearchApplicationService {
     private final PostSearchDomainService postSearchDomainService;
     private final SearchPolicyProperties searchPolicyProperties;
     private final FeatureFlagDecisions featureFlags;
-    private final DegradationDecisions degradationDecisions;
 
     public SearchApplicationService(
             PostSearchRepository postSearchRepository,
             PostSearchDomainService postSearchDomainService,
             SearchPolicyProperties searchPolicyProperties,
-            FeatureFlagDecisions featureFlags,
-            DegradationDecisions degradationDecisions
+            FeatureFlagDecisions featureFlags
     ) {
         this.postSearchRepository = Objects.requireNonNull(postSearchRepository, "postSearchRepository must not be null");
         this.postSearchDomainService = Objects.requireNonNull(postSearchDomainService, "postSearchDomainService must not be null");
         this.searchPolicyProperties = Objects.requireNonNull(searchPolicyProperties, "searchPolicyProperties must not be null");
         this.featureFlags = Objects.requireNonNull(featureFlags, "featureFlags must not be null");
-        this.degradationDecisions = Objects.requireNonNull(degradationDecisions, "degradationDecisions must not be null");
     }
 
     public List<SearchPostResult> searchPosts(SearchPostsCommand command) {
@@ -56,8 +52,7 @@ public class SearchApplicationService {
                     .map(this::toResult)
                     .toList();
         } catch (RuntimeException e) {
-            if (searchPolicyProperties.getDegradation().isEnabled()
-                    || "best-effort".equals(degradationDecisions.mode("search"))) {
+            if (searchPolicyProperties.getDegradation().isEnabled()) {
                 return List.of();
             }
             throw e;

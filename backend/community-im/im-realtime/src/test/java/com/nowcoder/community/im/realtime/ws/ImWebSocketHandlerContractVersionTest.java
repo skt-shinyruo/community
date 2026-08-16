@@ -310,7 +310,7 @@ class ImWebSocketHandlerContractVersionTest {
         ticketProperties.setAudience(TICKET_AUDIENCE);
         return new SessionTicketCodec(
                 ticketProperties,
-                ticketProperties.secretKeyOrThrow(serviceProperties)
+                ticketProperties.secretKeyOrThrow(serviceProperties.getServiceHmacSecret())
         );
     }
 

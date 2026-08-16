@@ -1,41 +1,15 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  POSTS_FILTER,
-  POSTS_ORDER,
   canAccessNavItem,
   getRouteWorkspaceLabel,
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
-  normalizePostsBoardId,
-  normalizePostsCategoryId,
-  normalizePostsFilter,
-  normalizePostsOrder
+  normalizePostsBoardId
 } from './navigation'
 
 describe('router/navigation', () => {
-  it('normalizePostsOrder should normalize invalid values', () => {
-    expect(normalizePostsOrder()).toBe(POSTS_ORDER.LATEST)
-    expect(normalizePostsOrder('latest')).toBe(POSTS_ORDER.LATEST)
-    expect(normalizePostsOrder('hot')).toBe(POSTS_ORDER.HOT)
-    expect(normalizePostsOrder('unknown')).toBe(POSTS_ORDER.LATEST)
-  })
-
-  it('normalizePostsFilter should normalize invalid values', () => {
-    expect(normalizePostsFilter()).toBe(POSTS_FILTER.ALL)
-    expect(normalizePostsFilter('unread')).toBe(POSTS_FILTER.UNREAD)
-    expect(normalizePostsFilter('top')).toBe(POSTS_FILTER.TOP)
-    expect(normalizePostsFilter('wonderful')).toBe(POSTS_FILTER.WONDERFUL)
-    expect(normalizePostsFilter('unknown')).toBe(POSTS_FILTER.ALL)
-  })
-
-  it('normalizePostsCategoryId should preserve UUID category ids', () => {
-    const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
-    expect(normalizePostsCategoryId(categoryId)).toBe(categoryId)
-    expect(normalizePostsCategoryId('')).toBe('')
-  })
-
   it('normalizePostsBoardId should preserve UUID board ids', () => {
     const boardId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     expect(normalizePostsBoardId(boardId)).toBe(boardId)

@@ -4,7 +4,6 @@ import { mount } from '@vue/test-utils'
 import { flushPromises } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import PostBlockEditor from './PostBlockEditor.vue'
-import UiFileInput from '../ui/UiFileInput.vue'
 import { preparePostMediaUpload, uploadPostMediaFile } from '../../api/services/postMediaService'
 
 vi.mock('../../api/services/postMediaService', () => ({
@@ -19,6 +18,12 @@ vi.mock('../../api/services/postMediaService', () => ({
   }),
   uploadPostMediaFile: vi.fn().mockResolvedValue({ traceId: 'trace-upload' })
 }))
+
+async function selectFile(wrapper, file) {
+  const input = wrapper.get('input[type="file"]')
+  Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
+  await input.trigger('change')
+}
 
 describe('PostBlockEditor', () => {
   beforeEach(() => {
@@ -53,7 +58,7 @@ describe('PostBlockEditor', () => {
     })
     const file = new File(['image'], 'demo.png', { type: 'image/png' })
 
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await flushPromises()
 
     const emitted = wrapper.emitted('update:modelValue').at(-1)[0]
@@ -81,7 +86,7 @@ describe('PostBlockEditor', () => {
     })
     const file = new File(['image'], 'demo.png', { type: 'image/png' })
 
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await flushPromises()
 
     expect(wrapper.text()).toContain('上传中 42%')
@@ -107,7 +112,7 @@ describe('PostBlockEditor', () => {
     })
     const file = new File(['image'], 'demo.png', { type: 'image/png' })
 
-    await wrapper.getComponent(UiFileInput).vm.$emit('update:modelValue', file)
+    await selectFile(wrapper, file)
     await flushPromises()
 
     const emitted = wrapper.emitted('update:modelValue').at(-1)[0]

@@ -17,7 +17,6 @@
 
     <properties>
         <docker.api.version>1.44</docker.api.version>
-        <xxl-job.version>3.3.2</xxl-job.version>
     </properties>
 
     <dependencies>
@@ -139,11 +138,6 @@
         <dependency>
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
-        </dependency>
-        <dependency>
-            <groupId>com.xuxueli</groupId>
-            <artifactId>xxl-job-core</artifactId>
-            <version>${xxl-job.version}</version>
         </dependency>
         <dependency>
             <groupId>org.springframework.boot</groupId>

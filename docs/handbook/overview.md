@@ -209,6 +209,6 @@ POST /api/im/sessions -> WS /ws/im
 6. 异步骨干：owner outbox/Kafka 发布与 search、notice、growth、reward、hot-feed consumer。
 7. IM 双服务：`im-realtime` 的 WebSocket handler 和 `im-core` 的消息持久化。
 8. 可靠性底座：`common-idempotency`、`common-outbox`、single-flight、scheduler。
-9. 运维入口：`ops`、XXL-Job handler、`/api/ops/**`。
+9. 运维入口：`ops`、Spring scheduler、`/api/ops/**`。
 
 不要一上来扫完整个 `controller/service/mapper`。这个项目更有效的读法是先确定入口和 owner，再顺着一条真实链路看同步段、事件段和失败语义。

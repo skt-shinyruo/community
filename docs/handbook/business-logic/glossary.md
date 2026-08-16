@@ -13,7 +13,7 @@
 | DomainService / Policy | 不自然属于单个实体的领域规则。 | 密码策略、任务进度规则、可发言策略。 |
 | Repository interface | 领域定义的持久化契约，application/domain 只依赖接口。 | `*Repository` 由 MyBatis infrastructure 实现。 |
 | Infrastructure | 技术实现层，包含 MyBatis、Redis、MQ、outbox、OSS client、Spring event adapter 等。 | `MyBatis*Repository`、outbox handler。 |
-| Inbound adapter | 外部进入系统的适配器，例如 controller、listener、handler、bridge、job。 | HTTP controller、事件 listener、XXL job handler。 |
+| Inbound adapter | 外部进入系统的适配器，例如 controller、listener、handler、bridge、job。 | HTTP controller、事件 listener、Spring scheduler。 |
 | Owner API | owner 暴露给外域同步协作的 `api.query` / `api.action` / `api.model`。 | auth 调 user 创建已验证用户。 |
 | Contract event | owner 暴露给外域异步协作的 `contracts.event`。 | content/social 事件被 notice/growth/search 消费。 |
 | Orchestration domain | 不持有参与方主事实，只拥有一个跨域用例的同步编排边界。 | `profile` 聚合主页；`interaction` 解析点赞目标后调用 social action。 |

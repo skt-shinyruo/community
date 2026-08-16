@@ -69,35 +69,19 @@ public class DiscoveredWorkerDescriptorFactory {
         if (!StringUtils.hasText(value)) {
             return 0;
         }
-        String trimmed = value.trim();
-        int parsed = 0;
-        for (int index = 0; index < trimmed.length(); index++) {
-            char ch = trimmed.charAt(index);
-            if (ch < '0' || ch > '9') {
-                return 0;
-            }
-            int digit = ch - '0';
-            if (parsed > (Integer.MAX_VALUE - digit) / 10) {
-                return 0;
-            }
-            parsed = parsed * 10 + digit;
+        try {
+            return Math.max(0, Integer.parseInt(value.trim()));
+        } catch (NumberFormatException ignored) {
+            return 0;
         }
-        return parsed;
     }
 
     private static Integer parsePort(String value) {
-        String trimmed = value.trim();
-        int port = 0;
-        for (int index = 0; index < trimmed.length(); index++) {
-            char ch = trimmed.charAt(index);
-            if (ch < '0' || ch > '9') {
-                return null;
-            }
-            port = port * 10 + ch - '0';
-            if (port > 65535) {
-                return null;
-            }
+        try {
+            int port = Integer.parseInt(value.trim());
+            return port >= 1 && port <= 65535 ? port : null;
+        } catch (NumberFormatException ignored) {
+            return null;
         }
-        return port >= 1 ? port : null;
     }
 }

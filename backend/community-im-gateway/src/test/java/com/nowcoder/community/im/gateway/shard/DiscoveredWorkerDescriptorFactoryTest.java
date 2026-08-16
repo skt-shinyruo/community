@@ -39,6 +39,20 @@ class DiscoveredWorkerDescriptorFactoryTest {
         assertThat(factory.from(instanceWithPort("65536"))).isEmpty();
     }
 
+    @Test
+    void shouldDefaultInvalidConnectionMetadataToZero() {
+        DefaultServiceInstance instance = instanceWithPort("18081");
+        instance.getMetadata().put("maxConnections", "-1");
+        instance.getMetadata().put("activeConnectionHint", "2147483648");
+
+        WorkerDescriptor descriptor = new DiscoveredWorkerDescriptorFactory(new ImGatewaySessionProperties())
+                .from(instance)
+                .orElseThrow();
+
+        assertThat(descriptor.getMaxConnections()).isZero();
+        assertThat(descriptor.getActiveConnectionHint()).isZero();
+    }
+
     private static DefaultServiceInstance instanceWithPort(String wsPort) {
         DefaultServiceInstance instance = new DefaultServiceInstance(
                 "instance-1", "im-realtime-worker", "127.0.0.1", 18081, false

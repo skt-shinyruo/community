@@ -17,20 +17,6 @@ function createTarget({ entityType, targetCount, sceneKey, phase }) {
   }
 }
 
-const manualCountEntityTypes = {
-  users: ['users', 'community'],
-  posts: ['posts', 'community'],
-  comments: ['comments', 'community'],
-  socialFollows: ['social_follows', 'community'],
-  socialLikes: ['social_likes', 'community']
-}
-
-export function buildManualTargets({ counts = {}, sceneKey = 'community-seed' } = {}) {
-  return Object.entries(manualCountEntityTypes).map(([countKey, [entityType, phase]]) =>
-    createTarget({ entityType, targetCount: counts[countKey], sceneKey, phase })
-  )
-}
-
 function capAtFeasibleMaximum(targetCount, maximum) {
   if (!Number.isFinite(maximum)) {
     return normalizeCount(targetCount)

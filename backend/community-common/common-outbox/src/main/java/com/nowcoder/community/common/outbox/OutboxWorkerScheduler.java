@@ -1,6 +1,7 @@
 package com.nowcoder.community.common.outbox;
 
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMessage;
 import com.nowcoder.community.common.trace.TraceJobRunner;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.slf4j.Logger;
@@ -12,7 +13,6 @@ import org.springframework.scheduling.annotation.Scheduled;
 import java.time.Clock;
 import java.util.HashMap;
 import java.util.List;
-import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -122,7 +122,7 @@ public class OutboxWorkerScheduler implements AutoCloseable {
         MDC.put(MDC_ACTION, action);
         MDC.put(MDC_OUTCOME, outcome);
         try {
-            String message = buildMessage(action, outcome, keyValues);
+            String message = EventLogMessage.format(keyValues);
             if (warn) {
                 if (throwable == null) {
                     log.warn(message);
@@ -137,46 +137,6 @@ public class OutboxWorkerScheduler implements AutoCloseable {
             restore(MDC_ACTION, previousAction);
             restore(MDC_OUTCOME, previousOutcome);
         }
-    }
-
-    private String buildMessage(String action, String outcome, Object... keyValues) {
-        StringBuilder message = new StringBuilder(160);
-        for (int i = 0; i < keyValues.length; i += 2) {
-            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
-        }
-        return message.toString();
-    }
-
-    private void appendToken(StringBuilder message, String key, Object value) {
-        if (message.length() > 0) {
-            message.append(' ');
-        }
-        message.append(key).append('=').append(encodeTokenValue(value));
-    }
-
-    private String encodeTokenValue(Object value) {
-        if (value == null) {
-            return "-";
-        }
-        String raw = String.valueOf(value);
-        if (raw.isEmpty()) {
-            return "-";
-        }
-        StringBuilder encoded = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
-                encoded.append('%');
-                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
-                if (hex.length() == 1) {
-                    encoded.append('0');
-                }
-                encoded.append(hex);
-            } else {
-                encoded.append(ch);
-            }
-        }
-        return encoded.toString();
     }
 
     private void restore(String key, String previousValue) {

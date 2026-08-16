@@ -167,7 +167,7 @@ AuthController.verifyRegisterCode(...)
 - prepare registration 阶段会先由 user owner 检查用户名和邮箱是否已存在；验证码通过后的最终插入仍以数据库唯一约束处理竞态冲突。
 - 创建用户成功后不再走用户名密码认证，而是对刚创建的 `UserCredentialView` 调 `issueLoginResult(...)`。
 - 响应体仍是 `LoginResponse(accessToken)`，并写入 refresh cookie。
-- 注册码使用 `auth:regcode:v2:{<userId>}` Redis Hash 状态机；初次签发把 delivery ID 与 active code 绑定后写 `auth.registration-code-mail` outbox。resend 先原子消费可信 IP、邮箱、registration identity 三个 HMAC 配额，再取得 `ReplacementLease`，其 ID 同时担任 delivery ID 和 `PENDING_REPLACEMENT` lease。worker 通过 `DeliveryClaim` 核对并续租，SMTP 仍由 ApplicationService 发送；发送成功后 `DeliveryClaim.complete()` 负责完成或重新认领后再完成，调用方不直接编排 prepare/promote。重试只会重复发送同一 code，旧 delivery 无法覆盖新 replacement。失败次数耗尽后保留无 code 的 `EXHAUSTED` 冷却墓碑，立即重发不能绕过 cooldown。真实 legacy key 为 `auth:regcode:<userId>`；旧 writer 完全退出后，单个 legacy-key Lua 原子执行 `GET + PTTL + DEL`，随后以 v2 单 key Lua 条件导入，避免 Redis Cluster 跨 slot Lua。
+- 注册码使用 `auth:regcode:v2:{<userId>}` Redis Hash 状态机；初次签发把 delivery ID 与 active code 绑定后写 `auth.registration-code-mail` outbox。resend 先原子消费可信 IP、邮箱、registration identity 三个 HMAC 配额，再取得 `ReplacementLease`，其 ID 同时担任 delivery ID 和 `PENDING_REPLACEMENT` lease。worker 通过 `DeliveryClaim` 核对并续租，SMTP 仍由 ApplicationService 发送；发送成功后 `DeliveryClaim.complete()` 负责完成或重新认领后再完成，调用方不直接编排 prepare/promote。重试只会重复发送同一 code，旧 delivery 无法覆盖新 replacement。失败次数耗尽后保留无 code 的 `EXHAUSTED` 冷却墓碑，立即重发不能绕过 cooldown。
 - 验证成功返回绑定随机 UUID lease 的 `VerificationClaim`，底层状态进入 `PENDING_VERIFICATION`。创建用户失败时只能通过该 claim restore；创建成功后只能通过该 claim consume。过期 lease 可被后续请求接管，旧 claim 不能覆盖新状态。
 - `finally` 中 best-effort 删除 registration draft，避免重复使用。
 - 如果 active 用户已经创建但自动登录签发 token 失败，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端清理注册上下文并提示用户直接登录，避免误导用户重复注册。

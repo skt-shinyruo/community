@@ -45,7 +45,6 @@ GARAGE_S3_HOST_PORT=33900 \
 GARAGE_ADMIN_HOST_PORT=33903 \
 MAILHOG_UI_HOST_PORT=38025 \
 MAILHOG_SMTP_HOST_PORT=31025 \
-XXL_JOB_ADMIN_PORT=32887 \
   ./deploy/deployment.sh config --stack infra \
     --env-file "${custom_env}" -p community-host-access-test >"${custom_config}"
 grep -F 'name: community-host-access-test' "${custom_config}" >/dev/null
@@ -85,7 +84,6 @@ assert_port garage 3900 23900
 assert_port garage 3903 23903
 assert_port mailhog 1025 21025
 assert_port mailhog 8025 28025
-assert_port xxl-job-admin 8080 22887
 
 grep -F 'KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,HOST://0.0.0.0:29092,CONTROLLER://0.0.0.0:9093' \
   "${rendered_config}" >/dev/null
@@ -93,7 +91,6 @@ grep -F 'KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:9092,HOST://127.0.0.1:390
   "${rendered_config}" >/dev/null
 grep -F 'KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,HOST:PLAINTEXT,CONTROLLER:PLAINTEXT' \
   "${rendered_config}" >/dev/null
-grep -F 'host.docker.internal=host-gateway' "${rendered_config}" >/dev/null
 
 env_file_value() {
   local file="$1"

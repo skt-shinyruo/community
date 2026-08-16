@@ -26,8 +26,6 @@
 - `DELETE /api/follows`
 - `GET /api/follows/status`
 - `GET /api/follows/statuses`
-- `GET /api/follows/{userId}/followees`
-- `GET /api/follows/{userId}/followers`
 - `GET /api/follows/{userId}/followees/page`
 - `GET /api/follows/{userId}/followers/page`
 - `GET /api/follows/{userId}/followees/count`
@@ -101,7 +99,7 @@
 
 - 关注只支持 `USER` 关系；写入、状态、列表和计数查询对非 `USER` `entityType` 都返回参数错误。
 - 批量关注状态一次最多接收 200 个 ID，应用层去重后由 repository 单查询返回完整 true/false 映射；关注和粉丝页再与 user batch summary 并行装配，避免逐行 N+1。
-- 原 `followees` / `followers` 数组响应保持兼容，但 offset `page` 最大为 `100`，更深页面返回参数错误并提示改用 cursor；新 `/page` 入口返回 `items + nextCursor + hasNext`，page size 最大为 `50`。
+- 关注和粉丝列表只提供 `/page` cursor 入口，返回 `items + nextCursor + hasNext`，page size 最大为 `50`。
 - cursor 是 opaque 的 `(createdAt,targetId)` 边界；repository 按 `created_at desc, id desc` 做 keyset 查询并继续排除双向拉黑关系，避免深 offset 扫描和同一时间戳下的漏项/重复项。
 - 前端关注状态缓存按 auth store 与 token generation 隔离，切换账号或刷新会话后不会复用前一身份的私有关系结果。
 - Controller 只做 HTTP 绑定、认证提取和 DTO 转换，是否支持某个 `entityType` 由 `FollowApplicationService` / `FollowDomainService` 决定。

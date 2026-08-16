@@ -48,6 +48,10 @@ grep -Fq 'CONSTRAINT `ck_wallet_test_credit_granted_nonnegative` CHECK ((`grante
 grep -Fq 'CONSTRAINT `ck_wallet_test_credit_discarded_nonnegative` CHECK ((`discarded_amount` >= 0))' "${schema}"
 grep -Fq 'INSERT INTO `category` VALUES' "${schema}"
 grep -Fq 'INSERT INTO `task_template` VALUES' "${schema}"
+if rg -n 'CREATE TABLE `(ai_config|demo_job)`' "${schema}"; then
+  echo 'current schema still contains legacy Mock Data Studio tables' >&2
+  exit 1
+fi
 
 if rg -n -i 'alter[[:space:]]+table|drop[[:space:]]+table|gtid_purged|definer|schema_history|aaa@example|bbb@example|admin@example' "${schema}"; then
   echo 'current schema contains evolution DDL, history metadata, or development users' >&2
@@ -55,7 +59,7 @@ if rg -n -i 'alter[[:space:]]+table|drop[[:space:]]+table|gtid_purged|definer|sc
 fi
 
 business_ddl_files="$(rg -l -i '^create[[:space:]]+table' deploy/database --glob '*.sql' \
-  | grep -Ev '/(nacos|xxl-job|migrations)/' || true)"
+  | grep -Ev '/(nacos|migrations)/' || true)"
 if [ "${business_ddl_files}" != "${schema}" ]; then
   echo "current-state business DDL must exist only in ${schema}; found: ${business_ddl_files}" >&2
   exit 1
@@ -88,7 +92,7 @@ grep -Fq 'grant select, insert, update, delete on \`${MYSQL_DATABASE_ESCAPED}\`.
   deploy/database/business/init/001_create_databases.sh
 grep -Fq "revoke all privileges, grant option from '\${COMMUNITY_MIGRATION_USERNAME_ESCAPED}'@'%';" \
   deploy/database/business/init/001_create_databases.sh
-grep -Fq 'grant select, insert, update, delete, create, alter, index' \
+grep -Fq 'grant select, insert, update, delete, create, alter, index, drop' \
   deploy/database/business/init/001_create_databases.sh
 grep -Fq 'COMMUNITY_MIGRATION_USERNAME=community_migrator' deploy/stacks/single/.env.example
 grep -Fq 'COMMUNITY_MIGRATION_USERNAME=community_migrator' deploy/stacks/cluster/.env.example

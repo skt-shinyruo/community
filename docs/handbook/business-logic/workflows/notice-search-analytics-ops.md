@@ -40,7 +40,7 @@
 
 重建索引时：
 
-1. ops 或 XXL job 触发 reindex。
+1. 显式开启的 `SearchReindexScheduler` 触发 reindex。
 2. search 使用 single-flight 避免多个 reindex 并发。
 3. 新索引构建完成后，通过 alias 原子切换。
 4. alias 切换前原索引始终可读。

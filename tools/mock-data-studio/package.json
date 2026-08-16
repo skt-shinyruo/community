@@ -3,21 +3,16 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
-  "description": "Dev-only studio service for local mock-data and control-plane workflows",
+  "description": "Dev-only CLI for generating and deleting deterministic demo data",
   "license": "UNLICENSED",
   "engines": {
     "node": ">=18"
   },
   "scripts": {
-    "start": "node src/server/index.mjs",
+    "start": "node src/cli.mjs",
     "test": "node --test"
   },
   "dependencies": {
-    "express": "4.22.2",
-    "mysql2": "3.20.0",
-    "openai": "6.33.0"
-  },
-  "devDependencies": {
-    "supertest": "7.1.4"
+    "mysql2": "3.20.0"
   }
 }

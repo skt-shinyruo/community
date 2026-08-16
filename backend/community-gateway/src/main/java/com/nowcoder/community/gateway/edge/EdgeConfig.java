@@ -1,6 +1,5 @@
 package com.nowcoder.community.gateway.edge;
 
-import com.nowcoder.community.gateway.canary.CanaryRouteProperties;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
@@ -12,8 +11,7 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 @EnableConfigurationProperties({
         RateLimitProperties.class,
         TrafficPolicyProperties.class,
-        EdgeTrustedProxyProperties.class,
-        CanaryRouteProperties.class
+        EdgeTrustedProxyProperties.class
 })
 public class EdgeConfig {
 

@@ -14,8 +14,7 @@ const MarketDetailView = () => import('../views/MarketDetailView.vue')
 const MarketPublishView = () => import('../views/MarketPublishView.vue')
 const MarketMyListingsView = () => import('../views/MarketMyListingsView.vue')
 const MarketInventoryView = () => import('../views/MarketInventoryView.vue')
-const MarketBuyingOrdersView = () => import('../views/MarketBuyingOrdersView.vue')
-const MarketSellingOrdersView = () => import('../views/MarketSellingOrdersView.vue')
+const MarketOrderListView = () => import('../views/MarketOrderListView.vue')
 const MarketOrderDetailView = () => import('../views/MarketOrderDetailView.vue')
 const MarketAddressesView = () => import('../views/MarketAddressesView.vue')
 const WalletView = () => import('../views/WalletView.vue')
@@ -27,8 +26,7 @@ const NoticesView = () => import('../views/NoticesView.vue')
 const NoticeDetailView = () => import('../views/NoticeDetailView.vue')
 const AnalyticsView = () => import('../views/AnalyticsView.vue')
 const SettingsView = () => import('../views/SettingsView.vue')
-const FolloweesView = () => import('../views/FolloweesView.vue')
-const FollowersView = () => import('../views/FollowersView.vue')
+const FollowRelationListView = () => import('../views/FollowRelationListView.vue')
 const BookmarksView = () => import('../views/BookmarksView.vue')
 const WalletAdminView = () => import('../views/WalletAdminView.vue')
 const AdminMarketDisputesView = () => import('../views/AdminMarketDisputesView.vue')
@@ -122,13 +120,15 @@ const router = createRouter({
     {
       path: '/market/orders/buying',
       name: catalogRouteName('marketBuyingOrders'),
-      component: MarketBuyingOrdersView,
+      component: MarketOrderListView,
+      props: { side: 'buying' },
       meta: routeMeta('marketBuyingOrders', { title: '我的购买', subtitle: '查看托管、交付、确认与申诉状态。' })
     },
     {
       path: '/market/orders/selling',
       name: catalogRouteName('marketSellingOrders'),
-      component: MarketSellingOrdersView,
+      component: MarketOrderListView,
+      props: { side: 'selling' },
       meta: routeMeta('marketSellingOrders', { title: '我的出售订单', subtitle: '集中处理交付、确认和争议。' })
     },
     {
@@ -250,15 +250,15 @@ const router = createRouter({
     {
       path: '/users/:userId/followees',
       name: catalogRouteName('followees'),
-      component: FolloweesView,
-      props: true,
+      component: FollowRelationListView,
+      props: (route) => ({ relationKind: 'followees', userId: route.params.userId }),
       meta: routeMeta('followees', { title: '关注列表', subtitle: '查看这位成员正在关注哪些人。' })
     },
     {
       path: '/users/:userId/followers',
       name: catalogRouteName('followers'),
-      component: FollowersView,
-      props: true,
+      component: FollowRelationListView,
+      props: (route) => ({ relationKind: 'followers', userId: route.params.userId }),
       meta: routeMeta('followers', { title: '粉丝列表', subtitle: '查看哪些成员正在留意这位用户的公开动态。' })
     },
     { path: '/403', name: catalogRouteName('forbidden'), component: ForbiddenView, meta: routeMeta('forbidden', { title: '无权限', subtitle: '你当前没有访问这一页所需的权限。' }) },

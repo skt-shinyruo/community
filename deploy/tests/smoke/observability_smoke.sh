@@ -147,8 +147,3 @@ require_count "request trace" "traces-*" \
 
 require_count "request-correlated logs" "logs-community-default" \
   "{\"term\":{\"trace.id\":\"${escaped_trace_id}\"}}"
-
-if [ "${OBSERVABILITY_EXPECT_DIAGNOSTICS:-false}" = "true" ]; then
-  require_count "YierLoom events" "logs-community-default" \
-    '{"term":{"event.category":"yierloom"}}'
-fi

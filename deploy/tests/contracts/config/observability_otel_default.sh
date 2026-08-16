@@ -91,53 +91,6 @@ if ! rg -n 'OTEL_LOGS_COLLECTION[=: ]+"?stdout"?|OTEL_LOGS_COLLECTION=stdout' "$
   exit 1
 fi
 
-require_env_count() {
-  local key="$1"
-  local expected="$2"
-  local config="$3"
-  local topology="$4"
-  local actual
-
-  actual="$(awk -v key="${key}" '
-    $0 == "services:" { in_services = 1; next }
-    in_services && /^[^[:space:]]/ { in_services = 0; in_service = 0 }
-    in_services && /^  [A-Za-z0-9_.-]+:[[:space:]]*$/ { in_service = 1; found = 0; next }
-    in_services && in_service && index($0, "      " key ":") == 1 && !found {
-      count++
-      found = 1
-    }
-    END { print count + 0 }
-  ' "${config}")"
-  if [ "${actual}" != "${expected}" ]; then
-    echo "expected ${topology} config to expose ${key} for all ${expected} services, found ${actual}" >&2
-    exit 1
-  fi
-}
-
-for requirement in \
-  'YIERLOOM_ENABLED[=: ]+"?false"?|YIERLOOM_ENABLED=false' \
-  'YIERLOOM_PLUGIN__METHOD__INCLUDES[=: ]+"?com.nowcoder.community.\*"?|YIERLOOM_PLUGIN__METHOD__INCLUDES=com.nowcoder.community.\*' \
-  'YIERLOOM_PLUGINS_DIR[=: ]+"?/opt/yierloom/plugins"?|YIERLOOM_PLUGINS_DIR=/opt/yierloom/plugins'; do
-  if ! rg -n "${requirement}" "${single_config}" >/dev/null; then
-    echo "expected single config to expose the YierLoom default: ${requirement}" >&2
-    exit 1
-  fi
-  if ! rg -n "${requirement}" "${cluster_config}" >/dev/null; then
-    echo "expected cluster config to expose the YierLoom default: ${requirement}" >&2
-    exit 1
-  fi
-done
-
-for key in YIERLOOM_ENABLED YIERLOOM_PLUGIN__METHOD__INCLUDES YIERLOOM_PLUGINS_DIR; do
-  require_env_count "${key}" 6 "${single_config}" single
-  require_env_count "${key}" 18 "${cluster_config}" cluster
-done
-
-old_profiler_prefix='METHOD''_PROFILER_'
-if rg -n "${old_profiler_prefix}" "${single_config}" "${cluster_config}" >/dev/null; then
-  echo "expected rendered configs to remove old profiler settings" >&2
-  exit 1
-fi
 
 bash deploy/tests/contracts/config/observability_contracts.sh
 

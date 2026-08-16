@@ -21,6 +21,10 @@
 ./deploy/deployment.sh up --stack single
 ./deploy/deployment.sh up --stack cluster
 
+# 一次性生成/删除本地演示数据
+./deploy/deployment.sh mock-data --stack single -- generate --seed demo
+./deploy/deployment.sh mock-data --stack single -- delete <batch-id>
+
 # 检查或渲染
 ./deploy/deployment.sh ps --stack single
 ./deploy/deployment.sh logs --stack cluster community-gateway-1
@@ -70,7 +74,6 @@ infra 不启动前端或容器化后端。依赖只绑定 `127.0.0.1`；生成�
 - IM session：`POST http://localhost:12880/api/im/sessions`
 - IM WebSocket：session 返回的 `wsUrl`，本地默认 `ws://localhost:12880/ws/im`
 - Nacos：`http://localhost:18848/nacos`
-- XXL-JOB：`http://localhost:12887/xxl-job-admin`
 - MailHog：`http://localhost:8025`
 
 ### cluster
@@ -101,7 +104,7 @@ cluster 默认使用独立的 `13880`、`13881`、`38848` 等端口。副本布�
 ./deploy/tests/smoke/observability_smoke.sh
 ```
 
-观测信号契约以[观测手册](../docs/handbook/observability.md)为准；端口和查询见[运维手册](../docs/handbook/operations.md#observability)，YierLoom 短时诊断见[YierLoom Agent](../docs/handbook/operations.md#yierloom-agent)。
+观测信号契约以[观测手册](../docs/handbook/observability.md)为准；端口和查询见[运维手册](../docs/handbook/operations.md#observability)，短时深度诊断见[JVM 短时诊断](../docs/handbook/operations.md#jvm-短时诊断)。
 
 ## 停止与清理
 

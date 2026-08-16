@@ -1,6 +1,7 @@
 package com.nowcoder.community.im.core.kafka;
 
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMessage;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.ImEventIds;
@@ -16,7 +17,6 @@ import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 
 @Component
 public class CommandConsumers {
@@ -252,7 +252,7 @@ public class CommandConsumers {
         MDC.put(MDC_ACTION, action);
         MDC.put(MDC_OUTCOME, outcome);
         try {
-            String message = buildMessage(action, outcome, keyValues);
+            String message = EventLogMessage.format(keyValues);
             if (warn) {
                 if (throwable == null) {
                     log.warn(message);
@@ -267,46 +267,6 @@ public class CommandConsumers {
             restore(MDC_ACTION, previousAction);
             restore(MDC_OUTCOME, previousOutcome);
         }
-    }
-
-    private String buildMessage(String action, String outcome, Object... keyValues) {
-        StringBuilder message = new StringBuilder(160);
-        for (int i = 0; i < keyValues.length; i += 2) {
-            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
-        }
-        return message.toString();
-    }
-
-    private void appendToken(StringBuilder message, String key, Object value) {
-        if (message.length() > 0) {
-            message.append(' ');
-        }
-        message.append(key).append('=').append(encodeTokenValue(value));
-    }
-
-    private String encodeTokenValue(Object value) {
-        if (value == null) {
-            return "-";
-        }
-        String raw = String.valueOf(value);
-        if (raw.isEmpty()) {
-            return "-";
-        }
-        StringBuilder encoded = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
-                encoded.append('%');
-                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
-                if (hex.length() == 1) {
-                    encoded.append('0');
-                }
-                encoded.append(hex);
-            } else {
-                encoded.append(ch);
-            }
-        }
-        return encoded.toString();
     }
 
     private void restore(String key, String previousValue) {

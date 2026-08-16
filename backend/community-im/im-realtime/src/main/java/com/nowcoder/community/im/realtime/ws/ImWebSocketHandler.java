@@ -2,6 +2,7 @@ package com.nowcoder.community.im.realtime.ws;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMessage;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
@@ -37,7 +38,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
-import java.util.Locale;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -408,7 +408,7 @@ public class ImWebSocketHandler implements WebSocketHandler {
             MDC.remove(MDC_TRACE_ID);
         }
         try {
-            String message = buildMessage(category, action, outcome, keyValues);
+            String message = EventLogMessage.format(keyValues);
             if (warn) {
                 log.warn(message);
             } else {
@@ -420,46 +420,6 @@ public class ImWebSocketHandler implements WebSocketHandler {
             restore(MDC_OUTCOME, previousOutcome);
             restore(MDC_TRACE_ID, previousTraceId);
         }
-    }
-
-    private String buildMessage(String category, String action, String outcome, Object... keyValues) {
-        StringBuilder message = new StringBuilder(192);
-        for (int i = 0; i < keyValues.length; i += 2) {
-            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
-        }
-        return message.toString();
-    }
-
-    private void appendToken(StringBuilder message, String key, Object value) {
-        if (message.length() > 0) {
-            message.append(' ');
-        }
-        message.append(key).append('=').append(encodeTokenValue(value));
-    }
-
-    private String encodeTokenValue(Object value) {
-        if (value == null) {
-            return "-";
-        }
-        String raw = String.valueOf(value);
-        if (raw.isEmpty()) {
-            return "-";
-        }
-        StringBuilder encoded = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
-                encoded.append('%');
-                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
-                if (hex.length() == 1) {
-                    encoded.append('0');
-                }
-                encoded.append(hex);
-            } else {
-                encoded.append(ch);
-            }
-        }
-        return encoded.toString();
     }
 
     private void restore(String key, String previousValue) {

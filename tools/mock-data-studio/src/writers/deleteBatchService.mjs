@@ -8,15 +8,6 @@ function createMissingBatchError(batchId) {
   return error
 }
 
-function createRunningJobError(batchId, runningJob) {
-  const error = new Error(`Batch ${batchId} still has a running job`)
-  error.code = 'BATCH_JOB_RUNNING'
-  error.status = 409
-  error.batchId = batchId
-  error.runningJob = runningJob
-  return error
-}
-
 function createUnsupportedEntityTypeError(entityType) {
   const error = new Error(`Unsupported batch entity type: ${entityType}`)
   error.code = 'UNSUPPORTED_BATCH_ENTITY_TYPE'
@@ -24,8 +15,6 @@ function createUnsupportedEntityTypeError(entityType) {
   error.entityType = entityType
   return error
 }
-
-const NONTERMINAL_JOB_STATUSES = new Set(['pending', 'running'])
 
 function parseScalarId(entityKey, entityType) {
   const normalized = String(entityKey ?? '').trim()
@@ -234,7 +223,6 @@ function createEmptyDeletedCounts() {
     metadata: {
       entityRefs: 0,
       targets: 0,
-      jobs: 0,
       batches: 0
     }
   }
@@ -291,54 +279,32 @@ async function countVisibleCommentsForPost(db, postId) {
 export function createDeleteBatchService({
   db,
   batchRepository,
-  jobRepository,
   entityRefRepository
 } = {}) {
   if (!db?.execute || !db?.query) {
     throw new Error('db.execute and db.query are required')
   }
 
-  if (!batchRepository?.findById && !batchRepository?.getById) {
-    throw new Error('batchRepository.findById or batchRepository.getById is required')
-  }
-
-  if (!jobRepository?.listByBatchId) {
-    throw new Error('jobRepository.listByBatchId is required')
-  }
+  if (!batchRepository?.findById) throw new Error('batchRepository.findById is required')
 
   if (!entityRefRepository?.listByBatchId) {
     throw new Error('entityRefRepository.listByBatchId is required')
   }
 
-  const findBatchById = batchRepository.findById
-    ? (batchId) => batchRepository.findById(batchId)
-    : async (batchId) => {
-        try {
-          return await batchRepository.getById(batchId)
-        } catch (error) {
-          if (error?.code === 'BATCH_NOT_FOUND' || /Missing demo_batch row/u.test(error?.message ?? '')) {
-            return null
-          }
-
-          throw error
-        }
-      }
-
   const runInTransaction = db.withTransaction ? (work) => db.withTransaction(work) : (work) => work(db)
 
   return {
-    async deleteBatch(batchId) {
-      const batch = await findBatchById(batchId)
+    async deleteBatch(batchId, { force = false } = {}) {
+      const batch = await batchRepository.findById(batchId)
 
       if (!batch) {
         throw createMissingBatchError(batchId)
       }
 
-      const jobs = await jobRepository.listByBatchId(batchId)
-      const runningJob = jobs.find((job) => NONTERMINAL_JOB_STATUSES.has(job.status))
-
-      if (runningJob) {
-        throw createRunningJobError(batchId, runningJob)
+      if (!force && (batch.status === 'pending' || batch.status === 'running')) {
+        const error = new Error(`Batch ${batchId} is still ${batch.status}`)
+        error.code = 'BATCH_RUNNING'
+        throw error
       }
 
       const refs = orderRefsForDeletion(await entityRefRepository.listByBatchId(batchId))
@@ -371,9 +337,6 @@ export function createDeleteBatchService({
         )
         deleted.metadata.targets = Number(
           (await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
-        )
-        deleted.metadata.jobs = Number(
-          (await txDb.execute(`delete from demo_job where batch_id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0
         )
         deleted.metadata.batches = Number(
           (await txDb.execute(`delete from demo_batch where id = ?`, [uuidToBuffer(batchId)]))?.affectedRows ?? 0

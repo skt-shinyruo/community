@@ -1044,7 +1044,6 @@ class FakeDeleteDb {
     follows = [],
     likes = [],
     demoBatch = [],
-    demoJob = [],
     demoBatchTarget = [],
     demoEntityRef = []
   } = {}) {
@@ -1063,7 +1062,6 @@ class FakeDeleteDb {
       follows: structuredClone(follows),
       likes: structuredClone(likes),
       demoBatch: structuredClone(demoBatch),
-      demoJob: structuredClone(demoJob),
       demoBatchTarget: structuredClone(demoBatchTarget),
       demoEntityRef: structuredClone(demoEntityRef)
     }
@@ -1236,12 +1234,6 @@ class FakeDeleteDb {
       return { affectedRows: before - this.state.demoBatchTarget.length }
     }
 
-    if (normalized.startsWith('delete from demo_job where batch_id = ?')) {
-      const before = this.state.demoJob.length
-      this.state.demoJob = this.state.demoJob.filter((row) => row.batch_id !== normalizeDbId(params[0]))
-      return { affectedRows: before - this.state.demoJob.length }
-    }
-
     if (normalized.startsWith('delete from demo_batch where id = ?')) {
       const before = this.state.demoBatch.length
       this.state.demoBatch = this.state.demoBatch.filter((row) => row.id !== normalizeDbId(params[0]))
@@ -1272,7 +1264,6 @@ class FakeDeleteDb {
       metadataCounts: {
         entityRefs: this.state.demoEntityRef.length,
         targets: this.state.demoBatchTarget.length,
-        jobs: this.state.demoJob.length,
         batches: this.state.demoBatch.length
       }
     })
@@ -1291,7 +1282,6 @@ function createDeleteServiceHarness() {
     follows: [{ user_id: 1001, entity_type: 3, entity_id: 1001 }],
     likes: [{ user_id: 1001, entity_type: 1, entity_id: 2001 }],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: metadataId(501), batch_id: batchId, status: 'succeeded' }],
     demoBatchTarget: [{ id: metadataId(601), batch_id: batchId }],
     demoEntityRef: [
       { id: metadataId(701), batch_id: batchId, entity_type: 'users', entity_key: '1001' },
@@ -1308,11 +1298,6 @@ function createDeleteServiceHarness() {
     batchRepository: {
       async findById(id) {
         return id === batchId ? { id: batchId, status: 'succeeded' } : null
-      }
-    },
-    jobRepository: {
-      async listByBatchId(id) {
-        return id === batchId ? [{ id: 501, batchId, status: 'succeeded' }] : []
       }
     },
     entityRefRepository: {
@@ -1338,7 +1323,7 @@ function createDeleteServiceHarness() {
   }
 }
 
-function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
+function createSurvivingPostDeleteHarness(status = 'succeeded') {
   const batchId = metadataId(77)
   const db = new FakeDeleteDb({
     users: [{ id: 9001 }],
@@ -1350,7 +1335,6 @@ function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
       { id: 413, entity_type: 2, entity_id: 412, user_id: 3, status: 0 }
     ],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: metadataId(801), batch_id: batchId, status: jobStatus }],
     demoBatchTarget: [{ id: metadataId(901), batch_id: batchId }],
     demoEntityRef: [
       { id: metadataId(1001), batch_id: batchId, entity_type: 'comments', entity_key: '410' },
@@ -1362,12 +1346,7 @@ function createSurvivingPostDeleteHarness({ jobStatus = 'succeeded' } = {}) {
     db,
     batchRepository: {
       async findById(id) {
-        return id === batchId ? { id: batchId, status: jobStatus } : null
-      }
-    },
-    jobRepository: {
-      async listByBatchId(id) {
-        return id === batchId ? [{ id: 801, batchId, status: jobStatus }] : []
+        return id === batchId ? { id: batchId, status } : null
       }
     },
     entityRefRepository: {
@@ -1407,7 +1386,6 @@ function createPhase2DeleteHarness() {
     imConversations: [{ conversation_id: '2_4', user_a: 2, user_b: 4, last_seq: 1 }],
     imPrivateMessages: [{ conversation_id: '2_4', seq: 1, message_id: 20001 }],
     demoBatch: [{ id: batchId }],
-    demoJob: [{ id: metadataId(1501), batch_id: batchId, status: 'succeeded' }],
     demoBatchTarget: [{ id: metadataId(1601), batch_id: batchId }],
     demoEntityRef: [
       { id: metadataId(1703), batch_id: batchId, entity_type: 'reports', entity_key: '21' },
@@ -1428,11 +1406,6 @@ function createPhase2DeleteHarness() {
     batchRepository: {
       async findById(id) {
         return id === batchId ? { id: batchId, status: 'succeeded' } : null
-      }
-    },
-    jobRepository: {
-      async listByBatchId(id) {
-        return id === batchId ? [{ id: 1501, batchId, status: 'succeeded' }] : []
       }
     },
     entityRefRepository: {
@@ -1479,7 +1452,6 @@ test('delete batch removes dependent business rows before parents and metadata',
       'update discuss_post set comment_count = ? where id = ?',
       'delete from demo_entity_ref where batch_id = ?',
       'delete from demo_batch_target where batch_id = ?',
-      'delete from demo_job where batch_id = ?',
       'delete from demo_batch where id = ?'
     ]
   )
@@ -1504,7 +1476,6 @@ test('delete batch removes dependent business rows before parents and metadata',
       metadata: {
         entityRefs: 6,
         targets: 1,
-        jobs: 1,
         batches: 1
       }
     }
@@ -1538,34 +1509,16 @@ test('delete batch keeps metadata rows until all business rows are gone', async 
   assert.deepEqual(metadataDeleteSnapshot.metadataCounts, {
     entityRefs: 6,
     targets: 1,
-    jobs: 1,
     batches: 1
   })
   assert.equal(db.state.demoEntityRef.length, 0)
   assert.equal(db.state.demoBatchTarget.length, 0)
-  assert.equal(db.state.demoJob.length, 0)
   assert.equal(db.state.demoBatch.length, 0)
   assert.equal(db.state.likes.length, 0)
   assert.equal(db.state.follows.length, 0)
   assert.equal(db.state.comments.length, 0)
   assert.equal(db.state.posts.length, 0)
   assert.equal(db.state.users.length, 0)
-})
-
-test('delete batch blocks pending jobs as nonterminal work', async () => {
-  const { service, batchId } = createSurvivingPostDeleteHarness({
-    jobStatus: 'pending'
-  })
-
-  await assert.rejects(
-    () => service.deleteBatch(batchId),
-    (error) => {
-      assert.equal(error.code, 'BATCH_JOB_RUNNING')
-      assert.equal(error.status, 409)
-      assert.equal(error.runningJob?.status, 'pending')
-      return true
-    }
-  )
 })
 
 test('delete batch recomputes comment_count for surviving existing posts', async () => {
@@ -1583,6 +1536,17 @@ test('delete batch recomputes comment_count for surviving existing posts', async
   assert.ok(
     db.operationLog.some((entry) => entry.sql === 'update discuss_post set comment_count = ? where id = ?')
   )
+})
+
+test('delete batch rejects a batch still being generated', async () => {
+  const { service, batchId } = createSurvivingPostDeleteHarness('running')
+  await assert.rejects(() => service.deleteBatch(batchId), { code: 'BATCH_RUNNING' })
+})
+
+test('delete batch force-cleans a stale running batch', async () => {
+  const { service, db, batchId } = createSurvivingPostDeleteHarness('running')
+  await service.deleteBatch(batchId, { force: true })
+  assert.equal(db.state.demoBatch.length, 0)
 })
 
 test('delete batch reports current phase 2 moderation, growth, and im counts in deleted summaries', async () => {

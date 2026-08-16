@@ -36,9 +36,8 @@ owner ApplicationService
 | `backend/community-im/` | `im-core`、`im-realtime`、共享 IM contract 与 session ticket 协议。 |
 | `backend/community-oss/` | 对象存储 owner；typed client 位于 `backend/community-oss-client/`。 |
 | `backend/community-common/` | 错误协议、安全、Web、幂等、outbox、可观测性等共享基础设施。 |
-| `backend/yierloom/` | 可选的短时 JVM 诊断 Agent 与插件 SDK。 |
 | `deploy/` | 本地拓扑、Nacos seed、schema、迁移、观测配置与部署契约测试。 |
-| `tools/mock-data-studio/` | 仅用于本地开发的测试数据与控制面工具。 |
+| `tools/mock-data-studio/` | 仅用于本地开发的同步测试数据 CLI。 |
 | `tests/k6/` | k6 性能测试场景与结构契约。 |
 | `tests/playwright-single/` | 面向已启动 single 拓扑的浏览器验收套件。 |
 | `docs/handbook/` | 当前架构、业务、开发、测试与运维文档的 SSOT。 |
@@ -86,9 +85,7 @@ single 默认不加载 observability overlay。需要 Elasticsearch、Kibana 与
 | API / files / WebSocket gateway | `http://localhost:12880` |
 | IM session bootstrap | `POST http://localhost:12880/api/im/sessions` |
 | Nacos | `http://localhost:18848/nacos` |
-| XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |
 | MailHog | `http://localhost:8025` |
-| Mock Data Studio | `http://localhost:12890` |
 | Elasticsearch | `http://localhost:12888`（observability 启用时） |
 | Kibana | `http://localhost:12889`（observability 启用时） |
 

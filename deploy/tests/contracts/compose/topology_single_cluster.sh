@@ -413,8 +413,6 @@ with_custom_single_topology() {
     /^MAILHOG_UI_HOST_PORT=/ { print "MAILHOG_UI_HOST_PORT=48025"; next }
     /^FRONTEND_HOST_PORT=/ { print "FRONTEND_HOST_PORT=42881"; next }
     /^NGINX_API_PORT=/ { print "NGINX_API_PORT=42880"; next }
-    /^NGINX_XXL_JOB_PORT=/ { print "NGINX_XXL_JOB_PORT=42887"; next }
-    /^MOCK_DATA_STUDIO_HOST_PORT=/ { print "MOCK_DATA_STUDIO_HOST_PORT=42890"; next }
     /^ELASTICSEARCH_PORT=/ { print "ELASTICSEARCH_PORT=42888"; next }
     /^KIBANA_PORT=/ { print "KIBANA_PORT=42889"; next }
     /^COMMUNITY_NETWORK_SUBNET=/ { print "COMMUNITY_NETWORK_SUBNET=172.40.0.0/24"; next }
@@ -434,8 +432,6 @@ with_custom_cluster_topology() {
     /^MAILHOG_UI_HOST_PORT=/ { print "MAILHOG_UI_HOST_PORT=58025"; next }
     /^FRONTEND_HOST_PORT=/ { print "FRONTEND_HOST_PORT=53881"; next }
     /^NGINX_API_PORT=/ { print "NGINX_API_PORT=53880"; next }
-    /^NGINX_XXL_JOB_PORT=/ { print "NGINX_XXL_JOB_PORT=53887"; next }
-    /^MOCK_DATA_STUDIO_HOST_PORT=/ { print "MOCK_DATA_STUDIO_HOST_PORT=53890"; next }
     /^GARAGE_S3_HOST_PORT=/ { print "GARAGE_S3_HOST_PORT=53900"; next }
     /^GARAGE_ADMIN_HOST_PORT=/ { print "GARAGE_ADMIN_HOST_PORT=53903"; next }
     /^ELASTICSEARCH_PORT=/ { print "ELASTICSEARCH_PORT=53888"; next }
@@ -696,8 +692,6 @@ NACOS_HOST_PORT=44848 \
 MAILHOG_UI_HOST_PORT=44025 \
 FRONTEND_HOST_PORT=41881 \
 NGINX_API_PORT=41880 \
-NGINX_XXL_JOB_PORT=41887 \
-MOCK_DATA_STUDIO_HOST_PORT=41890 \
 ELASTICSEARCH_PORT=41888 \
 KIBANA_PORT=41889 \
   ./deploy/deployment.sh config --stack single \
@@ -735,11 +729,6 @@ grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_HO
 grep -A80 -E '^  im-realtime:$' "${single_full}" | grep -F 'SPRING_DATA_REDIS_PORT: "6379"'
 single_worker_slot="$(service_environment_value "${single_full}" im-realtime IM_ROOM_FANOUT_WORKER_INBOX_SLOT)"
 test "${single_worker_slot}" = "0"
-
-if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${single_full}" >/dev/null 2>&1; then
-  echo "single community-app must use the direct XXL-JOB admin service address, not nginx" >&2
-  exit 1
-fi
 
 grep -F 'name: community-cluster' "${cluster_full}"
 grep -E '^  mysql-primary:$' "${cluster_full}"
@@ -780,11 +769,6 @@ for worker in 1 2 3; do
   fi
   seen_worker_slots["${worker_slot}"]=1
 done
-if grep -F 'XXL_JOB_ADMIN_ADDRESSES: http://nginx:8081/xxl-job-admin' "${cluster_full}" >/dev/null 2>&1; then
-  echo "cluster community-app must use direct XXL-JOB admin service addresses, not nginx" >&2
-  exit 1
-fi
-
 for legacy_option in --topology --scope --host-access; do
   if ./deploy/deployment.sh config --stack single "${legacy_option}" \
     --env-file deploy/stacks/single/.env.example >/dev/null 2>"${legacy_option_err}"; then

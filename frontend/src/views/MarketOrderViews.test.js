@@ -51,8 +51,6 @@ vi.mock('../stores/auth', async () => {
   return { useAuthStore: () => authState.state }
 })
 
-import MarketBuyingOrdersView from './MarketBuyingOrdersView.vue'
-import MarketSellingOrdersView from './MarketSellingOrdersView.vue'
 import MarketOrderListView from './MarketOrderListView.vue'
 import MarketOrderDetailView from './MarketOrderDetailView.vue'
 import {
@@ -126,25 +124,6 @@ describe('Unified market order views', () => {
     listBuyingMarketOrders.mockResolvedValue({ data: [], traceId: 'trace-buying' })
     listSellingMarketOrders.mockResolvedValue({ data: [], traceId: 'trace-selling' })
     getMarketOrderDetail.mockResolvedValue({ data: {}, traceId: 'trace-detail' })
-  })
-
-  it.each([
-    ['buying', MarketBuyingOrdersView],
-    ['selling', MarketSellingOrdersView]
-  ])('binds the %s route adapter to the shared order list', (side, component) => {
-    const wrapper = mount(component, {
-      global: {
-        stubs: {
-          MarketOrderListView: {
-            name: 'MarketOrderListView',
-            props: ['side'],
-            template: '<div />'
-          }
-        }
-      }
-    })
-
-    expect(wrapper.findComponent({ name: 'MarketOrderListView' }).props('side')).toBe(side)
   })
 
   it('loads buying orders on mount and renders goods type and status', async () => {

@@ -128,10 +128,6 @@ mkdir -p "${output_dir}"
   env_line SPRING_MAIL_PORT "$(required_value MAILHOG_SMTP_HOST_PORT)"
   env_line SPRING_MAIL_USERNAME "$(value SPRING_MAIL_USERNAME)"
   env_line SPRING_MAIL_PASSWORD "$(value SPRING_MAIL_PASSWORD)"
-  env_line XXL_JOB_ADMIN_ADDRESSES "http://127.0.0.1:$(required_value XXL_JOB_ADMIN_PORT)/xxl-job-admin"
-  env_line XXL_JOB_ACCESS_TOKEN "$(required_value XXL_JOB_ACCESS_TOKEN)"
-  env_line XXL_JOB_EXECUTOR_APPNAME "$(value XXL_JOB_EXECUTOR_APPNAME community-app)"
-  env_line XXL_JOB_EXECUTOR_ADDRESS http://host.docker.internal:19999/
   env_line OSS_CLIENT_BASE_URL http://127.0.0.1:18090
   env_line WALLET_TEST_CREDITS_ENABLED "$(value WALLET_TEST_CREDITS_ENABLED true)"
   env_line WALLET_TEST_CREDIT_GRANT_ENABLED "$(value WALLET_TEST_CREDIT_GRANT_ENABLED true)"

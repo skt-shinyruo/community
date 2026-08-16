@@ -7,7 +7,6 @@ include:
       - compose/infra/elasticsearch/cluster.yml
       - compose/infra/garage/cluster.yml
       - compose/infra/nacos/cluster.yml
-      - compose/infra/xxl-job/cluster.yml
       - compose/infra/mailhog.yml
       - compose/infra/mock-data-studio/cluster.yml
       - compose/runtime/services/cluster.yml

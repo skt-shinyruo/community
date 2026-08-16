@@ -4,7 +4,6 @@ set -eu
 # Operator note:
 # - JAVA_OPTS supports standard space-separated JVM flags only.
 # - Shell quoting inside JAVA_OPTS is not parsed by this script.
-# - YIERLOOM_ENABLED=true enables the optional YierLoom Java agent.
 runtime_dir="/tmp/community-runtime"
 runtime_home="${runtime_dir}/home"
 runtime_tmp="${runtime_dir}/tmp"
@@ -20,7 +19,6 @@ service_version="${SERVICE_VERSION:-unknown}"
 otel_enabled="${OTEL_ENABLED:-false}"
 otel_service_name="${OTEL_SERVICE_NAME:-}"
 otel_resource_attributes="${OTEL_RESOURCE_ATTRIBUTES:-}"
-yierloom_enabled="${YIERLOOM_ENABLED:-false}"
 
 export SERVICE_VERSION="${service_version}"
 
@@ -43,14 +41,6 @@ if [ "${otel_enabled}" = "true" ]; then
     exit 1
   fi
   java_opts="${java_opts:+${java_opts} }-javaagent:/otel/opentelemetry-javaagent.jar"
-fi
-
-if [ "${yierloom_enabled}" = "true" ]; then
-  if [ ! -f /otel/yierloom-agent.jar ]; then
-    echo "[backend-runtime] missing YierLoom agent at /otel/yierloom-agent.jar" >&2
-    exit 1
-  fi
-  java_opts="${java_opts:+${java_opts} }-javaagent:/otel/yierloom-agent.jar"
 fi
 
 export OTEL_SERVICE_NAME="${otel_service_name}"

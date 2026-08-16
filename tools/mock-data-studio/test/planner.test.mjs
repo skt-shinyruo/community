@@ -296,45 +296,6 @@ test('planner becomes a no-op when existing counts already satisfy all targets',
   assert.equal(targetRepository.store.replaceCalls.length, 0)
 })
 
-test('planner persists manual form counts instead of startup defaults', async () => {
-  const targetRepository = createTargetRepository([])
-  const planner = createPlanner({
-    config: createConfig(),
-    targetRepository,
-    entityRefRepository: createEntityRefRepository({})
-  })
-
-  const plan = await planner.planDefaultBatch({
-    batchId: 42,
-    sceneKey: 'community-seed',
-    counts: {
-      users: 6,
-      posts: 12,
-      comments: 24,
-      socialFollows: 16,
-      socialLikes: 24
-    }
-  })
-
-  assert.deepEqual(plan.targetCounts, {
-    users: 6,
-    posts: 12,
-    comments: 24,
-    social_follows: 16,
-    social_likes: 24
-  })
-  assert.deepEqual(
-    targetRepository.store.replaceCalls[0].targets.map(({ entityType, targetCount }) => [entityType, targetCount]),
-    [
-      ['users', 6],
-      ['posts', 12],
-      ['comments', 24],
-      ['social_follows', 16],
-      ['social_likes', 24]
-    ]
-  )
-})
-
 test('phase 1 generator produces requested counts with valid comment and social references', () => {
   const plan = createCommunityPlan()
   const existingUsers = [{ id: 801 }, { id: 802 }]

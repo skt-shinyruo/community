@@ -49,9 +49,9 @@
 
 后台任务：
 
-- `MarketWalletActionProcessorHandler`
-- `MarketWalletActionRecoveryHandler`
-- `MarketOrderAutoConfirmHandler`
+- `MarketWalletActionProcessorScheduler`
+- `MarketWalletActionRecoveryScheduler`
+- `MarketOrderAutoConfirmScheduler`
 
 ## 数据流
 
@@ -59,9 +59,9 @@
 
 1. 下单：`MarketOrderApplicationService` 先校验 listing、库存、地址和总额，再通过 `MarketOrder.place(...)` 创建订单，订单初始进入 `ESCROW_PENDING`。如果是有限库存或预加载虚拟库存，库存会先被锁定或扣减。
 2. 托管：市场本地只写 `market_wallet_action(ESCROW, PENDING)` 作为 durable command，不直接碰 wallet 账本。`request_id` 由订单和动作派生，保证重复 enqueue 语义一致。
-3. processor：`MarketWalletActionProcessorHandler` 轮询 due action，claim 后在 market 事务外调用 `WalletMarketActionApi`。wallet 成功后返回 `wallet_txn_id`，market 再把订单推进到 `ESCROWED`、`RELEASE_PENDING`、`REFUND_PENDING` 或完成态。
+3. processor：`MarketWalletActionProcessorScheduler` 轮询 due action，claim 后在 market 事务外调用 `WalletMarketActionApi`。wallet 成功后返回 `wallet_txn_id`，market 再把订单推进到 `ESCROWED`、`RELEASE_PENDING`、`REFUND_PENDING` 或完成态。
 4. 确认 / 取消 / 争议：卖家交付、买家确认、买家取消和管理员裁决先由 `MarketOrder` 判断角色、商品类型、状态和流转意图，再由 application service 持久化 market 侧状态并追加 release/refund action；真正放款或退款仍由 wallet owner 完成。
-5. 恢复：`MarketWalletActionRecoveryHandler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。恢复服务通过 `MarketOrder` 判断 pending 状态对应的资金动作，避免钱包和订单长期分叉。
+5. 恢复：`MarketWalletActionRecoveryScheduler` 负责恢复过期 lease、补齐漏写 command、把已有 `wallet_txn_id` 重新应用到 saga 状态。恢复服务通过 `MarketOrder` 判断 pending 状态对应的资金动作，避免钱包和订单长期分叉。
 
 `MarketOrder` 拥有订单创建快照、replay 参数一致性、买卖双方角色校验、状态谓词、自动确认到期判断和订单状态 transition intent。application service 保留事务边界、仓储锁定、库存写入、交付/发货记录、wallet action enqueue 和结果组装。
 
@@ -234,7 +234,7 @@ requestId 规则由 `MarketWalletActionDomainService` 生成，形如 `market-or
 
 processor：
 
-1. `MarketWalletActionProcessorHandler` 触发 `processDue(limit)`。
+1. `MarketWalletActionProcessorScheduler` 触发 `processDue(limit)`。
 2. application 用候选的 `status + retry_count`、当前到期时间和 retry budget 做 CAS claim，设置 `PROCESSING` 和随机 lease token；旧候选不能越过新 backoff 重新认领。
 3. claim 成功后按 `action_id + lease_token` 回读当前 action，再在 market 事务外调用 `WalletMarketActionApi`，不使用扫描阶段的旧快照。
 4. wallet 成功返回 walletTxnId；processor 立即在当前 lease 下把它持久化到 action，避免 wallet 已提交而 market 丢失交易号。
@@ -263,7 +263,7 @@ saga 状态推进：
 4. 写 release wallet action。
 5. 批任务重跑应幂等。
 
-单订单因并发状态变化或运行时异常未完成时，会在独立事务中把下一次尝试时间顺延一分钟。业务承诺时间 `auto_confirm_at` 保持不变，失败订单会移出当前最早批次，避免同一批坏数据永久阻塞后续到期订单。运行时异常单独计入 `failedCount` 并把 XXL 执行标为失败，避免永久坏数据只表现为成功任务中的普通跳过。
+单订单因并发状态变化或运行时异常未完成时，会在独立事务中把下一次尝试时间顺延一分钟。业务承诺时间 `auto_confirm_at` 保持不变，失败订单会移出当前最早批次，避免同一批坏数据永久阻塞后续到期订单。运行时异常单独计入 `failedCount` 并由 scheduler 记录失败日志，避免永久坏数据只表现为成功任务中的普通跳过。
 
 自动确认不直接调 wallet。
 

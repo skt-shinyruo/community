@@ -16,7 +16,6 @@ required_data_ids=(
   community-shared.yaml
   community-feature-flags.yaml
   community-degradation.yaml
-  community-canary-routing.yaml
   community-frontend-runtime.yaml
   community-cache-policy.yaml
   community-search-policy.yaml
@@ -107,7 +106,7 @@ if [ "$(grep -Fc '/nacos/v3/admin/core/state/readiness' "${curl_log}")" -ne 2 ];
   echo 'seed script must call the Nacos v3 readiness endpoint until code=0' >&2
   exit 1
 fi
-if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 17 ]; then
+if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 16 ]; then
   echo 'seed script must publish every required Nacos configuration after readiness' >&2
   exit 1
 fi
@@ -255,7 +254,6 @@ grep -F 'community-notification-policy.yaml' "${REPO_ROOT}/backend/community-app
 grep -F 'community-upload-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
 grep -F 'community-upload-policy.yaml' "${REPO_ROOT}/backend/community-oss/src/main/resources/application.yml"
 grep -F 'community-work-processing.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
-grep -F 'community-canary-routing.yaml' "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"
 
 kafka_producer_ymls=(
   "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
@@ -483,10 +481,6 @@ nacos_owned_env_vars=(
   AUTH_MAIL_FROM
   AUTH_PASSWORD_RESET_BASE_URL
   AUTH_REGISTRATION_EXPOSE_CODE
-  XXL_JOB_ENABLED
-  XXL_JOB_ADMIN_INGRESS_URL
-  XXL_JOB_ADMIN_ADDRESSES
-  XXL_JOB_EXECUTOR_APPNAME
   AUTH_REFRESH_COOKIE_SECURE
   AUTH_REFRESH_COOKIE_SAME_SITE
   OSS_OBJECT_STORE_MODE

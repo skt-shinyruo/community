@@ -241,14 +241,11 @@ IM 独立于 `community-app`，并拆成统一外部入口下的三层：
 - search application 回源 content owner 当前状态，再 upsert/delete ES，避免乱序事件把已删除内容复活。
 - Post 全文档只接受更大的 `aggregateVersion`；相同聚合版本只允许更大的 `scoreVersion` 更新 `score`，不能覆盖标题、正文、标签或删除状态。
 - ES 使用固定 alias `community_posts_alias`，运行时由 `PostIndexManager` 负责 alias 初始化和版本化索引准备。
-- 全量重建由 XXL `searchReindex` 进入 search application，通过 content owner 游标 API 扫描；Redis single-flight 防止集群并发执行，在线投影双写隔离目标，完整成功后才原子切换 alias。
+- 全量重建由可选 `SearchReindexScheduler` 进入 search application，通过 content owner 游标 API 扫描；`search.reindex.cron` 默认关闭，Redis single-flight 防止集群并发执行，在线投影双写隔离目标，完整成功后才原子切换 alias。
 
 ## Scheduler / Ops 设计
 
-当前后台任务分为：
-
-- 本地 `@Scheduled`：例如 outbox worker、hot-path 预热和 counter snapshot flush 等需要应用内持续执行的任务。
-- XXL-Job：例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery` 这类可由控制面触发的离散任务。
+当前后台任务统一使用 Spring `@Scheduled`，包括 outbox worker、hot-path 预热、counter snapshot flush、市场自动确认和钱包动作处理/恢复。
 
 调度入口不直接拼业务规则，仍然回到 owner `ApplicationService` 或 owner action API。
 
@@ -280,7 +277,7 @@ Nacos 同时承担服务注册中心和非密钥配置中心职责。所有 runt
 
 `deploy/config/nacos/*.yaml` 是可发布到 Nacos 的 seed 配置，只放动态策略、路由、
 降级、限流、前端 runtime、IM worker 元数据等非密钥配置。access JWT RSA 私钥、service JWT
-HMAC secret、数据库密码、对象存储 access key、XXL-JOB token 和 Nacos 凭据必须来自 `.env`、Secret
+HMAC secret、数据库密码、对象存储 access key 和 Nacos 凭据必须来自 `.env`、Secret
 manager 或部署平台 Secret，不进入 Nacos Config dataId。
 
 服务注册 metadata 只放低基数运行态标签，例如 role、release track、draining、
@@ -313,4 +310,4 @@ workerId、wsPath、wsPort、capacity 和 shardGroup。metadata 不承载用户�
 - 新跨域异步协作先设计 owner `contracts.event` 和 outbox；只有存在独立本地订阅者时才增加 domain event 或 local listener。
 - 新可靠投影默认要求 handler 幂等、可重试、可观测。
 - 新高风险 HTTP 写接口要评估是否接入 `Idempotency-Key`。
-- 新运维入口统一走 scheduler / XXL owner action 或独立 owner admin API，不新增裸 `/internal/**` 管理面。
+- 新运维入口统一走 scheduler、owner action 或独立 owner admin API，不新增裸 `/internal/**` 管理面。

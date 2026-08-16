@@ -10,7 +10,6 @@ spring:
       - ${NACOS_CONFIG_IMPORT_DEGRADATION:optional:nacos:community-degradation.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_CACHE_POLICY:optional:nacos:community-cache-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
       - ${NACOS_CONFIG_IMPORT_KAFKA_POLICY:optional:nacos:community-kafka-policy.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
-      - ${NACOS_CONFIG_IMPORT_CANARY_ROUTING:optional:nacos:community-canary-routing.yaml?group=${NACOS_CONFIG_GROUP:COMMUNITY}}
   application:
     name: community-gateway
   data:

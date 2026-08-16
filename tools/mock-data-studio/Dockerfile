@@ -8,6 +8,5 @@ RUN npm ci --omit=dev
 COPY tools/mock-data-studio/src ./src
 COPY tools/mock-data-studio/README.md ./README.md
 
-EXPOSE 12888
-
-CMD ["npm", "run", "start"]
+ENTRYPOINT ["node", "src/cli.mjs"]
+CMD ["--help"]

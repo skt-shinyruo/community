@@ -230,7 +230,7 @@ Idempotency-Key: <unique-key>
 
 当前 Vue3 SPA 的默认约定：
 
-- API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12890` / `12888` 场景推断 `localhost:12880`。
+- API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12888` 场景推断 `localhost:12880`。
 - access token 只保存在内存；refresh token 由 HttpOnly cookie 承载。业务请求 `401` 后前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - 全局错误展示优先使用后端 `Result.message` 和 `traceId`。
 - 通用 axios interceptor 不生成 `Idempotency-Key`；发帖、评论、钱包写接口和市场下单由页面级 `WriteAttempt` 显式提供，同一次人工重试复用 key。
@@ -239,7 +239,7 @@ Idempotency-Key: <unique-key>
 
 - profile 用户资料：`GET /api/users/{userId}` 只返回查看者无关的身份、等级和聚合计数字段，不返回 `hasFollowed`；当前查看者的关注关系由 `/api/follows/status` 返回。
 - content 批量摘要：`POST /api/posts/batch-summary` 的 `postIds` 最多 `200` 个；超过上限返回 `400`，同一限制也由 application entry 执行。
-- social 公共关注列表：SPA 默认使用 `/api/follows/{userId}/followees/page` 或 `/followers/page` 的 opaque `cursor`，响应包含 `items`、`nextCursor`、`hasNext`，并保存游标历史支持前后翻页；旧 `page/size` 数组响应仅作兼容且 `page > 100` 返回 `400`。
+- social 公共关注列表使用 `/api/follows/{userId}/followees/page` 或 `/followers/page` 的 opaque `cursor`，响应包含 `items`、`nextCursor`、`hasNext`，并保存游标历史支持前后翻页。
 - notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。
 - market 地址：创建/更新只使用 `defaultAddress`。
 - market 订单：物理商品下单需要 active `addressId`，服务端保存地址快照；订单成功后可能处于资金 pending 状态。

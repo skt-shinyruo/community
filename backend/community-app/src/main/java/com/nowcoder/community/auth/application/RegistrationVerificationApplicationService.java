@@ -9,7 +9,7 @@ import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository
 import com.nowcoder.community.auth.domain.service.AuthSecretGenerator;
 import com.nowcoder.community.auth.domain.service.RegistrationDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
-import com.nowcoder.community.auth.logging.SecurityEventLogger;
+import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.action.UserRegistrationActionApi;

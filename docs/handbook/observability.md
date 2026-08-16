@@ -261,13 +261,4 @@ Run local smoke after the stack is up:
 ./deploy/tests/smoke/observability_smoke.sh
 ```
 
-For a short YierLoom capture:
-
-```bash
-YIERLOOM_ENABLED=true \
-YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
-./deploy/deployment.sh up --stack single
-OBSERVABILITY_EXPECT_DIAGNOSTICS=true ./deploy/tests/smoke/observability_smoke.sh
-```
-
-YierLoom remains default-off. Its events use `event.category=yierloom` and identify their owner with `diagnostic.plugin.id`. Its bounded queue must isolate application work from exporter pressure. YierLoom must not collect arguments, return values, bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers.
+请求和依赖链路继续使用现有 OpenTelemetry Java Agent；JVM、线程和 GC 的短时深度诊断使用 JFR 或 JDK 自带的 `jcmd`。操作方式见 [operations.md#jvm-短时诊断](operations.md#jvm-短时诊断)。

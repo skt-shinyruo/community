@@ -113,7 +113,6 @@ data_ids="
 community-shared.yaml
 community-feature-flags.yaml
 community-degradation.yaml
-community-canary-routing.yaml
 community-frontend-runtime.yaml
 community-cache-policy.yaml
 community-search-policy.yaml

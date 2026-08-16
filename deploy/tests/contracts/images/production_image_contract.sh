@@ -15,7 +15,8 @@ grep -Fq 'COPY --from=frontend-build /workspace/frontend/dist /usr/share/nginx/h
 grep -Fq 'USER 101:101' deploy/images/frontend/Dockerfile
 grep -Fq 'USER 10001:10001' deploy/images/backend/Dockerfile
 grep -Fq 'ENV HOME=/tmp/community-runtime/home' deploy/images/backend/Dockerfile
-grep -Fq -- '-pl :community-app,:community-gateway,:community-im-gateway,:community-oss,:im-core,:im-realtime,:yierloom-agent' deploy/images/backend/Dockerfile
+grep -Fq -- '-pl :community-app,:community-gateway,:community-im-gateway,:community-oss,:im-core,:im-realtime' deploy/images/backend/Dockerfile
+grep -Fq '/otel/opentelemetry-javaagent.jar' deploy/images/backend/Dockerfile
 if rg -n 'mvn[^\n]*\$\{MODULE|rm -rf /root/\.m2' deploy/images/backend/Dockerfile; then
   echo 'backend image builds must share one module-independent reactor layer and preserve the Maven cache on failures' >&2
   exit 1

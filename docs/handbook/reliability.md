@@ -457,7 +457,7 @@ MarketOrderApplicationService / MarketDisputeApplicationService
 消费端：
 
 ```text
-MarketWalletActionProcessorHandler
+MarketWalletActionProcessorScheduler
   -> MarketWalletActionProcessorApplicationService.processDue
   -> due/status/retry CAS claim PROCESSING with lease token
   -> reload current action by lease token
@@ -513,7 +513,7 @@ MarketWalletActionProcessorHandler
 - 清理型：例如过期待激活用户清理，天然幂等。
 - 追平型：例如 outbox worker，按状态机重试。
 - 自动动作型：例如市场自动确认，需要 owner domain 判断状态和时间窗口，只写 release command。
-- 资金恢复型：例如 `marketWalletActionProcessor` / `marketWalletActionRecovery`，按 market wallet action saga 状态机处理。
+- 资金恢复型：例如 `MarketWalletActionProcessorScheduler` / `MarketWalletActionRecoveryScheduler`，按 market wallet action saga 状态机处理。
 
 原则：
 

@@ -154,7 +154,6 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `user.application.UserEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | `IndexOnly` | [数据与存储](data-and-storage.md#mysql) |
-| `gateway.canary.CanaryInstanceFilter` | `Covered` | [Gateway Runtime](core-logic/gateway-runtime.md) |
 | `gateway.config.GatewayConfigRefreshListener` | `Covered` | [Gateway Runtime](core-logic/gateway-runtime.md) |
 | `im.common.ImContractVersions` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.common.ImSchemaVersionDeserializer` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |

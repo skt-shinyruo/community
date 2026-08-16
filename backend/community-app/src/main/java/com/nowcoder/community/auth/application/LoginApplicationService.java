@@ -6,7 +6,7 @@ import com.nowcoder.community.auth.application.result.RefreshCookieSpec;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
-import com.nowcoder.community.auth.logging.SecurityEventLogger;
+import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;

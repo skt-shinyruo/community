@@ -1,6 +1,6 @@
 # 运行与排障
 
-本文档覆盖本地 observability、Kibana、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
+本文档覆盖本地 observability、Kibana、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
 
 观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。本文只维护运行和排障入口。
 
@@ -59,7 +59,7 @@ deploy/observability/kibana/README.md
 
 - `trace.id` / `traceparent`：串联一次请求或异步链路。
 - `service.name`：定位 `community-app`、`community-gateway`、`community-im-gateway`、`community-oss`、`im-core`、`im-realtime`。
-- `event.category`：只用于已有的 `security`、`business`、`async`、`access`、`exception` 和 `yierloom` 语义日志。
+- `event.category`：只用于已有的 `security`、`business`、`async`、`access` 和 `exception` 语义日志。
 - `event.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
 - `event.outcome`：区分 success、failed、skipped、retry、dead。
 
@@ -73,64 +73,25 @@ deploy/observability/kibana/README.md
 
 对外 HTTP 响应会回写 `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
 
+### JVM 短时诊断
 
-### YierLoom Agent
+请求、方法和依赖链路优先使用镜像中已有的 OpenTelemetry Java Agent；通过 `deployment.sh` 启用 observability 时会自动加载，无需第二个 Agent。
 
-YierLoom is an optional JVM Agent for short troubleshooting sessions. It is disabled by default. Enable it per deployment with `YIERLOOM_ENABLED=true`; the built-in `method`, `exception`, `thread`, and `jvm` plugins then start by default.
-
-Built-in core plugins:
-
-- `method`: method latency summaries and slow-call events.
-- `exception`: exception type events from instrumented methods without raw messages or stack traces.
-- `thread`: thread state snapshots, deadlock count, and lock-wait count.
-- `jvm`: runtime, heap, non-heap, GC, class loading, and thread count summaries.
-
-Useful Kibana filters:
+需要 JVM、线程或 GC 的短时深度诊断时，在目标服务对应的 `*_JAVA_OPTS` 当前值末尾追加 JFR 启动参数，然后通过 `deployment.sh` 重建服务：
 
 ```text
-event.category : yierloom
-diagnostic.plugin.id : method
-event.action : method_latency_summary
-event.action : exception_observed
-event.action : thread_snapshot
-event.action : jvm_runtime_summary
-trace.id : "<trace id>"
+-XX:StartFlightRecording=name=community,settings=profile,duration=60s,filename=/tmp/community.jfr,dumponexit=true
 ```
 
-Dependency plugin filters:
+若排障环境提供完整 JDK，也可直接对目标 JVM 使用标准工具，不需要应用插件：
 
-```text
-event.category : yierloom
-event.action : jdbc_call_summary
-event.action : redis_call_summary
-event.action : kafka_produce_summary
-event.action : http_call_summary
-diagnostic.plugin.id : jdbc
-trace.id : "<trace id>"
+```bash
+jcmd <pid> JFR.start name=community settings=profile duration=60s filename=/tmp/community.jfr
+jcmd <pid> Thread.print
+jcmd <pid> GC.heap_info
 ```
 
-Dependency plugins are opt-in: use `YIERLOOM_PLUGIN__HTTP__ENABLED=true`, `YIERLOOM_PLUGIN__JDBC__ENABLED=true`, `YIERLOOM_PLUGIN__REDIS__ENABLED=true`, or `YIERLOOM_PLUGIN__KAFKA__ENABLED=true` only for the dependency under investigation. Plugin duration settings accept values such as `2s`; for example, set `YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s`. Sample and rate-limit settings use the same plugin-scoped form, such as `YIERLOOM_PLUGIN__HTTP__SAMPLE_RATE` and `YIERLOOM_PLUGIN__HTTP__MAX_EVENTS_PER_SECOND`. Kafka topic names stay hashed unless `YIERLOOM_PLUGIN__KAFKA__TOPIC_NAMES_ENABLED=true` is set explicitly.
-
-Keep method includes narrow during captures and keep the event queue bounded:
-
-```text
-YIERLOOM_PLUGIN__METHOD__INCLUDES=com.nowcoder.community.*
-YIERLOOM_EVENTS_QUEUE_CAPACITY=8192
-```
-
-The queue is non-blocking for instrumented application work: when it is full, YierLoom drops new observations or events. The Agent reads existing OTel/MDC trace context when present and does not create a new trace root. It must not collect method arguments, return values, request or response bodies, SQL bind values, Redis keys or values, Kafka payloads, credentials, cookies, or headers.
-
-#### Trusted External Plugin Installation
-
-Treat every external plugin as trusted code. Build one fat JAR per plugin with exactly one `YierLoomPlugin` ServiceLoader provider and the plugin's private dependencies. Do not bundle YierLoom API, YierLoom SDK, or Byte Buddy classes.
-
-Verify the finished JAR through the `yierloom-plugin-testkit` Java API `PluginContractVerifier.verifyOrThrow(Path)` before it reaches a runtime image or volume:
-
-```java
-PluginContractVerifier.verifyOrThrow(Path.of("/path/to/plugin.jar"));
-```
-
-`PluginContractVerifier` has no CLI. Mount or copy a verified JAR into `/opt/yierloom/plugins`; when another directory is required, configure it with `YIERLOOM_PLUGINS_DIR`. Restart the target JVM after adding, replacing, or removing a JAR. Hot reload and runtime attach are not supported.
+生产镜像使用 JRE，不额外安装 `jcmd`。诊断文件写入临时目录，采集完成后立即导出并删除；不要把请求体、凭据或用户内容作为诊断标签。
 
 ## Stability Observability Runbooks
 
@@ -171,30 +132,6 @@ community_cache_requests_total{cache="hot_feed",result=~"degraded|singleflight_b
 cd tests/k6
 K6_BOARD_ID=<board-uuid> K6_POST_ID=<post-uuid> npm run hot-path
 ```
-
-### When To Enable YierLoom
-
-Enable YierLoom only after metrics, traces, and audit logs do not explain the symptom. Keep includes narrow:
-
-```bash
-YIERLOOM_ENABLED=true \
-YIERLOOM_PLUGIN__METHOD__INCLUDES='com.nowcoder.community.*' \
-./deploy/deployment.sh up --stack single
-```
-
-Query:
-
-```text
-event.category : yierloom and diagnostic.plugin.id : *
-```
-
-Disable it after the capture window and restart the target services:
-
-```bash
-YIERLOOM_ENABLED=false ./deploy/deployment.sh up --stack single
-```
-
-Phase 1 keeps Elastic/Kibana as the local UI. Production alerting should use traces for timelines, metrics for trends and SLOs, semantic logs for audit/security context, and YierLoom only for short deep dives.
 
 ## Content Platform Degradation
 
@@ -322,12 +259,9 @@ POST /api/ops/compensations/{jobName}/trigger
 4. 观察 `community_hot_cache_governance_total{operation,result,scope}`、`community_governance_action_total{action,result}` 和读路径的 `community_cache_requests_total{cache="hot_feed",result,scope}`。
 5. 预热和降级都只改变运行态缓存/信号，不改变帖子、评论、点赞、分数等业务事实。
 
-## Scheduler 和 XXL-Job
+## Scheduler
 
-后台任务分两类：
-
-- 本地 `@Scheduled`：应用内持续型任务，例如 outbox worker、hot-path 预热和 counter snapshot flush。
-- XXL-Job：控制面触发的离散任务，例如 `marketOrderAutoConfirm`、`marketWalletActionProcessor`、`marketWalletActionRecovery`。
+后台任务统一使用 Spring `@Scheduled`，包括 outbox worker、hot-path 预热、counter snapshot flush 和市场补偿任务。
 
 约束：
 
@@ -336,29 +270,23 @@ POST /api/ops/compensations/{jobName}/trigger
 - 需要集群单实例执行的任务使用 single-flight 或 owner 内部锁。
 - 清理/补偿任务必须尽量幂等。
 
-Market scheduler jobs：
+Market scheduler tasks：
 
-- `marketOrderAutoConfirm`：扫描到期订单，由 market owner 判断是否可自动确认，只写 release command。
-- `marketWalletActionProcessor`：批量 claim due `market_wallet_action`，调用 wallet owner API，并推进 market saga 状态。
-- `marketWalletActionRecovery`：恢复过期 processing lease，补齐缺失 action，并把已有 `wallet_txn_id` 重新应用到订单 / 争议状态。
-- 这些 job 都可以重跑；重复执行依赖 `market_wallet_action.request_id`、`wallet_txn.request_id` 和订单条件更新保证幂等。
+- `MarketOrderAutoConfirmScheduler`：扫描到期订单，由 market owner 判断是否可自动确认，只写 release command。
+- `MarketWalletActionProcessorScheduler`：批量 claim due `market_wallet_action`，调用 wallet owner API，并推进 market saga 状态。
+- `MarketWalletActionRecoveryScheduler`：恢复过期 processing lease，补齐缺失 action，并把已有 `wallet_txn_id` 重新应用到订单 / 争议状态。
+- 这些任务都可以重跑；重复执行依赖 `market_wallet_action.request_id`、`wallet_txn.request_id` 和订单条件更新保证幂等。
 
-默认控制面由 `deploy/database/xxl-job/020_seed_local.sh` 幂等维护：
+默认调度：
 
-| Handler | 调度 | 默认状态 | 路由 / 阻塞策略 |
-| --- | --- | --- | --- |
-| `searchReindex` | 手动 | 停止 | `FIRST` / `SERIAL_EXECUTION` |
-| `marketWalletActionProcessor` | 每 5 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
-| `marketWalletActionRecovery` | 每分钟第 15 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
-| `marketOrderAutoConfirm` | 每分钟第 30 秒 | 启用 | `FIRST` / `SERIAL_EXECUTION` |
+| Scheduler | 配置 | 默认值 |
+| --- | --- | --- |
+| `SearchReindexScheduler` | `search.reindex.cron` | `-`（关闭） |
+| `MarketWalletActionProcessorScheduler` | `market.wallet-action.process-initial-delay-ms` / `process-delay-ms` | `5000` / `5000` |
+| `MarketWalletActionRecoveryScheduler` | `market.wallet-action.recovery-initial-delay-ms` / `recovery-delay-ms` | `15000` / `60000` |
+| `MarketOrderAutoConfirmScheduler` | `market.order.auto-confirm.initial-delay-ms` / `delay-ms` | `30000` / `60000` |
 
-市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试，因此 XXL 层不额外重试，错过调度时使用 `DO_NOTHING`，避免控制面重放与业务层重试叠加。新增或删除 `@XxlJob` handler 时必须同步 seed；运行 `./deploy/tests/contracts/database/xxl_job_seed_contract.sh` 检查源码与部署控制面是否一致。
-
-XXL-JOB Admin 本地入口：
-
-```text
-http://localhost:12887/xxl-job-admin
-```
+三个市场 scheduler 受 `market.scheduling.enabled` 总开关控制，默认 `true`，测试 profile 为 `false`。市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试；多副本同时唤醒时仍由业务 lease 和条件更新收敛。搜索全量重建默认关闭，需要时设置 `search.reindex.cron` 并重启应用。
 
 ## Community 前向 Schema 迁移
 
@@ -366,7 +294,7 @@ http://localhost:12887/xxl-job-admin
 
 ### 发布步骤
 
-1. 备份 `community`，确认可恢复；涉及数据清理或与旧写路径互斥时，先停止 `community-app` 和 Mock Data Studio 写入。V016 执行前必须停止并排空所有旧 refresh rotation writer，禁止旧二进制跨迁移恢复并改写带 lease 的 pending session。V022 必须在旧版收藏 writer 全部停止并排空后执行，直到全部实例切换到事务内 durable marker 版本前不得恢复收藏写入。
+1. 备份 `community`，确认可恢复；涉及数据清理或与旧写路径互斥时，先停止 `community-app` 和 Mock Data Studio 写入。V016 执行前必须停止并排空所有旧 refresh rotation writer，禁止旧二进制跨迁移恢复并改写带 lease 的 pending session。V022 必须在旧版收藏 writer 全部停止并排空后执行，直到全部实例切换到事务内 durable marker 版本前不得恢复收藏写入。V023 会永久删除旧 Mock Data Studio 的 `demo_job` 和 `ai_config` 数据，执行前确认不再需要恢复旧 UI、作业或 AI 配置。
 2. 为本次发布准备独立强口令 `COMMUNITY_MIGRATION_PASSWORD`，确认迁移用户名与 `MYSQL_USER` 不同。不要把这两个迁移变量注入 runtime service。
 3. 修改当前态快照最终定义，同时追加新的、不可变的 `VNNN__description.sql`；同步 H2 fixture 和 schema / migration 契约。
 4. 执行 `./deploy/deployment.sh up --stack <single|cluster>`。账号 bootstrap 先收敛权限；cluster 再建立 GTID 复制；随后 one-shot 执行迁移。`community-app` 只会在迁移退出码为 0 后启动。
@@ -481,21 +409,6 @@ ORDER BY user_id_hex;
 
 真实 SMTP 密码应由部署平台 Secret 注入。`docker compose config` 会展开普通环境变量，不能把其输出当作可公开日志；若只能使用 Compose env file，还需按 Compose 规则处理密码中的 `$`。
 
-## 注册验证码 Redis v2 切换
-
-`auth:regcode:v2:{<userId>}` 把注册码、delivery ID、失败次数和 UUID lease 存为 Hash。旧版真实 key 是 `auth:regcode:<userId>`，值为没有 lease 的 8 字段 String。两个 key 不在同一 Redis Cluster slot，因此桥接先在 legacy key 上用单个 Lua 原子执行 `GET + PTTL + DEL`，再执行 v2 单 key 条件导入，从不对跨 slot key 执行一个 Lua。
-
-这个 bridge 只保证停机切换后的存量验证码可继续使用，不支持新旧 writer 滚动混跑。旧实例会忽略 v2，新实例也无法约束旧脚本，因此混跑可能出现两个同时可验证的 code。
-
-发布步骤：
-
-1. 暂停注册、验证码验证和重发入口，等待所有在途请求结束。
-2. 停止全部旧版 `community-app`，确认没有旧实例、listener 或任务再写 `auth:regcode:<userId>`。
-3. 启动 v2 实例后恢复入口。无需提前扫描或改写 Redis；每个用户的首个操作会在“旧 writer 已停止”的发布约束下安全桥接有效 legacy 值。legacy pending 只恢复此前 active code，replacement 不会被猜测为已投递。
-4. 观察注册签发、重发和验证错误率。非法、过期、无 TTL 的 legacy 值会 fail-closed 清理；显式注册 cleanup 会同时删除 v2 和 legacy key。
-
-不得通过重新启动旧实例直接回滚。回滚时先再次关闭入口并停止全部 v2 writer，使仍在途的 registration draft/code 失效，再启动旧版并要求用户重新发起注册；否则旧版会忽略 v2 状态并破坏 lease fencing。
-
 ## Captcha Redis key 切换
 
 验证码使用 `captcha:{<32位十六进制 captchaId>}:value` 与同 slot 的 `:fail` key，并在一个 Lua 中原子校验、累计失败和消费。旧版 `captcha:<captchaId>` 与新 key 不兼容，也没有双读协议；新旧实例混跑会互相拒绝对方签发的验证码。
@@ -574,7 +487,7 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 - `SearchPostProjectionKafkaListener` / `SearchPostProjectionApplicationService` 是否报错。
 - ES alias `community_posts_alias` 指向哪个真实索引。
 
-确认 content 当前事实和投影消费问题已恢复、`search.projection-enabled=true` 后，可在 XXL-JOB Admin 手动执行停用状态的 `searchReindex`。任务使用 Redis single-flight、content owner 游标扫描和隔离版本索引；成功后才切换 alias，失败不会覆盖当前可查询索引。观察日志中的 `executionId`、`indexedCount` 或 `already running`；执行 lease 和重建目标都由心跳续租，`search.reindex.lock-ttl` 最小为 3 秒。`search.index.keep-history` 控制 active index 之外保留的历史索引数。
+确认 content 当前事实和投影消费问题已恢复、`search.projection-enabled=true` 后，在维护窗口临时设置 `search.reindex.cron` 并重启 `community-app`。任务使用 Redis single-flight、content owner 游标扫描和隔离版本索引；成功后才切换 alias，失败不会覆盖当前可查询索引。观察日志中的 `executionId`、`indexedCount` 或 `already running`；确认一次成功后将 cron 改回 `-`。执行 lease 和重建目标都由心跳续租，`search.reindex.lock-ttl` 最小为 3 秒。`search.index.keep-history` 控制 active index 之外保留的历史索引数。
 
 ### 市场订单资金状态卡住
 
@@ -582,8 +495,8 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 
 - `market_order.status` 是否处于 `ESCROW_PENDING`、`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING` 或 `DISPUTE_REFUND_PENDING`。
 - `market_wallet_action` 是否存在对应 `order_id + action_type`。
-- action 是否长时间停在 `PENDING` / `RETRYING`；若是，检查 `marketWalletActionProcessor` XXL job 和应用日志。
-- action 是否长时间停在 `PROCESSING`；若是，检查 `processing_lease_until` 是否过期，并运行或排查 `marketWalletActionRecovery`。
+- action 是否长时间停在 `PENDING` / `RETRYING`；若是，检查 `MarketWalletActionProcessorScheduler` 和应用日志。
+- action 是否长时间停在 `PROCESSING`；若是，检查 `processing_lease_until` 是否过期，并排查 `MarketWalletActionRecoveryScheduler`。
 - action 是否已有 `wallet_txn_id` 但状态不是 `SUCCEEDED`；恢复 job 应尝试继续推进 market saga 状态。
 - action 为 `FAILED` 时，根据 `failure_code` / `last_error` 判断是业务失败、钱包余额/状态问题，还是需要人工修数据后重试。
 

@@ -1,7 +1,6 @@
 package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.social.api.query.SocialFollowQueryApi;
 import com.nowcoder.community.social.domain.event.FollowCreatedDomainEvent;
 import com.nowcoder.community.social.domain.event.SocialDomainEventPublisher;
@@ -32,7 +31,6 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.NOT_FOUND;
 public class FollowApplicationService implements SocialFollowQueryApi {
 
     private static final int MAX_BATCH_ENTITY_IDS = 200;
-    private static final int MAX_LEGACY_PAGE = 100;
     private static final int MAX_PAGE_SIZE = 50;
     private static final FollowCursorCodec CURSOR_CODEC = new FollowCursorCodec();
 
@@ -138,26 +136,6 @@ public class FollowApplicationService implements SocialFollowQueryApi {
         return followRepository.listFolloweeIdsExcludingBlocked(userId, USER, blockRepository, safeLimit);
     }
 
-    public List<FollowRelationResult> listFollowees(UUID userId, int entityType, int page, int size) {
-        validateFollowUserQuery(userId, entityType);
-        int p = legacyPage(page);
-        int s = normalizePageSize(size);
-        return followRepository.listFolloweesExcludingBlocked(userId, entityType, blockRepository, Pagination.safeOffset(p, s), s)
-                .stream()
-                .map(this::toResult)
-                .toList();
-    }
-
-    public List<FollowRelationResult> listFollowers(int entityType, UUID entityId, int page, int size) {
-        validateFollowTargetQuery(entityType, entityId);
-        int p = legacyPage(page);
-        int s = normalizePageSize(size);
-        return followRepository.listFollowersExcludingBlocked(entityType, entityId, blockRepository, Pagination.safeOffset(p, s), s)
-                .stream()
-                .map(this::toResult)
-                .toList();
-    }
-
     public FollowRelationPageResult listFolloweePage(
             UUID userId,
             int entityType,
@@ -216,14 +194,6 @@ public class FollowApplicationService implements SocialFollowQueryApi {
         } catch (IllegalArgumentException exception) {
             throw new BusinessException(INVALID_ARGUMENT, "follow cursor is invalid");
         }
-    }
-
-    private int legacyPage(int page) {
-        int normalized = Math.max(0, page);
-        if (normalized > MAX_LEGACY_PAGE) {
-            throw new BusinessException(INVALID_ARGUMENT, "page exceeds legacy limit; use cursor pagination");
-        }
-        return normalized;
     }
 
     private int normalizePageSize(int size) {

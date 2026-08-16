@@ -1,6 +1,6 @@
 package com.nowcoder.community.auth.infrastructure.web;
 
-import com.nowcoder.community.auth.logging.SecurityEventLogger;
+import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.web.Result;

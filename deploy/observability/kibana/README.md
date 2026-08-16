@@ -58,14 +58,6 @@ event.category : (access or async or security or business or exception)
 message : "[audit]*"
 ```
 
-Diagnostics queries are expected to return data only after a short diagnostics run:
-
-```text
-event.category : yierloom
-diagnostic.plugin.id : method
-diagnostic.plugin.id : thread
-```
-
 If a baseline query is empty, first run:
 
 ```bash

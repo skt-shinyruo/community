@@ -113,15 +113,6 @@ http:
     enabled: true
     store: DB
 
-xxl:
-  job:
-    enabled: true
-    admin:
-      addresses: http://xxl-job-admin:8080/xxl-job-admin
-    executor:
-      appname: community-app
-      address: ""
-
 market:
   order:
     auto-confirm-batch-size: ${MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE:100}

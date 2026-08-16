@@ -41,7 +41,7 @@ cd backend
 mvn verify
 ```
 
-`mvn test` 只执行 Surefire 单元/集成测试；仓库完整门禁必须使用 `mvn verify`，以同时执行 Failsafe 管理的 YierLoom 打包、插件隔离和真实 `-javaagent` 测试。定向 `-Dtest` 拼错会失败，不能通过全局 `failIfNoSpecifiedTests=false` 静默变绿。
+`mvn test` 只执行 Surefire 单元/集成测试；仓库完整门禁必须使用 `mvn verify`，以同时执行 Failsafe 管理的集成测试。定向 `-Dtest` 拼错会失败，不能通过全局 `failIfNoSpecifiedTests=false` 静默变绿。
 
 打包 community-app：
 
@@ -106,7 +106,7 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 | Feed/cache/counter | `FeedReadApplicationServiceTest.java`、`CacheTtlPolicyTest.java`、`HotPathPrewarmApplicationServiceTest.java`、`PostCounterApplicationServiceTest.java` |
 | Projection governance | `ProjectionOpsControllerTest.java`、`OutboxProjectionLagAdapterTest.java` |
 | IM policy projection | `ImPolicyProjectionApplicationServiceTest.java`、`JdbcImPolicyProjectionOutboxAdapterTest.java` |
-| Market wallet saga | `MarketWalletAction*Test.java`、`MarketOrderAutoConfirmHandlerTest.java` |
+| Market wallet saga | `MarketWalletAction*Test.java`、`MarketWalletActionSchedulerConfigTest.java` |
 | IM command / event | `community-im/im-core/src/test/java/...`、`community-im/im-realtime/src/test/java/...` |
 | Gateway WS / HTTP edge | `community-gateway/src/test/java/.../HttpRoutingIntegrationTest.java`、`GatewayImEdgeRouteIntegrationTest.java` |
 
@@ -236,8 +236,7 @@ npm --prefix tools/mock-data-studio test
 ```bash
 npm --prefix tools/mock-data-studio test -- \
   test/env.test.mjs \
-  test/runtime-status.test.mjs \
-  test/job-runner.test.mjs \
+  test/cli.test.mjs \
   test/planner.test.mjs \
   test/delete-batch-service.test.mjs
 ```
@@ -245,9 +244,8 @@ npm --prefix tools/mock-data-studio test -- \
 修改 `tools/mock-data-studio` 的生成逻辑时，优先补：
 
 - env 解析。
-- runtime-status API contract。
+- CLI 参数和同步批次状态。
 - planner target / deficit 计算。
-- job single-flight。
 - batch repository / delete 顺序。
 - community API 或 domain generator 的字段语义。
 

@@ -66,32 +66,6 @@ public class FollowController {
         return Result.ok(followApplicationService.statuses(userId, entityType, entityIds));
     }
 
-    @GetMapping("/{userId}/followees")
-    public Result<List<FollowRelationResult>> followees(
-            @PathVariable UUID userId,
-            @RequestParam(required = false) Integer entityType,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
-        int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        int p = page == null ? 0 : page;
-        int s = size == null ? 10 : size;
-        return Result.ok(followApplicationService.listFollowees(userId, t, p, s));
-    }
-
-    @GetMapping("/{userId}/followers")
-    public Result<List<FollowRelationResult>> followers(
-            @PathVariable UUID userId,
-            @RequestParam(required = false) Integer entityType,
-            @RequestParam(required = false) Integer page,
-            @RequestParam(required = false) Integer size
-    ) {
-        int t = entityType == null ? ENTITY_TYPE_USER : entityType;
-        int p = page == null ? 0 : page;
-        int s = size == null ? 10 : size;
-        return Result.ok(followApplicationService.listFollowers(t, userId, p, s));
-    }
-
     @GetMapping("/{userId}/followees/page")
     public Result<FollowRelationPageResult> followeePage(
             @PathVariable UUID userId,

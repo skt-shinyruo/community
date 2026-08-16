@@ -7,7 +7,7 @@ import com.nowcoder.community.auth.config.PasswordResetUrlPolicy;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
-import com.nowcoder.community.auth.logging.SecurityEventLogger;
+import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.api.action.UserCredentialActionApi;

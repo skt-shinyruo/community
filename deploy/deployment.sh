@@ -13,6 +13,7 @@ Commands:
   ps        Show compose status
   logs      Show logs with `logs -f --tail=200`
   config    Render the merged compose config
+  mock-data Run the synchronous mock-data CLI in the selected full stack
   render-backend-env  Generate host-run backend env files from the infra stack env
 
 Options:
@@ -38,6 +39,8 @@ Examples:
   ./deploy/deployment.sh down --stack single --observability
   ./deploy/deployment.sh reset-mysql --stack single
   ./deploy/deployment.sh config --stack cluster
+  ./deploy/deployment.sh mock-data --stack single -- generate --seed demo
+  ./deploy/deployment.sh mock-data --stack single -- delete <batch-id>
 EOF
 }
 
@@ -267,7 +270,6 @@ initialize_host_access_defaults() {
     GARAGE_ADMIN_HOST_PORT
     MAILHOG_UI_HOST_PORT
     MAILHOG_SMTP_HOST_PORT
-    XXL_JOB_ADMIN_PORT
   )
 
   HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=13306
@@ -280,7 +282,6 @@ initialize_host_access_defaults() {
   HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=13903
   HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
   HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=11025
-  HOST_ACCESS_DEFAULTS[XXL_JOB_ADMIN_PORT]=12887
 
   if [ "${STACK:-}" = "infra" ]; then
     HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=23306
@@ -293,7 +294,6 @@ initialize_host_access_defaults() {
     HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=23903
     HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=28025
     HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=21025
-    HOST_ACCESS_DEFAULTS[XXL_JOB_ADMIN_PORT]=22887
   fi
 }
 
@@ -364,8 +364,6 @@ initialize_stack_port_defaults() {
         MAILHOG_UI_HOST_PORT
         FRONTEND_HOST_PORT
         NGINX_API_PORT
-        NGINX_XXL_JOB_PORT
-        MOCK_DATA_STUDIO_HOST_PORT
         ELASTICSEARCH_PORT
         KIBANA_PORT
       )
@@ -373,8 +371,6 @@ initialize_stack_port_defaults() {
       STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
       STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=12881
       STACK_PORT_DEFAULTS[NGINX_API_PORT]=12880
-      STACK_PORT_DEFAULTS[NGINX_XXL_JOB_PORT]=12887
-      STACK_PORT_DEFAULTS[MOCK_DATA_STUDIO_HOST_PORT]=12890
       STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=12888
       STACK_PORT_DEFAULTS[KIBANA_PORT]=12889
       ;;
@@ -384,8 +380,6 @@ initialize_stack_port_defaults() {
         MAILHOG_UI_HOST_PORT
         FRONTEND_HOST_PORT
         NGINX_API_PORT
-        NGINX_XXL_JOB_PORT
-        MOCK_DATA_STUDIO_HOST_PORT
         GARAGE_S3_HOST_PORT
         GARAGE_ADMIN_HOST_PORT
         ELASTICSEARCH_PORT
@@ -395,8 +389,6 @@ initialize_stack_port_defaults() {
       STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=38025
       STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=13881
       STACK_PORT_DEFAULTS[NGINX_API_PORT]=13880
-      STACK_PORT_DEFAULTS[NGINX_XXL_JOB_PORT]=13887
-      STACK_PORT_DEFAULTS[MOCK_DATA_STUDIO_HOST_PORT]=13890
       STACK_PORT_DEFAULTS[GARAGE_S3_HOST_PORT]=33900
       STACK_PORT_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=33903
       STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=13888
@@ -572,6 +564,9 @@ case "${COMMAND}" in
   config)
     SUBCOMMAND=(config)
     ;;
+  mock-data)
+    SUBCOMMAND=(--profile tools run --rm mock-data-studio)
+    ;;
   render-backend-env)
     SUBCOMMAND=()
     ;;
@@ -627,6 +622,11 @@ esac
 
 if [ -z "${ENV_FILE}" ]; then
   ENV_FILE="$(resolve_default_env_file)"
+fi
+
+if [ "${COMMAND}" = "mock-data" ] && [ "${STACK}" = "infra" ]; then
+  echo "[deployment.sh] mock-data requires --stack single or --stack cluster" >&2
+  exit 1
 fi
 
 if [ ! -f "${ENV_FILE}" ]; then

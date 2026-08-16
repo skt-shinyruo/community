@@ -57,7 +57,6 @@
 
     <modules>
         <module>community-common</module>
-        <module>yierloom</module>
         <module>community-im</module>
         <module>community-gateway</module>
         <module>community-im-gateway</module>

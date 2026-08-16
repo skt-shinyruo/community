@@ -98,28 +98,15 @@ class FollowControllerTest {
     }
 
     @Test
-    void followListAndCountEndpointsShouldDelegateSuppliedEntityType() {
+    void followCountEndpointsShouldDelegateSuppliedEntityType() {
         FollowApplicationService followApplicationService = mock(FollowApplicationService.class);
         FollowController controller = new FollowController(followApplicationService);
         UUID userId = uuid(7);
-        UUID targetId = uuid(8);
-        when(followApplicationService.listFollowees(userId, EntityTypes.POST, 1, 20))
-                .thenReturn(List.of(new FollowRelationResult(targetId, Instant.EPOCH)));
-        when(followApplicationService.listFollowers(EntityTypes.POST, userId, 1, 20))
-                .thenReturn(List.of(new FollowRelationResult(targetId, Instant.EPOCH)));
         when(followApplicationService.followeeCount(userId, EntityTypes.POST)).thenReturn(3L);
         when(followApplicationService.followerCount(EntityTypes.POST, userId)).thenReturn(4L);
 
-        assertThat(controller.followees(userId, EntityTypes.POST, 1, 20).getData())
-                .extracting("targetId")
-                .containsExactly(targetId);
-        assertThat(controller.followers(userId, EntityTypes.POST, 1, 20).getData())
-                .extracting("targetId")
-                .containsExactly(targetId);
         assertThat(controller.followeeCount(userId, EntityTypes.POST).getData()).isEqualTo(3L);
         assertThat(controller.followerCount(userId, EntityTypes.POST).getData()).isEqualTo(4L);
-        verify(followApplicationService).listFollowees(userId, EntityTypes.POST, 1, 20);
-        verify(followApplicationService).listFollowers(EntityTypes.POST, userId, 1, 20);
         verify(followApplicationService).followeeCount(userId, EntityTypes.POST);
         verify(followApplicationService).followerCount(EntityTypes.POST, userId);
     }

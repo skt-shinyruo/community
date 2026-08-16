@@ -31,5 +31,35 @@ export default [
   {
     files: ['**/*.test.js', 'src/test/**/*.js'],
     languageOptions: { globals: globals.vitest }
+  },
+  {
+    files: ['src/views/PostDetailView.vue', 'src/views/PostsView.vue'],
+    rules: { 'max-lines': ['error', 900] }
+  },
+  {
+    files: ['src/views/DriveView.vue'],
+    rules: {
+      'no-restricted-imports': ['error', { paths: ['../api/services/driveService', '../stores/auth'] }]
+    }
+  },
+  {
+    files: ['src/views/drive/useDrivePageState.js'],
+    rules: {
+      'max-lines': ['error', 180],
+      'no-restricted-imports': ['error', { paths: ['../../api/services/driveService'] }]
+    }
+  },
+  {
+    files: ['src/views/ConversationDetailView.vue'],
+    rules: {
+      'max-lines': ['error', 350],
+      'no-restricted-imports': ['error', {
+        paths: ['../api/services/imCoreChatService', '../im/imRealtimeClient', '../stores/auth']
+      }]
+    }
+  },
+  {
+    files: ['src/views/useConversationDetailWorkflow.js'],
+    rules: { 'max-lines': ['error', 475] }
   }
 ]

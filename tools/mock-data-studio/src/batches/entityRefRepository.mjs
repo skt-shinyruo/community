@@ -27,7 +27,7 @@ function validateRefs(batchId, refs) {
   for (const ref of refs) {
     if (ref.batchId != null && ref.batchId !== batchId) {
       throw new Error(
-        `demo_entity_ref batchId must match replaceForBatch batchId: expected ${batchId}, received ${ref.batchId}`
+        `demo_entity_ref batchId must match batchId: expected ${batchId}, received ${ref.batchId}`
       )
     }
   }
@@ -56,21 +56,6 @@ async function insertRefs(db, batchId, refs, createId) {
 
 export function createEntityRefRepository(db, { createId = generateUuidV7 } = {}) {
   return {
-    async replaceForBatch(batchId, refs) {
-      validateRefs(batchId, refs)
-
-      const runInTransaction = db.withTransaction
-        ? (work) => db.withTransaction(work)
-        : (work) => work(db)
-
-      await runInTransaction(async (txDb) => {
-        await txDb.execute(`delete from demo_entity_ref where batch_id = ?`, [uuidToBuffer(batchId)])
-        await insertRefs(txDb, batchId, refs, createId)
-      })
-
-      return listByBatchId(db, batchId)
-    },
-
     async appendForBatch(batchId, refs, { txDb = null } = {}) {
       validateRefs(batchId, refs)
 

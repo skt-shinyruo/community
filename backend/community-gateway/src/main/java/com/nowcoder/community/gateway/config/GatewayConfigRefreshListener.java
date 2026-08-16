@@ -47,8 +47,7 @@ public class GatewayConfigRefreshListener {
 
     private static boolean isGatewayRouteKey(String key) {
         return matchesPrefix(key, "gateway.http.routes")
-                || matchesPrefix(key, "gateway.im-edge")
-                || matchesPrefix(key, "gateway.http.canary");
+                || matchesPrefix(key, "gateway.im-edge");
     }
 
     private static boolean matchesPrefix(String key, String prefix) {

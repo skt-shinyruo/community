@@ -1,12 +1,12 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMessage;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.MDC;
 import org.springframework.stereotype.Component;
 
-import java.util.Locale;
 import java.util.UUID;
 
 @Component
@@ -91,52 +91,12 @@ public class PostBusinessEventLogger {
         MDC.put(MDC_ACTION, action);
         MDC.put(MDC_OUTCOME, outcome);
         try {
-            log.info(buildMessage(category, action, outcome, keyValues));
+            log.info(EventLogMessage.format(keyValues));
         } finally {
             restore(MDC_CATEGORY, previousCategory);
             restore(MDC_ACTION, previousAction);
             restore(MDC_OUTCOME, previousOutcome);
         }
-    }
-
-    private String buildMessage(String category, String action, String outcome, Object... keyValues) {
-        StringBuilder message = new StringBuilder(160);
-        for (int i = 0; i < keyValues.length; i += 2) {
-            appendToken(message, String.valueOf(keyValues[i]), keyValues[i + 1]);
-        }
-        return message.toString();
-    }
-
-    private void appendToken(StringBuilder message, String key, Object value) {
-        if (message.length() > 0) {
-            message.append(' ');
-        }
-        message.append(key).append('=').append(encodeTokenValue(value));
-    }
-
-    private String encodeTokenValue(Object value) {
-        if (value == null) {
-            return "-";
-        }
-        String raw = String.valueOf(value);
-        if (raw.isEmpty()) {
-            return "-";
-        }
-        StringBuilder encoded = new StringBuilder(raw.length());
-        for (int i = 0; i < raw.length(); i++) {
-            char ch = raw.charAt(i);
-            if (Character.isWhitespace(ch) || Character.isISOControl(ch) || ch == '=' || ch == '%') {
-                encoded.append('%');
-                String hex = Integer.toHexString(ch).toUpperCase(Locale.ROOT);
-                if (hex.length() == 1) {
-                    encoded.append('0');
-                }
-                encoded.append(hex);
-            } else {
-                encoded.append(ch);
-            }
-        }
-        return encoded.toString();
     }
 
     private void restore(String key, String previousValue) {

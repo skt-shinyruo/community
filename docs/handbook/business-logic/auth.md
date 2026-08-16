@@ -76,7 +76,7 @@ auth 不直接写 user 表；refresh session 通过 auth 自己的 `RefreshToken
 - 重发先通过一个 Redis Lua 原子消费可信客户端 IP、规范化邮箱和 registration identity 三个 HMAC 配额，再取得 `ReplacementLease`，其 UUID 同时作为 delivery ID 与 replacement lease 写 `PENDING_REPLACEMENT`。worker 先取得 exact delivery/code/lease 对应的 `DeliveryClaim` 并续租，ApplicationService 执行 SMTP；成功后 `DeliveryClaim.complete()` 内部负责完成、必要时重新认领并再次完成。失败保持 pending 供 outbox 重试，新的 replacement 接管后旧事件会被 fencing 丢弃。原 active code 在 replacement 成功前继续保存。
 - `RegistrationCodeRepository` 不向 application 暴露 prepare/promote/abort/consume/restore 的自由组合；`ReplacementLease`、`DeliveryClaim`、`VerificationClaim` 分别只提供当前阶段允许的转换。Redis adapter 只拥有状态机和恢复策略，SMTP、用户创建、draft 终态与登录签发仍在 ApplicationService。
 - 验证失败达到上限时 Redis 不删除 key，而是移除 code、写 `EXHAUSTED` 冷却墓碑并从耗尽时刻重新计算 resend cooldown；correct-code 重试和立即 beginReplacement 都不能绕过失败预算。
-- Redis 使用 `auth:regcode:v2:{<userId>}` 结构化 Hash。首次访问用只操作 legacy key 的 Lua 原子执行 `GET + PTTL + DEL`，再解析并用只操作 v2 key 的 Lua 条件导入；两个 key 不会进入同一 Lua，兼容 Redis Cluster。该一次性 drain 要求旧 writer 已完全停止，发布约束见 [运行与排障](../operations.md#注册验证码-redis-v2-切换)。
+- Redis 使用 `auth:regcode:v2:{<userId>}` 结构化 Hash，所有状态转换只操作一个带 hash tag 的 key，兼容 Redis Cluster。
 - active 用户创建成功但自动登录 token 签发失败时，返回 `REGISTRATION_ACTIVATED_LOGIN_REQUIRED`，前端应清理注册上下文并提示直接登录。
 - abandoned draft 过期后自然清理，不会产生用户行。
 

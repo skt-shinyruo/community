@@ -291,7 +291,7 @@ gateway 路径级限流：
 - 默认账号：`aaa/aaa`、`admin/aaa`。
 - 固定验证码：`auth.captcha.fixed-code`。
 - 注册验证码回传：`AUTH_REGISTRATION_EXPOSE_CODE=true`。
-- Mock Data Studio 本地控制面。
+- Mock Data Studio 本地一次性 CLI。
 
 prod 下约束：
 

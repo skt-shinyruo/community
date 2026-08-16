@@ -118,6 +118,25 @@ describe('router/index', () => {
     expect(routeNames).not.toContain('leaderboard')
   })
 
+  it('passes list variants through route props', async () => {
+    vi.doMock('./authGuard', () => ({ authGuard: () => true }))
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    const routes = new Map(router.getRoutes().map((route) => [route.name, route]))
+
+    expect(routes.get('marketBuyingOrders').props.default).toEqual({ side: 'buying' })
+    expect(routes.get('marketSellingOrders').props.default).toEqual({ side: 'selling' })
+    expect(routes.get('followees').props.default({ params: { userId: 'user-1' } })).toEqual({
+      relationKind: 'followees',
+      userId: 'user-1'
+    })
+    expect(routes.get('followers').props.default({ params: { userId: 'user-1' } })).toEqual({
+      relationKind: 'followers',
+      userId: 'user-1'
+    })
+  })
+
   it('should register every catalog route exactly once', async () => {
     vi.doMock('./authGuard', () => ({
       authGuard: () => true

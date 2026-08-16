@@ -31,8 +31,6 @@ vi.mock('../api/services/socialService', () => ({
 }))
 
 import FollowRelationListView from './FollowRelationListView.vue'
-import FolloweesView from './FolloweesView.vue'
-import FollowersView from './FollowersView.vue'
 
 const VIEWER_ID = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
 const PROFILE_ID = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
@@ -110,31 +108,6 @@ describe('follow relation pagination', () => {
     getFollowStatuses.mockResolvedValue({ data: {} })
     followUser.mockResolvedValue({ traceId: 'trace-follow' })
     unfollowUser.mockResolvedValue({ traceId: 'trace-unfollow' })
-  })
-
-  it.each([
-    ['followees', FolloweesView],
-    ['followers', FollowersView]
-  ])('binds the %s route adapter to the shared relation list', async (relationKind, component) => {
-    const pinia = createPinia()
-    const wrapper = mount(component, {
-      props: { userId: PROFILE_ID },
-      global: {
-        plugins: [pinia],
-        stubs: {
-          FollowRelationListView: {
-            name: 'FollowRelationListView',
-            props: ['relationKind', 'userId'],
-            template: '<div />'
-          }
-        }
-      }
-    })
-
-    expect(wrapper.findComponent({ name: 'FollowRelationListView' }).props()).toMatchObject({
-      relationKind,
-      userId: PROFILE_ID
-    })
   })
 
   it.each([

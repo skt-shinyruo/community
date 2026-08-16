@@ -89,7 +89,6 @@ async function loadExistingState(runDb) {
 export function createImWriter({
   db,
   entityRefRepository = null,
-  aiContentEnhancer = null,
   now = () => new Date().toISOString()
 } = {}) {
   if (!db?.query || !db?.execute) {
@@ -99,7 +98,7 @@ export function createImWriter({
   const nextTimestamp = buildTimestampSource(now)
 
   return {
-    async writePhase({ batchId, plan, runOptions = null } = {}) {
+    async writePhase({ batchId, plan, seed = null } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')
       }
@@ -123,33 +122,9 @@ export function createImWriter({
         const existing = await loadExistingState(runDb)
         const dataset = generateImPhaseDataset({
           plan,
+          seed: seed == null ? null : `${seed}:im`,
           existing
         })
-
-        const applyTextEnhancement = async (items, fieldName, kind) => {
-          if (!aiContentEnhancer?.enhanceTextsForRun || items.length === 0) {
-            return
-          }
-
-          const originalValues = items.map((item) => item?.[fieldName] ?? '')
-          const enhanced = await aiContentEnhancer.enhanceTextsForRun({
-            kind,
-            inputs: originalValues,
-            runOptions
-          })
-
-          if (!Array.isArray(enhanced?.outputs) || enhanced.outputs.length !== items.length) {
-            return
-          }
-
-          items.forEach((item, index) => {
-            item[fieldName] = enhanced.outputs[index]
-          })
-        }
-
-        await applyTextEnhancement(dataset.rooms, 'name', 'im-room-name')
-        await applyTextEnhancement(dataset.roomMessages, 'content', 'im-room-message')
-        await applyTextEnhancement(dataset.privateMessages, 'content', 'im-private-message')
 
         const insertedCounts = buildEmptyInsertedCounts()
         const generatedRefs = []

@@ -20,6 +20,7 @@
 ./deploy/deployment.sh ps --stack cluster
 ./deploy/deployment.sh logs --stack cluster community-gateway-1
 ./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example
+./deploy/deployment.sh mock-data --stack single -- generate --seed demo
 ```
 
 默认值：
@@ -60,14 +61,12 @@ shell 环境、Stack env、内置默认值的顺序解析。
 - `kafka`
 - `elasticsearch`
 - `nacos`
-- `xxl-job-admin`
 - `community-app`
 - `community-gateway`
 - `community-im-gateway`
 - `im-core`
 - `im-realtime`
 - `frontend-nginx`
-- `mock-data-studio`
 - `mailhog`
 
 单机全栈：
@@ -104,7 +103,6 @@ cp deploy/stacks/infra/.env.example deploy/stacks/infra/.env
 | Nacos HTTP / gRPC | `127.0.0.1:28848` / `127.0.0.1:29848` |
 | Garage S3 / admin | `127.0.0.1:23900` / `127.0.0.1:23903` |
 | MailHog SMTP / UI | `127.0.0.1:21025` / `http://127.0.0.1:28025` |
-| XXL-JOB Admin | `http://127.0.0.1:22887/xxl-job-admin` |
 
 这些端口可以在 `deploy/stacks/infra/.env` 中覆盖。修改后重新执行 `render-backend-env` 即可，生成器会保证
 Spring Boot 连接地址与 Compose 端口一致；不需要手工同步六份服务配置。
@@ -146,8 +144,7 @@ mvn -pl :community-app spring-boot:run
 其他服务将模块参数和 env 文件名替换为表中的对应项。每个服务应使用独立终端，不能把六份 env 合并成一个
 进程环境，否则会混淆端口和不必要地扩大密钥可见范围。
 
-服务通过宿主机 Nacos 注册 `127.0.0.1`，Gateway 因而可以发现并调用本地进程。XXL-JOB Admin 容器通过
-`host.docker.internal` 回调 `community-app` 的 executor `19999` 端口。只调试主站 HTTP 时至少启动
+服务通过宿主机 Nacos 注册 `127.0.0.1`，Gateway 因而可以发现并调用本地进程。只调试主站 HTTP 时至少启动
 `community-app`、`community-oss` 和 `community-gateway`；IM session、WebSocket 和历史消息需要六个服务全部启动。
 
 启动后可检查：
@@ -176,7 +173,6 @@ curl -fsS http://127.0.0.1:12880/api/runtime-config
 - `kafka-1..3`
 - `elasticsearch-1..3`
 - `nacos-1..3`
-- `xxl-job-admin-1/2`
 - `community-app-1..3`
 - `community-gateway-1..3`
 - `community-im-gateway-1..3`
@@ -249,10 +245,7 @@ OTEL_ENABLED=false ./deploy/deployment.sh up --stack single --observability
 | IM WebSocket | session response `wsUrl` 默认 `ws://localhost:12880/ws/im` |
 | IM HTTP | `http://localhost:12880/api/im/**` |
 | Nacos | `http://localhost:18848/nacos` |
-| XXL-JOB Admin | `http://localhost:12887/xxl-job-admin` |
 | MailHog | `http://localhost:8025` |
-| Mock Data Studio | `http://localhost:12890/` |
-| Mock Data Studio health | `http://localhost:12890/health` |
 | Elasticsearch observability 入口 | `http://localhost:12888` |
 | Kibana | `http://localhost:12889` |
 
@@ -269,7 +262,7 @@ fall back to packaged defaults. Production-like runs set required imports throug
 `NACOS_CONFIG_IMPORT_SHARED` and `NACOS_CONFIG_IMPORT_SERVICE`.
 
 Secrets do not live in Nacos Config. Keep access JWT RSA private keys, service JWT HMAC secrets, database passwords,
-object-store access keys, XXL-JOB tokens, and Nacos credentials in `.env` or a
+object-store access keys and Nacos credentials in `.env` or a
 secret manager.
 
 ## 前端 API 解析
@@ -280,7 +273,7 @@ secret manager.
 - 其次使用 Vite env，例如 `VITE_API_BASE_URL` / `VITE_IM_CORE_BASE_URL`。
 - 未显式配置时使用同源相对路径；本地 Vite dev / preview 通过 proxy 将 `/api`、`/files` 和 `/ws/im` 转发到 `http://localhost:12880`。
 
-因此本地 Vite dev server、frontend-nginx、Mock Data Studio 和 observability 页面都应继续通过 gateway 访问业务 API，而不是直接连 `community-app` 或 IM 内部实例。
+因此本地 Vite dev server、frontend-nginx 和 observability 页面都应继续通过 gateway 访问业务 API，而不是直接连 `community-app` 或 IM 内部实例。
 
 ## 本地构建和验证
 
@@ -334,7 +327,7 @@ schema 校验与 Compose 契约：
 - `deploy/compose/infra/<capability>/cluster.yml`：cluster 基础设施。
 - `deploy/compose/runtime/services/single.yml` / `deploy/compose/runtime/services/cluster.yml`：业务 runtime。
 - `deploy/compose/runtime/edge/single.yml` / `deploy/compose/runtime/edge/cluster.yml`：前端与入口。
-- `deploy/compose/runtime/mock-data-studio/single.yml` / `deploy/compose/runtime/mock-data-studio/cluster.yml`：Mock Data Studio wiring。
+- `deploy/compose/runtime/mock-data-studio/single.yml` / `deploy/compose/runtime/mock-data-studio/cluster.yml`：按需 Mock Data Studio CLI runner。
 - `deploy/compose/overlays/observability.yml`：由 Stack 默认值或显式 CLI 参数选择的观测层。
 
 ## 停止与重置
@@ -436,49 +429,17 @@ prod 下禁止回传注册验证码，并要求启用 SMTP。启用 SMTP auth �
 
 ## Mock Data Studio
 
-Mock Data Studio 是 dev-only 控制面，用于生成可删除的演示数据。
+Mock Data Studio 是 dev-only 同步 CLI，用于生成并按批次删除演示数据。完整 Stack 启动后执行：
 
-当前暴露：
-
-- `GET /`
-- `GET /health`
-- `GET /api/runtime-status`
-- `POST /api/jobs`
-- `GET /api/jobs/:jobId`
-- `GET /api/batches`
-- `GET /api/batches/:batchId`
-- `DELETE /api/batches/:batchId`
-
-访问：
-
-```text
-http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/
-http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/health
-http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/api/runtime-status
-http://localhost:${MOCK_DATA_STUDIO_HOST_PORT:-12890}/api/jobs
+```bash
+./deploy/deployment.sh mock-data --stack single -- generate --seed demo
+./deploy/deployment.sh mock-data --stack single -- delete <batch-id>
 ```
 
-默认开关：
-
-```text
-MOCK_DATA_STUDIO_ENABLED=true
-MOCK_DATA_STUDIO_HOST_PORT=12890
-MOCK_DATA_STUDIO_PORT=12888
-MOCK_DATA_AUTO_FILL_ENABLED=false
-MOCK_DATA_AUTO_FILL_SCENE=tech-community-hot-start
-MOCK_DATA_DEFAULT_USERS=100
-MOCK_DATA_DEFAULT_POSTS=800
-MOCK_DATA_DEFAULT_COMMENTS=2500
-```
-
-`MOCK_DATA_STUDIO_HOST_PORT` 是 compose 暴露到宿主机的 localhost-only 端口；`MOCK_DATA_STUDIO_PORT` 是 studio 进程监听端口。
-
-auto-fill scene 当前支持：
+scene 当前支持：
 
 - `tech-community-hot-start`
 - `moderation-pressure`
 - `im-busy`
 
-`tech-community-hot-start` 会补充社区、治理、growth task progress、IM 样例数据。新增行记录在 `demo_entity_ref`，批次支持按依赖顺序删除；批次详情页展示 target / actual / failure summary。
-
-这些开关只影响本地控制面，不改变 prod fail-closed 安全约束。
+`tech-community-hot-start` 会补充社区、治理、growth task progress、IM 样例数据。新增行记录在 `demo_entity_ref`；`generate` 的 JSON 输出包含 `batchId`，供 `delete` 按依赖顺序清理。CLI 没有 HTTP 端口、UI、后台 job 或自动填充循环。

@@ -829,14 +829,14 @@ Market wallet action saga：
 
 1. `MarketWalletActionCoordinator` 为 escrow / release / refund 写 durable command。
 2. `request_id` 固定为 `market-order:<orderId>:<action>`，重复 enqueue 必须语义一致，否则 replay conflict。
-3. `MarketWalletActionProcessorHandler` 触发 `MarketWalletActionProcessorApplicationService.processDue(...)`。
+3. `MarketWalletActionProcessorScheduler` 触发 `MarketWalletActionProcessorApplicationService.processDue(...)`。
 4. processor claim due action，设置 `PROCESSING` 和短 lease。
 5. processor 在原 market 事务之外调用 `WalletMarketActionApi`。
 6. wallet 成功后立即按 lease 持久化 `wallet_txn_id`；随后独立完成事务按订单锁 -> action 锁顺序验证 lease，并把 saga side effect 与 action 终态放在同一事务内，终态 CAS 丢失会回滚 saga。
 7. release / refund 的可恢复钱包错误进入 `RETRYING` 并带 backoff；`ACCOUNT_UPDATE_CONFLICT` 也可重试。
 8. 只有从未 claim 的 `PENDING` escrow 才能在取消路径做 `NOOP`；`RETRYING` / lease 过期 action 使用同一个 requestId 重放，晚到 escrow 会补 refund。
 9. escrow 的业务失败会进入失败路径并恢复 market 侧库存 / 预加载库存。
-10. `MarketWalletActionRecoveryHandler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态；pending 订单应补哪个 command 由 `MarketOrder.pendingWalletActionType()` 判断。
+10. `MarketWalletActionRecoveryScheduler` 负责恢复过期 processing lease、补齐缺失 command、把已有 `wallet_txn_id` 重新应用到 saga 状态；pending 订单应补哪个 command 由 `MarketOrder.pendingWalletActionType()` 判断。
 
 Order states：
 
@@ -900,8 +900,8 @@ Key code：
 - `market.domain.model.MarketWalletAction`
 - `market.domain.service.MarketWalletActionDomainService`
 - `market.infrastructure.persistence.*`
-- `market.infrastructure.job.MarketWalletActionProcessorHandler`
-- `market.infrastructure.job.MarketWalletActionRecoveryHandler`
+- `market.infrastructure.job.MarketWalletActionProcessorScheduler`
+- `market.infrastructure.job.MarketWalletActionRecoveryScheduler`
 - `wallet.api.action.WalletMarketActionApi`
 
 ## Wallet Ledger
@@ -1017,16 +1017,15 @@ Owner / SSOT：
 
 Entry：
 
-- XXL Job handlers。
-- 本地 `@Scheduled`。
+- Spring `@Scheduled`。
 
 Current tasks：
 
 - `OutboxWorkerScheduler`
 - hot path 缓存预热 / counter snapshot flush
-- `marketOrderAutoConfirm`
-- `marketWalletActionProcessor`
-- `marketWalletActionRecovery`
+- `MarketOrderAutoConfirmScheduler`
+- `MarketWalletActionProcessorScheduler`
+- `MarketWalletActionRecoveryScheduler`
 
 Task details：
 
@@ -1037,9 +1036,9 @@ Task details：
 - `PostMediaReferenceReconciliationJob` 进入 `PostMediaReferenceReconciliationApplicationService`，Nacos seed 默认 batch `50`、delay `300s`。
 - `SocialLikeCleanupReconciliationJob` 进入 `LikeCleanupReconciliationApplicationService`，默认关闭、batch `50`、delay `300s`。
 - `ObjectUploadRecoveryJob` 进入 OSS `ObjectUploadRecoveryApplicationService`，Nacos seed 默认 batch `100`、stale `300s`、delay `60s`。
-- `MarketOrderAutoConfirmHandler` 是 XXL `marketOrderAutoConfirm`，进入 market owner 自动确认 due orders，只写 release command。
-- `MarketWalletActionProcessorHandler` 是 XXL `marketWalletActionProcessor`，每轮处理数量受 `market.wallet-action.process-batch-size` 控制。
-- `MarketWalletActionRecoveryHandler` 是 XXL `marketWalletActionRecovery`，每轮 reconcile 数量受 `market.wallet-action.recovery-batch-size` 控制；同时恢复过期 lease、补齐命令和应用已有 wallet 结果。
+- `MarketOrderAutoConfirmScheduler` 默认启动后 30 秒首次运行、之后每 60 秒进入 market owner 自动确认 due orders，只写 release command。
+- `MarketWalletActionProcessorScheduler` 默认启动后 5 秒首次运行、之后每 5 秒执行；每轮处理数量受 `market.wallet-action.process-batch-size` 控制。
+- `MarketWalletActionRecoveryScheduler` 默认启动后 15 秒首次运行、之后每 60 秒执行；每轮 reconcile 数量受 `market.wallet-action.recovery-batch-size` 控制，同时恢复过期 lease、补齐命令和应用已有 wallet 结果。
 - `OutboxWorkerScheduler` 是 common-outbox 本地 `@Scheduled` worker，按配置轮询 outbox 表。
 
 Rules：
@@ -1060,7 +1059,7 @@ Outbox worker：
 
 Search reindex：
 
-- HTTP 和 XXL 走同一个 search action / application service。
+- `SearchReindexScheduler` 进入 `SearchReindexApplicationService`；`search.reindex.cron` 默认 `-`，需要时显式开启。
 - Redis-backed single-flight 防并发。
 - alias 原子切换保证搜索服务不中断。
 - 已存在 alias 的 mapping 必须满足当前必需字段；不满足时启动失败，不做静默兼容迁移。
@@ -1071,7 +1070,7 @@ Failure：
 - `DEAD` 事件通常需要人工排查；content media reference command 的 reconciler 是当前自动恢复例外，只在确定性 ID 对应 row 仍为 `DEAD` 时原位重排。
 - single-flight lock 异常要看 Redis 和 heartbeat。
 - 本地 cleanup / prewarm / counter flush job 捕获异常并记录日志，不回滚其他业务事务。
-- XXL handler 捕获异常后通过 `XxlJobHelper.handleFail(...)` 标记失败；成功或 skipped 会写 job log 并 `handleSuccess(...)`。
+- scheduler 捕获异常并记录日志，下一次调度继续重试可重入任务。
 - fail-open / fail-closed 由上层任务语义决定。
 
 Key code：
@@ -1083,7 +1082,8 @@ Key code：
 - `content.infrastructure.job.PostMediaReferenceReconciliationJob`
 - `social.infrastructure.job.SocialLikeCleanupReconciliationJob`
 - `oss.infrastructure.job.ObjectUploadRecoveryJob`
-- `market.infrastructure.job.MarketOrderAutoConfirmHandler`
-- `market.infrastructure.job.MarketWalletActionProcessorHandler`
-- `market.infrastructure.job.MarketWalletActionRecoveryHandler`
+- `market.infrastructure.job.MarketOrderAutoConfirmScheduler`
+- `market.infrastructure.job.MarketWalletActionProcessorScheduler`
+- `market.infrastructure.job.MarketWalletActionRecoveryScheduler`
+- `search.infrastructure.job.SearchReindexScheduler`
 - `common-outbox` 的 `OutboxWorker` / `OutboxWorkerScheduler`

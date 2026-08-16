@@ -12,6 +12,7 @@ market_wallet_recovery_migration="deploy/database/business/migrations/V019__mark
 im_policy_snapshot_migration="deploy/database/business/migrations/V020__im_policy_snapshot_version_history.sql"
 growth_like_lifecycle_migration="deploy/database/business/migrations/V021__growth_like_lifecycle_state.sql"
 bookmark_counter_reconciliation_migration="deploy/database/business/migrations/V022__durable_bookmark_counter_reconciliation.sql"
+legacy_mock_tables_migration="deploy/database/business/migrations/V023__drop_legacy_mock_data_tables.sql"
 
 bash -n "${runner}"
 test -x "${runner}"
@@ -22,6 +23,7 @@ test -f "${market_wallet_recovery_migration}"
 test -f "${im_policy_snapshot_migration}"
 test -f "${growth_like_lifecycle_migration}"
 test -f "${bookmark_counter_reconciliation_migration}"
+test -f "${legacy_mock_tables_migration}"
 
 grep -Fq 'readonly MIGRATION_DIRECTORY="/migrations"' "${runner}"
 grep -Fq 'sha256sum "${migration_file}"' "${runner}"
@@ -92,6 +94,14 @@ grep -Fq 'idx_post_bookmark_counter_reconcile_scan' "${bookmark_counter_reconcil
 grep -Fq 'snapshots.`bookmark_count` <> COALESCE(facts.`bookmark_count`, 0)' "${bookmark_counter_reconciliation_migration}"
 grep -Fq 'WHERE @community_migration_needed = 1' "${bookmark_counter_reconciliation_migration}"
 grep -Fq "RELEASE_LOCK('community:forward-schema-migration')" "${bookmark_counter_reconciliation_migration}"
+
+grep -Fq "GET_LOCK('community:forward-schema-migration', 60)" "${legacy_mock_tables_migration}"
+grep -Fq '__community_migration_checksum_mismatch__' "${legacy_mock_tables_migration}"
+grep -Fq '__community_migration_identity_mismatch__' "${legacy_mock_tables_migration}"
+grep -Fq 'DROP TABLE IF EXISTS `demo_job`, `ai_config`' "${legacy_mock_tables_migration}"
+grep -Fq "table_name IN ('demo_job', 'ai_config')" "${legacy_mock_tables_migration}"
+grep -Fq 'WHERE @community_migration_needed = 1' "${legacy_mock_tables_migration}"
+grep -Fq "RELEASE_LOCK('community:forward-schema-migration')" "${legacy_mock_tables_migration}"
 
 for required_change in \
   rotation_lease_id \

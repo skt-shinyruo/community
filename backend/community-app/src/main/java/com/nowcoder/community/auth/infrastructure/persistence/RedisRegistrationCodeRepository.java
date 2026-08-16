@@ -24,7 +24,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 public class RedisRegistrationCodeRepository implements RegistrationCodeRepository {
 
     private static final String KEY_PREFIX = "auth:regcode:v2:";
-    private static final String LEGACY_KEY_PREFIX = "auth:regcode:";
 
     private static final String REDIS_TIME_LUA = """
             local function redisNowMs()
@@ -33,62 +32,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
             end
 
             """;
-
-    private static final RedisScript<String> IMPORT_LEGACY_SCRIPT = new DefaultRedisScript<>(
-            REDIS_TIME_LUA + """
-                    local nowMs = redisNowMs()
-                    local legacyActiveExpiresAtMs = tonumber(ARGV[2])
-                    local failures = tonumber(ARGV[3])
-                    local issuedAtMs = tonumber(ARGV[4])
-                    local legacyTtlMs = tonumber(ARGV[5])
-                    if ARGV[1] == '' or not legacyTtlMs or legacyTtlMs <= 0
-                        or not legacyActiveExpiresAtMs or legacyActiveExpiresAtMs <= nowMs
-                        or not issuedAtMs or issuedAtMs <= 0 or not failures or failures < 0 then
-                      return 'INVALID'
-                    end
-                    local activeExpiresAtMs = math.min(legacyActiveExpiresAtMs, nowMs + legacyTtlMs)
-                    local typeReply = redis.call('TYPE', KEYS[1])
-                    local keyType = type(typeReply) == 'table' and typeReply.ok or typeReply
-                    if keyType == 'hash' then
-                      return 'EXISTS'
-                    end
-                    if keyType ~= 'none' then
-                      redis.call('DEL', KEYS[1])
-                    end
-                    redis.call('HSET', KEYS[1],
-                      'active_code', ARGV[1],
-                      'active_expires_at_ms', tostring(activeExpiresAtMs),
-                      'failures', tostring(math.floor(failures)),
-                      'issued_at_ms', tostring(issuedAtMs),
-                      'state', 'ACTIVE')
-                    redis.call('PEXPIRE', KEYS[1], legacyTtlMs)
-                    return 'IMPORTED'
-                    """,
-            String.class
-    );
-
-    private static final RedisScript<List> SNAPSHOT_LEGACY_SCRIPT = new DefaultRedisScript<>(
-            """
-                    local raw = redis.call('GET', KEYS[1])
-                    if not raw then
-                      return {}
-                    end
-                    local ttlMs = redis.call('PTTL', KEYS[1])
-                    return {raw, ttlMs}
-                    """,
-            List.class
-    );
-
-    private static final RedisScript<Long> DELETE_LEGACY_IF_UNCHANGED_SCRIPT = new DefaultRedisScript<>(
-            """
-                    local current = redis.call('GET', KEYS[1])
-                    if not current or current ~= ARGV[1] then
-                      return 0
-                    end
-                    return redis.call('DEL', KEYS[1])
-                    """,
-            Long.class
-    );
 
     private static final RedisScript<String> ISSUE_SCRIPT = new DefaultRedisScript<>(
             REDIS_TIME_LUA + """
@@ -636,7 +579,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
             return IssueResult.COOLDOWN_ACTIVE;
         }
 
-        migrateLegacyIfPresent(userId);
         String result = redisTemplate.execute(
                 ISSUE_SCRIPT,
                 keys(userId),
@@ -679,7 +621,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
             return IssueResult.COOLDOWN_ACTIVE;
         }
 
-        migrateLegacyIfPresent(userId);
         String result = redisTemplate.execute(
                 BEGIN_REPLACEMENT_SCRIPT,
                 keys(userId),
@@ -700,7 +641,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || leaseId == null) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 PROMOTE_REPLACEMENT_SCRIPT,
                 keys(userId),
@@ -714,7 +654,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || leaseId == null) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 ABORT_REPLACEMENT_SCRIPT,
                 keys(userId),
@@ -776,7 +715,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || deliveryId == null || !StringUtils.hasText(code) || leaseTtlMs <= 0) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 PREPARE_MAIL_DELIVERY_SCRIPT,
                 keys(userId),
@@ -798,7 +736,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || deliveryId == null || !StringUtils.hasText(code)) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 COMPLETE_INITIAL_DELIVERY_SCRIPT,
                 keys(userId),
@@ -838,7 +775,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         }
         try {
             redisTemplate.delete(key(userId));
-            redisTemplate.delete(legacyKey(userId));
         } catch (RuntimeException ignored) {
             // best-effort cleanup
         }
@@ -851,7 +787,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
             return VerifyResult.NOT_FOUND;
         }
 
-        migrateLegacyIfPresent(userId);
         String result = redisTemplate.execute(
                 VERIFY_PENDING_SCRIPT,
                 keys(userId),
@@ -875,7 +810,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || leaseId == null) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 CONSUME_PENDING_SCRIPT,
                 keys(userId),
@@ -888,7 +822,6 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         if (userId == null || leaseId == null) {
             return false;
         }
-        migrateLegacyIfPresent(userId);
         Long result = redisTemplate.execute(
                 RESTORE_PENDING_SCRIPT,
                 keys(userId),
@@ -1058,92 +991,7 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
         return KEY_PREFIX + "{" + userId + "}";
     }
 
-    private String legacyKey(UUID userId) {
-        return LEGACY_KEY_PREFIX + userId;
-    }
-
     private List<String> keys(UUID userId) {
         return List.of(key(userId));
-    }
-
-    private void migrateLegacyIfPresent(UUID userId) {
-        String legacyKey = legacyKey(userId);
-        List<?> snapshot = redisTemplate.execute(SNAPSHOT_LEGACY_SCRIPT, List.of(legacyKey));
-        if (snapshot == null || snapshot.size() < 2 || snapshot.get(0) == null || snapshot.get(1) == null) {
-            return;
-        }
-        String raw = String.valueOf(snapshot.get(0));
-        Long ttlMs = parseLong(snapshot.get(1));
-        LegacyRegistrationCode legacy = parseLegacy(raw, ttlMs);
-        if (legacy == null) {
-            redisTemplate.execute(
-                    DELETE_LEGACY_IF_UNCHANGED_SCRIPT,
-                    List.of(legacyKey),
-                    raw
-            );
-            return;
-        }
-        String importResult = redisTemplate.execute(
-                IMPORT_LEGACY_SCRIPT,
-                List.of(key(userId)),
-                legacy.activeCode(),
-                Long.toString(legacy.activeExpiresAtMs()),
-                Integer.toString(legacy.failures()),
-                Long.toString(legacy.issuedAtMs()),
-                Long.toString(legacy.ttlMs())
-        );
-        if ("IMPORTED".equals(importResult) || "EXISTS".equals(importResult)) {
-            redisTemplate.execute(
-                    DELETE_LEGACY_IF_UNCHANGED_SCRIPT,
-                    List.of(legacyKey),
-                    raw
-            );
-        }
-    }
-
-    private LegacyRegistrationCode parseLegacy(String raw, Long ttlMs) {
-        if (!StringUtils.hasText(raw) || ttlMs == null || ttlMs <= 0) {
-            return null;
-        }
-        String[] parts = raw.split("\\|", -1);
-        if (parts.length != 8 || !StringUtils.hasText(parts[0])
-                || !("ACTIVE".equals(parts[4]) || "PENDING".equals(parts[4])
-                || "PENDING_REPLACEMENT".equals(parts[4]))) {
-            return null;
-        }
-        try {
-            long activeExpiresAtMs = Long.parseLong(parts[1]);
-            int failures = Integer.parseInt(parts[2]);
-            long issuedAtMs = Long.parseLong(parts[3]);
-            if (activeExpiresAtMs <= 0 || failures < 0 || issuedAtMs <= 0) {
-                return null;
-            }
-            if (activeExpiresAtMs <= issuedAtMs) {
-                return null;
-            }
-            return new LegacyRegistrationCode(parts[0], activeExpiresAtMs, failures, issuedAtMs, ttlMs);
-        } catch (NumberFormatException exception) {
-            return null;
-        }
-    }
-
-    private Long parseLong(Object value) {
-        if (value instanceof Number number) {
-            return number.longValue();
-        }
-        try {
-            return Long.valueOf(String.valueOf(value));
-        } catch (NumberFormatException exception) {
-            return null;
-        }
-    }
-
-    private record LegacyRegistrationCode(
-            String activeCode,
-            long activeExpiresAtMs,
-            int failures,
-            long issuedAtMs,
-            long ttlMs
-    ) {
     }
 }

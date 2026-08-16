@@ -30,11 +30,6 @@ public class RedisPostCounterCache implements PostCounterCache {
     private static final int DIRTY_SHARD_COUNT = 32;
     private static final String COUNTER_KEY_PREFIX = "post:counter:v2:";
     private static final String VIEWER_KEY_PREFIX = "post:viewer:v2:";
-    private static final String PREVIOUS_COUNTER_KEY_PREFIX = "post:counter:{post:counter:dirty}:";
-    private static final String LEGACY_COUNTER_KEY_PREFIX = "post:counter:";
-    private static final String LEGACY_DIRTY_KEY = "post:counter:dirty";
-    private static final String LEGACY_QUEUE_ID = "legacy";
-    private static final String SHARD_QUEUE_ID_PREFIX = "shard-";
 
     private static final String FIELD_INITIALIZED = "initialized";
     private static final String FIELD_BASE_VIEW = "baseViewCount";
@@ -50,12 +45,6 @@ public class RedisPostCounterCache implements PostCounterCache {
     private static final String FIELD_DELTA_BOOKMARK = "deltaBookmarkCount";
     private static final String FIELD_BOOKMARK_ABSOLUTE = "bookmarkCountAbsolute";
     private static final String FIELD_SCORE_OVERLAY = "scoreOverlay";
-
-    private static final String LEGACY_FIELD_VIEW = "viewCount";
-    private static final String LEGACY_FIELD_LIKE = "likeCount";
-    private static final String LEGACY_FIELD_COMMENT = "commentCount";
-    private static final String LEGACY_FIELD_BOOKMARK = "bookmarkCount";
-    private static final String LEGACY_FIELD_SCORE = "score";
 
     private static final DefaultRedisScript<Long> QUARANTINE_DAMAGED_BASELINE_SCRIPT = new DefaultRedisScript<>(
             """
@@ -225,16 +214,6 @@ public class RedisPostCounterCache implements PostCounterCache {
             score = values.containsKey(FIELD_SCORE_OVERLAY)
                     ? doubleValue(values.get(FIELD_SCORE_OVERLAY), FIELD_SCORE_OVERLAY, invalidFields)
                     : score;
-            PostCounterSnapshot old = legacySnapshot(postId);
-            viewCount = addCounts(viewCount, old.viewCount());
-            likeCount = addCounts(likeCount, old.likeCount());
-            commentCount = addCounts(commentCount, old.commentCount());
-            if (!values.containsKey(FIELD_BOOKMARK_ABSOLUTE)) {
-                bookmarkCount = addCounts(bookmarkCount, old.bookmarkCount());
-            }
-            if (!values.containsKey(FIELD_SCORE_OVERLAY) && !values.containsKey(FIELD_BASE_SCORE)) {
-                score = old.score();
-            }
         }
 
         if (damagedBaseline) {
@@ -313,23 +292,17 @@ public class RedisPostCounterCache implements PostCounterCache {
         int size = Math.max(1, limit);
         List<DirtyPost> result = new ArrayList<>(size);
         Set<UUID> selectedPostIds = new HashSet<>();
-        List<DirtyQueue> activeQueues = new ArrayList<>();
-
-        int legacyQuota = Math.min(size, Math.max(1, size / 4));
-        int legacyAdded = appendLegacyDirty(result, selectedPostIds, legacyQuota, size);
-        if (legacyAdded == legacyQuota) {
-            activeQueues.add(DirtyQueue.legacyQueue());
-        }
+        List<String> activeQueues = new ArrayList<>();
 
         int start = Math.floorMod(dirtyScanCursor.getAndIncrement(), DIRTY_SHARD_COUNT);
-        int remaining = size - result.size();
-        int perShardQuota = Math.max(1, remaining / DIRTY_SHARD_COUNT);
+        int perShardQuota = Math.max(1, size / DIRTY_SHARD_COUNT);
         for (int offset = 0; offset < DIRTY_SHARD_COUNT && result.size() < size; offset++) {
             int shard = (start + offset) % DIRTY_SHARD_COUNT;
             int quota = Math.min(perShardQuota, size - result.size());
-            int added = appendDirty(result, selectedPostIds, dirtyKey(shard), queueId(shard), quota, size);
+            String key = dirtyKey(shard);
+            int added = appendDirty(result, selectedPostIds, key, quota, size);
             if (added == quota) {
-                activeQueues.add(DirtyQueue.shard(shard));
+                activeQueues.add(key);
             }
         }
 
@@ -342,39 +315,15 @@ public class RedisPostCounterCache implements PostCounterCache {
         if (dirtyPosts == null || dirtyPosts.isEmpty()) {
             return;
         }
-        List<DirtyPost> legacyDirtyPosts = new ArrayList<>();
         Map<Integer, List<String>> argsByShard = new LinkedHashMap<>();
         for (DirtyPost dirtyPost : dirtyPosts) {
             if (dirtyPost == null || dirtyPost.postId() == null || dirtyPost.revision() <= 0L) {
                 continue;
             }
-            if (LEGACY_QUEUE_ID.equals(dirtyPost.queueId())) {
-                legacyDirtyPosts.add(dirtyPost);
-                continue;
-            }
             int shard = shard(dirtyPost.postId());
-            if (dirtyPost.queueId() != null && !queueId(shard).equals(dirtyPost.queueId())) {
-                continue;
-            }
             List<String> args = argsByShard.computeIfAbsent(shard, ignored -> new ArrayList<>());
             args.add(dirtyPost.postId().toString());
             args.add(Long.toString(dirtyPost.revision()));
-        }
-        for (DirtyPost legacyDirtyPost : legacyDirtyPosts) {
-            Long clearedBridge = redisTemplate.execute(
-                    CLEAR_DIRTY_SCRIPT,
-                    List.of(dirtyKey(legacyDirtyPost.postId())),
-                    legacyDirtyPost.postId().toString(),
-                    Long.toString(legacyDirtyPost.revision())
-            );
-            if (clearedBridge != null && clearedBridge > 0L) {
-                redisTemplate.execute(
-                        CLEAR_DIRTY_SCRIPT,
-                        List.of(LEGACY_DIRTY_KEY),
-                        legacyDirtyPost.postId().toString(),
-                        Long.toString(legacyDirtyPost.sourceRevision())
-                );
-            }
         }
         argsByShard.forEach((shard, args) -> redisTemplate.execute(
                 CLEAR_DIRTY_SCRIPT,
@@ -386,26 +335,24 @@ public class RedisPostCounterCache implements PostCounterCache {
     private void redistributeUnusedBudget(
             List<DirtyPost> target,
             Set<UUID> selectedPostIds,
-            List<DirtyQueue> candidates,
+            List<String> candidates,
             int totalLimit
     ) {
-        List<DirtyQueue> activeQueues = candidates;
+        List<String> activeQueues = candidates;
         while (target.size() < totalLimit && !activeQueues.isEmpty()) {
             int remaining = totalLimit - target.size();
             int perQueueQuota = Math.max(1, (remaining + activeQueues.size() - 1) / activeQueues.size());
-            List<DirtyQueue> nextActiveQueues = new ArrayList<>(activeQueues.size());
+            List<String> nextActiveQueues = new ArrayList<>(activeQueues.size());
             boolean madeProgress = false;
-            for (DirtyQueue queue : activeQueues) {
+            for (String key : activeQueues) {
                 if (target.size() >= totalLimit) {
                     break;
                 }
                 int quota = Math.min(perQueueQuota, totalLimit - target.size());
-                int added = queue.legacy()
-                        ? appendLegacyDirty(target, selectedPostIds, quota, totalLimit)
-                        : appendDirty(target, selectedPostIds, queue.key(), queue.queueId(), quota, totalLimit);
+                int added = appendDirty(target, selectedPostIds, key, quota, totalLimit);
                 madeProgress |= added > 0;
                 if (added == quota) {
-                    nextActiveQueues.add(queue);
+                    nextActiveQueues.add(key);
                 }
             }
             if (!madeProgress) {
@@ -419,7 +366,6 @@ public class RedisPostCounterCache implements PostCounterCache {
             List<DirtyPost> target,
             Set<UUID> selectedPostIds,
             String key,
-            String queueId,
             int requestedAdditions,
             int totalLimit
     ) {
@@ -443,66 +389,13 @@ public class RedisPostCounterCache implements PostCounterCache {
                     continue;
                 }
                 if (selectedPostIds.add(postId)) {
-                    target.add(new DirtyPost(postId, revision, queueId));
+                    target.add(new DirtyPost(postId, revision));
                     if (target.size() - initialSize >= wanted || target.size() >= totalLimit) {
                         break;
                     }
                 }
             }
             long removedPoison = removePoisonMembers(key, poisonMembers);
-            if (target.size() - initialSize >= wanted || tuples.size() < prefixSize) {
-                break;
-            }
-            if (poisonMembers.isEmpty() || removedPoison == 0L) {
-                prefixSize += Math.max(1, wanted - (target.size() - initialSize));
-            }
-        }
-        return target.size() - initialSize;
-    }
-
-    private int appendLegacyDirty(
-            List<DirtyPost> target,
-            Set<UUID> selectedPostIds,
-            int requestedAdditions,
-            int totalLimit
-    ) {
-        int initialSize = target.size();
-        int wanted = Math.min(Math.max(0, requestedAdditions), totalLimit - initialSize);
-        int prefixSize = Math.max(1, wanted);
-        while (target.size() - initialSize < wanted && target.size() < totalLimit) {
-            var tuples = redisTemplate.opsForZSet().rangeWithScores(
-                    LEGACY_DIRTY_KEY,
-                    0,
-                    prefixSize - 1L
-            );
-            if (tuples == null || tuples.isEmpty()) {
-                break;
-            }
-            List<String> poisonMembers = new ArrayList<>();
-            for (ZSetOperations.TypedTuple<String> tuple : tuples) {
-                String member = tuple == null ? null : tuple.getValue();
-                UUID postId = parseUuid(member);
-                Long sourceRevision = tuple == null ? null : parseRevision(tuple.getScore());
-                if (postId == null || sourceRevision == null) {
-                    if (member != null) {
-                        poisonMembers.add(member);
-                    }
-                    continue;
-                }
-                if (selectedPostIds.add(postId)) {
-                    long bridgedRevision = markDirtyInternal(postId);
-                    target.add(new DirtyPost(
-                            postId,
-                            bridgedRevision,
-                            LEGACY_QUEUE_ID,
-                            sourceRevision
-                    ));
-                    if (target.size() - initialSize >= wanted || target.size() >= totalLimit) {
-                        break;
-                    }
-                }
-            }
-            long removedPoison = removePoisonMembers(LEGACY_DIRTY_KEY, poisonMembers);
             if (target.size() - initialSize >= wanted || tuples.size() < prefixSize) {
                 break;
             }
@@ -531,30 +424,6 @@ public class RedisPostCounterCache implements PostCounterCache {
             throw new IllegalStateException("post counter dirty revision allocation failed");
         }
         return revision;
-    }
-
-    private PostCounterSnapshot legacySnapshot(UUID postId) {
-        List<String> keys = List.of(previousCounterKey(postId), legacyCounterKey(postId));
-        long viewCount = 0L;
-        long likeCount = 0L;
-        long commentCount = 0L;
-        long bookmarkCount = 0L;
-        double score = 0.0;
-        for (String key : keys) {
-            Map<Object, Object> values = entries(key);
-            List<Object> invalidFields = new ArrayList<>();
-            viewCount = addCounts(viewCount, longValue(values.get(LEGACY_FIELD_VIEW), LEGACY_FIELD_VIEW, invalidFields));
-            likeCount = addCounts(likeCount, longValue(values.get(LEGACY_FIELD_LIKE), LEGACY_FIELD_LIKE, invalidFields));
-            commentCount = addCounts(commentCount,
-                    longValue(values.get(LEGACY_FIELD_COMMENT), LEGACY_FIELD_COMMENT, invalidFields));
-            bookmarkCount = addCounts(bookmarkCount,
-                    longValue(values.get(LEGACY_FIELD_BOOKMARK), LEGACY_FIELD_BOOKMARK, invalidFields));
-            if (values.containsKey(LEGACY_FIELD_SCORE)) {
-                score = doubleValue(values.get(LEGACY_FIELD_SCORE), LEGACY_FIELD_SCORE, invalidFields);
-            }
-            deleteInvalidFields(key, invalidFields);
-        }
-        return new PostCounterSnapshot(postId, viewCount, likeCount, commentCount, bookmarkCount, score);
     }
 
     private Map<Object, Object> entries(String key) {
@@ -695,27 +564,8 @@ public class RedisPostCounterCache implements PostCounterCache {
         return score.longValue();
     }
 
-    private record DirtyQueue(String key, String queueId, boolean legacy) {
-
-        private static DirtyQueue legacyQueue() {
-            return new DirtyQueue(LEGACY_DIRTY_KEY, LEGACY_QUEUE_ID, true);
-        }
-
-        private static DirtyQueue shard(int shard) {
-            return new DirtyQueue(
-                    RedisPostCounterCache.dirtyKey(shard),
-                    RedisPostCounterCache.queueId(shard),
-                    false
-            );
-        }
-    }
-
     private static int shard(UUID postId) {
         return Math.floorMod(postId.hashCode(), DIRTY_SHARD_COUNT);
-    }
-
-    private static String queueId(int shard) {
-        return SHARD_QUEUE_ID_PREFIX + shard;
     }
 
     private static String counterKey(UUID postId) {
@@ -736,14 +586,6 @@ public class RedisPostCounterCache implements PostCounterCache {
 
     private static String viewerKey(UUID postId, String viewerKey) {
         return VIEWER_KEY_PREFIX + hashTag(shard(postId)) + ":" + postId + ":" + sha256(viewerKey.trim());
-    }
-
-    private static String previousCounterKey(UUID postId) {
-        return PREVIOUS_COUNTER_KEY_PREFIX + postId;
-    }
-
-    private static String legacyCounterKey(UUID postId) {
-        return LEGACY_COUNTER_KEY_PREFIX + postId;
     }
 
     private static String hashTag(int shard) {

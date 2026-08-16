@@ -81,6 +81,25 @@ DROP TABLE growth_like_task_lifecycle_state;
 DROP TABLE post_bookmark_counter_reconciliation;
 DROP TABLE notice_like_projection_state;
 DROP TABLE social_user_pair_lock;
+CREATE TABLE ai_config (
+  id binary(16) NOT NULL,
+  api_key varchar(512) DEFAULT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+CREATE TABLE demo_job (
+  id binary(16) NOT NULL,
+  batch_id binary(16) NOT NULL,
+  status varchar(32) NOT NULL,
+  PRIMARY KEY (id)
+) ENGINE=InnoDB;
+INSERT INTO ai_config(id, api_key)
+VALUES (UNHEX('00000000000000000000000000000061'), 'legacy-secret');
+INSERT INTO demo_job(id, batch_id, status)
+VALUES (
+  UNHEX('00000000000000000000000000000062'),
+  UNHEX('00000000000000000000000000000063'),
+  'succeeded'
+);
 -- Simulate a previous client stopping after one non-transactional DDL step.
 ALTER TABLE comment ADD INDEX idx_comment_user_recent (user_id, status, create_time, id);
 INSERT INTO auth_refresh_token(
@@ -189,6 +208,8 @@ test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_h
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '020'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '021'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '022'")" -eq 1
+test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '023'")" -eq 1
+test "$("${root_mysql[@]}" -Nse "select count(*) from information_schema.tables where table_schema = 'community' and table_name in ('demo_job','ai_config')")" -eq 0
 test "$("${root_mysql[@]}" -Nse "select count(*) from information_schema.statistics where table_schema = 'community' and table_name = 'comment' and index_name = 'idx_comment_root_cleanup'")" -eq 4
 test "$("${root_mysql[@]}" -Nse "select count(*) from information_schema.statistics where table_schema = 'community' and table_name = 'social_like' and index_name = 'idx_like_post_entity_user'")" -eq 4
 test "$("${root_mysql[@]}" -Nse "select count(*) from information_schema.columns where table_schema = 'community' and table_name = 'market_order' and column_name = 'wallet_recovery_next_attempt_at'")" -eq 1
@@ -225,10 +246,11 @@ test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_h
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '020'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '021'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '022'")" -eq 1
+test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '023'")" -eq 1
 
 # A fresh current snapshot already has the target structures. Removing only the
 # transition marker must make the idempotent migration a no-op and re-mark it.
-"${root_mysql[@]}" -e "delete from community_forward_schema_history where version in ('016', '017', '018', '019', '020', '021', '022')"
+"${root_mysql[@]}" -e "delete from community_forward_schema_history where version in ('016', '017', '018', '019', '020', '021', '022', '023')"
 run_migrations
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '016'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '017'")" -eq 1
@@ -237,6 +259,8 @@ test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_h
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '020'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '021'")" -eq 1
 test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '022'")" -eq 1
+test "$("${root_mysql[@]}" -Nse "select count(*) from community_forward_schema_history where version = '023'")" -eq 1
+test "$("${root_mysql[@]}" -Nse "select count(*) from information_schema.tables where table_schema = 'community' and table_name in ('demo_job','ai_config')")" -eq 0
 
 # A legacy orphan COMMENT like has no trustworthy owning post. Fail closed
 # before recording V018 instead of leaving a content relation with NULL post_id.

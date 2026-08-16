@@ -46,7 +46,7 @@
 - [frontend.md](frontend.md) 是浏览器客户端核心逻辑 SSOT。前端路由、session、endpoint、HTTP interceptor、IM realtime client、页面状态和 stores 以这里为准。
 - [data-and-storage.md](data-and-storage.md) 是存储索引 SSOT。新增表、Redis key、Kafka topic、ES alias/index 或本地种子数据时必须同步。
 - [observability.md](observability.md) 是观测模型 SSOT。SLO/SLI、信号契约、指标维度、trace/span 命名、告警优先级和观测治理以这里为准。
-- [operations.md](operations.md) 是运行排障 SSOT。新增 scheduler、XXL job、观测字段或人工恢复步骤时必须同步。
+- [operations.md](operations.md) 是运行排障 SSOT。新增 scheduler、观测字段或人工恢复步骤时必须同步。
 - [local-development.md](local-development.md) 是本地启动和验证 SSOT。新增本地拓扑、端口、dev-only 控制面或常用命令时必须同步。
 - [testing.md](testing.md) 是测试策略 SSOT。新增测试层级、关键测试套件或验证命令时必须同步。
 

@@ -177,8 +177,8 @@ http:
     enabled: true
     store: DB
 
-xxl:
-  job:
+market:
+  scheduling:
     enabled: false
 
 wallet:

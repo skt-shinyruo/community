@@ -68,17 +68,11 @@ class RedisPostCounterCacheTest {
     }
 
     @Test
-    void getShouldComposePreInitializationDeltasWithLegacyCounters() {
+    void getShouldComposePreInitializationDeltas() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         HashOperations<String, Object, Object> hashes = mock(HashOperations.class);
         UUID postId = uuid(9);
-        Map<Object, Object> previous = new LinkedHashMap<>();
-        previous.put("viewCount", "10");
-        previous.put("likeCount", "7");
-        previous.put("commentCount", "3");
-        previous.put("bookmarkCount", "4");
-        previous.put("score", "20.0");
         Map<Object, Object> v2 = new LinkedHashMap<>();
         v2.put("deltaViewCount", "2");
         v2.put("deltaLikeCount", "-1");
@@ -86,15 +80,13 @@ class RedisPostCounterCacheTest {
         v2.put("scoreOverlay", "30.0");
         when(redisTemplate.opsForHash()).thenReturn(hashes);
         when(hashes.entries(counterKey(postId))).thenReturn(v2);
-        when(hashes.entries(previousCounterKey(postId))).thenReturn(previous);
-        when(hashes.entries(legacyCounterKey(postId))).thenReturn(Map.of());
         RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
 
         PostCounterSnapshot snapshot = cache.get(postId);
 
-        assertThat(snapshot.viewCount()).isEqualTo(12L);
-        assertThat(snapshot.likeCount()).isEqualTo(6L);
-        assertThat(snapshot.commentCount()).isEqualTo(3L);
+        assertThat(snapshot.viewCount()).isEqualTo(2L);
+        assertThat(snapshot.likeCount()).isZero();
+        assertThat(snapshot.commentCount()).isZero();
         assertThat(snapshot.bookmarkCount()).isEqualTo(5L);
         assertThat(snapshot.score()).isEqualTo(30.0);
     }
@@ -198,7 +190,6 @@ class RedisPostCounterCacheTest {
         @SuppressWarnings("unchecked")
         ZSetOperations.TypedTuple<String> tuple = mock(ZSetOperations.TypedTuple.class);
         when(redisTemplate.opsForZSet()).thenReturn(zsets);
-        when(zsets.rangeWithScores("post:counter:dirty", 0L, 0L)).thenReturn(new LinkedHashSet<>());
         when(zsets.rangeWithScores(dirtyKey(postId), 0L, 0L)).thenReturn(new LinkedHashSet<>(List.of(tuple)));
         when(tuple.getValue()).thenReturn(postId.toString());
         when(tuple.getScore()).thenReturn(11.0);
@@ -207,7 +198,7 @@ class RedisPostCounterCacheTest {
         List<PostCounterCache.DirtyPost> dirtyPosts = cache.dirtyPosts(1);
         cache.clearDirtyPosts(dirtyPosts);
 
-        assertThat(dirtyPosts).containsExactly(new PostCounterCache.DirtyPost(postId, 11L, "shard-0"));
+        assertThat(dirtyPosts).containsExactly(new PostCounterCache.DirtyPost(postId, 11L));
         verify(redisTemplate).execute(
                 any(RedisScript.class),
                 eq(List.of(dirtyKey(postId))),
@@ -231,7 +222,6 @@ class RedisPostCounterCacheTest {
         );
         String key = dirtyKey(postIds.get(0));
         when(redisTemplate.opsForZSet()).thenReturn(zsets);
-        when(zsets.rangeWithScores("post:counter:dirty", 0L, 0L)).thenReturn(new LinkedHashSet<>());
         when(zsets.rangeWithScores(key, 0L, 0L))
                 .thenReturn(new LinkedHashSet<>(tuples.subList(0, 1)));
         when(zsets.rangeWithScores(key, 0L, 3L))
@@ -243,7 +233,7 @@ class RedisPostCounterCacheTest {
         List<PostCounterCache.DirtyPost> result = cache.dirtyPosts(5);
 
         assertThat(result).extracting(PostCounterCache.DirtyPost::postId).containsExactlyElementsOf(postIds);
-        assertThat(result).extracting(PostCounterCache.DirtyPost::queueId).containsOnly("shard-0");
+        assertThat(result).extracting(PostCounterCache.DirtyPost::revision).containsExactly(1L, 2L, 3L, 4L, 5L);
         verify(zsets).rangeWithScores(key, 0L, 4L);
     }
 
@@ -263,7 +253,6 @@ class RedisPostCounterCacheTest {
                 tuple(secondShardPosts.get(1), 2.0)
         );
         when(redisTemplate.opsForZSet()).thenReturn(zsets);
-        when(zsets.rangeWithScores("post:counter:dirty", 0L, 0L)).thenReturn(new LinkedHashSet<>());
         stubGrowingQueue(zsets, dirtyKey(firstShardPosts.get(0)), firstTuples);
         stubGrowingQueue(zsets, dirtyKey(secondShardPosts.get(0)), secondTuples);
         RedisPostCounterCache cache = newCache(redisTemplate, 86_400L);
@@ -295,7 +284,6 @@ class RedisPostCounterCacheTest {
         ZSetOperations.TypedTuple<String> firstValid = tuple(firstValidPost, 2.0);
         ZSetOperations.TypedTuple<String> secondValid = tuple(secondValidPost, 3.0);
         when(redisTemplate.opsForZSet()).thenReturn(zsets);
-        when(zsets.rangeWithScores("post:counter:dirty", 0L, 0L)).thenReturn(new LinkedHashSet<>());
         when(zsets.rangeWithScores(key, 0L, 0L)).thenReturn(
                 new LinkedHashSet<>(List.of(invalidUuid)),
                 new LinkedHashSet<>(List.of(wrongShard)),
@@ -402,11 +390,4 @@ class RedisPostCounterCacheTest {
         return "post:viewer:v2:" + tag(postId) + ":" + postId + ":";
     }
 
-    private static String previousCounterKey(UUID postId) {
-        return "post:counter:{post:counter:dirty}:" + postId;
-    }
-
-    private static String legacyCounterKey(UUID postId) {
-        return "post:counter:" + postId;
-    }
 }

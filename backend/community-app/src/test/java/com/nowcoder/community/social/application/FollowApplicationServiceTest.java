@@ -120,10 +120,10 @@ class FollowApplicationServiceTest {
         assertThatThrownBy(() -> service.followerCount(POST, targetUserId))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
-        assertThatThrownBy(() -> service.listFollowees(actorUserId, POST, 0, 10))
+        assertThatThrownBy(() -> service.listFolloweePage(actorUserId, POST, null, 10))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
-        assertThatThrownBy(() -> service.listFollowers(POST, targetUserId, 0, 10))
+        assertThatThrownBy(() -> service.listFollowerPage(POST, targetUserId, null, 10))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(e -> assertThat(((BusinessException) e).getErrorCode()).isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
     }
@@ -246,10 +246,10 @@ class FollowApplicationServiceTest {
 
         assertThat(service.followeeCount(viewerUserId, USER)).isEqualTo(1);
         assertThat(service.followerCount(USER, viewerUserId)).isEqualTo(1);
-        assertThat(service.listFollowees(viewerUserId, USER, 0, 10))
+        assertThat(service.listFolloweePage(viewerUserId, USER, null, 10).items())
                 .extracting(FollowRelationResult::targetId)
                 .containsExactly(visibleUserId);
-        assertThat(service.listFollowers(USER, viewerUserId, 0, 10))
+        assertThat(service.listFollowerPage(USER, viewerUserId, null, 10).items())
                 .extracting(FollowRelationResult::targetId)
                 .containsExactly(visibleUserId);
     }
@@ -270,10 +270,10 @@ class FollowApplicationServiceTest {
 
         assertThat(service.followeeCount(viewerUserId, USER)).isEqualTo(1);
         assertThat(service.followerCount(USER, viewerUserId)).isEqualTo(1);
-        assertThat(service.listFollowees(viewerUserId, USER, 0, 10))
+        assertThat(service.listFolloweePage(viewerUserId, USER, null, 10).items())
                 .extracting(FollowRelationResult::targetId)
                 .containsExactly(visibleUserId);
-        assertThat(service.listFollowers(USER, viewerUserId, 0, 10))
+        assertThat(service.listFollowerPage(USER, viewerUserId, null, 10).items())
                 .extracting(FollowRelationResult::targetId)
                 .containsExactly(visibleUserId);
     }
@@ -297,7 +297,7 @@ class FollowApplicationServiceTest {
     }
 
     @Test
-    void followQueriesShouldUseRepositoryFilteredMethodsWithBoundedPagination() {
+    void followCountsShouldUseRepositoryFilteredMethods() {
         FollowRepository followRepository = mock(FollowRepository.class);
         BlockRepository blockRepository = mock(BlockRepository.class);
         SocialDomainEventPublisher publisher = mock(SocialDomainEventPublisher.class);
@@ -311,28 +311,13 @@ class FollowApplicationServiceTest {
                 CLOCK
         );
         UUID viewerUserId = uuid(1);
-        UUID visibleUserId = uuid(2);
         when(followRepository.countFolloweesExcludingBlocked(viewerUserId, USER, blockRepository)).thenReturn(1L);
         when(followRepository.countFollowersExcludingBlocked(USER, viewerUserId, blockRepository)).thenReturn(2L);
-        when(followRepository.listFolloweesExcludingBlocked(viewerUserId, USER, blockRepository, 20, 10))
-                .thenReturn(List.of(new FollowRelation(visibleUserId, Instant.EPOCH)));
-        when(followRepository.listFollowersExcludingBlocked(USER, viewerUserId, blockRepository, 10, 5))
-                .thenReturn(List.of(new FollowRelation(visibleUserId, Instant.EPOCH)));
 
         assertThat(service.followeeCount(viewerUserId, USER)).isEqualTo(1);
         assertThat(service.followerCount(USER, viewerUserId)).isEqualTo(2);
-        assertThat(service.listFollowees(viewerUserId, USER, 2, 10))
-                .extracting(FollowRelationResult::targetId)
-                .containsExactly(visibleUserId);
-        assertThat(service.listFollowers(USER, viewerUserId, 2, 5))
-                .extracting(FollowRelationResult::targetId)
-                .containsExactly(visibleUserId);
         verify(followRepository).countFolloweesExcludingBlocked(viewerUserId, USER, blockRepository);
         verify(followRepository).countFollowersExcludingBlocked(USER, viewerUserId, blockRepository);
-        verify(followRepository).listFolloweesExcludingBlocked(viewerUserId, USER, blockRepository, 20, 10);
-        verify(followRepository).listFollowersExcludingBlocked(USER, viewerUserId, blockRepository, 10, 5);
-        verify(followRepository, never()).listFollowees(viewerUserId, USER, 0, Integer.MAX_VALUE);
-        verify(followRepository, never()).listFollowers(USER, viewerUserId, 0, Integer.MAX_VALUE);
     }
 
     @Test
@@ -370,22 +355,6 @@ class FollowApplicationServiceTest {
 
         verify(followRepository).listFolloweeIdsExcludingBlocked(viewerUserId, USER, blockRepository, 50);
         verify(followRepository, never()).listFolloweeIds(viewerUserId, USER, 50);
-    }
-
-    @Test
-    void legacyFollowListsShouldRejectDeepPages() {
-        FollowApplicationService service = newService(
-                mock(FollowRepository.class),
-                mock(BlockRepository.class),
-                mock(SocialDomainEventPublisher.class)
-        );
-
-        assertThatThrownBy(() -> service.listFollowees(uuid(1), USER, 101, 10))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("use cursor pagination");
-        assertThatThrownBy(() -> service.listFollowers(USER, uuid(1), Integer.MAX_VALUE, 10))
-                .isInstanceOf(BusinessException.class)
-                .hasMessageContaining("use cursor pagination");
     }
 
     @Test

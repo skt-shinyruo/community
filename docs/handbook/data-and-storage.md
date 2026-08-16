@@ -15,7 +15,6 @@ schema：
 - `community`：主站业务表和 shared tables。
 - `community_oss`：对象元数据、版本、上传会话、授权、引用和生命周期表。
 - `im_core`：IM 权威消息、房间、会话、已读状态。
-- `xxl_job`：XXL-JOB Admin。
 
 最小权限账号：
 
@@ -47,7 +46,7 @@ MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执�
 
 `market_order.wallet_recovery_next_attempt_at` 是 pending 资金订单的持久恢复截止时间；`idx_market_order_wallet_recovery(status,wallet_recovery_next_attempt_at,order_id)` 让有限批次只扫描到期候选。V019 为已有环境补齐该列和索引，避免缺失 action 或暂不可修复订单反复占满固定扫描前缀。
 
-V020 为 IM policy snapshot 增加 append-only owner version history，V021 为成长任务增加按 like relation instance/version fencing 的 lifecycle state，V022 为收藏计数增加事务内 durable reconciliation token。V022 的一次性差异回填不能覆盖迁移完成后仍由旧二进制产生的收藏写入，因此该版本不支持旧、新 `community-app` 混合写；必须先停止并排空旧 writer，完成迁移并切换全部新实例后再恢复收藏写入。
+V020 为 IM policy snapshot 增加 append-only owner version history，V021 为成长任务增加按 like relation instance/version fencing 的 lifecycle state，V022 为收藏计数增加事务内 durable reconciliation token。V022 的一次性差异回填不能覆盖迁移完成后仍由旧二进制产生的收藏写入，因此该版本不支持旧、新 `community-app` 混合写；必须先停止并排空旧 writer，完成迁移并切换全部新实例后再恢复收藏写入。V023 永久删除同步 CLI 不再使用的 `demo_job` 和 `ai_config` 及其历史数据。
 
 可丢弃的本地环境仍可使用 clean reset：
 
@@ -110,10 +109,8 @@ V020 为 IM policy snapshot 增加 append-only owner version history，V021 为�
 | `drive_share_access` | 分享提取码校验访问日志 |
 | `outbox_event` | DB outbox 可靠投递表 |
 | `demo_batch` | Mock Data Studio 批次元数据 |
-| `demo_job` | Mock Data Studio 批次内作业状态 |
 | `demo_batch_target` | Mock Data Studio 批次目标 |
 | `demo_entity_ref` | Mock Data Studio 生成实体引用，支持后续清理 |
-| `ai_config` | Mock Data Studio AI 配置元数据 |
 
 ## community_oss 主要表
 
@@ -153,7 +150,7 @@ deploy/database/business/seed/090_seed_identity.sql
 - 普通用户：`aaa/aaa`
 - 管理员：`admin/aaa`
 
-`community-dev-seed` 使用 `mysql:8.0` 客户端执行该文件。它只有在 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时运行；其他环境即使误开 seed 开关也会失败关闭。`demo_*` / `ai_config` 表定义属于当前态快照，`tools/mock-data-studio/src/db/bootstrap.mjs` 只幂等写入 `Default` AI 配置，不执行 DDL。
+`community-dev-seed` 使用 `mysql:8.0` 客户端执行该文件。它只有在 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时运行；其他环境即使误开 seed 开关也会失败关闭。Mock Data Studio 同步 CLI 只写批次、目标和实体引用，不在运行时执行 DDL。
 
 seed 会为每个示例账号显式写入正 `policy_version` 和 `security_version`，并用 `greatest(current_version, seed_version)` 保留用户已有版本、推进两个全局版本计数器。重复执行不会让版本倒退，也不会生成 freshness 永久判 stale 的 `security_version=0` 账号。
 
@@ -175,7 +172,6 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 | 验证码 | `captcha:{<captchaId>}:value` |
 | 验证码失败计数 | `captcha:{<captchaId>}:fail` |
 | 注册验证码状态机 v2 | `auth:regcode:v2:{<userId>}`（Redis Hash） |
-| 注册验证码 legacy bridge | `auth:regcode:<userId>`（升级期只读迁移的 8 字段 String） |
 | 注册请求/重发原子配额 | `auth:registration:quota:{registration-quota}:<request\|resend>:<dimension>:<hmac>` |
 | 找回密码 token | `auth:pwdreset:{password-reset}:token:<sha256>` |
 | 找回密码 token generation | `auth:pwdreset:{password-reset}:generation:<userId>:<securityVersion>` |
@@ -190,7 +186,6 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 | Hot-feed 投影 epoch | `post:feed:projection-epoch:{<完整 feed zset key>}`（仅成员增删或排序 tuple 变化时原子递增；相同投影的预热/版本 floor 刷新不递增） |
 | 帖子摘要缓存 | `post:summary:<postId>` |
 | 帖子详情缓存 | `post:detail:<postId>` |
-| 帖子计数 legacy 基线（升级期只读） | `post:counter:<postId>` 与 `post:counter:{post:counter:dirty}:<postId>` |
 | 帖子计数 v2 基线/浏览增量 | `post:counter:v2:{post-counter-<00..1f>}:<postId>` |
 | 帖子计数 v2 dirty revision | `post:counter:v2:{post-counter-<00..1f>}:dirty` + `post:counter:v2:{post-counter-<00..1f>}:sequence` |
 | 帖子浏览去重 | `post:viewer:v2:{post-counter-<00..1f>}:<postId>:<viewerKey sha256>` |
@@ -211,10 +206,6 @@ Hot-feed projection 的 BEGIN/CURRENT/COMMIT/ABORT Lua 对同一帖子使用 `{<
 
 注册验证码 v2 Hash 使用 `auth:regcode:v2:{<userId>}`，保存 code、delivery ID、失败次数、状态和 replacement/verification lease。失败达到上限后会清除 code 与 delivery ID，保留 `EXHAUSTED` 冷却墓碑，避免删除 key 后立即重发绕过 cooldown。
 
-legacy String 的真实旧格式是没有 hash tag 的 `auth:regcode:<userId>`。桥接不会把两个跨 slot key 传入同一个 Lua：应用先在 legacy key 上用一个 Lua 原子执行 `GET + PTTL + DEL`，解析出已确认 active code、失败次数与签发时间，再用只操作 v2 key 的 Lua 条件导入。legacy pending 状态没有 UUID lease，桥接只恢复此前 active code，不会猜测邮件是否已发送并提升 replacement code；非法、过期或无 TTL 值 fail-closed 丢弃。显式 cleanup 同时删除两个 key。
-
-该 bridge 只支持旧 writer 完全退出后的状态切换，不是双写协议。旧进程不识别 v2 lease，新旧实例混跑会分别接受不同验证码；发布前必须停止旧流量、排空在途注册/重发请求并确认所有旧实例退出，再启动 v2。回滚也必须先停掉 v2，并使在途注册上下文失效后再启动旧版本，禁止新旧 writer 滚动混跑。
-
 guard tombstone 之外，每个 Redis sink 同时保留 terminal fence 和 aggregate-version floor，两者 TTL 都是 7 天。terminal fence 无条件拒绝普通回填，aggregate floor 保存该 sink 最小可接受的 Post `aggregateVersion`。hot-feed 和 summary 另外保存 `scoreVersion`：更大的 aggregate version 可替换当前值，同一 aggregate version 只有不小于当前 score version 的写入可更新；较小 aggregate version 即使携带更大 score version 也会被拒绝。feed upsert 与 summary put/evict 分别在同一个 Lua 中写 payload 并刷新各自的二元版本 marker，避免旧 score 在同一 aggregate version 下回填；detail 不缓存最终 score，只按 aggregate version 保护。帖子普通变更的 `remove/evict` 会删除当前 sink，将版本 floor 提升到当前值与传入值的字典序最大值并刷新 TTL；终态删除还会写 terminal fence。
 
 feed 的删除覆盖全站 feed、事件 payload board 以及当时 category repository 返回的所有 board，并按 board ID 去重。每组 legacy feed zset、完整排序 zset、成员索引、epoch、terminal fence 和 version floor 都把完整 feed key 放入第一组 `{...}`；一次 Lua 写入会删除旧排序成员、写入新成员并推进 epoch。成员索引在帖子仍位于该 scope 时不能过期，否则后续 rank 更新无法删除旧 lex member；显式 remove/terminal remove 会连同索引一起删除。summary/detail 也把完整 cache key 放入对应 fence/floor 的第一组 `{...}`，因此每个 sink 的检查、删除和写入共享 Redis Cluster slot。
@@ -222,8 +213,6 @@ feed 的删除覆盖全站 feed、事件 payload board 以及当时 category rep
 counter v2 按 `postId.hashCode()` 分成 32 个 Redis Cluster slot；每个 slot 内的 counter hash、viewer 去重 key、dirty zset 和 sequence 共用 `{post-counter-<00..1f>}` hash tag，因此浏览去重、浏览增量与 dirty revision 可在同一 Lua 中原子完成。点赞、评论、收藏和 score 均以 owner 数据库为事实源：写路径只标记 dirty，读取/flush 时回源重建，不再把乱序到达的绝对值或增量当作事实。首次初始化会原子清理初始化前的派生 overlay，防止已包含新事实的数据库基线再次叠加；持久 snapshot 不可读时禁止写入已初始化标记。若 `initialized` 或 `base*` 损坏，修复脚本把 `deltaViewCount` 原子移入内部 `recoveryViewDelta`，恢复持久基线后再移回增量字段；该内部字段存在期间不得作为零基线完成初始化。
 
 dirty zset 的 score 是分片内严格递增 revision。flush 把该 revision 与快照一起持久化到 `post_counter_snapshot.flush_revision` 和 `post_score_snapshot.flush_revision`，MySQL upsert 只接受更大 revision；因此多实例中迟到的旧 flush 无法覆盖新快照。Redis 初始化会用持久化 revision 抬高本分片 sequence，确保重建后的新修改仍能越过数据库水位。flush 对 Redis 和 owner 事实源使用严格读取，任一来源失败都不落库、不确认 dirty；仅在 dirty revision 仍等于读取值时用 Lua 确认，批次读取后的新修改会留给下一轮。扫描先轮询 32 个分片，再把空分片让出的额度按活跃分片重新分配；队头不可解析的 UUID、落入错误分片的 UUID，以及非正数、非整数或非有限 revision score 会被删除并立即补位。
-
-此 key 协议不允许旧 counter writer 与 v2 writer 混跑。升级时必须先停止全部旧版流量并等待旧 writer 退出，再启动 v2；不得使用滚动混合发布。v2 会把升级前遗留的全局 `post:counter:dirty` marker 先桥接成分片 revision，在分片 flush 成功且 fenced clear 后才按旧 score CAS 清理 legacy marker；这只用于排空切换前积压，不是双写协议。
 
 帖子编辑/治理/删除事务除了写 owner outbox，还注册本域 after-commit callback：更新立即删除 feed / summary / detail cache，删除立即执行 terminal eviction，不依赖 Kafka 回环才开始失效。评论创建、编辑和删除也在同一事务内通过 `incrementActiveCommentCount` 推进 `discuss_post.aggregate_version`，提交后按该版本失效同一组读模型；因此评论变更不会与删帖产生可提交的混合版本。callback 失败按缓存 fail-open 记录日志，后续 Kafka 投影继续追平；因此 Redis 仍是派生状态，不是删除事实的唯一存储。
 
@@ -442,8 +431,8 @@ key idx_market_wallet_action_order_type (order_id, action_type)
 
 排查口径：
 
-- `PENDING` / `RETRYING` 长时间不动：检查 `marketWalletActionProcessor` XXL job。
-- `PROCESSING` 超过 lease：检查 `marketWalletActionRecovery` 是否恢复过期 lease。
+- `PENDING` / `RETRYING` 长时间不动：检查 `MarketWalletActionProcessorScheduler` 和应用日志。
+- `PROCESSING` 超过 lease：检查 `MarketWalletActionRecoveryScheduler` 是否恢复过期 lease。
 - 有 `wallet_txn_id` 但 action 非 `SUCCEEDED`：恢复任务应尝试把 wallet txn 重新应用到 market saga 状态。
 - 订单处于 `ESCROW_PENDING` / `RELEASE_PENDING` / `REFUND_PENDING` / dispute pending 但没有 action：恢复任务应补写缺失 command。
 

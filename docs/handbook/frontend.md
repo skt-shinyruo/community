@@ -187,7 +187,7 @@ connect(accessToken)
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。组件只保留加载、提交、toast 和 UI 绑定。
 
-跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 `relationKind` 统一关注 / 粉丝列表的游标、hydration、账号 / 路由隔离和逐项 mutation，两个正式 route component 只绑定 relation kind；`MarketOrderListView.vue` 通过 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的游标、hydration、账号 / 路由隔离和逐项 mutation；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 `utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 

@@ -206,7 +206,7 @@
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | content Kafka event 到 search projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
-| `search.infrastructure.job.SearchReindexHandler` | XXL 全量重建入口 | [Operations](operations.md) | IndexOnly |
+| `search.infrastructure.job.SearchReindexScheduler` | 可选全量重建 scheduler | [Operations](operations.md) | IndexOnly |
 
 ## Analytics
 
@@ -332,8 +332,7 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `community-gateway.config.GatewayConfigRefreshListener` | route / canary / IM edge config refresh to route rebuild | [Gateway Runtime](core-logic/gateway-runtime.md) | Covered |
-| `community-gateway.canary.CanaryInstanceFilter` | canary metadata matching and `draining=true` exclusion | [Gateway Runtime](core-logic/gateway-runtime.md) | Covered |
+| `community-gateway.config.GatewayConfigRefreshListener` | HTTP route / IM edge config refresh to route rebuild | [Gateway Runtime](core-logic/gateway-runtime.md) | Covered |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
@@ -442,9 +441,9 @@
 | `content.infrastructure.job.PostMediaReferenceReconciliationJob` | post media reference reconciliation | [可靠性机制](reliability.md#content-media-upload-and-reference-recovery) | Covered |
 | `social.infrastructure.job.SocialLikeCleanupReconciliationJob` | deleted content like cleanup reconciliation | [可靠性机制](reliability.md#social-deleted-content-like-cleanup) | Covered |
 | `community-oss.infrastructure.job.ObjectUploadRecoveryJob` | OSS upload claim recovery | [可靠性机制](reliability.md#oss-upload-claim-recovery) | Covered |
-| `market.infrastructure.job.MarketOrderAutoConfirmHandler` | XXL `marketOrderAutoConfirm` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `market.infrastructure.job.MarketWalletActionProcessorHandler` | XXL `marketWalletActionProcessor` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
-| `market.infrastructure.job.MarketWalletActionRecoveryHandler` | XXL `marketWalletActionRecovery` | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.infrastructure.job.MarketOrderAutoConfirmScheduler` | 市场订单自动确认 | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.infrastructure.job.MarketWalletActionProcessorScheduler` | wallet action processor | [Market 市场业务逻辑](business-logic/market.md) | Covered |
+| `market.infrastructure.job.MarketWalletActionRecoveryScheduler` | wallet action recovery | [Market 市场业务逻辑](business-logic/market.md) | Covered |
 | `auth.infrastructure.job.RefreshTokenCleanupJob` | 本地 refresh token cleanup | [Auth 认证业务逻辑](business-logic/auth.md) | Covered |
 | `infra.scheduler.SingleFlightTaskGuard` | local single-flight scheduler guard | [可靠性机制](reliability.md#single-flight) | Covered |
 | `common-outbox.OutboxWorkerScheduler` | outbox 本地 worker scheduler | [可靠性机制](reliability.md) | Covered |

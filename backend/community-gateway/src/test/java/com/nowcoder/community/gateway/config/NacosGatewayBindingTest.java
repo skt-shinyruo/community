@@ -1,6 +1,5 @@
 package com.nowcoder.community.gateway.config;
 
-import com.nowcoder.community.gateway.canary.CanaryRouteProperties;
 import com.nowcoder.community.gateway.edge.EdgeTrustedProxyProperties;
 import com.nowcoder.community.gateway.edge.RateLimitProperties;
 import com.nowcoder.community.gateway.edge.TrafficPolicyProperties;
@@ -56,15 +55,6 @@ class NacosGatewayBindingTest {
                 "http://127.0.0.1:12888"
         );
         assertThat(environment.getProperty("security.jwt.issuer")).isEqualTo("community-auth");
-    }
-
-    @Test
-    void bindsCanaryRoutingPolicyDataId() throws Exception {
-        CanaryRouteProperties canary = Binder.get(environmentFrom("community-canary-routing.yaml"))
-                .bind("gateway.http.canary", CanaryRouteProperties.class)
-                .orElseThrow(IllegalStateException::new);
-
-        assertThat(canary.getRules()).isEmpty();
     }
 
     @Test

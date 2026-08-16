@@ -8,7 +8,7 @@ COPY . .
 # therefore reuse this reactor layer for every backend image in one Compose build.
 RUN --mount=type=cache,target=/root/.m2/repository,sharing=locked \
     mvn -q -DskipTests \
-      -pl :community-app,:community-gateway,:community-im-gateway,:community-oss,:im-core,:im-realtime,:yierloom-agent \
+      -pl :community-app,:community-gateway,:community-im-gateway,:community-oss,:im-core,:im-realtime \
       -am package
 
 ARG MODULE
@@ -42,13 +42,7 @@ RUN set -eu; \
       exit 1; \
     fi; \
     echo "[docker-build] Using jar: ${jar_path}"; \
-    cp "${jar_path}" /workspace/app.jar; \
-    yierloom_agent_path="./yierloom/yierloom-agent/target/yierloom-agent.jar"; \
-    if [ ! -f "${yierloom_agent_path}" ]; then \
-      echo "[docker-build] ERROR: Cannot find built YierLoom agent at ${yierloom_agent_path}." >&2; \
-      exit 1; \
-    fi; \
-    cp "${yierloom_agent_path}" /workspace/yierloom-agent.jar
+    cp "${jar_path}" /workspace/app.jar
 
 FROM eclipse-temurin:17-jre-jammy
 
@@ -63,14 +57,12 @@ RUN apt-get update \
 WORKDIR /app
 RUN set -eu; \
     agent_base_url="https://repo.maven.apache.org/maven2/io/opentelemetry/javaagent/opentelemetry-javaagent/${OTEL_JAVA_AGENT_VERSION}/opentelemetry-javaagent-${OTEL_JAVA_AGENT_VERSION}.jar"; \
-    mkdir -p /otel /opt/community /opt/yierloom/plugins; \
-    chmod 0755 /opt/yierloom/plugins; \
+    mkdir -p /otel /opt/community; \
     curl -fsSL "${agent_base_url}" -o /otel/opentelemetry-javaagent.jar; \
     curl -fsSL "${agent_base_url}.sha256" -o /tmp/opentelemetry-javaagent.jar.sha256; \
     printf '%s  %s\n' "$(cat /tmp/opentelemetry-javaagent.jar.sha256)" "/otel/opentelemetry-javaagent.jar" | sha256sum -c -; \
     rm -f /tmp/opentelemetry-javaagent.jar.sha256
 COPY --from=build /workspace/app.jar /app/app.jar
-COPY --from=build /workspace/yierloom-agent.jar /otel/yierloom-agent.jar
 COPY scripts/run-backend-service.sh /opt/community/run-backend-service.sh
 RUN chmod 0755 /opt/community/run-backend-service.sh
 

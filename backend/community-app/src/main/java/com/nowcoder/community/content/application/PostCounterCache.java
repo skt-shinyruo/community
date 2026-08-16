@@ -27,14 +27,6 @@ public interface PostCounterCache {
 
     void clearDirtyPosts(List<DirtyPost> dirtyPosts);
 
-    record DirtyPost(UUID postId, long revision, String queueId, long sourceRevision) {
-
-        public DirtyPost(UUID postId, long revision, String queueId) {
-            this(postId, revision, queueId, revision);
-        }
-
-        public DirtyPost(UUID postId, long revision) {
-            this(postId, revision, null, revision);
-        }
+    record DirtyPost(UUID postId, long revision) {
     }
 }

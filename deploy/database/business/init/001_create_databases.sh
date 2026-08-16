@@ -80,7 +80,7 @@ grant select, insert, update, delete on \`${MYSQL_DATABASE_ESCAPED}\`.* to '${MY
 create user if not exists '${COMMUNITY_MIGRATION_USERNAME_ESCAPED}'@'%'
   identified by '${COMMUNITY_MIGRATION_PASSWORD_ESCAPED}';
 revoke all privileges, grant option from '${COMMUNITY_MIGRATION_USERNAME_ESCAPED}'@'%';
-grant select, insert, update, delete, create, alter, index
+grant select, insert, update, delete, create, alter, index, drop
   on \`${MYSQL_DATABASE_ESCAPED}\`.* to '${COMMUNITY_MIGRATION_USERNAME_ESCAPED}'@'%';
 
 create user if not exists '${MOCK_DATA_STUDIO_DB_USER_ESCAPED}'@'%' identified by '${MOCK_DATA_STUDIO_DB_PASSWORD_ESCAPED}';

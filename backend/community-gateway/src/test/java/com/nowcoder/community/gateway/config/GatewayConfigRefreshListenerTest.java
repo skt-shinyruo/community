@@ -47,8 +47,7 @@ class GatewayConfigRefreshListenerTest {
 
         listener.onEnvironmentChange(Set.of(
                 "gateway.http.routes-extra",
-                "gateway.im-edge-debug",
-                "gateway.http.canarying"
+                "gateway.im-edge-debug"
         ));
 
         assertThat(event.get()).isNull();
@@ -61,7 +60,7 @@ class GatewayConfigRefreshListenerTest {
         GatewayConfigRefreshListener listener = new GatewayConfigRefreshListener(publisher);
 
         listener.onEnvironmentChange(Set.of("gateway.http.routes"));
-        listener.onEnvironmentChange(Set.of("gateway.im-edge.service-id", "gateway.http.canary.rules[0].service-id"));
+        listener.onEnvironmentChange(Set.of("gateway.im-edge.service-id", "gateway.http.routes[0].service-id"));
 
         assertThat(events).isEmpty();
 

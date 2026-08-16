@@ -48,7 +48,7 @@
 | `BookmarksView.vue` | content 收藏列表。 |
 | `NoticesView.vue`, `NoticeDetailView.vue` | notice 通知摘要、列表、已读。 |
 | `UserProfileView.vue` | user 资料聚合、content 最近内容、social 关注/拉黑。 |
-| `FolloweesView.vue`, `FollowersView.vue` | social 关注/粉丝。 |
+| `FollowRelationListView.vue` | social 关注/粉丝。 |
 | `SettingsView.vue` | user 头像上传/更新。 |
 | `ModerationView.vue` | content 举报和审核、user 处罚联动。 |
 | `AnalyticsView.vue` | analytics UV/DAU 查询。 |
@@ -60,10 +60,9 @@
 | `MarketPublishView.vue`, `MarketMyListingsView.vue` | market 卖家商品管理。 |
 | `MarketInventoryView.vue` | market 预加载库存。 |
 | `MarketAddressesView.vue` | market 收货地址。 |
-| `MarketBuyingOrdersView.vue`, `MarketSellingOrdersView.vue`, `MarketOrderDetailView.vue` | market 订单、交付、发货、确认、取消、纠纷。 |
+| `MarketOrderListView.vue`, `MarketOrderDetailView.vue` | market 订单、交付、发货、确认、取消、纠纷。 |
 | `AdminMarketDisputesView.vue` | market 管理员纠纷裁决。 |
 | `ConversationsView.vue`, `ConversationDetailView.vue` | IM 会话、历史、WebSocket 发送、已读。 |
-| `OpsConsoleView.vue` | ops 搜索重建。 |
 | `UserManagementView.vue` | user 管理员搜索和角色调整。 |
 
 ## API service 到业务域

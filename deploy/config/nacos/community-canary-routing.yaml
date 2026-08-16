@@ -1,4 +1,0 @@
-gateway:
-  http:
-    canary:
-      rules: []

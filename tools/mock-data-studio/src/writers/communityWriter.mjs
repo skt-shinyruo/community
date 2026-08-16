@@ -201,7 +201,6 @@ function resolveOptionalIsoTimestamp(value, label) {
 export function createCommunityWriter({
   db,
   entityRefRepository = null,
-  aiContentEnhancer = null,
   now = () => new Date().toISOString()
 } = {}) {
   if (!db?.query || !db?.execute) {
@@ -211,7 +210,7 @@ export function createCommunityWriter({
   const nextTimestamp = buildTimestampSource(now)
 
   return {
-    async writePhase({ batchId, plan, runOptions = null } = {}) {
+    async writePhase({ batchId, plan, seed = null } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')
       }
@@ -245,6 +244,7 @@ export function createCommunityWriter({
         })
         const dataset = generateCommunityPhaseDataset({
           plan,
+          seed: seed == null ? null : `${seed}:community`,
           existing: {
             users: existing.users,
             posts: existing.posts,
@@ -253,31 +253,6 @@ export function createCommunityWriter({
             likes: existing.likes
           }
         })
-
-        const applyTextEnhancement = async (items, fieldName, kind) => {
-          if (!aiContentEnhancer?.enhanceTextsForRun || items.length === 0) {
-            return
-          }
-
-          const originalValues = items.map((item) => item?.[fieldName] ?? '')
-          const enhanced = await aiContentEnhancer.enhanceTextsForRun({
-            kind,
-            inputs: originalValues,
-            runOptions
-          })
-
-          if (!Array.isArray(enhanced?.outputs) || enhanced.outputs.length !== items.length) {
-            return
-          }
-
-          items.forEach((item, index) => {
-            item[fieldName] = enhanced.outputs[index]
-          })
-        }
-
-        await applyTextEnhancement(dataset.posts, 'title', 'post-title')
-        await applyTextEnhancement(dataset.posts, 'content', 'post-content')
-        await applyTextEnhancement(dataset.comments, 'content', 'comment-content')
 
         const generatedRefs = []
 
@@ -501,6 +476,7 @@ export function createCommunityWriter({
 
         const domainDataset = generateDomainPhaseDataset({
           plan,
+          seed: seed == null ? null : `${seed}:domain`,
           existing: {
             users: [...existing.users, ...insertedUserIds.map((id) => ({ id }))],
             posts: [...existing.posts, ...insertedPostIds.map((id) => ({ id }))],
@@ -517,9 +493,6 @@ export function createCommunityWriter({
             userTaskProgress: existingDomain.userTaskProgress
           }
         })
-
-        await applyTextEnhancement(domainDataset.reports, 'detail', 'report-detail')
-        await applyTextEnhancement(domainDataset.moderationActions, 'reason', 'moderation-reason')
 
         const reportRows = domainDataset.reports.map((report) => {
           const timestamp = nextTimestamp()

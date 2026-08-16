@@ -56,32 +56,6 @@ async function requireBatchById(db, batchId) {
   return batch
 }
 
-async function findBatchByKey(db, batchKey) {
-  const rows = await db.query(
-    `select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at
-       from demo_batch
-      where batch_key = ?
-      limit 1`,
-    [batchKey]
-  )
-
-  if (rows.length === 0) {
-    return null
-  }
-
-  return mapBatchRow(rows[0])
-}
-
-async function listAllBatches(db) {
-  const rows = await db.query(
-    `select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at
-       from demo_batch
-      order by created_at desc, id desc`
-  )
-
-  return rows.map(mapBatchRow)
-}
-
 export function createBatchRepository(db, { createId = generateUuidV7 } = {}) {
   return {
     async create({ batchKey, batchType, requestedBy, createdAt = new Date().toISOString() }) {
@@ -131,21 +105,6 @@ export function createBatchRepository(db, { createId = generateUuidV7 } = {}) {
       return requireBatchById(db, batchId)
     },
 
-    async markPrepared(batchId) {
-      const result = await db.execute(
-        `update demo_batch
-            set status = ?, summary_json = null, error_message = null, started_at = null, finished_at = null
-          where id = ?`,
-        ['pending', uuidToBuffer(batchId)]
-      )
-
-      if (result.affectedRows !== 1) {
-        throw createMissingBatchError(batchId)
-      }
-
-      return requireBatchById(db, batchId)
-    },
-
     async markFinished(
       batchId,
       {
@@ -181,20 +140,8 @@ export function createBatchRepository(db, { createId = generateUuidV7 } = {}) {
       return requireBatchById(db, batchId)
     },
 
-    async getById(batchId) {
-      return requireBatchById(db, batchId)
-    },
-
     async findById(batchId) {
       return findBatchById(db, batchId)
-    },
-
-    async findByBatchKey(batchKey) {
-      return findBatchByKey(db, batchKey)
-    },
-
-    async listAll() {
-      return listAllBatches(db)
     }
   }
 }

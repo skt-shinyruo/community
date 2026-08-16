@@ -227,16 +227,6 @@ http:
     enabled: true
     store: DB
 
-xxl:
-  job:
-    enabled: false
-    admin:
-      addresses: ${XXL_JOB_ADMIN_ADDRESSES:}
-      accessToken: ${XXL_JOB_ACCESS_TOKEN:}
-    executor:
-      appname: ${XXL_JOB_EXECUTOR_APPNAME:}
-      address: ${XXL_JOB_EXECUTOR_ADDRESS:}
-
 market:
   order:
     auto-confirm-batch-size: ${MARKET_ORDER_AUTO_CONFIRM_BATCH_SIZE:100}

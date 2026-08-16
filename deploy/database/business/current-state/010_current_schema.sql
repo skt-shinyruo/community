@@ -19,25 +19,6 @@ CREATE DATABASE IF NOT EXISTS `community` /*!40100 DEFAULT CHARACTER SET utf8mb4
 USE `community`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `ai_config` (
-  `id` binary(16) NOT NULL,
-  `name` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `provider` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'openai',
-  `base_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `api_key` varchar(512) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `model` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'gpt-4.1-mini',
-  `enabled` tinyint(1) NOT NULL DEFAULT '0',
-  `is_active` tinyint(1) NOT NULL DEFAULT '0',
-  `timeout_ms` int NOT NULL DEFAULT '8000',
-  `max_items_per_job` int NOT NULL DEFAULT '20',
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
 CREATE TABLE `auth_refresh_token` (
   `token_hash` char(64) COLLATE utf8mb4_unicode_ci NOT NULL,
   `user_id` binary(16) NOT NULL,
@@ -165,25 +146,6 @@ CREATE TABLE `demo_entity_ref` (
   PRIMARY KEY (`id`),
   UNIQUE KEY `uk_demo_entity_ref` (`batch_id`,`entity_type`,`entity_key`),
   KEY `idx_demo_entity_ref_batch` (`batch_id`,`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-/*!40101 SET character_set_client = @saved_cs_client */;
-
-/*!40101 SET @saved_cs_client     = @@character_set_client */;
-/*!50503 SET character_set_client = utf8mb4 */;
-CREATE TABLE `demo_job` (
-  `id` binary(16) NOT NULL,
-  `batch_id` binary(16) NOT NULL,
-  `job_key` varchar(128) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `job_type` varchar(64) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `status` varchar(32) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `summary_json` mediumtext COLLATE utf8mb4_unicode_ci,
-  `error_message` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  `started_at` timestamp NULL DEFAULT NULL,
-  `finished_at` timestamp NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  UNIQUE KEY `uk_demo_job_batch_key` (`batch_id`,`job_key`),
-  KEY `idx_demo_job_batch_status` (`batch_id`,`status`,`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 

@@ -85,16 +85,7 @@ public class ContentHotPathProperties {
     }
 
     public static class SingleFlightProperties {
-        private boolean enabled = true;
         private long ttlMs = 3_000L;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
 
         public long getTtlMs() {
             return ttlMs;

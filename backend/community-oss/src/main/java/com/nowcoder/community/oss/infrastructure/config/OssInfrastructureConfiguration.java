@@ -1,12 +1,9 @@
 package com.nowcoder.community.oss.infrastructure.config;
 
-import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.oss.domain.service.OssObjectAccessPolicy;
 import com.nowcoder.community.oss.infrastructure.storage.LocalFilesystemObjectStore;
 import com.nowcoder.community.oss.application.port.ObjectStore;
-import com.nowcoder.community.oss.infrastructure.storage.ObservedObjectStore;
 import com.nowcoder.community.oss.infrastructure.storage.S3CompatibleObjectStore;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -40,17 +37,14 @@ public class OssInfrastructureConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public ObjectStore objectStore(OssProperties properties, ObjectProvider<OssRuntimeLogger> loggerProvider) {
+    public ObjectStore objectStore(OssProperties properties) {
         OssProperties.ObjectStoreProperties store = properties.objectStore();
         String mode = store.mode() == null ? "garage" : store.mode().trim().toLowerCase();
-        ObjectStore objectStore;
         if ("local".equals(mode) || "filesystem".equals(mode) || "local-filesystem".equals(mode)) {
-            objectStore = new LocalFilesystemObjectStore(Path.of(store.localRoot()), properties.publicBaseUrl());
+            return new LocalFilesystemObjectStore(Path.of(store.localRoot()), properties.publicBaseUrl());
         } else {
-            objectStore = new S3CompatibleObjectStore(s3Client(store), s3Presigner(store));
+            return new S3CompatibleObjectStore(s3Client(store), s3Presigner(store));
         }
-        OssRuntimeLogger logger = loggerProvider.getIfAvailable();
-        return logger == null ? objectStore : new ObservedObjectStore(objectStore, logger);
     }
 
     S3Client s3Client(OssProperties.ObjectStoreProperties store) {

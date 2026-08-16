@@ -7,6 +7,7 @@ import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
 import com.nowcoder.community.content.application.PostFeedCache;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.Category;
@@ -69,6 +70,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                     lateWriterPostId,
                     "evt-normal-late",
                     10L,
+                    PostProjectionVersionLane.POST,
                     false
             );
             assertThat(lateWriter.accepted()).isTrue();
@@ -99,6 +101,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                     earlyWriterPostId,
                     "evt-normal-early",
                     10L,
+                    PostProjectionVersionLane.POST,
                     false
             );
             assertThat(earlyWriter.accepted()).isTrue();
@@ -388,7 +391,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
             UUID payloadBoardId,
             String eventId
     ) {
-        HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, eventId, 5L, true);
+        HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, eventId, 5L, PostProjectionVersionLane.POST, true);
         assertThat(deletion.accepted()).isTrue();
         assertThat(guard.isCurrent(deletion)).isTrue();
         feedCache.terminalRemove(postId, payloadBoardId);

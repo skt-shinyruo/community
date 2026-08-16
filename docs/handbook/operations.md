@@ -2,7 +2,7 @@
 
 本文档覆盖本地 observability、Kibana、XXL-Job、outbox worker、scheduler 和常见故障检查。本地启动命令见 [local-development.md](local-development.md)，压测套件见 [performance-testing.md](performance-testing.md)，可靠性机制见 [reliability.md](reliability.md)。
 
-观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。运行态 hook 的代码接入点见 [Runtime Observability](core-logic/runtime-observability.md)。本文只维护运行和排障入口。
+观测模型、SLO/SLI、信号契约、指标维度、trace 命名和告警优先级的 SSOT 是 [observability.md](observability.md)。本文只维护运行和排障入口。
 
 ## Observability
 
@@ -59,7 +59,7 @@ deploy/observability/kibana/README.md
 
 - `trace.id` / `traceparent`：串联一次请求或异步链路。
 - `service.name`：定位 `community-app`、`community-gateway`、`community-im-gateway`、`community-oss`、`im-core`、`im-realtime`。
-- `event.category`：区分 auth、content、search、outbox、scheduler、im、runtime、database、access 等类别。
+- `event.category`：只用于已有的 `security`、`business`、`async`、`access`、`exception` 和 `yierloom` 语义日志。
 - `event.action`：定位具体动作，例如 pollOnce、persistPrivateMessage。
 - `event.outcome`：区分 success、failed、skipped、retry、dead。
 
@@ -73,68 +73,6 @@ deploy/observability/kibana/README.md
 
 对外 HTTP 响应会回写 `traceparent`，前端或 curl 拿到 trace 后优先在 Kibana 里按 trace 查。
 
-### 运行态日志
-
-主要后端 deployable 默认启用业务无关运行态日志，包括 `community-app`、`community-oss`、`im-core`、`im-realtime`、`community-gateway` 和 `community-im-gateway`。日志以共享 Logback JSON stdout 为 operator 可读入口，同时由 EDOT Collector 的 logs pipeline 接收 stdout 和 OTLP logs，归一化后写入 Elasticsearch。运行态日志只记录启动摘要、阈值事件和慢请求事件，不记录请求 body、cookie、Authorization、SQL bind、Redis key、Kafka payload 或完整 object key。
-
-当前覆盖：
-
-- JVM 启动摘要：`event.category: runtime AND event.action: jvm_startup`
-- 应用生命周期：`app_startup`、`app_ready`、`app_shutdown`、`graceful_shutdown_timeout`
-- JVM 内存压力：`event.category: runtime AND event.action: jvm_memory_pressure`
-- GC pause 阈值：`event.category: runtime AND event.action: jvm_gc_pause_threshold`
-- JVM 扩展摘要：`jvm_direct_memory_pressure`、`jvm_class_loading_summary`
-- executor 压力：`event.category: runtime AND event.action: executor_pressure`
-- Hikari 连接池等待：`event.category: database AND event.action: hikari_pool_pressure`
-- MyBatis 慢 SQL：`event.category: database AND event.action: sql_slow_query`
-- Redis 技术事件：`redis_connection_pressure`、`redis_command_slow`
-- Kafka 技术事件：`kafka_producer_error`、`kafka_consumer_lag_threshold`、`kafka_rebalance`
-- 慢 HTTP 请求：`event.category: access AND event.action: http_slow_request`
-- 出站 HTTP 客户端：`http_client_slow`、`http_client_error`
-- OSS 客户端：`oss_upload_slow`、`oss_download_slow`、`oss_client_error`
-- 日志系统：`logging_appender_error`、`logging_queue_pressure`
-- 调度任务：`scheduled_job_slow`、`scheduled_job_skipped`、`scheduled_job_error`
-- 缓存/安全/限流：`cache_hit_ratio_low`、`rate_limit_triggered`、`auth_filter_error`
-- 进程/系统资源：`process_fd_pressure`、`disk_space_pressure`、`cpu_load_threshold`
-
-常用字段：
-
-- lifecycle：`spring.profiles.active`、`server.port`、`duration.ms`
-- JVM：`jvm.version`、`jvm.heap.max.bytes`、`jvm.memory.area`、`jvm.memory.used.percent`、`jvm.gc.pause.ms`、`jvm.classes.loaded.delta`
-- executor：`executor.name`、`executor.active`、`executor.pool.size`、`executor.queue.size`
-- database：`db.pool.name`、`db.pool.active`、`db.pool.idle`、`db.pool.pending`、`db.mybatis.statement`、`db.operation`、`db.rows.bucket`
-- Redis/cache：`cache.system`、`cache.operation`、`cache.pool.active`、`cache.pool.idle`、`cache.pool.pending`、`cache.hit.ratio.percent`
-- Kafka：`messaging.destination.name`、`messaging.kafka.consumer.group`、`messaging.kafka.partition`、`messaging.kafka.consumer.lag`
-- HTTP：`peer.service`、`http.request.method`、`url.path`、`http.response.status_code`、`duration.ms`、`threshold.ms`
-- OSS：`oss.bucket`、`oss.operation`、`object.size.bucket`、`error.code`
-- process：`process.fd.used.percent`、`disk.used.percent`、`process.cpu.load.percent`
-
-自动触发入口包括 Spring lifecycle events、周期性 JVM/进程快照、GC notification、Servlet access filter、MyBatis interceptor、Spring `RestClient.Builder` / `WebClient.Builder` customizer、Kafka producer listener / rebalance listener / record interceptor、`community-app` 的 OSS client wrapper，以及 `community-oss` 的 `ObjectStore` wrapper。Redis、缓存命中率、任务调度、限流和 auth filter 也有专用 logger API；接入具体业务入口时必须继续保持字段克制，不记录 key、token、请求体或业务结果。
-
-可通过环境变量调整：
-
-```text
-COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_ENABLED=false
-COMMUNITY_OBSERVABILITY_RUNTIME_PERIODIC_SUMMARY_INTERVAL=60s
-COMMUNITY_OBSERVABILITY_RUNTIME_JVM_MEMORY_THRESHOLD_PERCENT=85
-COMMUNITY_OBSERVABILITY_RUNTIME_JVM_GC_PAUSE_THRESHOLD_MS=200
-COMMUNITY_OBSERVABILITY_RUNTIME_JVM_DIRECT_MEMORY_THRESHOLD_PERCENT=85
-COMMUNITY_OBSERVABILITY_RUNTIME_EXECUTORS_SATURATION_THRESHOLD_PERCENT=85
-COMMUNITY_OBSERVABILITY_RUNTIME_DATASOURCE_POOL_PENDING_THRESHOLD=1
-COMMUNITY_OBSERVABILITY_RUNTIME_SQL_SLOW_QUERY_THRESHOLD_MS=500
-COMMUNITY_OBSERVABILITY_RUNTIME_REDIS_POOL_PENDING_THRESHOLD=1
-COMMUNITY_OBSERVABILITY_RUNTIME_REDIS_SLOW_COMMAND_THRESHOLD_MS=100
-COMMUNITY_OBSERVABILITY_RUNTIME_KAFKA_CONSUMER_LAG_THRESHOLD=1000
-COMMUNITY_OBSERVABILITY_RUNTIME_OSS_SLOW_OPERATION_THRESHOLD_MS=1000
-COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_CLIENT_SLOW_REQUEST_THRESHOLD_MS=1000
-COMMUNITY_OBSERVABILITY_RUNTIME_JOBS_SLOW_JOB_THRESHOLD_MS=30000
-COMMUNITY_OBSERVABILITY_RUNTIME_CACHE_HIT_RATIO_THRESHOLD_PERCENT=80
-COMMUNITY_OBSERVABILITY_RUNTIME_LOGGING_SYSTEM_QUEUE_PRESSURE_THRESHOLD_PERCENT=80
-COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_FD_USAGE_THRESHOLD_PERCENT=80
-COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_DISK_USAGE_THRESHOLD_PERCENT=90
-COMMUNITY_OBSERVABILITY_RUNTIME_SYSTEM_CPU_LOAD_THRESHOLD_PERCENT=85
-COMMUNITY_OBSERVABILITY_RUNTIME_HTTP_SLOW_REQUEST_THRESHOLD_MS=1000
-```
 
 ### YierLoom Agent
 
@@ -196,123 +134,47 @@ PluginContractVerifier.verifyOrThrow(Path.of("/path/to/plugin.jar"));
 
 ## Stability Observability Runbooks
 
-Use these runbooks in Kibana with the local observability overlay. Prefer structured fields over message text.
+Use metrics and traces for runtime and dependency health. The application no longer emits a parallel set of custom runtime events.
 
-### JVM Or Memory Pressure
+### Runtime And Dependency Signals
 
-Query:
+| 问题 | 首选信号 |
+| --- | --- |
+| JVM 内存、GC | `jvm_memory_*`、`jvm_gc_pause_*` |
+| 线程池、调度 | `executor_*` 和 job trace |
+| 数据库连接池 | `hikaricp_connections_*` |
+| HTTP 延迟/错误 | `http_server_requests_*` 和 server spans |
+| Redis、Kafka、OSS | 对应客户端指标和 OTel dependency spans |
 
-```text
-service.namespace : "community" and event.category : "runtime" and
-event.action : ("jvm_memory_pressure" or "jvm_direct_memory_pressure" or "jvm_gc_pause_threshold")
-```
+具体 meter 名称以目标服务当前 `/actuator/prometheus` 输出为准，避免把实现细节写成日志事件。
 
-Inspect: `service.name`, `jvm.memory.area`, `jvm.memory.used.percent`, `jvm.gc.name`, `jvm.gc.pause.ms`, `threshold.percent`, `threshold.ms`.
+### Semantic Logs
 
-Interpretation: repeated memory pressure or GC pause threshold events mean the service is under runtime pressure, even if request traces only show downstream latency.
-
-Next action: check `process.cpu.load.percent`, recent deploy version, traffic shape, and whether one service produces most pressure events. Enable the YierLoom `thread` and `jvm` plugins only if the standard runtime logs do not show enough detail.
-
-### Thread Pool Or Scheduler Saturation
-
-Query:
+只查询仍由代码生成的语义日志：
 
 ```text
 service.namespace : "community" and
-((event.category : "runtime" and event.action : "executor_pressure") or
- (event.category : "job" and event.action : ("scheduled_job_slow" or "scheduled_job_skipped" or "scheduled_job_error")))
+(event.category : (access or async or security or business or exception) or message : "[audit]*")
 ```
 
-Inspect: `executor.name`, `executor.active`, `executor.pool.size`, `executor.queue.size`, `duration.ms`, `threshold.ms`, `job.name`.
-
-Interpretation: executor pressure means request, Kafka, or scheduled work may be queued before it appears slow in traces.
-
-Next action: identify the executor or job name, then pivot by `service.name` and time range to request traces and downstream dependency events.
-
-### Database Pool Pressure
-
-Query:
-
-```text
-service.namespace : "community" and event.category : "database" and
-event.action : ("hikari_pool_pressure" or "sql_slow_query")
-```
-
-Inspect: for `hikari_pool_pressure`, check `db.pool.name`, `db.pool.active`, `db.pool.idle`, `db.pool.pending`. For `sql_slow_query`, check `db.mybatis.statement`, `db.operation`, `duration.ms`, `threshold.ms`.
-
-Interpretation: Hikari pending count indicates pool wait. Slow SQL events show statement identity without bind values.
-
-Next action: compare with traces for the same time window. Enable the YierLoom `jdbc` plugin only for a short run if traces and SQL slow events are not enough.
-
-### Redis Instability Or Slow Operations
-
-Query:
-
-```text
-service.namespace : "community" and event.category : "cache" and
-event.action : ("redis_connection_pressure" or "redis_command_slow" or "cache_hit_ratio_low")
-```
-
-Inspect: `cache.system`, `cache.operation`, `cache.pool.active`, `cache.pool.pending`, `cache.hit.ratio.percent`, `duration.ms`, `threshold.ms`.
-
-Interpretation: Redis slow operations or pool pressure can cause application latency before database metrics change.
-
-Next action: check whether the issue is isolated to one service and compare with request traces. Enable the YierLoom `redis` plugin only for a short run; raw keys and values must remain absent.
+用 `trace.id` 关联请求和依赖 spans；不要再查询 `jvm_memory_pressure`、`sql_slow_query`、`redis_command_slow`、`kafka_rebalance` 或 `http_slow_request`。
 
 ### Content Hot Path Degradation
-
-Query:
 
 ```text
 community_cache_requests_total{cache="hot_feed",result=~"degraded|singleflight_busy"}
 ```
 
-Inspect: `result`, `scope`, Redis runtime events, Hikari pending, and hot-path k6 p95/p99. Do not inspect raw Redis keys or payload values.
-
-Interpretation: `singleflight_busy` during a Redis flush or cold start means one node is allowed to rebuild a hot feed page while peers avoid a repository stampede. `degraded` means the cache path failed or rank version fell back.
-
-Next action: confirm `HotPathPrewarmJob` is enabled with `content.hot-path.prewarm.enabled=true`, wait one scheduled interval, then run:
+确认 `HotPathPrewarmJob` 使用 `content.hot-path.prewarm.enabled=true`，再按需运行：
 
 ```bash
 cd tests/k6
 K6_BOARD_ID=<board-uuid> K6_POST_ID=<post-uuid> npm run hot-path
 ```
 
-If Hikari pending rises during warm-cache runs, reduce k6 arrival rate or prewarm page/board limits before changing repository queries.
-
-### Kafka Lag Or Rebalance
-
-Query:
-
-```text
-service.namespace : "community" and event.category : "messaging" and
-event.action : ("kafka_consumer_lag_threshold" or "kafka_rebalance" or "kafka_producer_error")
-```
-
-Inspect: `messaging.destination.name`, `messaging.kafka.consumer.group`, `messaging.kafka.partition`, `messaging.kafka.consumer.lag`, `error.type`.
-
-Interpretation: lag and rebalance events explain delayed projections, IM fanout, and outbox delivery even when HTTP traces look healthy.
-
-Next action: check outbox state and consumer services. Enable the YierLoom `kafka` plugin only for short producer/consumer investigation; payloads must remain absent.
-
-### Slow HTTP Requests
-
-Query:
-
-```text
-service.namespace : "community" and event.category : "access" and
-event.action : "http_slow_request"
-```
-
-Inspect: `trace.id`, `service.name`, `http.request.method`, `url.path`, `http.response.status_code`, `duration.ms`, `threshold.ms`.
-
-Interpretation: use `trace.id` to pivot into traces and request-correlated logs.
-
-Next action: if traces identify a dependency, inspect the matching database, cache, messaging, or HTTP client event category for the same time window. Use `event.category : "http_client"` for outbound HTTP client events such as `http_client_slow` and `http_client_error`.
-
 ### When To Enable YierLoom
 
-Enable YierLoom only after always-on traces and runtime logs do not explain the symptom. Keep includes narrow:
+Enable YierLoom only after metrics, traces, and audit logs do not explain the symptom. Keep includes narrow:
 
 ```bash
 YIERLOOM_ENABLED=true \
@@ -326,40 +188,13 @@ Query:
 event.category : yierloom and diagnostic.plugin.id : *
 ```
 
-Inspect: `diagnostic.plugin.id`, `event.action`, `service.name`, `trace.id`, `duration.ms`, `threshold.ms`.
-
-Interpretation: YierLoom is for focused deep dives; it should explain one unresolved symptom, not replace always-on traces or runtime logs.
-
-Next action: disable YierLoom immediately after the capture window and restart the target services:
+Disable it after the capture window and restart the target services:
 
 ```bash
 YIERLOOM_ENABLED=false ./deploy/deployment.sh up --stack single
 ```
 
-For a focused dependency capture, opt in only to the required plugin. For example:
-
-```bash
-YIERLOOM_ENABLED=true \
-YIERLOOM_PLUGIN__HTTP__ENABLED=true \
-YIERLOOM_PLUGIN__HTTP__SLOW_THRESHOLD=2s \
-./deploy/deployment.sh up --stack single
-```
-
-### Production Compatibility
-
-Phase 1 intentionally keeps Elastic/Kibana as the local UI and does not add Prometheus, Grafana, Loki, or Alertmanager. Production alerting can later use the same signal split: traces for timelines, metrics for trends and SLOs, runtime logs for discrete stability events, and YierLoom for short deep dives.
-
-Query:
-
-```text
-service.namespace : "community" and event.category : ("access" or "runtime" or "database" or "cache" or "messaging" or "http_client")
-```
-
-Inspect: `service.name`, `event.category`, `event.action`, `event.outcome`, `duration.ms`, `threshold.ms`, `trace.id`.
-
-Interpretation: production compatibility depends on stable fields and signal categories, not the local Kibana UI.
-
-Next action: candidate SLOs are HTTP availability/latency, Kafka lag, database pool pending, Redis error/slow-operation rate, JVM memory/GC pressure, executor saturation, and outbox backlog or dead-letter rate.
+Phase 1 keeps Elastic/Kibana as the local UI. Production alerting should use traces for timelines, metrics for trends and SLOs, semantic logs for audit/security context, and YierLoom only for short deep dives.
 
 ## Content Platform Degradation
 

@@ -94,6 +94,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(206),
                 "evt-duplicate",
                 48L,
+                PostProjectionVersionLane.POST,
                 false
         );
 
@@ -137,6 +138,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(207),
                 "evt-stale",
                 47L,
+                PostProjectionVersionLane.POST,
                 false
         );
 
@@ -180,6 +182,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(210),
                 "evt-old",
                 50L,
+                PostProjectionVersionLane.POST,
                 false,
                 "token-old"
         );
@@ -228,6 +231,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(212),
                 "evt-superseded",
                 52L,
+                PostProjectionVersionLane.POST,
                 false,
                 "token-superseded"
         );
@@ -337,6 +341,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(211),
                 "evt-current",
                 51L,
+                PostProjectionVersionLane.POST,
                 false,
                 "token-current"
         );
@@ -386,6 +391,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(230),
                 "evt-new",
                 20L,
+                PostProjectionVersionLane.POST,
                 false,
                 "token-new"
         );
@@ -393,6 +399,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(230),
                 "evt-old",
                 10L,
+                PostProjectionVersionLane.POST,
                 false
         );
         DiscussPost post = post(uuid(230), uuid(30), 0, 10.0);
@@ -616,6 +623,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(231),
                 "evt-terminal-delete",
                 5L,
+                PostProjectionVersionLane.POST,
                 true,
                 "token-terminal"
         );
@@ -675,6 +683,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(232),
                 "evt-terminal-delete-rollback",
                 4L,
+                PostProjectionVersionLane.POST,
                 true,
                 "token-terminal-rollback"
         );
@@ -730,6 +739,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 uuid(233),
                 "evt-terminal-delete-failure",
                 3L,
+                PostProjectionVersionLane.POST,
                 true,
                 "token-terminal-failure"
         );

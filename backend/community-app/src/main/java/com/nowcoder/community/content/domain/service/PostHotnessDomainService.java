@@ -24,12 +24,4 @@ public class PostHotnessDomainService {
         double hotness = Math.log10(Math.max(weight, 1.0)) + days;
         return post.getType() == 1 ? hotness + TOP_RANK_OFFSET : hotness;
     }
-
-    /**
-     * Compatibility entry for old callers. Events are invalidation signals; their arrival order must not alter score.
-     */
-    @Deprecated
-    public double recomputeScore(DiscussPost post, long likeCount, double ignoredSignalWeight) {
-        return recomputeScore(post, likeCount);
-    }
 }

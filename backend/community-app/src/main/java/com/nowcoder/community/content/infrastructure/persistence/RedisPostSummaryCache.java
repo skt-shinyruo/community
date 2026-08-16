@@ -7,7 +7,6 @@ import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.PostSummaryCache;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -21,7 +20,6 @@ import java.util.Map;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostSummaryCache implements PostSummaryCache {
 
     private static final String SUMMARY_KEY = "post:summary:";

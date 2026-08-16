@@ -99,23 +99,7 @@ export function isNavItemActive(route, item) {
   return false
 }
 
-export const POSTS_FILTER_OPTIONS = Object.freeze([
-  { key: POSTS_FILTER.ALL, label: '全部' },
-  { key: POSTS_FILTER.UNREAD, label: '未读' },
-  { key: POSTS_FILTER.TOP, label: '置顶' },
-  { key: POSTS_FILTER.WONDERFUL, label: '精华' }
-])
-
-export const POSTS_ORDER_OPTIONS = Object.freeze([
-  { key: POSTS_ORDER.LATEST, label: '最新' },
-  { key: POSTS_ORDER.HOT, label: '热门' }
-])
-
 const SHELL_SEARCH_ROUTE_NAMES = Object.freeze(['posts', 'search', 'market'])
-
-export function getShellSearchRouteNames() {
-  return [...SHELL_SEARCH_ROUTE_NAMES]
-}
 
 export function routeSupportsShellSearch(routeName) {
   return SHELL_SEARCH_ROUTE_NAMES.includes(String(routeName || ''))

@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
+import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import io.lettuce.core.cluster.SlotHash;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -51,7 +52,7 @@ class RedisHotFeedProjectionGuardTest {
         )).thenReturn(1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
-        HotFeedProjectionGuard.ProjectionAttempt attempt = guard.tryBegin(postId, "evt-1", 42L, false);
+        HotFeedProjectionGuard.ProjectionAttempt attempt = guard.tryBegin(postId, "evt-1", 42L, PostProjectionVersionLane.POST, false);
 
         assertThat(attempt.accepted()).isTrue();
         assertThat(attempt.terminalDeletion()).isFalse();
@@ -63,7 +64,7 @@ class RedisHotFeedProjectionGuardTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
-        assertThat(guard.tryBegin(uuid(99), " ", 42L, false).accepted()).isFalse();
+        assertThat(guard.tryBegin(uuid(99), " ", 42L, PostProjectionVersionLane.POST, false).accepted()).isFalse();
 
         verifyNoInteractions(redisTemplate);
     }
@@ -83,7 +84,7 @@ class RedisHotFeedProjectionGuardTest {
         )).thenReturn(-1L);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
 
-        assertThat(guard.tryBegin(postId, "evt-1", 42L, false).accepted()).isFalse();
+        assertThat(guard.tryBegin(postId, "evt-1", 42L, PostProjectionVersionLane.POST, false).accepted()).isFalse();
     }
 
     @Test
@@ -115,6 +116,7 @@ class RedisHotFeedProjectionGuardTest {
                 postId,
                 "evt-1",
                 42L,
+                PostProjectionVersionLane.POST,
                 false,
                 "token-1"
         );
@@ -148,6 +150,7 @@ class RedisHotFeedProjectionGuardTest {
                 postId,
                 "evt-delete",
                 5L,
+                PostProjectionVersionLane.POST,
                 true,
                 "expired-token"
         );
@@ -175,6 +178,7 @@ class RedisHotFeedProjectionGuardTest {
                 postId,
                 "evt-delete",
                 5L,
+                PostProjectionVersionLane.POST,
                 true,
                 "token-1"
         );
@@ -211,12 +215,12 @@ class RedisHotFeedProjectionGuardTest {
         UUID postId = UUID.randomUUID();
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
         try {
-            HotFeedProjectionGuard.ProjectionAttempt ordinary = guard.tryBegin(postId, "evt-normal-10", 10L, false);
+            HotFeedProjectionGuard.ProjectionAttempt ordinary = guard.tryBegin(postId, "evt-normal-10", 10L, PostProjectionVersionLane.POST, false);
             assertThat(ordinary.accepted()).isTrue();
             assertThat(guard.isCurrent(ordinary)).isTrue();
             guard.commit(ordinary);
 
-            HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, "evt-delete-5", 5L, true);
+            HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, "evt-delete-5", 5L, PostProjectionVersionLane.POST, true);
             assertThat(deletion.accepted()).isTrue();
             assertThat(guard.isCurrent(deletion)).isTrue();
             guard.commit(deletion);
@@ -229,10 +233,10 @@ class RedisHotFeedProjectionGuardTest {
                     .isBetween(1L, 604800L);
             assertThat(redisTemplate.getExpire(eventKey(postId, "evt-delete-5"), TimeUnit.SECONDS))
                     .isBetween(1L, 604800L);
-            assertThat(guard.tryBegin(postId, "evt-normal-4", 4L, false).accepted()).isFalse();
-            assertThat(guard.tryBegin(postId, "evt-normal-5", 5L, false).accepted()).isFalse();
-            assertThat(guard.tryBegin(postId, "evt-normal-11", 11L, false).accepted()).isFalse();
-            assertThat(guard.tryBegin(postId, "evt-delete-5", 5L, true).accepted()).isFalse();
+            assertThat(guard.tryBegin(postId, "evt-normal-4", 4L, PostProjectionVersionLane.POST, false).accepted()).isFalse();
+            assertThat(guard.tryBegin(postId, "evt-normal-5", 5L, PostProjectionVersionLane.POST, false).accepted()).isFalse();
+            assertThat(guard.tryBegin(postId, "evt-normal-11", 11L, PostProjectionVersionLane.POST, false).accepted()).isFalse();
+            assertThat(guard.tryBegin(postId, "evt-delete-5", 5L, PostProjectionVersionLane.POST, true).accepted()).isFalse();
 
             guard.abort(deletion);
 
@@ -290,11 +294,12 @@ class RedisHotFeedProjectionGuardTest {
         UUID postId = UUID.randomUUID();
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
         try {
-            HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, "evt-delete-abort", 5L, true);
+            HotFeedProjectionGuard.ProjectionAttempt deletion = guard.tryBegin(postId, "evt-delete-abort", 5L, PostProjectionVersionLane.POST, true);
             assertThatThrownBy(() -> guard.commit(HotFeedProjectionGuard.ProjectionAttempt.accepted(
                             postId,
                             "evt-delete-abort",
                             5L,
+                            PostProjectionVersionLane.POST,
                             true,
                             "not-the-owner"
                     )))
@@ -324,6 +329,7 @@ class RedisHotFeedProjectionGuardTest {
                 postId,
                 "evt-1",
                 42L,
+                PostProjectionVersionLane.POST,
                 true,
                 "token-1"
         );

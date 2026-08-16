@@ -1,8 +1,6 @@
 package com.nowcoder.community.infra.oss;
 
-import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.infra.observability.ObservedCommunityOssClient;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.oss.client.OssServiceTokenProvider;
@@ -37,7 +35,6 @@ public class OssClientConfiguration {
             ObjectProvider<ClientHttpRequestFactory> requestFactory,
             ObjectProvider<ObservationRegistry> observationRegistry,
             ObjectProvider<ClientRequestObservationConvention> observationConvention,
-            ObjectProvider<OssRuntimeLogger> ossRuntimeLogger,
             OssServiceTokenProvider serviceTokenProvider
     ) {
         RestClient.Builder multipartRestClientBuilder = RestClient.builder()
@@ -50,13 +47,11 @@ public class OssClientConfiguration {
         if (multipartObservationConvention != null) {
             multipartRestClientBuilder.observationConvention(multipartObservationConvention);
         }
-        CommunityOssClient client = new HttpCommunityOssClient(
+        return new HttpCommunityOssClient(
                 properties.baseUrl(),
                 restClientBuilder.getIfAvailable(RestClient::builder),
                 multipartRestClientBuilder,
                 serviceTokenProvider
         );
-        OssRuntimeLogger logger = ossRuntimeLogger.getIfAvailable();
-        return logger == null ? client : new ObservedCommunityOssClient(client, logger);
     }
 }

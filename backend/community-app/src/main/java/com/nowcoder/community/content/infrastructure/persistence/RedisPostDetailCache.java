@@ -7,7 +7,6 @@ import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.PostDetailCache;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -17,7 +16,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostDetailCache implements PostDetailCache {
 
     private static final String DETAIL_KEY = "post:detail:";

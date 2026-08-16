@@ -27,7 +27,6 @@
 | `common-idempotency.IdempotencyGuard` | HTTP 写接口幂等守卫。 |
 | `common-outbox.OutboxWorkerScheduler` | outbox 本地 worker scheduler。 |
 | `common-outbox.OutboxHandler` | outbox topic handler contract。 |
-| `common-core.event.BestEffortLocalEventListener` | best-effort 本地事件 listener 标记。 |
 | `infra.scheduler.SingleFlightTaskGuard` | 单飞调度守卫。 |
 
 ## Trace 和 Web 统一处理

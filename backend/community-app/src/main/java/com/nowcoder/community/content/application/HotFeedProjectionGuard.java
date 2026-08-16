@@ -4,19 +4,6 @@ import java.util.UUID;
 
 public interface HotFeedProjectionGuard {
 
-    /**
-     * Compatibility entry point for legacy post-only callers. It never infers a lane from an event id.
-     */
-    @Deprecated
-    default ProjectionAttempt tryBegin(
-            UUID postId,
-            String sourceEventId,
-            long sourceVersion,
-            boolean terminalDeletion
-    ) {
-        return tryBegin(postId, sourceEventId, sourceVersion, PostProjectionVersionLane.POST, terminalDeletion);
-    }
-
     ProjectionAttempt tryBegin(
             UUID postId,
             String sourceEventId,
@@ -60,24 +47,6 @@ public interface HotFeedProjectionGuard {
             );
         }
 
-        @Deprecated
-        public static ProjectionAttempt accepted(
-                UUID postId,
-                String sourceEventId,
-                long sourceVersion,
-                boolean terminalDeletion,
-                String token
-        ) {
-            return accepted(
-                    postId,
-                    sourceEventId,
-                    sourceVersion,
-                    PostProjectionVersionLane.POST,
-                    terminalDeletion,
-                    token
-            );
-        }
-
         public static ProjectionAttempt rejected(
                 UUID postId,
                 String sourceEventId,
@@ -96,20 +65,5 @@ public interface HotFeedProjectionGuard {
             );
         }
 
-        @Deprecated
-        public static ProjectionAttempt rejected(
-                UUID postId,
-                String sourceEventId,
-                long sourceVersion,
-                boolean terminalDeletion
-        ) {
-            return rejected(
-                    postId,
-                    sourceEventId,
-                    sourceVersion,
-                    PostProjectionVersionLane.POST,
-                    terminalDeletion
-            );
-        }
     }
 }

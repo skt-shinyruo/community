@@ -64,6 +64,7 @@ docs/superpowers/plans/
 temp/k6-results/
 
 ### Playwright single E2E ###
+/test-results/
 tests/playwright-single/node_modules/
 tests/playwright-single/.auth/
 tests/playwright-single/test-results/

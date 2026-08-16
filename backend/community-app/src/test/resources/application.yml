@@ -93,7 +93,6 @@ auth:
     captcha-required-failures-per-user: 2
 
 content:
-  storage: redis
   comment-thread-cleanup:
     enabled: false
   hot-path:

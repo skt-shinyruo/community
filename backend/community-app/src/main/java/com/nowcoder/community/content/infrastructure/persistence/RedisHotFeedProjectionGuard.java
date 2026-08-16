@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
 import com.nowcoder.community.content.application.PostProjectionVersionLane;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
@@ -12,7 +11,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisHotFeedProjectionGuard implements HotFeedProjectionGuard {
 
     private static final String EVENT_KEY_PREFIX = "post:feed:hot:projection:event:";

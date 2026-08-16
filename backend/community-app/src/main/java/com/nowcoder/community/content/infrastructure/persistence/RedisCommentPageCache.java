@@ -8,7 +8,6 @@ import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -19,7 +18,6 @@ import java.util.Set;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisCommentPageCache implements CommentPageCache {
 
     private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:v3:";

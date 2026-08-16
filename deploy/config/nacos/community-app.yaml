@@ -137,7 +137,6 @@ wallet:
     discard-quota-per-user: ${WALLET_TEST_CREDIT_DISCARD_QUOTA_PER_USER:5000}
 
 content:
-  storage: redis
   comment-thread-cleanup:
     enabled: ${CONTENT_COMMENT_THREAD_CLEANUP_ENABLED:true}
     batch-size: ${CONTENT_COMMENT_THREAD_CLEANUP_BATCH_SIZE:100}

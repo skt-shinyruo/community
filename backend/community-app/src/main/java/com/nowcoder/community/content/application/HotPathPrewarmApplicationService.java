@@ -46,7 +46,7 @@ public class HotPathPrewarmApplicationService {
         this.postReadApplicationService = postReadApplicationService;
         this.feedProperties = feedProperties == null ? new ContentFeedPolicyProperties() : feedProperties;
         this.hotPathProperties = hotPathProperties == null ? new ContentHotPathProperties() : hotPathProperties;
-        this.singleFlight = singleFlight == null ? loaderSingleFlight() : singleFlight;
+        this.singleFlight = singleFlight;
     }
 
     public HotPathPrewarmResult prewarm() {
@@ -155,15 +155,6 @@ public class HotPathPrewarmApplicationService {
 
     private static List<Category> safeCategories(List<Category> categories) {
         return categories == null ? List.of() : new ArrayList<>(categories);
-    }
-
-    private static HotPathSingleFlight loaderSingleFlight() {
-        return new HotPathSingleFlight() {
-            @Override
-            public <T> T execute(String scope, String key, java.time.Duration ttl, java.util.function.Supplier<T> loader, java.util.function.Supplier<T> fallbackWhenBusy) {
-                return loader.get();
-            }
-        };
     }
 
     private record WarmCounts(int summaries, int details) {

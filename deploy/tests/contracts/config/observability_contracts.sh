@@ -11,18 +11,19 @@ fail() {
 
 contract_dir="deploy/observability/contracts"
 handbook="docs/handbook/observability.md"
-logback_config="backend/community-common/common-observability/src/main/resources/logback/community-observability.xml"
 metric_scan="$(mktemp)"
-handbook_categories="$(mktemp)"
-trap 'rm -f "${metric_scan}" "${handbook_categories}"' EXIT
+trap 'rm -f "${metric_scan}"' EXIT
 
 required_files=(
   "${handbook}"
-  "${logback_config}"
+  "backend/community-app/src/main/resources/application.yml"
+  "backend/community-gateway/src/main/resources/application.yml"
+  "backend/community-im-gateway/src/main/resources/application.yml"
+  "backend/community-im/im-core/src/main/resources/application.yml"
+  "backend/community-im/im-realtime/src/main/resources/application.yml"
+  "backend/community-oss/src/main/resources/application.yml"
   "${contract_dir}/README.md"
   "${contract_dir}/required-resource-fields.txt"
-  "${contract_dir}/runtime-event-fields.txt"
-  "${contract_dir}/stable-event-categories.txt"
   "${contract_dir}/metric-families.txt"
   "${contract_dir}/allowed-metric-dimensions.txt"
   "${contract_dir}/forbidden-observability-fields.txt"
@@ -37,6 +38,31 @@ for file in "${required_files[@]}"; do
     fail "required file missing or empty: ${file}"
   fi
 done
+
+backend_configs=(
+  backend/community-app/src/main/resources/application.yml
+  backend/community-gateway/src/main/resources/application.yml
+  backend/community-im-gateway/src/main/resources/application.yml
+  backend/community-im/im-core/src/main/resources/application.yml
+  backend/community-im/im-realtime/src/main/resources/application.yml
+  backend/community-oss/src/main/resources/application.yml
+)
+
+for config in "${backend_configs[@]}"; do
+  if ! rg -n -F 'console: logstash' "${config}" >/dev/null; then
+    fail "structured logstash console formatter missing from ${config}"
+  fi
+  for field in service.name service.version service.namespace deployment.environment; do
+    if ! rg -n -F '"['"${field}"']":' "${config}" >/dev/null; then
+      fail "structured log field ${field} missing from ${config}"
+    fi
+  done
+done
+
+if rg -n 'logstash-logback-encoder|community-common-observability' \
+  backend/*/pom.xml backend/community-im/*/pom.xml >/dev/null; then
+  fail "retired custom logging dependencies remain in backend deployables"
+fi
 
 for file in deploy/observability/production/collector-agent.yml deploy/observability/production/collector-gateway.yml; do
   for token in receivers processors exporters service; do
@@ -142,38 +168,6 @@ for correlation_key in trace.id span.id; do
   reject_gateway_redaction_delete "${correlation_key}"
 done
 
-require_console_json_content() {
-  local needle="$1"
-  local config="$2"
-
-  awk -v needle="${needle}" '
-    /<appender[[:space:]][^>]*name="CONSOLE_JSON"/ {
-      in_console_json = 1
-      depth = 1
-    }
-    in_console_json {
-      if (index($0, needle) > 0) {
-        found = 1
-      }
-      if ($0 ~ /<appender[[:space:]][^>]*name="CONSOLE_JSON"/) {
-        next
-      }
-      if ($0 ~ /<appender([[:space:]>])/) {
-        depth++
-      }
-      if ($0 ~ /<\/appender>/) {
-        depth--
-        if (depth == 0) {
-          in_console_json = 0
-        }
-      }
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' "${config}"
-}
-
 unfinished_pattern='TB''D|TO''DO|FIX''ME|place''holder|to be ''decided'
 if rg -n "${unfinished_pattern}" "${handbook}" "${contract_dir}" >/dev/null; then
   rg -n "${unfinished_pattern}" "${handbook}" "${contract_dir}" >&2
@@ -183,7 +177,6 @@ fi
 for heading in \
   '## SLO/SLI Catalog' \
   '## Shared Resource Fields' \
-  '## Runtime Event Contract' \
   '## Metrics Contract' \
   '## Trace Contract' \
   '## Instrumentation Boundaries' \
@@ -194,50 +187,6 @@ do
     fail "missing handbook heading: ${heading}"
   fi
 done
-
-awk '
-  /^Stable `event.category` values:$/ {
-    waiting_for_fence = 1
-    next
-  }
-  waiting_for_fence && /^```text$/ {
-    in_category_block = 1
-    waiting_for_fence = 0
-    next
-  }
-  in_category_block && /^```$/ {
-    exit
-  }
-  in_category_block {
-    print
-  }
-' "${handbook}" >"${handbook_categories}"
-
-if [ ! -s "${handbook_categories}" ]; then
-  fail "missing handbook stable event category code block"
-fi
-
-while IFS= read -r category; do
-  case "${category}" in
-    '' | '#'*)
-      continue
-      ;;
-  esac
-  if ! grep -n -F -x -- "${category}" "${handbook_categories}" >/dev/null; then
-    fail "handbook does not mention stable event category: ${category}"
-  fi
-done <"${contract_dir}/stable-event-categories.txt"
-
-while IFS= read -r category; do
-  case "${category}" in
-    '' | '#'*)
-      continue
-      ;;
-  esac
-  if ! grep -n -F -x -- "${category}" "${contract_dir}/stable-event-categories.txt" >/dev/null; then
-    fail "handbook stable event category missing from contract: ${category}"
-  fi
-done <"${handbook_categories}"
 
 metric_sources=()
 while IFS= read -r file; do
@@ -473,8 +422,5 @@ done <"${contract_dir}/forbidden-observability-fields.txt"
 for required_field in service.name service.version service.namespace deployment.environment; do
   if ! rg -n "^${required_field}$" "${contract_dir}/required-resource-fields.txt" >/dev/null; then
     fail "required resource field missing from contract: ${required_field}"
-  fi
-  if ! require_console_json_content "${required_field}" "${logback_config}"; then
-    fail "shared JSON logback appender does not mention required resource field: ${required_field}"
   fi
 done

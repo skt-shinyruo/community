@@ -7,7 +7,6 @@ import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.FollowFeedCache;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
@@ -22,7 +21,6 @@ import java.util.UUID;
 import java.util.function.Supplier;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisFollowFeedCache implements FollowFeedCache {
 
     private static final String FOLLOW_FEED_KEY_PREFIX = "post:feed:follow:";

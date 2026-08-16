@@ -3,12 +3,6 @@ import { unwrapResultBody } from '../result'
 
 /** @typedef {Record<string, any> & { items?: Record<string, any>[], nextBeforeSeq?: number | null, hasMore?: boolean }} ImConversationMessagePage */
 
-export async function listImConversations({ page = 0, size = 20 } = {}) {
-  const resp = await imCoreHttp.get('/api/im/conversations', { params: { page, size } })
-  const { data } = unwrapResultBody(resp?.data, '加载会话列表')
-  return Array.isArray(data) ? data : []
-}
-
 export async function listImConversationPage({ cursor = '', size = 20 } = {}) {
   const resp = await imCoreHttp.get('/api/im/conversations/page', { params: { cursor, size } })
   const { data } = unwrapResultBody(resp?.data, '加载会话列表')

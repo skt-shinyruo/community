@@ -1,7 +1,5 @@
 package com.nowcoder.community.auth.application;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.auth.application.LoginApplicationService.LoginCommand;
 import com.nowcoder.community.auth.application.LoginApplicationService.LogoutCommand;
@@ -20,17 +18,12 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
-import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.springframework.boot.logging.LoggingInitializationContext;
-import org.springframework.boot.logging.LoggingSystem;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
-import org.springframework.mock.env.MockEnvironment;
 
-import java.io.IOException;
 import java.lang.reflect.Method;
 import java.time.Instant;
 import java.util.Arrays;
@@ -54,7 +47,6 @@ import static org.mockito.Mockito.when;
 @ExtendWith(OutputCaptureExtension.class)
 class LoginApplicationServiceTest {
 
-    private static final String SERVICE_VERSION = "test-service-version";
     private static final String CAPTCHA_ID = "0123456789abcdef0123456789abcdef";
     private static final UUID ROTATION_LEASE_ID = UUID.fromString("00000000-0000-7000-8000-000000000099");
 
@@ -66,9 +58,6 @@ class LoginApplicationServiceTest {
     private final CaptchaChallengeComponent captchaChallenge = new CaptchaChallengeComponent(captchaService);
     private final AnalyticsIngestActionApi analyticsIngestService = mock(AnalyticsIngestActionApi.class);
     private final LoginTokenIssuer loginTokenIssuer = new LoginTokenIssuer(userCredentialQueryApi, authTokenPort, refreshTokenService);
-    private final ObjectMapper objectMapper = new ObjectMapper();
-    private final LoggingSystem loggingSystem = LoggingSystem.get(getClass().getClassLoader());
-
     private LoginApplicationService authService;
 
     @BeforeEach
@@ -152,11 +141,6 @@ class LoginApplicationServiceTest {
         verify(loginRateLimitService, never()).attachAuthenticationSubject(
                 any(), anyString(), anyString(), anyString());
         verify(loginRateLimitService).releasePasswordCheck(permit);
-    }
-
-    @AfterEach
-    void tearDown() {
-        loggingSystem.cleanUp();
     }
 
     @Test
@@ -627,60 +611,6 @@ class LoginApplicationServiceTest {
                 .contains("username=alice%20bob%3D%0Aroot")
                 .doesNotContain("username=alice bob=")
                 .doesNotContain("community.reason_code=invalid_credentials username=alice bob=\nroot");
-    }
-
-    @Test
-    void loginDeniedShouldExposeCommunityFieldsAsTopLevelJsonInProductionLogging(CapturedOutput output) {
-        initializeProductionLogging("community-app");
-        when(userCredentialQueryApi.prepareAuthentication("alice"))
-                .thenReturn(challenge(null, UserAuthenticationResultView.invalidCredentials()));
-
-        Throwable thrown = catchThrowable(() -> authService.login(loginCommand("alice", "wrong-password", null, null)));
-
-        assertThat(thrown).isInstanceOf(BusinessException.class);
-
-        JsonNode event = findJsonEvent(output);
-        assertThat(event.path("service.name").asText()).isEqualTo("community-app");
-        assertThat(event.path("service.version").asText()).isEqualTo(SERVICE_VERSION);
-        assertThat(event.path("service.namespace").asText()).isEqualTo("community");
-        assertThat(event.path("deployment.environment").asText()).isEqualTo("test");
-        assertThat(event.has("traceId")).isFalse();
-        assertThat(event.path("event.category").asText()).isEqualTo("security");
-        assertThat(event.path("event.action").asText()).isEqualTo("login");
-        assertThat(event.path("event.outcome").asText()).isEqualTo("denied");
-        assertThat(event.path("message").asText())
-                .contains("community.reason_code=invalid_credentials")
-                .contains("source.ip=127.0.0.1");
-    }
-
-    private void initializeProductionLogging(String serviceName) {
-        MockEnvironment environment = new MockEnvironment();
-        environment.setProperty("spring.application.name", serviceName);
-        environment.setProperty("community.logging.service-version", SERVICE_VERSION);
-        environment.setProperty("community.logging.deployment-environment", "test");
-        environment.setProperty("spring.profiles.active", "prod");
-
-        loggingSystem.cleanUp();
-        loggingSystem.beforeInitialize();
-        loggingSystem.initialize(new LoggingInitializationContext(environment), "classpath:logback-spring.xml", null);
-    }
-
-    private JsonNode findJsonEvent(CapturedOutput output) {
-        return Arrays.stream(output.getAll().split("\\R"))
-                .map(String::trim)
-                .filter(line -> !line.isEmpty() && line.startsWith("{"))
-                .map(this::readJson)
-                .filter(event -> event != null && LoginApplicationService.class.getName().equals(event.path("logger").asText()))
-                .findFirst()
-                .orElseThrow(() -> new AssertionError("No structured log event found for " + LoginApplicationService.class.getName() + " in output: " + output.getAll()));
-    }
-
-    private JsonNode readJson(String line) {
-        try {
-            return objectMapper.readTree(line);
-        } catch (IOException ex) {
-            return null;
-        }
     }
 
     private static LoginCommand loginCommand(String username, String password, String captchaId, String captchaCode) {

@@ -1,6 +1,6 @@
 # 观测模型
 
-本文档是 SLO/SLI、信号契约、指标维度、trace 命名、告警优先级和观测治理的 SSOT。运行排障步骤继续维护在 [operations.md](operations.md)，本地启动和端口继续维护在 [local-development.md](local-development.md)。运行态 hook 的代码接入点见 [Runtime Observability](core-logic/runtime-observability.md)。
+本文档是 SLO/SLI、信号契约、指标维度、trace 命名、告警优先级和观测治理的 SSOT。运行排障步骤继续维护在 [operations.md](operations.md)，本地启动和端口继续维护在 [local-development.md](local-development.md)。
 
 ## 目标模型
 
@@ -30,7 +30,7 @@ Elasticsearch 与 Kibana 必须使用 env example 中同一个 `ELASTIC_STACK_VE
 该版本同时承载业务搜索和本地 observability 数据，升级时必须一起评估索引兼容性、Kibana saved objects
 和数据卷迁移，不能让两者跨主版本连接。
 
-生产演进必须保持应用代码只面向 OpenTelemetry、Micrometer、SLF4J 和项目公共观测模块，不直接绑定某个存储后端。
+生产演进必须保持应用代码只面向 OpenTelemetry、Micrometer、Spring Boot Actuator 和 SLF4J，不直接绑定某个存储后端。
 
 ## SLO/SLI Catalog
 
@@ -63,50 +63,6 @@ release.track
 
 `service.instance.id`, `service.zone`, and `release.track` may be absent in local development, but production-compatible configuration should define them.
 
-## Runtime Event Contract
-
-Runtime events should keep this common shape:
-
-```text
-@timestamp
-service.name
-service.version
-service.namespace
-deployment.environment
-event.category
-event.action
-event.outcome
-trace.id
-span.id
-duration.ms
-threshold.ms
-threshold.percent
-error.type
-error.code
-error.message
-```
-
-`trace.id` and `span.id` are required when an event belongs to a request, message, outbox item, or job with active OpenTelemetry context. Process-level events may omit trace fields.
-
-SLF4J MDC 只写入 `trace.id` 和 `span.id`，不写入旧 MDC key `traceId`。HTTP/JSON `Result.traceId`、事件 envelope 字段、outbox/database `trace_id` 以及人类可读日志参数中的 `traceId` 仍是有效的传输或业务数据，不应当作 MDC alias。
-
-Stable `event.category` values:
-
-```text
-runtime
-database
-cache
-messaging
-access
-http_client
-job
-security
-logging
-yierloom
-business
-```
-
-`business` is reserved for low-volume application-owned semantic events. It must not replace domain events or cross-domain contracts.
 
 ## Metrics Contract
 
@@ -276,7 +232,7 @@ Instrumentation must follow the repository DDD layering rules:
 - Application services own use-case result classification and may record business metrics or low-volume business observability events.
 - Domain models and domain services must not depend on observability framework types.
 - Infrastructure adapters own dependency timing, slow/failure events, and implementation-specific metrics.
-- Shared helpers belong in `community-common-observability` or `community-common/common-core` trace utilities.
+- Shared trace helpers belong in `community-common/common-core`; runtime metrics and traces use Actuator, Micrometer and OpenTelemetry directly.
 
 ## Alert Priority
 

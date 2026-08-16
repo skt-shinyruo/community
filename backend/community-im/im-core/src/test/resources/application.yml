@@ -40,9 +40,6 @@ mybatis:
 community:
   logging:
     service-version: test
-  observability:
-    runtime-logging:
-      enabled: false
 
 events:
   outbox:

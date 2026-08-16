@@ -1,12 +1,9 @@
 package com.nowcoder.community.infra.oss;
 
 import com.nowcoder.community.auth.config.JwtCryptoConfig;
-import com.nowcoder.community.common.observability.oss.OssRuntimeLogger;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.infra.observability.ObservedCommunityOssClient;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.OssServiceTokenProvider;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -29,7 +26,6 @@ import java.util.Map;
 import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 class OssClientConfigurationTest {
 
@@ -125,17 +121,6 @@ class OssClientConfigurationTest {
             assertThat(context).hasFailed();
             assertThat(context.getStartupFailure()).hasStackTraceContaining(invalid.property());
         });
-    }
-
-    @Test
-    void clientShouldRetainOptionalRuntimeObservation() {
-        tokenContextRunner()
-                .withBean(OssRuntimeLogger.class, () -> mock(OssRuntimeLogger.class))
-                .run(context -> {
-                    assertThat(context).hasNotFailed();
-                    assertThat(context.getBean(CommunityOssClient.class))
-                            .isInstanceOf(ObservedCommunityOssClient.class);
-                });
     }
 
     private ApplicationContextRunner tokenContextRunner(String... settings) {

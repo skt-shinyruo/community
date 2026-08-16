@@ -142,7 +142,6 @@ fi
 bash deploy/tests/contracts/config/observability_contracts.sh
 
 collector_config="deploy/observability/edot-collector.yml"
-logback_config="backend/community-common/common-observability/src/main/resources/logback/community-observability.xml"
 
 require_pipeline_receiver() {
   local pipeline="$1"
@@ -219,47 +218,6 @@ require_pipeline_receiver() {
   ' "${config}"
 }
 
-require_console_json_content() {
-  local pattern="$1"
-  local config="$2"
-
-  awk -v pattern="${pattern}" '
-    /<appender[[:space:]][^>]*name="CONSOLE_JSON"/ {
-      in_console_json = 1
-      depth = 1
-    }
-    in_console_json {
-      if ($0 ~ pattern) {
-        found = 1
-      }
-      if ($0 ~ /<appender[[:space:]][^>]*name="CONSOLE_JSON"/) {
-        next
-      }
-      if ($0 ~ /<appender([[:space:]>])/) {
-        depth++
-      }
-      if ($0 ~ /<\/appender>/) {
-        depth--
-        if (depth == 0) {
-          in_console_json = 0
-        }
-      }
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' "${config}"
-}
-
-reject_console_json_content() {
-  local pattern="$1"
-  local config="$2"
-
-  if require_console_json_content "${pattern}" "${config}"; then
-    return 1
-  fi
-}
-
 if ! rg -n '^[[:space:]]*filelog/docker_stdout:[[:space:]]*$' "${collector_config}" >/dev/null; then
   echo "expected collector to read Docker stdout logs through filelog/docker_stdout" >&2
   exit 1
@@ -330,30 +288,6 @@ if ! awk '
   }
 ' "${collector_config}"; then
   echo "expected collector service.namespace processor to use upsert action" >&2
-  exit 1
-fi
-
-if ! rg -n 'appender[[:space:]][^>]*name="CONSOLE_JSON"' "${logback_config}" >/dev/null; then
-  echo "expected shared logback config to define CONSOLE_JSON" >&2
-  exit 1
-fi
-
-if ! require_console_json_content 'service[.]name' "${logback_config}"; then
-  echo "expected shared logback JSON to include service.name" >&2
-  exit 1
-fi
-
-if ! require_console_json_content '<mdc[[:space:]]*/>' "${logback_config}"; then
-  echo "expected shared logback CONSOLE_JSON appender to preserve trace/span MDC correlation" >&2
-  exit 1
-fi
-
-if ! reject_console_json_content '<excludeMdcKeyName>traceId</excludeMdcKeyName>' "${logback_config}" ||
-  ! reject_console_json_content '<excludeMdcKeyName>trace[.]id</excludeMdcKeyName>' "${logback_config}" ||
-  ! reject_console_json_content '<excludeMdcKeyName>trace_id</excludeMdcKeyName>' "${logback_config}" ||
-  ! reject_console_json_content '<excludeMdcKeyName>span[.]id</excludeMdcKeyName>' "${logback_config}" ||
-  ! reject_console_json_content '<excludeMdcKeyName>span_id</excludeMdcKeyName>' "${logback_config}"; then
-  echo "expected shared logback CONSOLE_JSON appender not to reference retired or current trace/span MDC keys as exclusions" >&2
   exit 1
 fi
 

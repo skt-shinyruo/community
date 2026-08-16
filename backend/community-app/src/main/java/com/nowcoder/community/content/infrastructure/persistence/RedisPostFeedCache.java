@@ -5,7 +5,6 @@ import com.nowcoder.community.content.application.PostFeedCache;
 import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.domain.Range;
 import org.springframework.data.redis.connection.Limit;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -25,7 +24,6 @@ import java.util.Set;
 import java.util.UUID;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostFeedCache implements PostFeedCache {
 
     private static final int MAX_PAGE_SIZE = 50;

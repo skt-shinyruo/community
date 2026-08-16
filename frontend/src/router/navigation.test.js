@@ -5,7 +5,6 @@ import {
   POSTS_ORDER,
   canAccessNavItem,
   getRouteWorkspaceLabel,
-  getShellSearchRouteNames,
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
@@ -52,10 +51,6 @@ describe('router/navigation', () => {
 
     expect(canAccessNavItem({ roles: ['ROLE_ADMIN'] }, { authed: true, roles: ['ROLE_USER'] })).toBe(false)
     expect(canAccessNavItem({ roles: ['ROLE_ADMIN'] }, { authed: true, roles: ['ROLE_ADMIN'] })).toBe(true)
-  })
-
-  it('getShellSearchRouteNames should expose the routes with shell search', () => {
-    expect(getShellSearchRouteNames()).toEqual(['posts', 'search', 'market'])
   })
 
   it('getSidebarNavigation should group routes by product workspaces', () => {

@@ -47,17 +47,15 @@ captured a response trace:
 
 ```text
 service.namespace : "community"
-event.category : runtime
 trace.id : "<trace id from response>"
 ```
 
-The runtime smoke script also checks the broader stability-event buckets, so
-these filters are useful when the corresponding code path has emitted events:
+For semantic logs and audit context, use the categories still emitted by the
+services:
 
 ```text
-event.category : database
-event.category : messaging
-event.action : http_slow_request
+event.category : (access or async or security or business or exception)
+message : "[audit]*"
 ```
 
 Diagnostics queries are expected to return data only after a short diagnostics run:
@@ -74,9 +72,9 @@ If a baseline query is empty, first run:
 ./deploy/tests/smoke/observability_smoke.sh
 ```
 
-If a conditional filter is still empty after the smoke script, exercise the
-related database, messaging, or slow-request path before treating it as a
-collector or saved-object issue.
+If a filter is empty after the smoke script, inspect the corresponding
+Actuator metric or OTel trace before treating it as a collector or saved-object
+issue.
 
 ## SLO-Oriented Dashboard Contract
 

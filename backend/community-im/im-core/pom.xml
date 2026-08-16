@@ -51,11 +51,6 @@
             <artifactId>community-common-web</artifactId>
             <version>${project.version}</version>
         </dependency>
-        <dependency>
-            <groupId>com.nowcoder.community</groupId>
-            <artifactId>community-common-observability</artifactId>
-            <version>${project.version}</version>
-        </dependency>
 
         <dependency>
             <groupId>org.springframework.boot</groupId>
@@ -113,12 +108,6 @@
             <groupId>io.micrometer</groupId>
             <artifactId>micrometer-registry-prometheus</artifactId>
         </dependency>
-        <dependency>
-            <groupId>net.logstash.logback</groupId>
-            <artifactId>logstash-logback-encoder</artifactId>
-            <version>7.4</version>
-        </dependency>
-
         <dependency>
             <groupId>com.nowcoder.community</groupId>
             <artifactId>im-common</artifactId>

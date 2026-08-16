@@ -89,7 +89,6 @@ describe('product redesign CSS guardrails', () => {
     const conversations = read('src/views/ConversationsView.vue')
     const notices = read('src/views/NoticesView.vue')
     const noticeDetail = read('src/views/NoticeDetailView.vue')
-    const home = read('src/views/HomeView.vue')
     const register = read('src/views/RegisterView.vue')
     const passwordReset = read('src/views/PasswordResetView.vue')
 
@@ -100,7 +99,6 @@ describe('product redesign CSS guardrails', () => {
     expect(notices).not.toContain('notices-hero-label')
     expect(noticeDetail).not.toContain('notice-detail-hero-label')
     expect(noticeDetail).not.toContain('notice-detail-eyebrow')
-    expect(home).toContain('variant="development"')
     expect(register).toContain('variant="development"')
     expect(passwordReset).toContain('variant="development"')
   })

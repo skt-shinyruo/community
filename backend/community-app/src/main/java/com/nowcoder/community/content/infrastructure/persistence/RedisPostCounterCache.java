@@ -3,7 +3,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.nowcoder.community.content.application.PostCounterCache;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
@@ -26,7 +25,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicInteger;
 
 @Repository
-@ConditionalOnProperty(name = "content.storage", havingValue = "redis", matchIfMissing = true)
 public class RedisPostCounterCache implements PostCounterCache {
 
     private static final int DIRTY_SHARD_COUNT = 32;

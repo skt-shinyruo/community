@@ -177,93 +177,52 @@ assert_ticket_runtime_values() {
     IM_SESSION_TICKET_AUDIENCE "${ticket_audience}" "ticket sentinel override" "$@"
 }
 
-assert_distinct_ticket_secret() {
+assert_distinct_secret_group() {
   local env_file="$1"
-  local service_secret
-  local ticket_secret
-  local ticket_secret_bytes
+  local label="$2"
+  shift 2
   local LC_ALL=C
+  local key value other_key other_value
+  local -a keys=("$@")
+  local -A values=()
 
-  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
-  ticket_secret="$(environment_file_value "${env_file}" IM_SESSION_TICKET_HMAC_SECRET)"
-  if [[ -z "${service_secret}" || -z "${ticket_secret}" ]]; then
-    echo "${env_file} must define service and IM session ticket secrets" >&2
-    return 1
-  fi
-  if [[ "${service_secret}" == "${ticket_secret}" ]]; then
-    echo "${env_file} must use distinct service and IM session ticket secrets" >&2
-    return 1
-  fi
-  ticket_secret_bytes="${#ticket_secret}"
-  if (( ticket_secret_bytes < 32 )); then
-    echo "${env_file} IM session ticket secret must be at least 32 UTF-8 bytes" >&2
-    return 1
-  fi
+  for key in "${keys[@]}"; do
+    value="$(environment_file_value "${env_file}" "${key}")"
+    if [[ -z "${value}" ]]; then
+      echo "${env_file} must define ${label}: ${key}" >&2
+      return 1
+    fi
+    if (( ${#value} < 32 )); then
+      echo "${env_file} ${label} secrets must be at least 32 UTF-8 bytes" >&2
+      return 1
+    fi
+    values["${key}"]="${value}"
+  done
+  for key in "${keys[@]}"; do
+    for other_key in "${keys[@]}"; do
+      [[ "${key}" < "${other_key}" ]] || continue
+      value="${values[${key}]}"
+      other_value="${values[${other_key}]}"
+      if [[ "${value}" == "${other_value}" ]]; then
+        echo "${env_file} ${label} secrets must be distinct" >&2
+        return 1
+      fi
+    done
+  done
 }
 
-assert_distinct_password_reset_identifier_secret() {
-  local env_file="$1"
-  local service_secret
-  local identifier_secret
-  local identifier_secret_bytes
-  local LC_ALL=C
-
-  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
-  identifier_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
-  if [[ -z "${service_secret}" || -z "${identifier_secret}" ]]; then
-    echo "${env_file} must define service JWT and password-reset identifier HMAC secrets" >&2
-    return 1
-  fi
-  if [[ "${service_secret}" == "${identifier_secret}" ]]; then
-    echo "${env_file} must use distinct service JWT and password-reset identifier HMAC secrets" >&2
-    return 1
-  fi
-  identifier_secret_bytes="${#identifier_secret}"
-  if (( identifier_secret_bytes < 32 )); then
-    echo "${env_file} password-reset identifier HMAC secret must be at least 32 UTF-8 bytes" >&2
-    return 1
-  fi
-}
-
-assert_distinct_password_reset_quota_secret() {
-  local env_file="$1"
-  local service_secret
-  local identifier_secret
-  local quota_secret
-  local quota_secret_bytes
-  local LC_ALL=C
-
-  service_secret="$(environment_file_value "${env_file}" JWT_SERVICE_HMAC_SECRET)"
-  identifier_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
-  quota_secret="$(environment_file_value "${env_file}" AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET)"
-  if [[ -z "${service_secret}" || -z "${identifier_secret}" || -z "${quota_secret}" ]]; then
-    echo "${env_file} must define service, delivery and quota HMAC secrets" >&2
-    return 1
-  fi
-  if [[ "${service_secret}" == "${quota_secret}" || "${identifier_secret}" == "${quota_secret}" ]]; then
-    echo "${env_file} must use a quota HMAC secret distinct from delivery and service secrets" >&2
-    return 1
-  fi
-  quota_secret_bytes="${#quota_secret}"
-  if (( quota_secret_bytes < 32 )); then
-    echo "${env_file} password-reset quota HMAC secret must be at least 32 UTF-8 bytes" >&2
-    return 1
-  fi
-}
-
-assert_required_jwt_values() {
+assert_required_environment_values() {
   local stack="$1"
   local source_env_file="$2"
-  local missing_env_file
-  local error_file
-  local variable
+  shift 2
 
-  for variable in JWT_ACCESS_PUBLIC_KEY JWT_ACCESS_PRIVATE_KEY JWT_SERVICE_HMAC_SECRET; do
+  local variable missing_env_file error_file
+  for variable in "$@"; do
     missing_env_file="$(mktemp)"
     error_file="$(mktemp)"
     awk -v variable="${variable}" 'index($0, variable "=") != 1' \
       "${source_env_file}" >"${missing_env_file}"
-    if env -u JWT_ACCESS_PUBLIC_KEY -u JWT_ACCESS_PRIVATE_KEY -u JWT_SERVICE_HMAC_SECRET \
+    if env -u "${variable}" \
       ./deploy/deployment.sh config --stack "${stack}" \
         --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
       rm -f "${missing_env_file}" "${error_file}"
@@ -273,48 +232,6 @@ assert_required_jwt_values() {
     grep -F "${variable} is required" "${error_file}" >/dev/null
     rm -f "${missing_env_file}" "${error_file}"
   done
-}
-
-assert_required_password_reset_identifier_secret() {
-  local stack="$1"
-  local source_env_file="$2"
-  local missing_env_file
-  local error_file
-
-  missing_env_file="$(mktemp)"
-  error_file="$(mktemp)"
-  awk 'index($0, "AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=") != 1' \
-    "${source_env_file}" >"${missing_env_file}"
-  if env -u AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
-    ./deploy/deployment.sh config --stack "${stack}" \
-      --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
-    rm -f "${missing_env_file}" "${error_file}"
-    echo "expected ${stack} stack without AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET to fail" >&2
-    return 1
-  fi
-  grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required' "${error_file}" >/dev/null
-  rm -f "${missing_env_file}" "${error_file}"
-}
-
-assert_required_password_reset_quota_secret() {
-  local stack="$1"
-  local source_env_file="$2"
-  local missing_env_file
-  local error_file
-
-  missing_env_file="$(mktemp)"
-  error_file="$(mktemp)"
-  awk 'index($0, "AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET=") != 1' \
-    "${source_env_file}" >"${missing_env_file}"
-  if env -u AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET \
-    ./deploy/deployment.sh config --stack "${stack}" \
-      --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
-    rm -f "${missing_env_file}" "${error_file}"
-    echo "expected ${stack} stack without AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET to fail" >&2
-    return 1
-  fi
-  grep -F 'AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET is required' "${error_file}" >/dev/null
-  rm -f "${missing_env_file}" "${error_file}"
 }
 
 assert_nacos_auth_environment() {
@@ -374,29 +291,6 @@ assert_community_app_runtime_environment() {
   done
 }
 
-assert_required_nacos_auth_values() {
-  local stack="$1"
-  local source_env_file="$2"
-  local missing_env_file
-  local error_file
-  local variable
-
-  for variable in NACOS_AUTH_TOKEN NACOS_AUTH_IDENTITY_KEY NACOS_AUTH_IDENTITY_VALUE; do
-    missing_env_file="$(mktemp)"
-    error_file="$(mktemp)"
-    awk -v variable="${variable}" 'index($0, variable "=") != 1' \
-      "${source_env_file}" >"${missing_env_file}"
-    if env -u NACOS_AUTH_TOKEN -u NACOS_AUTH_IDENTITY_KEY -u NACOS_AUTH_IDENTITY_VALUE \
-      ./deploy/deployment.sh config --stack "${stack}" \
-        --env-file "${missing_env_file}" >/dev/null 2>"${error_file}"; then
-      rm -f "${missing_env_file}" "${error_file}"
-      echo "expected ${stack} stack without ${variable} to fail" >&2
-      return 1
-    fi
-    grep -F "${variable} is required" "${error_file}" >/dev/null
-    rm -f "${missing_env_file}" "${error_file}"
-  done
-}
 
 without_ticket_secret() {
   awk '!/^IM_SESSION_TICKET_HMAC_SECRET=/' "$1"
@@ -531,12 +425,15 @@ assert_ticket_runtime_environment "${single_full}" deploy/stacks/single/.env.exa
 assert_ticket_runtime_environment "${cluster_full}" deploy/stacks/cluster/.env.example \
   community-im-gateway-1 community-im-gateway-2 community-im-gateway-3 \
   im-realtime-1 im-realtime-2 im-realtime-3
-assert_distinct_ticket_secret deploy/stacks/single/.env.example
-assert_distinct_ticket_secret deploy/stacks/cluster/.env.example
-assert_distinct_password_reset_identifier_secret deploy/stacks/single/.env.example
-assert_distinct_password_reset_identifier_secret deploy/stacks/cluster/.env.example
-assert_distinct_password_reset_quota_secret deploy/stacks/single/.env.example
-assert_distinct_password_reset_quota_secret deploy/stacks/cluster/.env.example
+for env_file in deploy/stacks/single/.env.example deploy/stacks/cluster/.env.example; do
+  assert_distinct_secret_group "${env_file}" "IM session ticket" \
+    JWT_SERVICE_HMAC_SECRET IM_SESSION_TICKET_HMAC_SECRET
+  assert_distinct_secret_group "${env_file}" "password-reset identifier" \
+    JWT_SERVICE_HMAC_SECRET AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET
+  assert_distinct_secret_group "${env_file}" "password-reset quota" \
+    JWT_SERVICE_HMAC_SECRET AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET \
+    AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET
+done
 assert_nacos_auth_environment "${single_full}" deploy/stacks/single/.env.example nacos
 assert_nacos_auth_environment "${cluster_full}" deploy/stacks/cluster/.env.example nacos-1 nacos-2 nacos-3
 assert_community_app_runtime_environment "${single_full}" deploy/stacks/single/.env.example community-app
@@ -560,14 +457,14 @@ for variable in WALLET_TEST_CREDITS_ENABLED WALLET_TEST_CREDIT_GRANT_ENABLED WAL
   test "$(environment_file_value deploy/stacks/single/.env.example "${variable}")" = "true"
   test "$(environment_file_value deploy/stacks/cluster/.env.example "${variable}")" = "false"
 done
-assert_required_nacos_auth_values single deploy/stacks/single/.env.example
-assert_required_nacos_auth_values cluster deploy/stacks/cluster/.env.example
-assert_required_jwt_values single deploy/stacks/single/.env.example
-assert_required_jwt_values cluster deploy/stacks/cluster/.env.example
-assert_required_password_reset_identifier_secret single deploy/stacks/single/.env.example
-assert_required_password_reset_identifier_secret cluster deploy/stacks/cluster/.env.example
-assert_required_password_reset_quota_secret single deploy/stacks/single/.env.example
-assert_required_password_reset_quota_secret cluster deploy/stacks/cluster/.env.example
+for stack in single cluster; do
+  assert_required_environment_values "${stack}" "deploy/stacks/${stack}/.env.example" \
+    NACOS_AUTH_TOKEN NACOS_AUTH_IDENTITY_KEY NACOS_AUTH_IDENTITY_VALUE
+  assert_required_environment_values "${stack}" "deploy/stacks/${stack}/.env.example" \
+    JWT_ACCESS_PUBLIC_KEY JWT_ACCESS_PRIVATE_KEY JWT_SERVICE_HMAC_SECRET
+  assert_required_environment_values "${stack}" "deploy/stacks/${stack}/.env.example" \
+    AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET
+done
 
 ticket_sentinel_secret="topology-test-im-session-ticket-secret-override-20260722"
 ticket_sentinel_issuer="topology-test-im-session-ticket-issuer"

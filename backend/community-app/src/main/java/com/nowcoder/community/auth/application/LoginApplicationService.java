@@ -193,7 +193,7 @@ public class LoginApplicationService {
 
         UserCredentialView credentialView;
         try {
-            credentialView = getCredential(pending.userId());
+            credentialView = userCredentialQueryApi.getByUserId(pending.userId());
             if (credentialView == null || !credentialView.loginAllowed() || !credentialView.refreshAllowed()) {
                 refreshTokenService.revokeFamily(pending.familyId());
                 throw new RefreshFailure(AuthErrorCode.USER_DISABLED);
@@ -309,9 +309,4 @@ public class LoginApplicationService {
             throw e;
         }
     }
-
-    private UserCredentialView getCredential(UUID userId) {
-        return userCredentialQueryApi.getByUserId(userId);
-    }
-
 }

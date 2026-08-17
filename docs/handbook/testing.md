@@ -8,7 +8,7 @@
 | --- | --- | --- |
 | 后端单元 / slice / 集成测试 | 验证 domain、application、adapter、controller、infra 行为。 | `backend/**/src/test/java/**/*.java` |
 | 架构守卫 | 防止 DDD 分层、事务边界、DTO / domain / infra 依赖退化。 | `backend/community-app/src/test/java/com/nowcoder/community/app/arch` |
-| 数据库 schema / 迁移契约 | 验证当前态快照、前向迁移重放、必要引用数据、最小权限、Compose 初始化/复制依赖和 MySQL-only reset。 | `deploy/tests/contracts/database/`、相关模块 MySQL 契约测试 |
+| 数据库 schema 契约 | 验证唯一业务 schema、必要引用数据、最小权限、Compose 初始化/复制依赖和 MySQL-only reset。 | `deploy/tests/contracts/database/`、相关模块 MySQL 契约测试 |
 | Compose 拓扑契约 | 验证 infra/single/cluster Stack 隔离、single/cluster 服务形态、Elasticsearch 版本、Kafka listener、宿主机端口和生成 env 最小权限。 | `deploy/tests/contracts/compose/` |
 | 前端单元 / 组件测试 | 验证路由、session、HTTP interceptor、状态纯函数、Vue 组件交互。 | `frontend/src/**/*.test.js` |
 | 压测套件结构测试 | 验证 k6 profile、运行器、共享库、场景和文档入口。 | `tests/k6/tests/*.test.mjs` |
@@ -23,7 +23,7 @@
 | 只改 handbook / README | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` | 视内容引用的命令，抽样运行相关测试。 |
 | 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn verify` |
 | 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'` 和全量后端测试 |
-| schema / Compose 依赖 | 三个 schema snapshot 契约、community 前向迁移静态契约和 `reset_mysql_contract.sh` | 可用 Docker 时运行 `community_forward_migration_mysql.sh`、各 owner MySQL/Testcontainers 契约和 clean topology smoke |
+| schema / Compose 依赖 | 三个 schema 契约和 `reset_mysql_contract.sh` | 可用 Docker 时运行各 owner MySQL/Testcontainers 契约和 clean topology smoke |
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn verify`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm run lint && npm run typecheck && npm run test:coverage && npm run build` |
 | 前端构建相关 | `cd frontend && npm run build` | 前端完整质量命令 |
@@ -120,16 +120,10 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 
 ## 数据库 Schema 验证
 
-验证快照内容、迁移 one-shot、DDL/DML 账号隔离、runtime 等待关系和 MySQL-only reset：
+验证唯一业务 schema、runtime DML 账号、初始化依赖和 MySQL-only reset：
 
 ```bash
 ./deploy/tests/run-contracts.sh database compose
-```
-
-真实 MySQL 前向迁移测试会把当前快照降为 V016/V017 前结构，写入 block/follow 冲突数据，再验证升级、重放、当前快照 no-op 和 runtime 无 DDL 权限：
-
-```bash
-./deploy/tests/contracts/database/community_forward_migration_mysql.sh
 ```
 
 相关 Testcontainers 契约从 `backend/` 执行，需要可用的 Docker：
@@ -141,7 +135,7 @@ mvn test -pl :community-oss -Dtest='OssSchemaResourceTest,OssUploadCurrentSchema
 mvn test -pl :im-core -Dtest=ImCoreMySqlCurrentSchemaRepositoryContractTest
 ```
 
-这些测试应覆盖三个固定 schema、最终列/索引、必要引用行、快照无 evolution DDL、community 前向 history/checksum、空卷初始化、cluster 复制依赖，以及 reset 只删除明确命名的 MySQL volumes。
+这些测试应覆盖三个固定 schema、最终列/索引、必要引用行、唯一 schema 无 evolution DDL 或开发用户、runtime 账号仅有 DML 权限、空卷初始化、cluster 复制依赖，以及 reset 只删除明确命名的 MySQL volumes。
 
 ## 前端测试
 

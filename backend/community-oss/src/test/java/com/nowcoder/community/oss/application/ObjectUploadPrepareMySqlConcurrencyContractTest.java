@@ -160,8 +160,7 @@ class ObjectUploadPrepareMySqlConcurrencyContractTest {
                 "deploy",
                 "database",
                 "business",
-                "current-state",
-                "010_current_schema.sql"
+                "001_schema.sql"
         ).toAbsolutePath().normalize();
         try (Connection connection = DriverManager.getConnection(
                 MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {

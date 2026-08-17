@@ -20,11 +20,6 @@ public class PasswordResetProperties {
     private String resetBaseUrl = "";
 
     /**
-     * 存储方式：redis / memory（测试用）。
-     */
-    private String store = "redis";
-
-    /**
      * 重置 token 有效期（秒），默认 10 分钟。
      */
     private int ttlSeconds = 600;
@@ -70,14 +65,6 @@ public class PasswordResetProperties {
 
     public void setResetBaseUrl(String resetBaseUrl) {
         this.resetBaseUrl = resetBaseUrl;
-    }
-
-    public String getStore() {
-        return store;
-    }
-
-    public void setStore(String store) {
-        this.store = store;
     }
 
     public int getTtlSeconds() {

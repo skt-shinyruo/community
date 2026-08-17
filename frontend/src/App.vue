@@ -20,7 +20,7 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, provide, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { ensureSessionReady, shouldBootstrapSession } from './auth/session'
 import { useAuthStore } from './stores/auth'
@@ -37,12 +37,10 @@ const app = useAppStore()
 const route = useRoute()
 const toastRef = ref(null)
 
-// 统一全局 Toast 入口：页面通过 inject('showToast') 使用。
 const showToast = (payload) => {
   toastRef.value?.show?.(payload || {})
 }
 
-provide('showToast', showToast)
 setToastHandler(showToast)
 
 const isAuthRoute = computed(() => {

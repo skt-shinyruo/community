@@ -2,7 +2,7 @@
 set -euo pipefail
 
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
-schema="${REPO_ROOT}/deploy/database/business/current-state/010_current_schema.sql"
+schema="${REPO_ROOT}/deploy/database/business/001_schema.sql"
 demo="${REPO_ROOT}/deploy/database/business/seed/090_seed_identity.sql"
 
 retired_projection_seeds='@(user_policy|social_block|im_membership)_seed_version|unix_timestamp|current_timestamp\(3\)[[:space:]]*\*[[:space:]]*1000'

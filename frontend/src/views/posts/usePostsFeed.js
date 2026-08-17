@@ -1,4 +1,4 @@
-import { computed, inject, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
@@ -19,12 +19,9 @@ import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
-import {
-  normalizePostsBoardId
-} from '../../router/navigation'
 import { createWriteAttempt } from '../../api/writeAttempt'
 import { useTagSuggestions } from '../../composables/useTagSuggestions'
-import { showErrorToast } from '../../ui/toastService'
+import { showErrorToast, showToast } from '../../ui/toastService'
 
 function buildComposerCategoryOptions(categories) {
   return [
@@ -37,8 +34,6 @@ function buildComposerCategoryOptions(categories) {
 }
 
 export function usePostsFeed(emit) {
-  const showToast = inject('showToast', () => {})
-
   const auth = useAuthStore()
   const route = useRoute()
   const router = useRouter()
@@ -47,7 +42,7 @@ export function usePostsFeed(emit) {
   const readIdentityId = computed(() => normalizeOpaqueId(auth.userId) || 'anonymous')
   const postMetaCache = usePostMetaCacheStore()
 
-  const boardId = computed(() => normalizePostsBoardId(route.query?.boardId))
+  const boardId = computed(() => normalizeOpaqueId(route.query?.boardId))
 
   const taxonomy = useTaxonomyStore()
   const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
@@ -74,7 +69,7 @@ export function usePostsFeed(emit) {
     const next = { ...(route.query || {}) }
 
     if (Object.prototype.hasOwnProperty.call(partial, 'boardId')) {
-      const nextBoardId = normalizePostsBoardId(partial.boardId)
+      const nextBoardId = normalizeOpaqueId(partial.boardId)
       if (!nextBoardId) delete next.boardId
       else next.boardId = String(nextBoardId)
     }
@@ -259,7 +254,7 @@ export function usePostsFeed(emit) {
   const lastSeenDividerRef = ref(null)
   const newHintDismissed = ref(false)
 
-  const isDefaultLatestFeed = computed(() => !boardId.value && page.value === 0)
+  const isDefaultLatestFeed = computed(() => !boardId.value)
 
   const newSinceLastSeenCount = computed(() => {
     if (!isDefaultLatestFeed.value) return 0

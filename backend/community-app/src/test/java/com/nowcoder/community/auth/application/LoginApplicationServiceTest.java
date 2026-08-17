@@ -80,7 +80,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldAttachAuthoritativeSubjectBeforeLookingUpTheAccount() {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(87), List.of("permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         UserCredentialQueryApi.AuthenticationSubject subject =
                 new UserCredentialQueryApi.AuthenticationSubject("utf8mb4_unicode_ci:v1:subject-87");
         when(loginRateLimitService.acquirePasswordCheck(
@@ -104,7 +104,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldNotLookUpTheAccountWhenAuthoritativeSubjectLeaseCannotBeAttached() {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(86), List.of("permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         UserCredentialQueryApi.AuthenticationSubject subject =
                 new UserCredentialQueryApi.AuthenticationSubject("utf8mb4_unicode_ci:v1:subject-86");
         when(loginRateLimitService.acquirePasswordCheck(
@@ -126,7 +126,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldReleaseTheProvisionalPermitWhenSubjectResolutionFails() {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(85), List.of("permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
                 "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
         when(userCredentialQueryApi.authenticationSubject("alice"))
@@ -173,9 +173,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldRecordFailureWhenCredentialsAreInvalid(CapturedOutput output) {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(
-                        UUID.fromString("00000000-0000-7000-8000-000000000088"),
-                        List.of("permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
                 "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
@@ -268,7 +266,7 @@ class LoginApplicationServiceTest {
         UUID userId = uuid(41);
         String subject = "utf8mb4_unicode_ci:v1:collation-subject";
         LoginRateLimitApplicationService.PasswordCheckPermit lookupPermit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(44), List.of("lookup-permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         UserCredentialQueryApi.AuthenticationChallenge challenge = challenge(
                 userId,
                 UserAuthenticationResultView.invalidCredentials()
@@ -294,7 +292,7 @@ class LoginApplicationServiceTest {
     @Test
     void loginShouldReserveConcurrentBudgetBeforeIdentityLookupAndReleaseItOnLookupFailure() {
         LoginRateLimitApplicationService.PasswordCheckPermit lookupPermit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(51), List.of("lookup-permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
                 "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(lookupPermit);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
@@ -333,7 +331,7 @@ class LoginApplicationServiceTest {
         UUID userId = uuid(42);
         UserCredentialView user = new UserCredentialView(userId, "alice", 1, 0, "h1", 0L, true, true);
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
-                new LoginRateLimitApplicationService.PasswordCheckPermit(uuid(43), List.of("permit"));
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenReturn(challenge(userId, UserAuthenticationResultView.authenticated(user)));
         when(loginRateLimitService.acquirePasswordCheck(
@@ -568,6 +566,21 @@ class LoginApplicationServiceTest {
         RefreshFailure failure = (RefreshFailure) thrown;
         assertThat(failure.getErrorCode()).isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);
         verify(refreshTokenService, never()).revokeFamily("family-rollback");
+    }
+
+    @Test
+    void refreshShouldRollbackWhenCredentialLookupThrowsBusinessException() {
+        UUID userId = uuid(33);
+        RefreshTokenRepository.StoredRefreshToken pending =
+                new RefreshTokenRepository.StoredRefreshToken("old-refresh", userId, "family-business-error", 0L, Instant.now().plusSeconds(600), ROTATION_LEASE_ID);
+        when(refreshTokenService.beginRotation("old-refresh")).thenReturn(pending);
+        when(userCredentialQueryApi.getByUserId(userId))
+                .thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE));
+        when(refreshTokenService.rollbackPendingRotation("old-refresh", ROTATION_LEASE_ID)).thenReturn(true);
+
+        assertThatThrownBy(() -> authService.refresh(new RefreshCommand("old-refresh")))
+                .isInstanceOf(RefreshFailure.class);
+        verify(refreshTokenService).rollbackPendingRotation("old-refresh", ROTATION_LEASE_ID);
     }
 
     @Test

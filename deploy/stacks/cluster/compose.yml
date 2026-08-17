@@ -8,7 +8,9 @@ include:
       - compose/infra/garage/cluster.yml
       - compose/infra/nacos/cluster.yml
       - compose/infra/mailhog.yml
+      - compose/infra/mock-data-studio/common.yml
       - compose/infra/mock-data-studio/cluster.yml
       - compose/runtime/services/cluster.yml
       - compose/runtime/edge/cluster.yml
+      - compose/runtime/mock-data-studio/common.yml
       - compose/runtime/mock-data-studio/cluster.yml

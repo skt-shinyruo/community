@@ -3,7 +3,6 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
-import { normalizeCommentPage } from './commentResponse'
 import { writeAttemptConfig } from '../writeAttempt'
 
 export async function listGlobalFeed({ cursor = '', size = 20 } = {}) {
@@ -170,5 +169,31 @@ function normalizeFeedPage(raw) {
     items: Array.isArray(page.items) ? page.items : [],
     nextCursor: page.nextCursor == null ? '' : String(page.nextCursor),
     rankVersion: page.rankVersion == null ? '' : String(page.rankVersion)
+  }
+}
+
+function normalizeComment(raw) {
+  const comment = raw || {}
+  return {
+    id: normalizeOpaqueId(comment.id),
+    userId: normalizeOpaqueId(comment.userId),
+    postId: normalizeOpaqueId(comment.postId),
+    rootCommentId: normalizeOpaqueId(comment.rootCommentId),
+    parentCommentId: normalizeOpaqueId(comment.parentCommentId),
+    replyToUserId: normalizeOpaqueId(comment.replyToUserId),
+    content: comment.content == null ? '' : String(comment.content),
+    createTime: comment.createTime,
+    updateTime: comment.updateTime,
+    editCount: Number(comment.editCount || 0),
+    replyCount: Number(comment.replyCount || 0),
+    status: comment.status
+  }
+}
+
+function normalizeCommentPage(raw) {
+  const page = raw && typeof raw === 'object' ? raw : {}
+  return {
+    items: Array.isArray(page.items) ? page.items.map(normalizeComment) : [],
+    nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
   }
 }

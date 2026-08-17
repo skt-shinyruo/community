@@ -72,6 +72,7 @@ vi.mock('../utils/scrollToAnchor', () => ({
 
 import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
 import { getFollowStatus } from '../api/services/socialService'
+import { markPostRead } from '../utils/readTracker'
 import PostDetailView from './PostDetailView.vue'
 
 describe('PostDetailView', () => {
@@ -85,13 +86,15 @@ describe('PostDetailView', () => {
     return { promise, resolve, reject }
   }
 
-  function mountLoader() {
+  function mountLoader(resolveIdentity = true) {
     const pinia = createPinia()
     setActivePinia(pinia)
 
     const auth = useAuthStore()
     auth.setAccessToken('token')
-    auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
+    if (resolveIdentity) {
+      auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
+    }
 
     const taxonomy = useTaxonomyStore()
     taxonomy.ensureCategories = vi.fn()
@@ -197,6 +200,14 @@ describe('PostDetailView', () => {
     expect(wrapper.vm.page.post?.title).toBe('帖子标题')
     expect(wrapper.vm.discussion.composer.setDraft).toEqual(expect.any(Function))
     expect(wrapper.vm.postActions.toggleLike).toEqual(expect.any(Function))
+  })
+
+  it('does not write shared read state before the authenticated identity is known', async () => {
+    const wrapper = mountLoader(false)
+    await flushPromises()
+
+    expect(wrapper.vm.page.post?.title).toBe('帖子标题')
+    expect(markPostRead).not.toHaveBeenCalled()
   })
 
   it('renders the post, discussion, and composer through the grouped models', async () => {

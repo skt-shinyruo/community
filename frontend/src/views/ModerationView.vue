@@ -106,15 +106,19 @@
   </div>
 
   <!-- Action Modal -->
-  <div v-if="actionModalOpen" class="modal-mask" @click.self="closeActionModal" @keydown.esc.stop.prevent="closeActionModal">
+  <dialog
+    v-if="actionModalOpen"
+    ref="actionDialogRef"
+    class="modal-mask"
+    role="dialog"
+    aria-modal="true"
+    aria-labelledby="moderation-action-title"
+    aria-describedby="moderation-action-description"
+    @click.self="closeActionModal"
+    @cancel.prevent="closeActionModal"
+  >
     <div
-      ref="actionDialogRef"
       class="modal-card card moderation-modal"
-      role="dialog"
-      aria-modal="true"
-      aria-labelledby="moderation-action-title"
-      aria-describedby="moderation-action-description"
-      tabindex="-1"
     >
       <div class="moderation-modal-body">
         <div class="moderation-modal-head">
@@ -192,11 +196,11 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiBadge from '../components/ui/UiBadge.vue'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -205,7 +209,6 @@ import UiState from '../components/ui/UiState.vue'
 import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-import { useModalFocus } from '../composables/useModalFocus'
 import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
@@ -370,7 +373,6 @@ async function loadMoreActions() {
 // action modal
 const actionModalOpen = ref(false)
 const actionDialogRef = ref(null)
-useModalFocus(actionDialogRef, { active: actionModalOpen })
 const selectedReport = ref(null)
 const actionLoading = ref(false)
 const actionError = ref('')
@@ -389,9 +391,11 @@ function openActionModal(report) {
   actionForm.value = { action: 'reject', reason: '', durationPreset: '86400', durationSeconds: '' }
   actionError.value = ''
   actionModalOpen.value = true
+  void nextTick(() => actionDialogRef.value?.showModal?.())
 }
 
 function closeActionModal() {
+  actionDialogRef.value?.close?.()
   actionModalOpen.value = false
   selectedReport.value = null
   actionError.value = ''

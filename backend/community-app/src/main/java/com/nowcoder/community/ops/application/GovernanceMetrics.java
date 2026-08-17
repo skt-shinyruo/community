@@ -1,6 +1,8 @@
 package com.nowcoder.community.ops.application;
 
-public interface GovernanceMetrics extends OutboxReplayMetrics {
+public interface GovernanceMetrics {
+
+    void recordReplay(String topic, String result);
 
     void recordOutboxBatchReplay(String topic, String result, long count);
 

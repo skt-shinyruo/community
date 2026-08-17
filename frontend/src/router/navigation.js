@@ -1,4 +1,4 @@
-import { hasOpaqueId, normalizeOpaqueId } from '../utils/opaqueId'
+import { hasOpaqueId } from '../utils/opaqueId'
 import {
   getRouteAccess,
   getRouteBreadcrumbItems,
@@ -7,10 +7,6 @@ import {
 } from './routeCatalog'
 
 // 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射。
-
-export function normalizePostsBoardId(value) {
-  return normalizeOpaqueId(value)
-}
 
 export { getRouteWorkspaceLabel }
 

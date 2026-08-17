@@ -6,16 +6,9 @@ import {
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
-  normalizePostsBoardId
 } from './navigation'
 
 describe('router/navigation', () => {
-  it('normalizePostsBoardId should preserve UUID board ids', () => {
-    const boardId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
-    expect(normalizePostsBoardId(boardId)).toBe(boardId)
-    expect(normalizePostsBoardId('')).toBe('')
-  })
-
   it('canAccessNavItem should enforce auth and roles', () => {
     expect(canAccessNavItem({ requiresAuth: true }, { authed: false })).toBe(false)
     expect(canAccessNavItem({ requiresAuth: true }, { authed: true })).toBe(true)

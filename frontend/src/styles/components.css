@@ -205,10 +205,6 @@
   padding: 6px;
 }
 
-.ui-icon-button--danger {
-  color: var(--danger);
-}
-
 .ui-checkbox {
   display: inline-flex;
   align-items: center;
@@ -249,82 +245,28 @@
   border-color: var(--danger-weak);
 }
 
-.kbd {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  padding: 2px 6px;
-  border-radius: 4px;
-  background: var(--surface-2);
-  color: var(--text-2);
-  border: 1px solid var(--border);
-}
-
-/* ---------- chips / segmented ---------- */
-
-.chips {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-
-.chips.chips-wrap {
-  flex-wrap: wrap;
-}
-
-.chip {
-  height: 32px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-2);
-  cursor: pointer;
-  font-size: 13px;
-  font-weight: 600;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: all 0.15s ease-out;
-  box-shadow: var(--shadow-sm);
-}
-
-.chip:hover {
-  border-color: var(--border-strong);
-  background: var(--surface-2);
-  color: var(--text-1);
-}
-
-.chip:focus-visible {
-  box-shadow: var(--shadow-sm), var(--focus-ring);
-}
-
-.chip.active {
-  background: var(--accent-weak);
-  border-color: color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
-  color: var(--accent);
-}
-
-.chip.disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  box-shadow: none;
-}
-
-.chip-icon {
-  font-size: 14px;
-}
-
 /* ---------- modal ---------- */
 
 .modal-mask {
   position: fixed;
   inset: 0;
-  background: rgba(0, 0, 0, 0.4);
-  backdrop-filter: blur(4px);
+  width: 100%;
+  height: 100%;
+  max-width: none;
+  max-height: none;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
   display: grid;
   place-items: center;
   padding: var(--space-4);
   z-index: 100;
+}
+
+.modal-mask::backdrop {
+  background: rgba(0, 0, 0, 0.4);
+  backdrop-filter: blur(4px);
 }
 
 .modal-card {
@@ -439,18 +381,6 @@
   background: color-mix(in srgb, var(--warning) 14%, transparent 86%);
   border-color: color-mix(in srgb, var(--warning) 25%, var(--border) 75%);
   color: var(--warning);
-}
-
-.badge-pending {
-  color: var(--pending);
-  background: var(--pending-weak);
-  border-color: color-mix(in srgb, var(--pending) 30%, var(--border) 70%);
-}
-
-.badge-unread {
-  color: var(--unread);
-  background: var(--unread-weak);
-  border-color: color-mix(in srgb, var(--unread) 30%, var(--border) 70%);
 }
 
 .ui-state {
@@ -595,15 +525,6 @@
 .skeleton-text {
   height: 1em;
   margin-bottom: 0.5em;
-}
-
-.skeleton-card {
-  padding: 16px;
-  border-radius: var(--radius-md);
-  background: var(--surface);
-  border: 1px solid var(--border);
-  display: flex;
-  gap: 16px;
 }
 
 /* Route transition */

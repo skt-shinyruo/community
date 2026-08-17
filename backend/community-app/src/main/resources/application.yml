@@ -172,7 +172,6 @@ auth:
       enabled: ${AUTH_REFRESH_CLEANUP_ENABLED:true}
       interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
   captcha:
-    store: redis
     ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
     max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
     max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}
@@ -188,14 +187,12 @@ auth:
       max-requests-per-email: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL:5}
       max-requests-per-ip: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP:20}
     code:
-      store: redis
       ttl-seconds: ${AUTH_REGISTRATION_CODE_TTL_SECONDS:600}
       max-failures: ${AUTH_REGISTRATION_CODE_MAX_FAILURES:3}
       resend-cooldown-seconds: ${AUTH_REGISTRATION_CODE_RESEND_COOLDOWN_SECONDS:60}
       operation-lease-seconds: ${AUTH_REGISTRATION_CODE_OPERATION_LEASE_SECONDS:120}
       expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     draft:
-      store: ${AUTH_REGISTRATION_DRAFT_STORE:redis}
       ttl-seconds: ${AUTH_REGISTRATION_DRAFT_TTL_SECONDS:1800}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:false}
@@ -206,7 +203,6 @@ auth:
     identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}
     quota-hmac-secret: ${AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET:}
     previous-identifier-hmac-secrets: ${AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS:}
-    store: redis
     ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}
     request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
     max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}

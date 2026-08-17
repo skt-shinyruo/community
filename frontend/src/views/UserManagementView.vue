@@ -91,7 +91,7 @@
 </template>
 
 <script setup>
-import { computed, inject, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -99,10 +99,9 @@ import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-import { showErrorToast } from '../ui/toastService'
+import { showErrorToast, showToast } from '../ui/toastService'
 
 const emit = defineEmits(['trace'])
-const showToast = inject('showToast', () => {})
 const auth = useAuthStore()
 
 const qUserId = ref('')

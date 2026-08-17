@@ -1,6 +1,5 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
-import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.ClusterSlotHashUtil;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
@@ -42,7 +41,7 @@ class RedisCaptchaRepositoryIntegrationTest {
             repository.save(captchaId, "AbC1", Duration.ofSeconds(30));
             CountDownLatch ready = new CountDownLatch(attempts);
             CountDownLatch start = new CountDownLatch(1);
-            List<Future<CaptchaRepository.VerifyResult>> results = java.util.stream.IntStream.range(0, attempts)
+            List<Future<Boolean>> results = java.util.stream.IntStream.range(0, attempts)
                     .mapToObj(ignored -> executor.submit(() -> {
                         ready.countDown();
                         start.await();
@@ -52,11 +51,10 @@ class RedisCaptchaRepositoryIntegrationTest {
 
             assertThat(ready.await(10, TimeUnit.SECONDS)).isTrue();
             start.countDown();
-            List<CaptchaRepository.VerifyResult> outcomes = results.stream().map(this::get).toList();
+            List<Boolean> outcomes = results.stream().map(this::get).toList();
 
-            assertThat(outcomes).filteredOn(CaptchaRepository.VerifyResult.MATCHED::equals).hasSize(1);
-            assertThat(outcomes).filteredOn(CaptchaRepository.VerifyResult.NOT_FOUND::equals)
-                    .hasSize(attempts - 1);
+            assertThat(outcomes).filteredOn(Boolean.TRUE::equals).hasSize(1);
+            assertThat(outcomes).filteredOn(Boolean.FALSE::equals).hasSize(attempts - 1);
             assertThat(redis.hasKey(valueKey(captchaId))).isFalse();
             assertThat(redis.hasKey(failureKey(captchaId))).isFalse();
         } finally {
@@ -75,22 +73,22 @@ class RedisCaptchaRepositoryIntegrationTest {
             repository.save(captchaId, "AbC1", Duration.ofSeconds(5));
 
             assertThat(repository.verifyAndConsume(captchaId, "wrong", 3, Duration.ofMinutes(1)))
-                    .isEqualTo(CaptchaRepository.VerifyResult.MISMATCH);
+                    .isFalse();
             long firstTtl = redis.getExpire(failureKey(captchaId), TimeUnit.MILLISECONDS);
             assertThat(firstTtl).isPositive().isLessThanOrEqualTo(5_000L);
 
             Thread.sleep(100L);
             assertThat(repository.verifyAndConsume(captchaId, "wrong", 3, Duration.ofMinutes(1)))
-                    .isEqualTo(CaptchaRepository.VerifyResult.MISMATCH);
+                    .isFalse();
             long secondTtl = redis.getExpire(failureKey(captchaId), TimeUnit.MILLISECONDS);
             assertThat(secondTtl).isPositive().isLessThan(firstTtl);
 
             assertThat(repository.verifyAndConsume(captchaId, "wrong", 3, Duration.ofMinutes(1)))
-                    .isEqualTo(CaptchaRepository.VerifyResult.EXHAUSTED);
+                    .isFalse();
             assertThat(redis.hasKey(valueKey(captchaId))).isFalse();
             assertThat(redis.hasKey(failureKey(captchaId))).isFalse();
             assertThat(repository.verifyAndConsume(captchaId, "AbC1", 3, Duration.ofMinutes(1)))
-                    .isEqualTo(CaptchaRepository.VerifyResult.NOT_FOUND);
+                    .isFalse();
         } finally {
             connectionFactory.destroy();
         }
@@ -122,7 +120,7 @@ class RedisCaptchaRepositoryIntegrationTest {
                 .isEqualTo(ClusterSlotHashUtil.calculateSlot(failureKey(captchaId)));
     }
 
-    private CaptchaRepository.VerifyResult get(Future<CaptchaRepository.VerifyResult> future) {
+    private boolean get(Future<Boolean> future) {
         try {
             return future.get(10, TimeUnit.SECONDS);
         } catch (Exception exception) {

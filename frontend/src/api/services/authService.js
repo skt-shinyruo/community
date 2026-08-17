@@ -20,12 +20,6 @@ export async function me() {
   return { data, traceId }
 }
 
-export async function logout() {
-  const resp = await http.post('/api/auth/logout')
-  const { traceId } = unwrapResultBody(resp.data, '登出')
-  return { traceId }
-}
-
 export async function register({ username, password, email, captchaId = '', captchaCode = '' }) {
   const resp = await http.post('/api/auth/register', { username, password, email, captchaId, captchaCode })
   const { data, traceId } = unwrapResultBody(resp.data, '注册')

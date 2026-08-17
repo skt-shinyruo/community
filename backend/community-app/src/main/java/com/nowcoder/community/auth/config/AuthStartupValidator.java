@@ -28,8 +28,6 @@ public class AuthStartupValidator implements StartupValidator {
         requireOneOf(environment, errors, "security.jwt.refresh-cookie-same-site", List.of("Lax", "Strict", "None"), "请设置 AUTH_REFRESH_COOKIE_SAME_SITE（Lax/Strict/None）");
         validateRefreshTokenBounds(environment, errors);
         validatePasswordResetBaseUrl(environment, errors);
-        requireStore(environment, errors, "auth.password-reset.store", "redis");
-        requireStore(environment, errors, "auth.captcha.store", "redis");
         validatePasswordResetIdentifierSecret(environment, errors);
         requireTrue(environment, errors, "auth.registration.mail.enabled", "生产环境必须启用 SMTP 邮件发送，请设置 AUTH_MAIL_ENABLED=true 并配置 spring.mail.*");
         validateMailConfiguration(environment, errors);
@@ -257,9 +255,6 @@ public class AuthStartupValidator implements StartupValidator {
     }
 
     private void validateRegistrationStoresAndBounds(Environment environment, List<String> errors) {
-        requireStore(environment, errors, "auth.registration.code.store", "redis");
-        requireStore(environment, errors, "auth.registration.draft.store", "redis");
-
         int codeTtl = boundedPositiveInt(environment, errors,
                 "auth.registration.code.ttl-seconds", 120, 1_800, "秒");
         boundedPositiveInt(environment, errors,
@@ -349,13 +344,6 @@ public class AuthStartupValidator implements StartupValidator {
         if (draftTtl != null && leaseSeconds >= draftTtl) {
             errors.add("配置不合法：auth.registration.code.operation-lease-seconds"
                     + " 必须小于 auth.registration.draft.ttl-seconds");
-        }
-    }
-
-    private void requireStore(Environment environment, List<String> errors, String key, String expected) {
-        String actual = getTrimmed(environment, key);
-        if (!expected.equalsIgnoreCase(actual)) {
-            errors.add("配置不安全：" + key + "=" + actual + "（生产环境必须使用 " + expected + "）");
         }
     }
 

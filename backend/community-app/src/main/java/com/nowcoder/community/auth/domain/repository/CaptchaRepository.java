@@ -3,25 +3,13 @@ package com.nowcoder.community.auth.domain.repository;
 import java.time.Duration;
 
 public interface CaptchaRepository {
-
-    enum VerifyResult {
-        MATCHED,
-        MISMATCH,
-        EXHAUSTED,
-        NOT_FOUND
-    }
-
     void save(String owner, String code, Duration ttl);
 
     /**
      * Atomically verifies the code, records a mismatch, and invalidates the
      * challenge once the failure budget is exhausted.
      */
-    VerifyResult verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl);
-
-    String get(String owner);
-
-    void delete(String owner);
+    boolean verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl);
 
     /**
      * 累加该 captcha 的失败次数（用于失败阈值后作废）。

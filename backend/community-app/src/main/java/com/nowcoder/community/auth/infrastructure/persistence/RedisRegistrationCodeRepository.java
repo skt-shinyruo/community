@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.config.RegistrationProperties;
 import com.nowcoder.community.auth.domain.repository.RegistrationCodeRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -20,7 +19,6 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
-@ConditionalOnProperty(name = "auth.registration.code.store", havingValue = "redis", matchIfMissing = true)
 public class RedisRegistrationCodeRepository implements RegistrationCodeRepository {
 
     private static final String KEY_PREFIX = "auth:regcode:v2:";

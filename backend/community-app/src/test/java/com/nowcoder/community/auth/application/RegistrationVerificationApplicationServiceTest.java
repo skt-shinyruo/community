@@ -41,7 +41,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.never;
@@ -123,8 +122,6 @@ class RegistrationVerificationApplicationServiceTest {
         UUID userId = uuid(70);
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
         when(registrationDraftRepository.findActivatedUserId("token")).thenReturn(Optional.of(userId));
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
-
         assertThatThrownBy(() -> service.verifyAndLogin(new VerifyRegisterCodeCommand("token", "222222")))
                 .isInstanceOf(BusinessException.class)
                 .extracting(error -> ((BusinessException) error).getErrorCode())
@@ -142,7 +139,6 @@ class RegistrationVerificationApplicationServiceTest {
     void resendCodeShouldRequireCaptchaAndReturnIssuedResponse() {
         UUID userId = uuid(7);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.tryBeginReplacement(
                 eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
@@ -183,7 +179,6 @@ class RegistrationVerificationApplicationServiceTest {
                 Instant.now().plusSeconds(240)
         );
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(shortLivedDraft));
         when(registrationCodeStore.tryBeginReplacement(
                 eq(userId), matches("\\d{6}"), any(Duration.class), eq(Duration.ofSeconds(60)),
@@ -213,7 +208,6 @@ class RegistrationVerificationApplicationServiceTest {
                 Instant.now(),
                 Instant.now().plusSeconds(20)
         );
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(expiringDraft));
 
         assertThatThrownBy(() -> service.resendCode(
@@ -230,7 +224,6 @@ class RegistrationVerificationApplicationServiceTest {
     void resendCodeShouldRejectWhenCooldownWindowIsStillActive() {
         UUID userId = uuid(7);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.tryBeginReplacement(
                 eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
@@ -249,7 +242,6 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void resendCodeShouldAbortReplacementWhenOutboxDispatchFails() {
         UUID userId = uuid(7);
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         when(registrationCodeStore.tryBeginReplacement(
                 eq(userId), matches("\\d{6}"), eq(Duration.ofSeconds(600)), eq(Duration.ofSeconds(60)),
@@ -269,7 +261,6 @@ class RegistrationVerificationApplicationServiceTest {
     @Test
     void resendCodeShouldStopBeforeRedisMutationWhenQuotaRejects() {
         UUID userId = uuid(7);
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(draft(userId)));
         doThrow(new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS))
                 .when(registrationRequestRateLimiter).enforceResend(userId, "alice@example.com", "127.0.0.1");
@@ -317,8 +308,6 @@ class RegistrationVerificationApplicationServiceTest {
         verify(registrationDraftRepository).markActivated(eq("token"), eq(userId), any(Duration.class));
         verify(registrationDraftRepository, never()).delete("token");
         verify(registrationCodeStore).claimVerification(userId, "222222", Duration.ofSeconds(120));
-        verify(verificationClaim).consume();
-        verify(loginTokenIssuer).issueLoginResult(activatedUser);
         InOrder credentialIssuanceOrder = inOrder(verificationClaim, loginTokenIssuer);
         credentialIssuanceOrder.verify(verificationClaim).consume();
         credentialIssuanceOrder.verify(loginTokenIssuer).issueLoginResult(activatedUser);
@@ -479,19 +468,7 @@ class RegistrationVerificationApplicationServiceTest {
     }
 
     @Test
-    void resendCodeShouldTreatMissingDraftAsStaleContext() {
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
-        when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(AuthErrorCode.REGISTRATION_CONTEXT_INVALID);
-    }
-
-    @Test
     void resendCodeShouldRejectWhenRegistrationTokenIsMissingOrExpired() {
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.empty());
 
         assertThatThrownBy(() -> service.resendCode(new ResendRegisterCodeCommand("token", "cid", "abcd", null)))
@@ -504,7 +481,6 @@ class RegistrationVerificationApplicationServiceTest {
 
     @Test
     void resendCodeShouldRejectAndDeleteMalformedDraftBeforeIssuingCode() {
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(registrationDraftRepository.find("token")).thenReturn(Optional.of(new PreparedRegistrationDraft(
                 uuid(7),
                 "alice",

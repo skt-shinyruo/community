@@ -42,15 +42,13 @@ class RegistrationRequestRateLimiterTest {
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void enforceShouldUseOneAtomicRequestWithOpaqueStableCanonicalIdentities() {
         when(rateLimitPort.tryConsume(any(), any(), anyList())).thenReturn(true);
 
         limiter.enforce("JOSÉ", "Alice@EXAMPLE.COM", " 127.0.0.1 ");
         limiter.enforce("jose", "alice@example.com", "127.0.0.1");
 
-        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas =
-                (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas = ArgumentCaptor.captor();
         verify(rateLimitPort, times(2)).tryConsume(
                 eq(RegistrationRateLimitPort.Flow.REQUEST),
                 eq(Duration.ofHours(1)),
@@ -91,15 +89,13 @@ class RegistrationRequestRateLimiterTest {
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void enforceResendShouldConsumeIpEmailAndRegistrationBucketsTogether() {
         when(rateLimitPort.tryConsume(any(), any(), anyList())).thenReturn(true);
         UUID registrationId = UUID.fromString("00000000-0000-7000-8000-000000000007");
 
         limiter.enforceResend(registrationId, "Alice@EXAMPLE.COM", "127.0.0.1");
 
-        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas =
-                (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas = ArgumentCaptor.captor();
         verify(rateLimitPort).tryConsume(
                 eq(RegistrationRateLimitPort.Flow.RESEND),
                 eq(Duration.ofHours(1)),
@@ -122,15 +118,13 @@ class RegistrationRequestRateLimiterTest {
     }
 
     @Test
-    @SuppressWarnings({"rawtypes", "unchecked"})
     void unresolvedClientIpShouldStillConsumeOneStableIpBucket() {
         when(rateLimitPort.tryConsume(any(), any(), anyList())).thenReturn(true);
 
         limiter.enforce("alice", "alice@example.com", null);
         limiter.enforce("alice", "alice@example.com", "  ");
 
-        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas =
-                (ArgumentCaptor) ArgumentCaptor.forClass(List.class);
+        ArgumentCaptor<List<RegistrationRateLimitPort.Quota>> quotas = ArgumentCaptor.captor();
         verify(rateLimitPort, times(2)).tryConsume(
                 eq(RegistrationRateLimitPort.Flow.REQUEST),
                 eq(Duration.ofHours(1)),

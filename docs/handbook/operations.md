@@ -288,35 +288,30 @@ Market scheduler tasks：
 
 三个市场 scheduler 受 `market.scheduling.enabled` 总开关控制，默认 `true`，测试 profile 为 `false`。市场资金动作使用自身的 request id、处理 lease 和恢复任务控制重试；多副本同时唤醒时仍由业务 lease 和条件更新收敛。搜索全量重建默认关闭，需要时设置 `search.reindex.cron` 并重启应用。
 
-## Community 前向 Schema 迁移
+## Business MySQL Schema
 
-空库仍由 `deploy/database/business/current-state/010_current_schema.sql` 一次性建立最终结构。已有 `community` 数据由 `community-db-migrations` one-shot 执行 `deploy/database/business/migrations/VNNN__*.sql`；它使用独立 `${COMMUNITY_MIGRATION_USERNAME}`，runtime 账号始终只有 DML 权限。当前序列从 `V016` 开始，能接管之前没有 history 的快照环境，也能在已经包含目标结构的新空库上幂等登记。
+空库由 `deploy/database/business/001_schema.sql` 一次性建立 `community`、`community_oss` 和 `im_core` 的最终结构。MySQL entrypoint 只在 primary volume 为空时执行；已有 volume 不会自动升级，也不能手工重放该文件。
 
-### 发布步骤
+### 结构修改步骤
 
-1. 备份 `community`，确认可恢复；涉及数据清理或与旧写路径互斥时，先停止 `community-app` 和 Mock Data Studio 写入。V016 执行前必须停止并排空所有旧 refresh rotation writer，禁止旧二进制跨迁移恢复并改写带 lease 的 pending session。V022 必须在旧版收藏 writer 全部停止并排空后执行，直到全部实例切换到事务内 durable marker 版本前不得恢复收藏写入。V023 会永久删除旧 Mock Data Studio 的 `demo_job` 和 `ai_config` 数据，执行前确认不再需要恢复旧 UI、作业或 AI 配置。
-2. 为本次发布准备独立强口令 `COMMUNITY_MIGRATION_PASSWORD`，确认迁移用户名与 `MYSQL_USER` 不同。不要把这两个迁移变量注入 runtime service。
-3. 修改当前态快照最终定义，同时追加新的、不可变的 `VNNN__description.sql`；同步 H2 fixture 和 schema / migration 契约。
-4. 执行 `./deploy/deployment.sh up --stack <single|cluster>`。账号 bootstrap 先收敛权限；cluster 再建立 GTID 复制；随后 one-shot 执行迁移。`community-app` 只会在迁移退出码为 0 后启动。
-5. 检查 `community-db-migrations` 日志和 `community_forward_schema_history` 的 version、script、SHA-256、installed_by。cluster 还要确认 replica 已追上迁移 GTID，再恢复业务写入。
+1. 修改 `001_schema.sql` 的最终定义，并同步适用的 H2/MyBatis fixture、schema 契约和数据文档。
+2. 运行 database 和 Compose 契约，确认三个 schema、账号权限和拓扑依赖仍一致。
+3. 执行 `./deploy/deployment.sh reset-mysql --stack <single|cluster>`，确认目标 Stack 后删除现有 MySQL volume。
+4. 执行 `./deploy/deployment.sh up --stack <single|cluster>`，由空卷初始化重新建立业务 schema；cluster 再完成 GTID replica bootstrap。
 
-迁移只向前，不提供 down migration。发布失败时保持 runtime 停止，修复尚未成功登记的迁移，使其仍可从任一部分完成状态重跑；不要手工插入 history，不要修改已登记文件，也不要把 DDL 权限临时授给 application 账号。需要回退应用镜像时，必须先确认旧版本与已前向升级的 schema 兼容。
-
-`reset-mysql` 仍是可丢弃环境的破坏性 clean break，并永久删除目标 Stack 的 MySQL 数据。保留数据的环境不得使用。
+`reset-mysql` 是破坏性 clean break，会永久删除目标 Stack 的 MySQL 数据。当前开发期拓扑不提供保留旧数据的 schema 升级路径；首次出现数据必须跨应用版本保留的环境前，需要先建立正式迁移基线。
 
 ### Development Seed
 
-`community-dev-seed` 使用 DML-only community 账号执行 `deploy/database/business/seed/090_seed_identity.sql`。只有 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时才运行；生产环境误开开关会失败关闭。该 SQL 不属于当前态 schema，不会污染 production 初始化。
+`community-dev-seed` 使用 DML-only community 账号执行 `deploy/database/business/seed/090_seed_identity.sql`。只有 `COMMUNITY_DEV_SEED_ENABLED=true` 且 `DEPLOYMENT_ENVIRONMENT=development` 时才运行；生产环境误开开关会失败关闭。该 SQL 不属于业务 schema，不会污染 production 初始化。
 
 ### 故障定位
 
-- 新快照没有执行：确认目标 MySQL volume 是否确实为空；普通 restart 不会重放 `/docker-entrypoint-initdb.d`。
-- runtime 未启动：依次检查 `community-db-user-bootstrap`、cluster 的 `mysql-replication-bootstrap` 和 `community-db-migrations`。
-- checksum mismatch：已登记 migration 被修改；恢复发布时的原文件并新增更高版本修正，禁止改 history checksum。
-- migration 中断：确认没有 runtime 写入后直接重跑同一 one-shot；V016 及后续迁移的 DDL 和数据清理逐项幂等，history 只记录完整成功。
+- 新 schema 没有执行：确认目标 MySQL volume 是否确实为空；普通 restart 不会重放 `/docker-entrypoint-initdb.d`。
+- runtime 未启动：依次检查 `community-db-user-bootstrap`、cluster 的 `mysql-replication-bootstrap` 和 `community-dev-seed`。
 - cluster replica 缺表或缺引用数据：保持 runtime 停止，检查 primary 初始化日志、GTID 状态和 replication bootstrap 日志。
-- development seed 失败：确认部署环境精确为 `development`，开关为 `true`，且当前态快照已经创建 `user` 等目标表。
-- 结构漂移：可丢弃环境修正快照后 reset；保留数据环境新增前向迁移，不要手工补 DDL。
+- development seed 失败：确认部署环境精确为 `development`，开关为 `true`，且业务 schema 已经创建 `user` 等目标表。
+- 结构漂移：修正 `001_schema.sql` 后 reset；不要在已有 volume 上手工补 DDL。
 
 契约验证：
 

@@ -1,14 +1,13 @@
 # 数据与存储
 
-本文档是存储事实索引，覆盖 MySQL 当前态 schema、Redis key、Kafka topic、Elasticsearch alias/index 和本地种子数据。业务流程不在这里展开，见 [business-flows.md](business-flows.md)。
+本文档是存储事实索引，覆盖 MySQL 业务 schema、Redis key、Kafka topic、Elasticsearch alias/index 和本地种子数据。业务流程不在这里展开，见 [business-flows.md](business-flows.md)。
 
 ## MySQL
 
 数据库与账号 bootstrap：
 
-- `deploy/database/business/init/001_create_databases.sh`：mysql-primary 首次建库和最小权限账号。
-- `deploy/database/business/current-state/010_current_schema.sql`：三个业务 schema 的当前态建表快照，由 MySQL entrypoint 在主库数据目录为空时执行一次。
-- `deploy/database/business/migrations/VNNN__*.sql`：`community` 已有数据环境的不可变前向迁移序列，从 `V016` 开始。
+- `deploy/database/business/init/001_create_databases.sh`：建库和最小权限账号 bootstrap；空卷初始化和正常启动都会幂等执行。
+- `deploy/database/business/001_schema.sql`：三个业务 schema 的唯一结构定义，由 MySQL entrypoint 在主库数据目录为空时执行一次。
 
 schema：
 
@@ -19,12 +18,11 @@ schema：
 最小权限账号：
 
 - `${MYSQL_USER:-community}` -> `community`：`select/insert/update/delete`。
-- `${COMMUNITY_MIGRATION_USERNAME:-community_migrator}` -> `community`：仅一次性迁移容器使用的 DML/DDL 账号。
 - `${IM_MYSQL_USER:-im_core}` -> `im_core`：`select/insert/update/delete`。
 - `${OSS_MYSQL_USER:-community_oss}` -> `community_oss`：`select/insert/update/delete`。
 - `${MOCK_DATA_STUDIO_DB_USER:-mock_data_studio}` -> `community`、`community_oss`、`im_core`：`select/insert/update/delete`。
 
-所有 runtime 和 Mock Data Studio 账号都只保留 DML 权限。`community_migrator` 与 runtime 账号必须不同，只注入 `community-db-migrations` one-shot；应用进程不持有 DDL 凭证，也不在启动代码中补表。
+所有 runtime 和 Mock Data Studio 账号都只保留 DML 权限。业务表 DDL 只在空主库卷初始化时由 MySQL entrypoint 执行；应用进程不持有 DDL 凭证，也不在启动代码中补表。
 
 UUID 持久化：
 
@@ -32,30 +30,30 @@ UUID 持久化：
 - `common-core.id.BinaryUuidCodec` 负责 UUID 与 16-byte 大端序二进制互转，非法长度会 fail fast。
 - `community-app` 的 `infra.persistence.mybatis.UuidBinaryTypeHandler`、`community-oss` 的 `oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 和 `im-core` 的 `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` 把 MyBatis 参数 / 结果集接到同一个 codec，避免各 owner 仓储手写 UUID byte 转换。
 
-## 当前态 Schema 快照
+## 业务 Schema
 
-`deploy/database/business/current-state/010_current_schema.sql` 同时拥有 `community`、`community_oss`、`im_core` 三个固定名称的业务 schema。文件只保存最终 `CREATE TABLE` 定义和运行所需的引用数据，不保存结构演进过程、history table 或开发用户。必要引用数据包括分类、任务模板、OSS usage policy 和 IM version counter。
+`deploy/database/business/001_schema.sql` 同时拥有 `community`、`community_oss`、`im_core` 三个固定名称的业务 schema。文件只保存最终 `CREATE TABLE` 定义和运行所需的引用数据，不保存结构演进过程或开发用户。必要引用数据包括分类、任务模板、OSS usage policy 和 IM version counter。
 
-MySQL entrypoint 按文件名顺序先执行 `001_create_databases.sh`，再执行 `010_current_schema.sql`，且只在主库 `/var/lib/mysql` 为空时运行。single 只把快照挂到 `mysql`；cluster 只挂到 `mysql-primary`，初始化 DDL 和 DML 通过 GTID 复制到两个 replica。之后 `community-db-migrations` 使用固定只读挂载 `/migrations` 执行迁移；cluster 会先等待复制 bootstrap，`community-app` 和 development seed 都等待迁移成功。
+MySQL entrypoint 按完整文件名顺序先执行 `001_create_databases.sh`，再执行 `001_schema.sql`，且只在主库 `/var/lib/mysql` 为空时运行。single 只把 schema 挂到 `mysql`；cluster 只挂到 `mysql-primary`，初始化 DDL 和 DML 通过 GTID 复制到两个 replica。正常启动仍会运行账号 bootstrap；development seed 在账号 bootstrap 成功后执行，cluster 还会先等待复制 bootstrap。
 
-每次 `community` 结构变化必须同时修改快照最终定义，并追加新的 `VNNN__*.sql`，同步 H2 `schema.sql` 和契约。序列从 `V016` 继续，是为了不与仓库历史上已经发布过的 V001-V015 编号碰撞；新的 `community_forward_schema_history` 不伪造旧版本 baseline。已经成功登记的迁移不得修改；runner 会比较文件 SHA-256、拒绝数据库中缺失于镜像的历史版本，并用 MySQL named lock 阻止并行执行。MySQL DDL 会隐式提交，因此迁移中的每项 DDL 必须先查 `information_schema`、数据修复必须幂等，成功行只能在全部步骤完成后写入；进程中断后可直接重跑同一文件。
+开发阶段只维护这一份业务 schema。结构变化直接修改最终定义，并同步适用的 H2 `schema.sql`、MyBatis fixture、契约和本文档；已有 MySQL volume 不会自动升级，必须显式 `reset-mysql` 后重建。首次出现数据必须跨应用版本保留的环境前，需要先建立正式迁移基线。
 
 根评论 tombstone 后的回复清理由 `idx_comment_root_cleanup(root_comment_id,status,create_time,id)` 支撑，按 `(create_time,id)` 稳定顺序锁定有限行；每批提交后才能继续下一批。
 
-`social_like.post_id` 是内容点赞的根帖引用：POST like 等于 `entity_id`，COMMENT like 从 `comment.post_id` 取得，USER like 为 `NULL`。帖子自身点赞使用既有 target 索引清理，`idx_like_post_entity_user(entity_type,post_id,entity_id,user_id)` 支撑删帖后的子评论关系根帖扫描。V018 会回填既有内容关系，并在任何 POST/COMMENT 行仍缺少可信 `post_id` 时失败关闭，不登记迁移成功。
+`social_like.post_id` 是内容点赞的根帖引用：POST like 等于 `entity_id`，COMMENT like 从 `comment.post_id` 取得，USER like 为 `NULL`。帖子自身点赞使用既有 target 索引清理，`idx_like_post_entity_user(entity_type,post_id,entity_id,user_id)` 支撑删帖后的子评论关系根帖扫描。
 
-`market_order.wallet_recovery_next_attempt_at` 是 pending 资金订单的持久恢复截止时间；`idx_market_order_wallet_recovery(status,wallet_recovery_next_attempt_at,order_id)` 让有限批次只扫描到期候选。V019 为已有环境补齐该列和索引，避免缺失 action 或暂不可修复订单反复占满固定扫描前缀。
+`market_order.wallet_recovery_next_attempt_at` 是 pending 资金订单的持久恢复截止时间；`idx_market_order_wallet_recovery(status,wallet_recovery_next_attempt_at,order_id)` 让有限批次只扫描到期候选，避免缺失 action 或暂不可修复订单反复占满固定扫描前缀。
 
-V020 为 IM policy snapshot 增加 append-only owner version history，V021 为成长任务增加按 like relation instance/version fencing 的 lifecycle state，V022 为收藏计数增加事务内 durable reconciliation token。V022 的一次性差异回填不能覆盖迁移完成后仍由旧二进制产生的收藏写入，因此该版本不支持旧、新 `community-app` 混合写；必须先停止并排空旧 writer，完成迁移并切换全部新实例后再恢复收藏写入。V023 永久删除同步 CLI 不再使用的 `demo_job` 和 `ai_config` 及其历史数据。
+用户与拉黑 policy 使用 append-only owner version history；成长任务按 like relation instance/version fencing 保存 lifecycle state；收藏计数使用事务内 durable reconciliation token。同步 CLI 不再使用的 `demo_job` 和 `ai_config` 不属于业务 schema。
 
-可丢弃的本地环境仍可使用 clean reset：
+修改业务 schema 后使用 clean reset：
 
 ```bash
 ./deploy/deployment.sh reset-mysql --stack single
 ./deploy/deployment.sh up --stack single
 ```
 
-`reset-mysql` 会停止完整拓扑，并且只删除该拓扑明确命名的 MySQL primary/replica volumes；其他中间件数据卷不受影响。需要保留既有业务数据时禁止 reset 或重放快照，应按 [运行与排障](operations.md#community-前向-schema-迁移) 先备份、静默写入并运行 one-shot。`community_oss` 和 `im_core` 尚无本序列覆盖的结构变化；给这两个 owner 增加演进时必须建立各自独立 history、DDL 账号和 runtime 启动依赖，不能借用 community 迁移账号。
+`reset-mysql` 会停止完整拓扑，并且只删除该拓扑明确命名的 MySQL primary/replica volumes；其他中间件数据卷不受影响。当前开发期拓扑不提供保留旧业务数据的 schema 升级路径；需要保留数据时，必须先建立迁移基线，不能在已有 volume 上重放 `001_schema.sql`。
 
 ## community 主要表
 
@@ -77,7 +75,6 @@ V020 为 IM policy snapshot 增加 append-only owner version history，V021 为�
 | `social_like` / `social_follow` | 点赞与关注关系；内容点赞在 `social_like.post_id` 保存根帖引用，支持删帖 fence 与有界清理 |
 | `social_like_relation_version` | 每个稳定点赞关系的持久化事件序列；高位起始值隔离 legacy 时间戳版本 |
 | `social_user_pair_lock` | 规范化用户对互斥行，串行化 follow/block 写入 |
-| `community_forward_schema_history` | 前向迁移版本、脚本名和 SHA-256 成功记录；由 one-shot 创建，不属于空库快照 |
 | `http_idempotency` | HTTP 写接口幂等状态 |
 | `user_consumed_event` | 用户侧消费去重样例 |
 | `task_template` | 成长任务模板 |
@@ -139,7 +136,7 @@ IM 消息权威状态在 `im_core`，主站通知读模型在 `community.notice_
 
 ## 本地种子数据
 
-身份种子由独立的 development-only SQL 提供，不进入当前态快照：
+身份种子由独立的 development-only SQL 提供，不进入业务 schema：
 
 ```text
 deploy/database/business/seed/090_seed_identity.sql

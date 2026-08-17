@@ -6,7 +6,7 @@ These instructions apply to the whole repository.
 
 - `backend/` is the Java 17 / Spring Boot 4 Maven reactor. Run backend build and test commands from this directory.
 - `frontend/` is the Vue 3 / Vite SPA. Run frontend npm commands from this directory.
-- `deploy/` owns the supported local Compose topologies, schema snapshots, forward migrations, Nacos seeds,
+- `deploy/` owns the supported local Compose topologies, the canonical business schema, Nacos seeds,
   observability assets, and deployment contract tests.
 - `tools/mock-data-studio/`, `tests/k6/`, and `tests/playwright-single/` are independently tested Node-based tools or
   suites; do not assume the frontend dependency installation covers them.
@@ -169,11 +169,12 @@ Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are mi
   `single`, while `--no-observability` explicitly disables it for supported stacks.
 - Never commit real secrets or local `deploy/.env*` files. Nacos config seeds contain non-secret configuration only;
   credentials and signing keys stay in env files or a secret manager.
-- The fixed business schemas are `community`, `community_oss`, and `im_core`. Empty-volume current state lives in
-  `deploy/database/business/current-state/010_current_schema.sql`.
-- A `community` schema change updates the current-state snapshot and appends a new
-  `deploy/database/business/migrations/VNNN__*.sql` forward migration. It also updates the applicable H2/MyBatis fixtures,
-  schema contracts, and `docs/handbook/data-and-storage.md`. Never rewrite an already released migration.
+- The fixed business schemas are `community`, `community_oss`, and `im_core`. Their canonical empty-volume schema lives
+  in `deploy/database/business/001_schema.sql`.
+- During development, business MySQL data is disposable. A schema change updates `001_schema.sql`, the applicable
+  H2/MyBatis fixtures, schema contracts, and `docs/handbook/data-and-storage.md`; developers then recreate the target
+  MySQL volumes with `reset-mysql`. Establish a forward-migration baseline before the first environment whose data must
+  survive application upgrades.
 - Treat `reset-mysql` and `docker compose down -v` as destructive. Run them only when the task explicitly requires data
   removal and the exact topology/project has been confirmed.
 

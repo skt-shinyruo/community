@@ -26,7 +26,7 @@ grep -F 'name: community_infra_mysql_primary_data' "${work_dir}/infra.yml" >/dev
 grep -F 'name: community_single_mysql_primary_data' "${work_dir}/single.yml" >/dev/null
 grep -F 'name: community_cluster_mysql_primary_data' "${work_dir}/cluster.yml" >/dev/null
 
-grep -F "source: ${repo_root}/deploy/database/business/current-state/010_current_schema.sql" \
+grep -F "source: ${repo_root}/deploy/database/business/001_schema.sql" \
   "${work_dir}/infra.yml" >/dev/null
 grep -F "source: ${repo_root}/deploy/config/nacos" "${work_dir}/infra.yml" >/dev/null
 grep -F "context: ${repo_root}/backend" "${work_dir}/single.yml" >/dev/null

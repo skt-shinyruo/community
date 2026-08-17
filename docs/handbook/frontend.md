@@ -48,7 +48,7 @@ protected route
 - Community / Trading / Personal / Admin / Account 工作区导航分组。
 - 侧边栏、移动端底栏和 shell search 的 route 级可见性。
 - 角色、登录态、用户 id 的前端可见性判断。
-- posts 列表的 `order`、`type`、`categoryId`、`tag`、`subscribed` query 规范化和构造。
+- posts 列表的 `boardId` query 规范化和构造。
 
 新增页面时必须同步以下四处：
 

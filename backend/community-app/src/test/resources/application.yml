@@ -56,14 +56,12 @@ auth:
     cleanup:
       enabled: false
   captcha:
-    store: redis
     ttl-seconds: 60
     max-failures: 3
   password-reset:
     reset-base-url: http://localhost:8080
     identifier-hmac-secret: test-password-reset-identifier-hmac-secret-20260804
     quota-hmac-secret: test-password-reset-stable-quota-hmac-secret-20260805
-    store: redis
     ttl-seconds: 600
   registration:
     request-limit:
@@ -77,14 +75,12 @@ auth:
       max-requests-per-email: 5
       max-requests-per-ip: 20
     code:
-      store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
       operation-lease-seconds: 120
       expose-code: true
     draft:
-      store: redis
       ttl-seconds: 1800
     mail:
       enabled: false

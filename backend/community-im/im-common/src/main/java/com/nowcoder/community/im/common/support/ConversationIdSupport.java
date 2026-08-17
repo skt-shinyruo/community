@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.core.support;
+package com.nowcoder.community.im.common.support;
 
 import java.util.UUID;
 

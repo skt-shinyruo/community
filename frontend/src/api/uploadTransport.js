@@ -27,7 +27,7 @@ const externalUploadClient = axios.create({
   timeout: 0
 })
 
-export function isAbsoluteUploadUrl(url) {
+function isAbsoluteUploadUrl(url) {
   return /^(?:[a-z][a-z\d+.-]*:)?\/\//i.test(String(url || '').trim())
 }
 

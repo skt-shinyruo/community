@@ -1,18 +1,11 @@
 import { normalizeOpaqueId } from './opaqueId'
+import { safeJsonParse } from './safeJson'
 
 // 本地“已读/未读”追踪（轻量版）。
 // 目标：实现类似 Discourse 的 topic 未读提示，但不依赖后端“已读时间线”。
 
 const STORAGE_KEY = 'community.read.posts.v1'
 const MAX_ITEMS = 800
-
-function safeParse(json) {
-  try {
-    return JSON.parse(json)
-  } catch {
-    return null
-  }
-}
 
 function nowMs() {
   return Date.now()
@@ -27,7 +20,7 @@ function loadState(identityId) {
   if (typeof window === 'undefined') return { lastSeenAt: 0, items: {} }
   try {
     const raw = window.localStorage.getItem(storageKey(identityId)) || ''
-    const parsed = raw ? safeParse(raw) : null
+    const parsed = safeJsonParse(raw)
     const lastSeenAt = Number(parsed?.lastSeenAt || 0)
     const items = parsed?.items && typeof parsed.items === 'object' ? parsed.items : {}
     return { lastSeenAt: Number.isFinite(lastSeenAt) ? lastSeenAt : 0, items }

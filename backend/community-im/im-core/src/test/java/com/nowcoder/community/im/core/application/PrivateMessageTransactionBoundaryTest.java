@@ -5,7 +5,7 @@ import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.infrastructure.persistence.MyBatisPrivateMessageRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
-import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;

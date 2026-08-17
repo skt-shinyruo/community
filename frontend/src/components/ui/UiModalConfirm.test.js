@@ -28,26 +28,9 @@ describe('UiModalConfirm', () => {
   it('emits cancel when Escape is pressed', async () => {
     const wrapper = mount(UiModalConfirm)
 
-    await wrapper.get('.modal-mask').trigger('keydown', { key: 'Escape' })
+    await wrapper.get('dialog').trigger('cancel')
 
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 
-  it('traps focus and restores the trigger after closing', async () => {
-    const trigger = document.createElement('button')
-    document.body.appendChild(trigger)
-    trigger.focus()
-    const wrapper = mount(UiModalConfirm, { attachTo: document.body })
-    await wrapper.vm.$nextTick()
-
-    const buttons = wrapper.findAll('button')
-    expect(document.activeElement).toBe(buttons[0].element)
-
-    buttons.at(-1).element.focus()
-    document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true, cancelable: true }))
-    expect(document.activeElement).toBe(buttons[0].element)
-
-    wrapper.unmount()
-    expect(document.activeElement).toBe(trigger)
-  })
 })

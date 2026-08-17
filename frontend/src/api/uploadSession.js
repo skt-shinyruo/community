@@ -33,7 +33,7 @@ function mimeTypeAllowed(fileType, acceptedType) {
   return fileMime === accepted
 }
 
-export function validateUploadFile(session, file) {
+function validateUploadFile(session, file) {
   const normalized = normalizeUploadSession(session)
   if (!file || typeof file !== 'object') {
     throw new Error('请选择要上传的文件')

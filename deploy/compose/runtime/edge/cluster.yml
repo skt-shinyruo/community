@@ -31,7 +31,8 @@ services:
       community-gateway-3:
         condition: service_healthy
     volumes:
-    - ../config/nginx/cluster.conf:/etc/nginx/templates/default.conf.template:ro
+    - ../config/nginx/common.conf:/etc/nginx/templates/default.conf.template:ro
+    - ../config/nginx/cluster.conf:/etc/nginx/upstream.conf:ro
     ports:
     - ${NGINX_API_PORT:-12880}:8080
     networks:

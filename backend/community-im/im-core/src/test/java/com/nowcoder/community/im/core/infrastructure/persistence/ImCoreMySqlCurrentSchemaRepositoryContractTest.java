@@ -18,7 +18,7 @@ import com.nowcoder.community.im.core.domain.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
-import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -117,8 +117,7 @@ class ImCoreMySqlCurrentSchemaRepositoryContractTest {
     private static synchronized String currentSchemaJdbcUrl() {
         if (!schemaInstalled) {
             Path currentSchema = Path.of(
-                    "..", "..", "..", "deploy", "database", "business", "current-state",
-                    "010_current_schema.sql")
+                    "..", "..", "..", "deploy", "database", "business", "001_schema.sql")
                     .toAbsolutePath().normalize();
             try (Connection connection = DriverManager.getConnection(
                     MYSQL.getJdbcUrl(), "root", MYSQL.getPassword())) {
@@ -127,7 +126,7 @@ class ImCoreMySqlCurrentSchemaRepositoryContractTest {
                         new EncodedResource(new FileSystemResource(currentSchema), StandardCharsets.UTF_8)
                 );
             } catch (SQLException exception) {
-                throw new IllegalStateException("failed to install current MySQL schema snapshot", exception);
+                throw new IllegalStateException("failed to install business MySQL schema", exception);
             }
             schemaInstalled = true;
         }

@@ -1,7 +1,7 @@
 <template>
   <button
     class="btn-icon ui-icon-button"
-    :class="[variantClass, sizeClass]"
+    :class="sizeClass"
     :type="type"
     :disabled="disabled"
     :aria-label="ariaLabel"
@@ -19,18 +19,11 @@ const props = defineProps({
   ariaLabel: { type: String, required: true },
   title: { type: String, default: '' },
   disabled: { type: Boolean, default: false },
-  variant: { type: String, default: 'default' },
   size: { type: String, default: 'md' },
   type: { type: String, default: 'button' }
 })
 
 defineEmits(['click'])
-
-const variantClass = computed(() => {
-  const variant = String(props.variant || '').trim()
-  if (!variant || variant === 'default') return ''
-  return `ui-icon-button--${variant}`
-})
 
 const sizeClass = computed(() => {
   const size = String(props.size || '').trim()

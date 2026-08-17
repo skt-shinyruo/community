@@ -4,7 +4,7 @@ import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
-import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import com.nowcoder.community.im.core.support.IdGenerator;
 
 import java.time.Instant;

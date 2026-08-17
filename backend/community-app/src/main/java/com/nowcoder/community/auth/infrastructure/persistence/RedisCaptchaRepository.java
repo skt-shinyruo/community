@@ -1,7 +1,6 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -13,12 +12,11 @@ import java.util.List;
 import java.util.regex.Pattern;
 
 @Component
-@ConditionalOnProperty(name = "auth.captcha.store", havingValue = "redis", matchIfMissing = true)
 public class RedisCaptchaRepository implements CaptchaRepository {
 
     private static final String PREFIX = "captcha:";
     private static final Pattern CAPTCHA_ID_PATTERN = Pattern.compile("\\A[0-9a-f]{32}\\z");
-    private static final RedisScript<String> VERIFY_AND_CONSUME_SCRIPT = script(
+    private static final RedisScript<String> VERIFY_AND_CONSUME_SCRIPT = new DefaultRedisScript<>(
             """
                     local value = redis.call('get', KEYS[1])
                     if not value then
@@ -46,7 +44,7 @@ public class RedisCaptchaRepository implements CaptchaRepository {
                     """,
             String.class
     );
-    private static final RedisScript<Long> INCREMENT_FAILURES_SCRIPT = script(
+    private static final RedisScript<Long> INCREMENT_FAILURES_SCRIPT = new DefaultRedisScript<>(
             """
                     local count = redis.call('incr', KEYS[1])
                     if count == 1 then
@@ -72,10 +70,10 @@ public class RedisCaptchaRepository implements CaptchaRepository {
     }
 
     @Override
-    public VerifyResult verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl) {
+    public boolean verifyAndConsume(String owner, String code, int maxFailures, Duration failureTtl) {
         if (!isCaptchaId(owner) || !StringUtils.hasText(code)
                 || maxFailures <= 0 || failureTtl == null || failureTtl.isNegative() || failureTtl.isZero()) {
-            return VerifyResult.NOT_FOUND;
+            return false;
         }
         String result = redisTemplate.execute(
                 VERIFY_AND_CONSUME_SCRIPT,
@@ -88,29 +86,10 @@ public class RedisCaptchaRepository implements CaptchaRepository {
             throw new IllegalStateException("redis verify captcha returned null");
         }
         return switch (result) {
-            case "MATCHED" -> VerifyResult.MATCHED;
-            case "MISMATCH" -> VerifyResult.MISMATCH;
-            case "EXHAUSTED" -> VerifyResult.EXHAUSTED;
-            case "NOT_FOUND" -> VerifyResult.NOT_FOUND;
+            case "MATCHED" -> true;
+            case "MISMATCH", "EXHAUSTED", "NOT_FOUND" -> false;
             default -> throw new IllegalStateException("unknown captcha verify result");
         };
-    }
-
-    @Override
-    public String get(String owner) {
-        if (!StringUtils.hasText(owner)) {
-            return null;
-        }
-        return redisTemplate.opsForValue().get(key(owner));
-    }
-
-    @Override
-    public void delete(String owner) {
-        if (!StringUtils.hasText(owner)) {
-            return;
-        }
-        redisTemplate.delete(key(owner));
-        redisTemplate.delete(failKey(owner));
     }
 
     @Override
@@ -142,12 +121,5 @@ public class RedisCaptchaRepository implements CaptchaRepository {
 
     private boolean isCaptchaId(String value) {
         return value != null && CAPTCHA_ID_PATTERN.matcher(value).matches();
-    }
-
-    private static <T> RedisScript<T> script(String scriptText, Class<T> resultType) {
-        DefaultRedisScript<T> script = new DefaultRedisScript<>();
-        script.setScriptText(scriptText);
-        script.setResultType(resultType);
-        return script;
     }
 }

@@ -6,7 +6,7 @@ import com.nowcoder.community.im.common.ws.AckFrame;
 import com.nowcoder.community.im.common.ws.RejectFrame;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
-import com.nowcoder.community.im.realtime.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;

@@ -1,14 +1,17 @@
 <!-- 确认弹窗：用于删除/置顶/加精等危险操作二次确认。 -->
 <template>
-  <div class="modal-mask" @click.self="$emit('cancel')" @keydown.esc.stop.prevent="$emit('cancel')">
+  <dialog
+    ref="dialogRef"
+    class="modal-mask"
+    role="dialog"
+    aria-modal="true"
+    :aria-labelledby="titleId"
+    :aria-describedby="descriptionId"
+    @click.self="$emit('cancel')"
+    @cancel.prevent="$emit('cancel')"
+  >
     <div
-      ref="dialogRef"
       class="modal-card card"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-      :aria-describedby="descriptionId"
-      tabindex="-1"
     >
       <div class="stack">
         <div :id="titleId" style="font-weight: 700">{{ title }}</div>
@@ -19,13 +22,12 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 </template>
 
 <script setup>
-import { ref, useId } from 'vue'
+import { onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import UiButton from './UiButton.vue'
-import { useModalFocus } from '../../composables/useModalFocus'
 
 defineProps({
   title: { type: String, default: '确认操作' },
@@ -40,5 +42,6 @@ const uid = useId()
 const titleId = `ui-modal-confirm-title-${uid}`
 const descriptionId = `ui-modal-confirm-description-${uid}`
 const dialogRef = ref(null)
-useModalFocus(dialogRef)
+onMounted(() => dialogRef.value?.showModal?.())
+onBeforeUnmount(() => dialogRef.value?.close?.())
 </script>

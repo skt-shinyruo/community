@@ -1,6 +1,6 @@
 // 高亮内容安全渲染：默认转义所有标签，仅放行 <em> 与 </em>。
 
-export function escapeHtml(text) {
+function escapeHtml(text) {
   return String(text || '')
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')

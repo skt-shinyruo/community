@@ -148,7 +148,7 @@ export function usePostDetailLoader(emit) {
       postAuthor.value = null
       discussion.resetForPost()
       actions.resetForPost()
-      if (authed.value) markPostRead(postId.value, { identityId: meUserId.value })
+      if (authed.value && meUserId.value) markPostRead(postId.value, { identityId: meUserId.value })
       reload()
     }
   )
@@ -162,7 +162,7 @@ export function usePostDetailLoader(emit) {
   onMounted(() => {
     taxonomy.ensureCategories()
     discussion.restoreDraft()
-    if (authed.value) markPostRead(postId.value, { identityId: meUserId.value })
+    if (authed.value && meUserId.value) markPostRead(postId.value, { identityId: meUserId.value })
     reload()
   })
 

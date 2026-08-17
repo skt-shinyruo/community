@@ -1,15 +1,18 @@
 <!-- 举报弹窗：用于帖子/评论/用户的举报提交。 -->
 <template>
-  <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
+  <dialog
+    ref="dialogRef"
+    class="modal-mask"
+    role="dialog"
+    aria-modal="true"
+    :aria-labelledby="titleId"
+    :aria-describedby="descriptionId"
+    @click.self="$emit('close')"
+    @cancel.prevent="$emit('close')"
+  >
     <div
-      ref="dialogRef"
       class="modal-card card"
       style="max-width: 560px"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-      :aria-describedby="descriptionId"
-      tabindex="-1"
     >
       <div class="stack" style="padding: 16px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
@@ -63,18 +66,17 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
 import { createReport } from '../../api/services/reportService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { showToast } from '../../ui/toastService'
-import { useModalFocus } from '../../composables/useModalFocus'
 
 const props = defineProps({
   targetType: { type: String, required: true }, // post | comment | user
@@ -87,7 +89,7 @@ const uid = useId()
 const titleId = `report-modal-title-${uid}`
 const descriptionId = `report-modal-description-${uid}`
 const dialogRef = ref(null)
-useModalFocus(dialogRef)
+onMounted(() => dialogRef.value?.showModal?.())
 
 const reasonOptions = [
   { label: '垃圾广告', value: '垃圾广告' },
@@ -172,6 +174,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
+  dialogRef.value?.close?.()
   disposed = true
   operationId += 1
 })

@@ -5,7 +5,6 @@ import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository
 import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
@@ -18,7 +17,6 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-@ConditionalOnProperty(name = "auth.registration.draft.store", havingValue = "redis", matchIfMissing = true)
 public class RedisRegistrationDraftRepository implements RegistrationDraftRepository {
 
     private static final String KEY_PREFIX = "auth:regdraft:";

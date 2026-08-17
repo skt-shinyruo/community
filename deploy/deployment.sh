@@ -44,14 +44,6 @@ Examples:
 EOF
 }
 
-print_command() {
-  local arg
-  for arg in "$@"; do
-    printf '%q ' "${arg}"
-  done
-  printf '\n'
-}
-
 resolve_path() {
   local path="$1"
   case "${path}" in
@@ -297,20 +289,27 @@ initialize_host_access_defaults() {
   fi
 }
 
-resolve_host_access_values() {
+resolve_port_values() {
+  local variables_name="$1"
+  local defaults_name="$2"
+  local values_name="$3"
   local variable
   local value
   local existing_variable
+  declare -gA "${values_name}=()"
+  local -n variables_ref="${variables_name}"
+  local -n defaults_ref="${defaults_name}"
+  local -n values_ref="${values_name}"
   declare -A used_ports=()
-  declare -gA HOST_ACCESS_VALUES=()
+  values_ref=()
 
-  for variable in "${HOST_ACCESS_VARIABLES[@]}"; do
+  for variable in "${variables_ref[@]}"; do
     if [[ -v "${variable}" ]]; then
       value="${!variable}"
     elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
       :
     else
-      value="${HOST_ACCESS_DEFAULTS[${variable}]}"
+      value="${defaults_ref[${variable}]}"
     fi
 
     if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} < 1 || 10#${value} > 65535 )); then
@@ -324,31 +323,38 @@ resolve_host_access_values() {
     fi
 
     used_ports["${value}"]="${variable}"
-    HOST_ACCESS_VALUES["${variable}"]="${value}"
+    values_ref["${variable}"]="${value}"
     printf -v "${variable}" '%s' "${value}"
     export "${variable}"
   done
 }
 
-validate_custom_project_host_access() {
+validate_custom_project_ports() {
+  local variables_name="$1"
+  local defaults_name="$2"
+  local values_name="$3"
+  local message="$4"
   local default_project_name
   local variable
   local reused_variables=()
+  local -n variables_ref="${variables_name}"
+  local -n defaults_ref="${defaults_name}"
+  local -n values_ref="${values_name}"
 
   default_project_name="$(resolve_default_project_name)"
   if [ "${PROJECT_NAME}" = "${default_project_name}" ]; then
     return
   fi
 
-  for variable in "${HOST_ACCESS_VARIABLES[@]}"; do
-    if [ "${HOST_ACCESS_VALUES[${variable}]}" = "${HOST_ACCESS_DEFAULTS[${variable}]}" ]; then
+  for variable in "${variables_ref[@]}"; do
+    if [ "${values_ref[${variable}]}" = "${defaults_ref[${variable}]}" ]; then
       reused_variables+=("${variable}")
     fi
   done
 
   if [ "${#reused_variables[@]}" -gt 0 ]; then
-    echo "[deployment.sh] custom infra project '${PROJECT_NAME}' requires independent localhost ports" >&2
-    echo "[deployment.sh] values still using host-access defaults: ${reused_variables[*]}" >&2
+    echo "[deployment.sh] ${message}" >&2
+    echo "[deployment.sh] values still using port defaults: ${reused_variables[*]}" >&2
     exit 1
   fi
 }
@@ -398,62 +404,6 @@ initialize_stack_port_defaults() {
       return
       ;;
   esac
-}
-
-resolve_stack_port_values() {
-  local variable
-  local value
-  local existing_variable
-  declare -A used_ports=()
-  declare -gA STACK_PORT_VALUES=()
-
-  for variable in "${STACK_PORT_VARIABLES[@]}"; do
-    if [[ -v "${variable}" ]]; then
-      value="${!variable}"
-    elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
-      :
-    else
-      value="${STACK_PORT_DEFAULTS[${variable}]}"
-    fi
-
-    if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} < 1 || 10#${value} > 65535 )); then
-      echo "[deployment.sh] ${variable} must be a port between 1 and 65535" >&2
-      exit 1
-    fi
-    existing_variable="${used_ports[${value}]:-}"
-    if [ -n "${existing_variable}" ]; then
-      echo "[deployment.sh] ${variable} and ${existing_variable} must not use the same host port ${value}" >&2
-      exit 1
-    fi
-
-    used_ports["${value}"]="${variable}"
-    STACK_PORT_VALUES["${variable}"]="${value}"
-    printf -v "${variable}" '%s' "${value}"
-    export "${variable}"
-  done
-}
-
-validate_custom_project_stack_ports() {
-  local default_project_name
-  local variable
-  local reused_variables=()
-
-  default_project_name="$(resolve_default_project_name)"
-  if [ "${PROJECT_NAME}" = "${default_project_name}" ]; then
-    return
-  fi
-
-  for variable in "${STACK_PORT_VARIABLES[@]}"; do
-    if [ "${STACK_PORT_VALUES[${variable}]}" = "${STACK_PORT_DEFAULTS[${variable}]}" ]; then
-      reused_variables+=("${variable}")
-    fi
-  done
-
-  if [ "${#reused_variables[@]}" -gt 0 ]; then
-    echo "[deployment.sh] custom project '${PROJECT_NAME}' requires independent localhost ports" >&2
-    echo "[deployment.sh] values still using ${STACK} port defaults: ${reused_variables[*]}" >&2
-    exit 1
-  fi
 }
 
 CALLER_PWD="$(pwd)"
@@ -662,14 +612,16 @@ validate_project_topology
 
 if [ "${HOST_ACCESS}" -eq 1 ]; then
   initialize_host_access_defaults
-  resolve_host_access_values
-  validate_custom_project_host_access
+  resolve_port_values HOST_ACCESS_VARIABLES HOST_ACCESS_DEFAULTS HOST_ACCESS_VALUES
+  validate_custom_project_ports HOST_ACCESS_VARIABLES HOST_ACCESS_DEFAULTS HOST_ACCESS_VALUES \
+    "custom infra project '${PROJECT_NAME}' requires independent localhost ports"
 fi
 
 if [ "${STACK}" = "single" ] || [ "${STACK}" = "cluster" ]; then
   initialize_stack_port_defaults
-  resolve_stack_port_values
-  validate_custom_project_stack_ports
+  resolve_port_values STACK_PORT_VARIABLES STACK_PORT_DEFAULTS STACK_PORT_VALUES
+  validate_custom_project_ports STACK_PORT_VARIABLES STACK_PORT_DEFAULTS STACK_PORT_VALUES \
+    "custom project '${PROJECT_NAME}' requires independent localhost ports"
 fi
 
 COMPOSE_FILES=("${STACK_FILE}")

@@ -87,8 +87,6 @@ class NacosPolicyBindingTest {
         assertThat(environment.containsProperty("content.events.publisher")).isFalse();
         assertThat(environment.containsProperty("social.events.publisher")).isFalse();
         assertThat(environment.containsProperty("user.events.publisher")).isFalse();
-        assertThat(environment.getProperty("events.outbox.enabled", Boolean.class)).isTrue();
-        assertThat(environment.getProperty("search.index.initialize", Boolean.class)).isTrue();
         assertThat(environment.getProperty("management.health.elasticsearch.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("analytics.ingest.exclude-paths[2]")).isEqualTo("/api/ops/**");
         assertThat(environment.getProperty("spring.servlet.multipart.max-file-size")).isEqualTo("10GB");
@@ -224,9 +222,6 @@ class NacosPolicyBindingTest {
                 .bind("community.kafka-policy", KafkaPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
         assertThat(kafka.getRetry().getMaxAttempts()).isEqualTo(3);
-        assertThat(kafka.getProducer().getAcks()).isEqualTo("all");
-        assertThat(kafka.getProducer().getMaxInFlightRequests()).isEqualTo(5);
-        assertThat(kafka.getProducer().getRequestTimeoutMs()).isEqualTo(3000);
         assertThat(environmentFrom("community-kafka-policy.yaml").getProperty("community.kafka-policy.producer.acks"))
                 .isEqualTo("all");
         assertThat(environmentFrom("community-kafka-policy.yaml")
@@ -298,6 +293,7 @@ class NacosPolicyBindingTest {
         assertThat(environment.getProperty("content.score.refresh.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("content.score.refresh.batch-size", Integer.class)).isEqualTo(200);
         assertThat(environment.getProperty("content.score.refresh.delay-ms", Long.class)).isEqualTo(30_000L);
+        assertThat(environment.getProperty("events.outbox.enabled", Boolean.class)).isTrue();
         assertThat(environment.getProperty("market.wallet-action.process-batch-size", Integer.class)).isEqualTo(50);
         assertThat(environment.getProperty("market.wallet-action.recovery-batch-size", Integer.class)).isEqualTo(100);
         assertThat(environment.getProperty("market.wallet-action.processing-lease")).isEqualTo("60s");

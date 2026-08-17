@@ -262,8 +262,7 @@ assert_no_gateway_trusted_proxy_path() {
 }
 
 nginx_configs=(
-  "${REPO_ROOT}/deploy/config/nginx/single.conf"
-  "${REPO_ROOT}/deploy/config/nginx/cluster.conf"
+  "${REPO_ROOT}/deploy/config/nginx/common.conf"
 )
 
 for nginx_config in "${nginx_configs[@]}"; do
@@ -334,10 +333,10 @@ assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_1_STATIC_IP:?COMMUNITY_GATEWA
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_2_STATIC_IP:?COMMUNITY_GATEWAY_2_STATIC_IP is required}' "${cluster_compose}"
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_3_STATIC_IP:?COMMUNITY_GATEWAY_3_STATIC_IP is required}' "${cluster_compose}"
 
-assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
-assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS=${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED=true' "${single_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}' "${single_compose}"
+assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED: "true"' "${single_compose}"
+assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS: "${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}"' "${single_compose}"
+assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED: "true"' "${single_compose}"
+assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS: "${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}"' "${single_compose}"
 assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"
 assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS: "${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}"' "${cluster_compose}"
 assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"

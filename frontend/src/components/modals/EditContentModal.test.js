@@ -24,7 +24,7 @@ describe('EditContentModal', () => {
     expect(dialog.attributes('aria-modal')).toBe('true')
     expect(dialog.attributes('aria-labelledby')).toBeTruthy()
 
-    await wrapper.get('.modal-mask').trigger('keydown', { key: 'Escape' })
+    await wrapper.get('dialog').trigger('cancel')
     expect(wrapper.emitted('close')).toHaveLength(1)
   })
 

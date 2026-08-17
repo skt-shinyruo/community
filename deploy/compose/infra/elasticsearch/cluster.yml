@@ -1,19 +1,25 @@
+x-elasticsearch-node: &elasticsearch-node
+  image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_STACK_VERSION:-9.2.8}
+  mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+  ulimits:
+    memlock:
+      soft: -1
+      hard: -1
+
+x-elasticsearch-environment: &elasticsearch-environment
+  cluster.name: community-es
+  discovery.seed_hosts: elasticsearch-1,elasticsearch-2,elasticsearch-3
+  cluster.initial_master_nodes: elasticsearch-1,elasticsearch-2,elasticsearch-3
+  xpack.security.enabled: "false"
+  bootstrap.memory_lock: "true"
+  ES_JAVA_OPTS: ${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
+
 services:
   elasticsearch-1:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_STACK_VERSION:-9.2.8}
-    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    <<: *elasticsearch-node
     environment:
-    - node.name=elasticsearch-1
-    - cluster.name=community-es
-    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - xpack.security.enabled=false
-    - bootstrap.memory_lock=true
-    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+      <<: *elasticsearch-environment
+      node.name: elasticsearch-1
     volumes:
     - elasticsearch_node_1_data:/usr/share/elasticsearch/data
     networks:
@@ -21,37 +27,17 @@ services:
         aliases:
         - elasticsearch
   elasticsearch-2:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_STACK_VERSION:-9.2.8}
-    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    <<: *elasticsearch-node
     environment:
-    - node.name=elasticsearch-2
-    - cluster.name=community-es
-    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - xpack.security.enabled=false
-    - bootstrap.memory_lock=true
-    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+      <<: *elasticsearch-environment
+      node.name: elasticsearch-2
     volumes:
     - elasticsearch_node_2_data:/usr/share/elasticsearch/data
   elasticsearch-3:
-    image: docker.elastic.co/elasticsearch/elasticsearch:${ELASTIC_STACK_VERSION:-9.2.8}
-    mem_limit: ${ELASTICSEARCH_MEM_LIMIT:-1g}
+    <<: *elasticsearch-node
     environment:
-    - node.name=elasticsearch-3
-    - cluster.name=community-es
-    - discovery.seed_hosts=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - cluster.initial_master_nodes=elasticsearch-1,elasticsearch-2,elasticsearch-3
-    - xpack.security.enabled=false
-    - bootstrap.memory_lock=true
-    - ES_JAVA_OPTS=${ELASTICSEARCH_JAVA_OPTS:--Xms512m -Xmx512m}
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
+      <<: *elasticsearch-environment
+      node.name: elasticsearch-3
     volumes:
     - elasticsearch_node_3_data:/usr/share/elasticsearch/data
   es-init:

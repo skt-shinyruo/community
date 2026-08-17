@@ -374,7 +374,6 @@ auth:
       enabled: ${AUTH_REFRESH_CLEANUP_ENABLED:true}
       interval-ms: ${AUTH_REFRESH_CLEANUP_INTERVAL_MS:3600000}
   captcha:
-    store: redis
     ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
     max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
     max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}

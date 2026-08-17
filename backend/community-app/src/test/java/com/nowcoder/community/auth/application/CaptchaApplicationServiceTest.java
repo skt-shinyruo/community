@@ -17,7 +17,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.anyInt;
-import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -45,35 +44,19 @@ class CaptchaApplicationServiceTest {
     @Test
     void verifyShouldReturnTrueWhenCaptchaMatchesAtomically() {
         when(captchaStore.verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60)))
-                .thenReturn(CaptchaRepository.VerifyResult.MATCHED);
+                .thenReturn(true);
 
         assertThat(service.verify(CAPTCHA_ID, "  AbC1  ")).isTrue();
 
         verify(captchaStore).verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60));
-        verify(captchaStore, never()).incrementFailures(anyString(), any(Duration.class));
-        verify(captchaStore, never()).delete(anyString());
     }
 
     @Test
-    void verifyShouldReturnFalseWhenCaptchaNotFound() {
+    void verifyShouldReturnFalseWhenCaptchaDoesNotMatch() {
         when(captchaStore.verifyAndConsume(CAPTCHA_ID, "AbC1", 3, Duration.ofSeconds(60)))
-                .thenReturn(CaptchaRepository.VerifyResult.NOT_FOUND);
+                .thenReturn(false);
 
         assertThat(service.verify(CAPTCHA_ID, "AbC1")).isFalse();
-
-        verify(captchaStore, never()).incrementFailures(anyString(), any(Duration.class));
-        verify(captchaStore, never()).delete(anyString());
-    }
-
-    @Test
-    void verifyShouldLeaveFailureExhaustionToTheAtomicRepositoryOperation() {
-        when(captchaStore.verifyAndConsume(CAPTCHA_ID, "wrong", 3, Duration.ofSeconds(60)))
-                .thenReturn(CaptchaRepository.VerifyResult.EXHAUSTED);
-
-        assertThat(service.verify(CAPTCHA_ID, "wrong")).isFalse();
-
-        verify(captchaStore, never()).incrementFailures(eq(CAPTCHA_ID), any(Duration.class));
-        verify(captchaStore, never()).delete(CAPTCHA_ID);
     }
 
     @Test
@@ -91,7 +74,7 @@ class CaptchaApplicationServiceTest {
     void issueShouldFailClosedWhenStoreUnavailable() {
         doThrow(new RuntimeException("redis down")).when(captchaStore).save(anyString(), anyString(), any(Duration.class));
 
-        assertThatThrownBy(() -> service.issue())
+        assertThatThrownBy(() -> service.issue(new CaptchaApplicationService.IssueCaptchaCommand(null)))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(CommonErrorCode.SERVICE_UNAVAILABLE);

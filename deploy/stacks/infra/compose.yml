@@ -8,5 +8,6 @@ include:
       - compose/infra/garage/single.yml
       - compose/infra/nacos/single.yml
       - compose/infra/mailhog.yml
+      - compose/infra/mock-data-studio/common.yml
       - compose/infra/mock-data-studio/single.yml
       - compose/overlays/host-access.yml

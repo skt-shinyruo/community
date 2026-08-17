@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.core.domain.repository;
 
-import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.test.context.SpringBootTest;

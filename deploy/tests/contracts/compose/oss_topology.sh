@@ -29,8 +29,7 @@ assert_service_environment_value() {
 ./deploy/deployment.sh config --stack single --env-file deploy/stacks/single/.env.example --no-observability >"${single_full}"
 ./deploy/deployment.sh config --stack cluster --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_full}"
 
-grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/config/nginx/single.conf
-grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/config/nginx/cluster.conf
+grep -F 'client_max_body_size ${NGINX_CLIENT_MAX_BODY_SIZE};' deploy/config/nginx/common.conf
 grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/stacks/single/.env.example
 grep -F 'NGINX_CLIENT_MAX_BODY_SIZE=10g' deploy/stacks/cluster/.env.example
 

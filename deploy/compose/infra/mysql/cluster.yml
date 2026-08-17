@@ -1,3 +1,17 @@
+x-mysql-replica: &mysql-replica
+  image: mysql:8.0
+  mem_limit: ${MYSQL_MEM_LIMIT:-512m}
+  environment:
+  - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
+  - MYSQL_ROOT_HOST=%
+  healthcheck:
+    test:
+    - CMD-SHELL
+    - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
+    interval: 5s
+    timeout: 3s
+    retries: 30
+
 services:
   mysql-primary:
     image: mysql:8.0
@@ -7,8 +21,6 @@ services:
     - MYSQL_ROOT_HOST=%
     - COMMUNITY_MYSQL_USER=${MYSQL_USER:-community}
     - COMMUNITY_MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
-    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
-    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
     - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
     - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
     - OSS_MYSQL_USER=${OSS_MYSQL_USER:-community_oss}
@@ -23,7 +35,7 @@ services:
     - mysql_primary_data:/var/lib/mysql
     - ../database/mysql/conf/mysql-client.cnf:/etc/mysql/conf.d/mysql-client.cnf:ro
     - ../database/business/init/001_create_databases.sh:/docker-entrypoint-initdb.d/001_create_databases.sh:ro
-    - ../database/business/current-state/010_current_schema.sql:/docker-entrypoint-initdb.d/010_current_schema.sql:ro
+    - ../database/business/001_schema.sql:/docker-entrypoint-initdb.d/001_schema.sql:ro
     - ../database/mysql/conf/primary.cnf:/etc/mysql/conf.d/primary.cnf:ro
     healthcheck:
       test:
@@ -37,11 +49,7 @@ services:
         aliases:
         - mysql
   mysql-replica-1:
-    image: mysql:8.0
-    mem_limit: ${MYSQL_MEM_LIMIT:-512m}
-    environment:
-    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-    - MYSQL_ROOT_HOST=%
+    <<: *mysql-replica
     command:
     - --character-set-server=utf8mb4
     - --collation-server=utf8mb4_unicode_ci
@@ -50,19 +58,8 @@ services:
     volumes:
     - mysql_replica_1_data:/var/lib/mysql
     - ../database/mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
-      interval: 5s
-      timeout: 3s
-      retries: 30
   mysql-replica-2:
-    image: mysql:8.0
-    mem_limit: ${MYSQL_MEM_LIMIT:-512m}
-    environment:
-    - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
-    - MYSQL_ROOT_HOST=%
+    <<: *mysql-replica
     command:
     - --character-set-server=utf8mb4
     - --collation-server=utf8mb4_unicode_ci
@@ -71,13 +68,6 @@ services:
     volumes:
     - mysql_replica_2_data:/var/lib/mysql
     - ../database/mysql/conf/replica.cnf:/etc/mysql/conf.d/replica.cnf:ro
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - mysqladmin ping -h 127.0.0.1 -uroot -p${MYSQL_ROOT_PASSWORD} --silent
-      interval: 5s
-      timeout: 3s
-      retries: 30
   mysql-replication-bootstrap:
     image: mysql:8.0
     mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
@@ -111,8 +101,6 @@ services:
     - MYSQL_ROOT_PASSWORD=${MYSQL_ROOT_PASSWORD}
     - COMMUNITY_MYSQL_USER=${MYSQL_USER:-community}
     - COMMUNITY_MYSQL_PASSWORD=${MYSQL_PASSWORD:-communitypass}
-    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
-    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
     - IM_MYSQL_USER=${IM_MYSQL_USER:-im_core}
     - IM_MYSQL_PASSWORD=${IM_MYSQL_PASSWORD:-imcorepass}
     - OSS_MYSQL_USER=${OSS_MYSQL_USER:-community_oss}
@@ -124,35 +112,6 @@ services:
     depends_on:
       mysql-primary:
         condition: service_healthy
-    restart: 'no'
-  community-db-migrations:
-    image: mysql:8.0
-    mem_limit: ${MYSQL_BOOTSTRAP_MEM_LIMIT:-256m}
-    user: "1000:1000"
-    entrypoint:
-    - /bin/bash
-    - /migration/run-community-migrations.sh
-    environment:
-    - DB_PRIMARY_HOST=${DB_PRIMARY_HOST:-mysql-primary}
-    - DB_PRIMARY_PORT=3306
-    - COMMUNITY_MYSQL_DATABASE=community
-    - COMMUNITY_MIGRATION_USERNAME=${COMMUNITY_MIGRATION_USERNAME:-community_migrator}
-    - COMMUNITY_MIGRATION_PASSWORD=${COMMUNITY_MIGRATION_PASSWORD:?COMMUNITY_MIGRATION_PASSWORD is required}
-    volumes:
-    - ../scripts/run-community-migrations.sh:/migration/run-community-migrations.sh:ro
-    - ../database/business/migrations:/migrations:ro
-    read_only: true
-    tmpfs:
-    - /tmp:rw,noexec,nosuid,size=16m
-    cap_drop:
-    - ALL
-    security_opt:
-    - no-new-privileges:true
-    depends_on:
-      community-db-user-bootstrap:
-        condition: service_completed_successfully
-      mysql-replication-bootstrap:
-        condition: service_completed_successfully
     restart: 'no'
   community-dev-seed:
     image: mysql:8.0
@@ -180,6 +139,8 @@ services:
     volumes:
     - ../database/business/seed/090_seed_identity.sql:/seed/090_seed_identity.sql:ro
     depends_on:
-      community-db-migrations:
+      community-db-user-bootstrap:
+        condition: service_completed_successfully
+      mysql-replication-bootstrap:
         condition: service_completed_successfully
     restart: 'no'

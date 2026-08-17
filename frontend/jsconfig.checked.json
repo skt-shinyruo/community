@@ -15,7 +15,6 @@
     // Shared primitives
     "src/api/backendError.js",
     "src/api/result.js",
-    "src/api/services/commentResponse.js",
     "src/api/writeAttempt.js",
     "src/auth/sessionHint.js",
     "src/config/endpointResolution.js",

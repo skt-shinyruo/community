@@ -134,7 +134,6 @@ public class RegistrationProperties {
          * 注册草稿存活时间（秒）；超过后需要重新开始注册。
          */
         private int ttlSeconds = 1800;
-        private String store = "redis";
 
         public int getTtlSeconds() {
             return ttlSeconds;
@@ -144,21 +143,9 @@ public class RegistrationProperties {
             this.ttlSeconds = ttlSeconds > 0 ? ttlSeconds : 1800;
         }
 
-        public String getStore() {
-            return store;
-        }
-
-        public void setStore(String store) {
-            this.store = store;
-        }
     }
 
     public static class Code {
-        /**
-         * 存储方式：redis / memory（测试用）。
-         */
-        private String store = "redis";
-
         /**
          * 邮箱验证码有效期（秒）。
          */
@@ -183,14 +170,6 @@ public class RegistrationProperties {
          * 是否在响应中回传调试验证码（仅本地/测试联调建议开启）。
          */
         private boolean exposeCode = false;
-
-        public String getStore() {
-            return store;
-        }
-
-        public void setStore(String store) {
-            this.store = store;
-        }
 
         public int getTtlSeconds() {
             return ttlSeconds;

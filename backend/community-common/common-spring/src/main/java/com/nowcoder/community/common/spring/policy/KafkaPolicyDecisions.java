@@ -25,12 +25,4 @@ public class KafkaPolicyDecisions {
     public boolean dlqEnabled() {
         return properties.getDlq().isEnabled();
     }
-
-    public boolean producerIdempotenceEnabled() {
-        return properties.getProducer().isEnableIdempotence();
-    }
-
-    public int producerMaxInFlightRequests() {
-        return properties.getProducer().getMaxInFlightRequests();
-    }
 }

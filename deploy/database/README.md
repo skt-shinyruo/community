@@ -1,7 +1,6 @@
 # Deployment Database Assets
 
-- `business/current-state/`: empty-volume current schema for `community`, `community_oss` and `im_core`.
-- `business/migrations/`: immutable forward migrations for existing `community` volumes.
+- `business/001_schema.sql`: canonical empty-volume schema for `community`, `community_oss` and `im_core`.
 - `business/init/`: database and least-privilege user bootstrap.
 - `business/seed/`: development-only reference identities.
 - `mysql/`: MySQL server and client configuration.

@@ -36,7 +36,7 @@ owner ApplicationService
 | `backend/community-im/` | `im-core`、`im-realtime`、共享 IM contract 与 session ticket 协议。 |
 | `backend/community-oss/` | 对象存储 owner；typed client 位于 `backend/community-oss-client/`。 |
 | `backend/community-common/` | 错误协议、安全、Web、幂等、outbox、可观测性等共享基础设施。 |
-| `deploy/` | 本地拓扑、Nacos seed、schema、迁移、观测配置与部署契约测试。 |
+| `deploy/` | 本地拓扑、Nacos seed、业务 schema、观测配置与部署契约测试。 |
 | `tools/mock-data-studio/` | 仅用于本地开发的同步测试数据 CLI。 |
 | `tests/k6/` | k6 性能测试场景与结构契约。 |
 | `tests/playwright-single/` | 面向已启动 single 拓扑的浏览器验收套件。 |

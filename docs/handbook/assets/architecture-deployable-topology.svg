@@ -26,10 +26,10 @@
   <path class="edge" d="M765 102 H812"/><path class="edge" d="M765 286 C790 286 790 384 812 384"/><path class="edge" d="M765 378 H812"/>
   <path class="edge" d="M672 134 C672 154 784 175 812 175"/><path class="edge" d="M672 226 C690 246 784 244 812 244"/><path class="edge" d="M672 134 C710 134 774 315 812 315"/>
   <path class="edge" d="M672 318 C710 330 780 384 812 384"/>
-  <text x="42" y="460" class="t">Current-state schema bootstrap</text>
-  <rect x="42" y="480" width="480" height="58" class="box mig"/><text x="70" y="505" class="t">deploy/database/business/current-state/010_current_schema.sql</text><text x="112" y="526" class="s">community + community_oss + im_core</text>
+  <text x="42" y="460" class="t">Business schema bootstrap</text>
+  <rect x="42" y="480" width="480" height="58" class="box mig"/><text x="128" y="505" class="t">deploy/database/business/001_schema.sql</text><text x="112" y="526" class="s">community + community_oss + im_core</text>
   <rect x="620" y="480" width="298" height="58" class="box store"/><text x="674" y="505" class="t">MySQL primary entrypoint</text><text x="674" y="526" class="s">GTID replicates cluster state</text>
   <path class="edge" d="M522 509 H620"/>
-  <text x="42" y="590" class="s">The snapshot runs only for an empty primary volume; runtime database accounts remain DML-only.</text>
+  <text x="42" y="590" class="s">The schema runs only for an empty primary volume; runtime database accounts remain DML-only.</text>
   <text x="42" y="620" class="s">Gateway is the stable external entry. Owner facts stay in the deployable that owns them.</text>
 </svg>

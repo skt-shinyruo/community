@@ -12,7 +12,7 @@ import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.UserInboxRepository;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
-import com.nowcoder.community.im.core.support.ConversationIdSupport;
+import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;

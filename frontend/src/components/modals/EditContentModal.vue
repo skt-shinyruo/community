@@ -1,14 +1,17 @@
 <!-- 编辑弹窗：用于帖子/评论的窗口内编辑。 -->
 <template>
-  <div class="modal-mask" @click.self="$emit('close')" @keydown.esc.stop.prevent="$emit('close')">
+  <dialog
+    ref="dialogRef"
+    class="modal-mask"
+    role="dialog"
+    aria-modal="true"
+    :aria-labelledby="titleId"
+    @click.self="$emit('close')"
+    @cancel.prevent="$emit('close')"
+  >
     <div
-      ref="dialogRef"
       class="modal-card card"
       style="max-width: 720px"
-      role="dialog"
-      aria-modal="true"
-      :aria-labelledby="titleId"
-      tabindex="-1"
     >
       <div class="stack" style="padding: 16px; gap: 12px">
         <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
@@ -46,15 +49,14 @@
         </div>
       </div>
     </div>
-  </div>
+  </dialog>
 </template>
 
 <script setup>
-import { computed, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
 import PostBlockEditor from '../posts/PostBlockEditor.vue'
-import { useModalFocus } from '../../composables/useModalFocus'
 
 const props = defineProps({
   mode: { type: String, default: 'post' }, // post | comment
@@ -67,7 +69,8 @@ const props = defineProps({
 const emit = defineEmits(['close', 'submit'])
 const titleId = `edit-content-modal-title-${useId()}`
 const dialogRef = ref(null)
-useModalFocus(dialogRef)
+onMounted(() => dialogRef.value?.showModal?.())
+onBeforeUnmount(() => dialogRef.value?.close?.())
 
 const title = ref(String(props.initialTitle || ''))
 const content = ref(String(props.initialContent || ''))

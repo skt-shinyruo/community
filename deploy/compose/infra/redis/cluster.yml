@@ -1,166 +1,54 @@
+x-redis-node: &redis-node
+  image: redis:7-alpine
+  mem_limit: ${REDIS_MEM_LIMIT:-192m}
+  command:
+    - redis-server
+    - --appendonly
+    - 'yes'
+    - --cluster-enabled
+    - 'yes'
+    - --cluster-config-file
+    - nodes.conf
+    - --cluster-node-timeout
+    - '5000'
+    - --protected-mode
+    - 'no'
+    - --bind
+    - 0.0.0.0
+  healthcheck:
+    test:
+      - CMD
+      - redis-cli
+      - ping
+    interval: 5s
+    timeout: 3s
+    retries: 30
+
 services:
   redis-1:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_1_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-2:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_2_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-3:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_3_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-4:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_4_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-5:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_5_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-6:
-    image: redis:7-alpine
-    mem_limit: ${REDIS_MEM_LIMIT:-192m}
-    command:
-    - redis-server
-    - --appendonly
-    - 'yes'
-    - --cluster-enabled
-    - 'yes'
-    - --cluster-config-file
-    - nodes.conf
-    - --cluster-node-timeout
-    - '5000'
-    - --protected-mode
-    - 'no'
-    - --bind
-    - 0.0.0.0
+    <<: *redis-node
     volumes:
     - redis_node_6_data:/data
-    healthcheck:
-      test:
-      - CMD
-      - redis-cli
-      - ping
-      interval: 5s
-      timeout: 3s
-      retries: 30
   redis-cluster-bootstrap:
     image: redis:7-alpine
     mem_limit: ${REDIS_BOOTSTRAP_MEM_LIMIT:-96m}

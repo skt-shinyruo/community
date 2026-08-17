@@ -81,7 +81,7 @@ class LoginRateLimitApplicationServiceTest {
     void isCaptchaRequiredShouldReturnTrueWhenRepositoryReadThrows() {
         when(loginRateLimitRepository.count(anyString())).thenThrow(new RuntimeException("redis down"));
 
-        assertThat(service.isCaptchaRequired("alice", "127.0.0.1")).isTrue();
+        assertThat(service.isCaptchaRequired("alice", "127.0.0.1", null)).isTrue();
     }
 
     @Test

@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-schema="deploy/database/business/current-state/010_current_schema.sql"
+schema="deploy/database/business/001_schema.sql"
 single_full="$(mktemp)"
 cluster_full="$(mktemp)"
 single_production="$(mktemp)"
@@ -49,37 +49,48 @@ grep -Fq 'CONSTRAINT `ck_wallet_test_credit_discarded_nonnegative` CHECK ((`disc
 grep -Fq 'INSERT INTO `category` VALUES' "${schema}"
 grep -Fq 'INSERT INTO `task_template` VALUES' "${schema}"
 if rg -n 'CREATE TABLE `(ai_config|demo_job)`' "${schema}"; then
-  echo 'current schema still contains legacy Mock Data Studio tables' >&2
+  echo 'business schema still contains legacy Mock Data Studio tables' >&2
   exit 1
 fi
 
 if rg -n -i 'alter[[:space:]]+table|drop[[:space:]]+table|gtid_purged|definer|schema_history|aaa@example|bbb@example|admin@example' "${schema}"; then
-  echo 'current schema contains evolution DDL, history metadata, or development users' >&2
+  echo 'business schema contains evolution DDL, history metadata, or development users' >&2
   exit 1
 fi
 
-business_ddl_files="$(rg -l -i '^create[[:space:]]+table' deploy/database --glob '*.sql' \
-  | grep -Ev '/(nacos|migrations)/' || true)"
+business_ddl_files="$(rg -l -i '^create[[:space:]]+(database|table)' \
+  deploy/database/business --glob '*.sql')"
 if [ "${business_ddl_files}" != "${schema}" ]; then
-  echo "current-state business DDL must exist only in ${schema}; found: ${business_ddl_files}" >&2
+  echo "business DDL must exist only in ${schema}; found: ${business_ddl_files}" >&2
   exit 1
 fi
 
 for rendered in "${single_full}" "${cluster_full}"; do
-  grep -Fq 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${rendered}"
+  grep -Fq 'target: /docker-entrypoint-initdb.d/001_schema.sql' "${rendered}"
   grep -Eq '^  community-dev-seed:$' "${rendered}"
-  grep -Eq '^  community-db-migrations:$' "${rendered}"
-  grep -Fq 'image: mysql:8.0' "${rendered}"
-  grep -Fq 'COMMUNITY_MIGRATION_USERNAME: community_migrator' "${rendered}"
-  grep -Fq 'target: /migration/run-community-migrations.sh' "${rendered}"
-  grep -Fq 'target: /migrations' "${rendered}"
   grep -Fq 'DEPLOYMENT_ENVIRONMENT must equal development' "${rendered}"
   grep -Fq 'target: /seed/090_seed_identity.sql' "${rendered}"
+  if rg -n 'community-db-migrations|COMMUNITY_MIGRATION_(USERNAME|PASSWORD)|community_forward_schema_history' \
+      "${rendered}"; then
+    echo 'rendered stack still contains the business migration surface' >&2
+    exit 1
+  fi
 done
 
-test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${single_full}")" -eq 1
-test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/010_current_schema.sql' "${cluster_full}")" -eq 1
+test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/001_schema.sql' "${single_full}")" -eq 1
+test "$(grep -Fc 'target: /docker-entrypoint-initdb.d/001_schema.sql' "${cluster_full}")" -eq 1
 grep -Fq 'DEPLOYMENT_ENVIRONMENT: production' "${single_production}"
+
+test ! -e deploy/scripts/run-community-migrations.sh
+if find deploy/database/business/migrations -type f -print -quit 2>/dev/null | grep -q .; then
+  echo 'business migration files remain' >&2
+  exit 1
+fi
+if rg -n 'COMMUNITY_MIGRATION_(USERNAME|PASSWORD)|community_forward_schema_history|community-db-migrations|run-community-migrations' \
+    deploy backend --glob '!deploy/tests/**' --glob '!**/src/test/**' --glob '!**/target/**'; then
+  echo 'business migration service, credentials, runner, or history remains' >&2
+  exit 1
+fi
 
 if rg -n -i 'flyway|community-(oss-|im-)?db-migrations' backend/pom.xml backend/*/pom.xml backend/community-im/*/pom.xml; then
   echo 'backend reactor still contains a Flyway module' >&2
@@ -90,49 +101,26 @@ grep -Fq "revoke all privileges, grant option from '\${MYSQL_USER_ESCAPED}'@'%';
   deploy/database/business/init/001_create_databases.sh
 grep -Fq 'grant select, insert, update, delete on \`${MYSQL_DATABASE_ESCAPED}\`.*' \
   deploy/database/business/init/001_create_databases.sh
-grep -Fq "revoke all privileges, grant option from '\${COMMUNITY_MIGRATION_USERNAME_ESCAPED}'@'%';" \
-  deploy/database/business/init/001_create_databases.sh
-grep -Fq 'grant select, insert, update, delete, create, alter, index, drop' \
-  deploy/database/business/init/001_create_databases.sh
-grep -Fq 'COMMUNITY_MIGRATION_USERNAME=community_migrator' deploy/stacks/single/.env.example
-grep -Fq 'COMMUNITY_MIGRATION_USERNAME=community_migrator' deploy/stacks/cluster/.env.example
 
-for rendered in "${single_full}" "${cluster_full}"; do
-  if awk '
-    /^  community-app(-[123])?:$/ { in_service = 1; next }
-    in_service && /^  [^ ]/ { in_service = 0 }
+assert_completed_dependency() {
+  local rendered="$1"
+  local service="$2"
+  local dependency="$3"
+
+  awk -v service="${service}" '
+    $0 == "  " service ":" { in_service = 1; next }
+    in_service && /^  [^ ]/ { exit }
     in_service { print }
-  ' "${rendered}" | rg -n 'COMMUNITY_MIGRATION_(USERNAME|PASSWORD)'; then
-    echo 'community-app must not receive DDL migration credentials' >&2
-    exit 1
-  fi
-done
+  ' "${rendered}" | grep -A2 -F "      ${dependency}:" \
+    | grep -Fq 'condition: service_completed_successfully'
+}
 
-awk '
-  $0 == "  community-app:" { in_service = 1; next }
-  in_service && /^  [^ ]/ { exit }
-  in_service { print }
-' "${single_full}" | grep -A2 -E '^      community-dev-seed:$' \
-  | grep -Fq 'condition: service_completed_successfully'
-awk '
-  $0 == "  community-app:" { in_service = 1; next }
-  in_service && /^  [^ ]/ { exit }
-  in_service { print }
-' "${single_full}" | grep -A2 -E '^      community-db-migrations:$' \
-  | grep -Fq 'condition: service_completed_successfully'
+assert_completed_dependency "${single_full}" community-dev-seed community-db-user-bootstrap
+assert_completed_dependency "${single_full}" community-app community-dev-seed
+assert_completed_dependency "${cluster_full}" community-dev-seed community-db-user-bootstrap
+assert_completed_dependency "${cluster_full}" community-dev-seed mysql-replication-bootstrap
 for service in community-app-1 community-app-2 community-app-3; do
-  awk -v service="${service}" '
-    $0 == "  " service ":" { in_service = 1; next }
-    in_service && /^  [^ ]/ { exit }
-    in_service { print }
-  ' "${cluster_full}" | grep -A2 -E '^      community-dev-seed:$' \
-    | grep -Fq 'condition: service_completed_successfully'
-  awk -v service="${service}" '
-    $0 == "  " service ":" { in_service = 1; next }
-    in_service && /^  [^ ]/ { exit }
-    in_service { print }
-  ' "${cluster_full}" | grep -A2 -E '^      community-db-migrations:$' \
-    | grep -Fq 'condition: service_completed_successfully'
+  assert_completed_dependency "${cluster_full}" "${service}" community-dev-seed
 done
 
 grep -Fq 'reset-mysql' deploy/deployment.sh

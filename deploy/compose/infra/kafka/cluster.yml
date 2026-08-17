@@ -1,101 +1,57 @@
-services:
-  kafka-1:
-    image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
-    restart: on-failure
-    healthcheck:
-      test:
+x-kafka-node: &kafka-node
+  image: confluentinc/cp-kafka:7.6.1
+  mem_limit: ${KAFKA_MEM_LIMIT:-768m}
+  restart: on-failure
+  healthcheck:
+    test:
       - CMD-SHELL
       - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 40s
+    interval: 5s
+    timeout: 5s
+    retries: 30
+    start_period: 40s
+
+x-kafka-environment: &kafka-environment
+  KAFKA_PROCESS_ROLES: broker,controller
+  KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
+  KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
+  KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
+  KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
+  KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT
+  KAFKA_LOG_DIRS: /var/lib/kafka/data
+  CLUSTER_ID: ${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
+  KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: "3"
+  KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: "2"
+  KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: "3"
+  KAFKA_MIN_INSYNC_REPLICAS: "2"
+  KAFKA_DEFAULT_REPLICATION_FACTOR: "3"
+  KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS: "0"
+  KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+  KAFKA_HEAP_OPTS: ${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
+
+services:
+  kafka-1:
+    <<: *kafka-node
     environment:
-    - KAFKA_NODE_ID=1
-    - KAFKA_PROCESS_ROLES=broker,controller
-    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-1:9092
-    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-    - KAFKA_LOG_DIRS=/var/lib/kafka/data
-    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
-    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
-    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
-    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
-    - KAFKA_MIN_INSYNC_REPLICAS=2
-    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
-    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
+      <<: *kafka-environment
+      KAFKA_NODE_ID: "1"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-1:9092
     volumes:
     - kafka_node_1_data:/var/lib/kafka/data
   kafka-2:
-    image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
-    restart: on-failure
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 40s
+    <<: *kafka-node
     environment:
-    - KAFKA_NODE_ID=2
-    - KAFKA_PROCESS_ROLES=broker,controller
-    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-2:9092
-    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-    - KAFKA_LOG_DIRS=/var/lib/kafka/data
-    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
-    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
-    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
-    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
-    - KAFKA_MIN_INSYNC_REPLICAS=2
-    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
-    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
+      <<: *kafka-environment
+      KAFKA_NODE_ID: "2"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-2:9092
     volumes:
     - kafka_node_2_data:/var/lib/kafka/data
   kafka-3:
-    image: confluentinc/cp-kafka:7.6.1
-    mem_limit: ${KAFKA_MEM_LIMIT:-768m}
-    restart: on-failure
-    healthcheck:
-      test:
-      - CMD-SHELL
-      - kafka-topics --bootstrap-server localhost:9092 --list >/dev/null 2>&1
-      interval: 5s
-      timeout: 5s
-      retries: 30
-      start_period: 40s
+    <<: *kafka-node
     environment:
-    - KAFKA_NODE_ID=3
-    - KAFKA_PROCESS_ROLES=broker,controller
-    - KAFKA_CONTROLLER_QUORUM_VOTERS=1@kafka-1:9093,2@kafka-2:9093,3@kafka-3:9093
-    - KAFKA_CONTROLLER_LISTENER_NAMES=CONTROLLER
-    - KAFKA_LISTENERS=PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-    - KAFKA_ADVERTISED_LISTENERS=PLAINTEXT://kafka-3:9092
-    - KAFKA_LISTENER_SECURITY_PROTOCOL_MAP=PLAINTEXT:PLAINTEXT,CONTROLLER:PLAINTEXT
-    - KAFKA_INTER_BROKER_LISTENER_NAME=PLAINTEXT
-    - KAFKA_LOG_DIRS=/var/lib/kafka/data
-    - CLUSTER_ID=${KAFKA_KRAFT_CLUSTER_ID:-lPHxXLw5RVixWxVWRmsjHA}
-    - KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR=3
-    - KAFKA_TRANSACTION_STATE_LOG_MIN_ISR=2
-    - KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR=3
-    - KAFKA_MIN_INSYNC_REPLICAS=2
-    - KAFKA_DEFAULT_REPLICATION_FACTOR=3
-    - KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS=0
-    - KAFKA_AUTO_CREATE_TOPICS_ENABLE=false
-    - KAFKA_HEAP_OPTS=${KAFKA_HEAP_OPTS:--Xms384M -Xmx384M}
+      <<: *kafka-environment
+      KAFKA_NODE_ID: "3"
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-3:9092
     volumes:
     - kafka_node_3_data:/var/lib/kafka/data
   kafka-init:

@@ -64,6 +64,17 @@ describe('stores/ui', () => {
     })
   })
 
+  it('keeps UI initialization usable when browser storage is unavailable', () => {
+    installWindow()
+    window.localStorage.getItem = () => { throw new Error('storage blocked') }
+    window.localStorage.setItem = () => { throw new Error('storage blocked') }
+    const store = useUiStore()
+
+    expect(() => store.init()).not.toThrow()
+    expect(() => store.setTheme('dark')).not.toThrow()
+    expect(store.theme).toBe('dark')
+  })
+
   it('should keep the retired right-panel state contract absent', () => {
     installWindow()
     const store = useUiStore()

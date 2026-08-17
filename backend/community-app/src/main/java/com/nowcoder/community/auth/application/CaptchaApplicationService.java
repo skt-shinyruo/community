@@ -5,8 +5,8 @@ import com.nowcoder.community.auth.domain.repository.CaptchaRepository;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import org.springframework.util.StringUtils;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import javax.imageio.ImageIO;
 import java.awt.Color;
@@ -49,13 +49,10 @@ public class CaptchaApplicationService {
     public CaptchaIssueResult issue(IssueCaptchaCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         enforceIssueRateLimit(command.clientIp());
-        IssuedCaptcha issued = issue();
-        return new CaptchaIssueResult(issued.captchaId(), issued.imageBase64(), issued.ttlSeconds());
-    }
-
-    public IssuedCaptcha issue() {
         String captchaId = uuid();
-        String code = isBlank(properties.getFixedCode()) ? randomCode(4) : properties.getFixedCode().trim();
+        String code = StringUtils.hasText(properties.getFixedCode())
+                ? properties.getFixedCode().trim()
+                : randomCode(4);
 
         int ttlSeconds = Math.max(1, properties.getTtlSeconds());
         Duration ttl = Duration.ofSeconds(ttlSeconds);
@@ -73,29 +70,25 @@ public class CaptchaApplicationService {
             throw new BusinessException(AuthErrorCode.CAPTCHA_GENERATE_FAILED);
         }
         String imageBase64 = Base64.getEncoder().encodeToString(baos.toByteArray());
-        return new IssuedCaptcha(captchaId, imageBase64, ttlSeconds);
+        return new CaptchaIssueResult(captchaId, imageBase64, ttlSeconds);
     }
 
     public boolean verify(String captchaId, String code) {
-        if (!isValidCaptchaId(captchaId) || isBlank(code)) {
+        if (!isValidCaptchaId(captchaId) || !StringUtils.hasText(code)) {
             return false;
         }
         int ttlSeconds = Math.max(1, properties.getTtlSeconds());
         int maxFailures = Math.max(1, properties.getMaxFailures());
         try {
-            CaptchaRepository.VerifyResult verifyResult = captchaStore.verifyAndConsume(
+            return captchaStore.verifyAndConsume(
                     captchaId,
                     code.trim(),
                     maxFailures,
                     Duration.ofSeconds(ttlSeconds)
             );
-            if (verifyResult == CaptchaRepository.VerifyResult.MATCHED) {
-                return true;
-            }
         } catch (RuntimeException e) {
             throw captchaUnavailable(e);
         }
-        return false;
     }
 
     private String randomCode(int length) {
@@ -140,10 +133,6 @@ public class CaptchaApplicationService {
         return UUID.randomUUID().toString().replace("-", "");
     }
 
-    private boolean isBlank(String s) {
-        return s == null || s.trim().isEmpty();
-    }
-
     private boolean isValidCaptchaId(String captchaId) {
         return captchaId != null && CAPTCHA_ID_PATTERN.matcher(captchaId).matches();
     }
@@ -172,8 +161,5 @@ public class CaptchaApplicationService {
         if (count > maxRequestsPerIp) {
             throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "验证码获取过于频繁，请稍后再试");
         }
-    }
-
-    public record IssuedCaptcha(String captchaId, String imageBase64, int ttlSeconds) {
     }
 }

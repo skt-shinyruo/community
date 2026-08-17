@@ -194,210 +194,86 @@ while IFS= read -r file; do
 done < <(rg -l 'io\.micrometer\.core\.instrument|Counter\.builder|Timer\.builder|Gauge\.builder|DistributionSummary\.builder|MeterRegistry' backend || true)
 
 if [ "${#metric_sources[@]}" -gt 0 ]; then
-  perl - "${metric_sources[@]}" >"${metric_scan}" <<'PERL'
-use strict;
-use warnings;
+  scanner_dir="$(mktemp -d)"
+  trap 'rm -f "${metric_scan}"; rm -rf "${scanner_dir}"' EXIT
+  cat >"${scanner_dir}/MetricTagScanner.java" <<'JAVA'
+import com.sun.source.tree.CompilationUnitTree;
+import com.sun.source.tree.ExpressionTree;
+import com.sun.source.tree.LiteralTree;
+import com.sun.source.tree.MemberSelectTree;
+import com.sun.source.tree.MethodInvocationTree;
+import com.sun.source.tree.Tree;
+import com.sun.source.util.JavacTask;
+import com.sun.source.util.SourcePositions;
+import com.sun.source.util.TreePathScanner;
+import com.sun.source.util.Trees;
+import javax.lang.model.element.Name;
+import javax.tools.JavaCompiler;
+import javax.tools.JavaFileObject;
+import javax.tools.StandardJavaFileManager;
+import javax.tools.ToolProvider;
+import java.util.List;
 
-sub strip_java_comments {
-    my ($text) = @_;
-    my $out = "";
-    my $state = "code";
-    my $quote = "";
-    my $i = 0;
-    my $len = length($text);
+final class MetricTagScanner {
+  private static String methodName(MethodInvocationTree call) {
+    Tree select = call.getMethodSelect();
+    return select instanceof MemberSelectTree member
+        ? member.getIdentifier().toString() : select.toString();
+  }
 
-    while ($i < $len) {
-        my $char = substr($text, $i, 1);
-        my $next = $i + 1 < $len ? substr($text, $i + 1, 1) : "";
+  private static boolean metricBuilder(String method) {
+    return List.of("counter", "timer", "summary", "gauge").contains(method);
+  }
 
-        if ($state eq "code") {
-            if ($char eq q{"} || $char eq q{'}) {
-                $out .= $char;
-                $quote = $char;
-                $state = "string";
-                $i++;
-            } elsif ($char eq "/" && $next eq "/") {
-                $out .= "  ";
-                $state = "line_comment";
-                $i += 2;
-            } elsif ($char eq "/" && $next eq "*") {
-                $out .= "  ";
-                $state = "block_comment";
-                $i += 2;
-            } else {
-                $out .= $char;
-                $i++;
+  private static void scan(String file, CompilationUnitTree unit, Trees trees) {
+    SourcePositions positions = trees.getSourcePositions();
+    new TreePathScanner<Void, Void>() {
+      @Override public Void visitMethodInvocation(MethodInvocationTree call, Void unused) {
+        String select = call.getMethodSelect().toString();
+        String method = methodName(call);
+        int mode = select.endsWith("Tags.of") || method.equals("tags") ? 1
+            : select.endsWith("Tag.of") || method.equals("tag") ? 2
+            : metricBuilder(method) ? 3 : 0;
+        if (mode != 0) {
+          List<? extends ExpressionTree> arguments = call.getArguments();
+          for (int i = 0; i < arguments.size(); i++) {
+            if ((mode == 1 && i % 2 != 0) || (mode == 3 && i % 2 != 1) || (mode == 2 && i != 0)) {
+              continue;
             }
-        } elsif ($state eq "string") {
-            $out .= $char;
-            if ($char eq "\\") {
-                if ($i + 1 < $len) {
-                    $out .= substr($text, $i + 1, 1);
-                    $i += 2;
-                } else {
-                    $i++;
-                }
-            } elsif ($char eq $quote) {
-                $state = "code";
-                $i++;
-            } else {
-                $i++;
+            ExpressionTree argument = arguments.get(i);
+            if (!(argument instanceof LiteralTree literal)
+                || literal.getKind() != Tree.Kind.STRING_LITERAL) {
+              continue;
             }
-        } elsif ($state eq "line_comment") {
-            if ($char eq "\n") {
-                $out .= "\n";
-                $state = "code";
-            } else {
-                $out .= " ";
-            }
-            $i++;
-        } else {
-            if ($char eq "*" && $next eq "/") {
-                $out .= "  ";
-                $state = "code";
-                $i += 2;
-            } else {
-                $out .= $char eq "\n" ? "\n" : " ";
-                $i++;
-            }
+            long start = positions.getStartPosition(unit, argument);
+            if (start < 0) continue;
+            long line = unit.getLineMap().getLineNumber(start);
+            System.out.println(file + "\t" + line + "\t" + literal.getValue() + "\t" + select);
+          }
         }
+        return super.visitMethodInvocation(call, unused);
+      }
+    }.scan(unit, null);
+  }
+
+  public static void main(String[] files) throws Exception {
+    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
+    if (compiler == null) throw new IllegalStateException("JDK compiler is required");
+    try (StandardJavaFileManager manager = compiler.getStandardFileManager(null, null, null)) {
+      Iterable<? extends JavaFileObject> sources = manager.getJavaFileObjects(files);
+      JavacTask task = (JavacTask) compiler.getTask(null, manager, null,
+          List.of("-proc:none"), null, sources);
+      Trees trees = Trees.instance(task);
+      for (CompilationUnitTree unit : task.parse()) {
+        JavaFileObject source = unit.getSourceFile();
+        scan(source.getName(), unit, trees);
+      }
     }
-
-    return $out;
+  }
 }
-
-sub matching_paren {
-    my ($text, $open) = @_;
-    my $depth = 0;
-    my $quote = "";
-    my $len = length($text);
-
-    for (my $i = $open; $i < $len; $i++) {
-        my $char = substr($text, $i, 1);
-        if ($quote ne "") {
-            if ($char eq "\\") {
-                $i++;
-            } elsif ($char eq $quote) {
-                $quote = "";
-            }
-            next;
-        }
-
-        if ($char eq q{"} || $char eq q{'}) {
-            $quote = $char;
-        } elsif ($char eq "(") {
-            $depth++;
-        } elsif ($char eq ")") {
-            $depth--;
-            return $i if $depth == 0;
-        }
-    }
-
-    return -1;
-}
-
-sub split_args {
-    my ($content, $base_offset) = @_;
-    my @args;
-    my $depth = 0;
-    my $quote = "";
-    my $start = 0;
-    my $len = length($content);
-
-    for (my $i = 0; $i < $len; $i++) {
-        my $char = substr($content, $i, 1);
-        if ($quote ne "") {
-            if ($char eq "\\") {
-                $i++;
-            } elsif ($char eq $quote) {
-                $quote = "";
-            }
-            next;
-        }
-
-        if ($char eq q{"} || $char eq q{'}) {
-            $quote = $char;
-        } elsif ($char eq "(" || $char eq "[" || $char eq "{") {
-            $depth++;
-        } elsif ($char eq ")" || $char eq "]" || $char eq "}") {
-            $depth-- if $depth > 0;
-        } elsif ($char eq "," && $depth == 0) {
-            push @args, [substr($content, $start, $i - $start), $base_offset + $start];
-            $start = $i + 1;
-        }
-    }
-
-    push @args, [substr($content, $start), $base_offset + $start];
-    return @args;
-}
-
-sub first_string_literal {
-    my ($arg, $offset) = @_;
-    return if $arg !~ /\A\s*(["'])/;
-
-    my $quote = $1;
-    my $start = $+[0];
-    my $literal_offset = $offset + $start - 1;
-    my $literal = "";
-    my $len = length($arg);
-
-    for (my $i = $start; $i < $len; $i++) {
-        my $char = substr($arg, $i, 1);
-        if ($char eq "\\") {
-            if ($i + 1 < $len) {
-                $i++;
-                $literal .= substr($arg, $i, 1);
-            }
-        } elsif ($char eq $quote) {
-            return ($literal, $literal_offset);
-        } else {
-            $literal .= $char;
-        }
-    }
-
-    return;
-}
-
-sub line_number {
-    my ($text, $offset) = @_;
-    return 1 + (substr($text, 0, $offset) =~ tr/\n//);
-}
-
-for my $file (@ARGV) {
-    open my $fh, "<", $file or next;
-    local $/;
-    my $source = <$fh>;
-    close $fh;
-
-    my $code = strip_java_comments($source);
-    while ($code =~ /(\bTags?\s*\.\s*of|\.\s*tags|\.\s*tag|\.\s*(?:counter|timer|summary|gauge))\s*\(/g) {
-        my $call = $1;
-        my $open = pos($code) - 1;
-        my $close = matching_paren($code, $open);
-        next if $close < 0;
-
-        my $content = substr($code, $open + 1, $close - $open - 1);
-        my @args = split_args($content, $open + 1);
-        my @key_indexes;
-
-        if ($call =~ /Tags\s*\.\s*of/ || $call =~ /\.tags/) {
-            @key_indexes = grep { $_ % 2 == 0 } 0..$#args;
-        } elsif ($call =~ /Tag\s*\.\s*of/ || $call =~ /\.tag/) {
-            @key_indexes = (0);
-        } else {
-            @key_indexes = grep { $_ % 2 == 1 } 0..$#args;
-        }
-
-        for my $index (@key_indexes) {
-            my ($literal, $literal_offset) = first_string_literal($args[$index][0], $args[$index][1]);
-            next if !defined $literal;
-            print join("\t", $file, line_number($source, $literal_offset), $literal, $call), "\n";
-        }
-
-        pos($code) = $open + 1;
-    }
-}
-PERL
+JAVA
+  javac --release 17 -d "${scanner_dir}" "${scanner_dir}/MetricTagScanner.java"
+  java -cp "${scanner_dir}" MetricTagScanner "${metric_sources[@]}" >"${metric_scan}"
 fi
 
 while IFS= read -r forbidden; do

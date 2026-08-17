@@ -108,12 +108,6 @@ export function getCatalogRouteNames() {
   return Object.keys(ROUTES)
 }
 
-export function catalogRouteName(routeName) {
-  const normalized = String(routeName || '')
-  if (!routeEntry(normalized)) throw new Error(`Unknown route catalog entry: ${normalized}`)
-  return normalized
-}
-
 export function getRouteWorkspaceLabel(routeName) {
   return routeEntry(routeName)?.workspace || 'Community'
 }

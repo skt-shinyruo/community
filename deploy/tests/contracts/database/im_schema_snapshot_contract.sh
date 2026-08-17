@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_ROOT="$(CDPATH= cd -- "$(dirname -- "$0")/../../../.." && pwd)"
 cd "${REPO_ROOT}"
 
-schema="deploy/database/business/current-state/010_current_schema.sql"
+schema="deploy/database/business/001_schema.sql"
 single_full="$(mktemp)"
 cluster_full="$(mktemp)"
 trap 'rm -f "${single_full}" "${cluster_full}"' EXIT

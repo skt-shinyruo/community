@@ -54,8 +54,7 @@ shell 环境、Stack env、内置默认值的顺序解析。
 `single` 适合日常本地开发和功能联调：
 
 - `mysql`
-- MySQL entrypoint 当前态 schema 初始化（仅空卷首次启动）
-- `community-db-migrations`（专用 DDL 账号、app 前 one-shot）
+- MySQL entrypoint 业务 schema 初始化（仅空卷首次启动）
 - `community-dev-seed`（仅 development，按开关执行）
 - `redis`
 - `kafka`
@@ -166,8 +165,7 @@ curl -fsS http://127.0.0.1:12880/api/runtime-config
 `cluster` 适合本地多副本、服务发现、worker lease、gateway 路由、IM backplane 演练：
 
 - `mysql-primary` + `mysql-replica-1/2`
-- primary 当前态 schema 初始化 + GTID replica bootstrap
-- `community-db-migrations`（复制建立后、app 前 one-shot）
+- primary 业务 schema 初始化 + GTID replica bootstrap
 - `community-dev-seed`（仅 development，按开关执行）
 - `redis-1..6`
 - `kafka-1..3`
@@ -303,10 +301,9 @@ git diff --check -- docs/handbook
 
 ### 本地数据库结构
 
-`deploy/database/business/current-state/010_current_schema.sql` 是 `community`、`community_oss`、`im_core` 的空库当前态结构文件。MySQL entrypoint 只在 primary volume 为空时执行。`community-db-migrations` 会在每次拓扑启动时校验/执行固定的 `deploy/database/business/migrations/VNNN__*.sql`，所以已有 community volume 可以向前升级。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only；专用 migrator 凭证不注入应用。
+`deploy/database/business/001_schema.sql` 是 `community`、`community_oss`、`im_core` 的唯一业务结构文件。MySQL entrypoint 只在 primary volume 为空时执行；已有 volume 不会自动升级。三个 schema 名固定，所有 runtime 和 Mock Data Studio 账号均为 DML-only。
 
-`infra` Stack 会完成单节点主库初始化、最小权限账号创建和 community 前向迁移，因此这些步骤成功后可以从
-IDE 启动业务 runtime。`single` 与 `cluster` 使用相同的初始化契约，cluster 另外完成 GTID replica bootstrap。
+`infra` Stack 会完成单节点主库初始化和最小权限账号创建，因此这些步骤成功后可以从 IDE 启动业务 runtime。`single` 与 `cluster` 使用相同的初始化契约，cluster 另外完成 GTID replica bootstrap。
 
 schema 校验与 Compose 契约：
 
@@ -317,7 +314,7 @@ schema 校验与 Compose 契约：
 ./deploy/tests/run-contracts.sh database compose
 ```
 
-改 community 表时同时修改快照中的最终 `CREATE TABLE`、追加新版本前向迁移并同步 H2/契约。可丢弃本地数据时可以 `reset-mysql`；要保留数据时普通 `up` 会先执行 one-shot，禁止在旧 volume 上手工重放快照。真实 MySQL 重放验证包含在 database 契约组中。
+修改业务表时直接更新 `001_schema.sql` 中的最终定义，并同步适用的 H2/MyBatis fixture、契约和文档，然后执行 `reset-mysql` 重建目标 Stack。开发期不保留旧 volume 数据，也不在旧 volume 上手工重放 schema。
 
 ## Compose 文件分层
 
@@ -389,7 +386,7 @@ curl -fsS "http://localhost:38848/nacos/v1/ns/instance/list?serviceName=im-realt
 
 ## Dev-only 账号和开关
 
-本地身份种子来自独立 SQL，不属于当前态 schema：
+本地身份种子来自独立 SQL，不属于业务 schema：
 
 ```text
 deploy/database/business/seed/090_seed_identity.sql

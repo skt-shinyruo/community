@@ -6,11 +6,6 @@ import org.springframework.boot.context.properties.ConfigurationProperties;
 public class CaptchaProperties {
 
     /**
-     * 存储方式：redis / memory（测试用）。
-     */
-    private String store = "redis";
-
-    /**
      * 验证码有效期（秒），默认 60 秒。
      */
     private int ttlSeconds = 60;
@@ -30,14 +25,6 @@ public class CaptchaProperties {
      * 生产环境不建议开启。
      */
     private String fixedCode = "";
-
-    public String getStore() {
-        return store;
-    }
-
-    public void setStore(String store) {
-        this.store = store;
-    }
 
     public int getTtlSeconds() {
         return ttlSeconds;

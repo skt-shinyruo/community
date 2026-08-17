@@ -392,7 +392,6 @@ class AuthStartupValidatorTest {
                 .withProperty("security.jwt.refresh-reuse-grace-seconds", "10")
                 .withProperty("security.jwt.service-hmac-secret", "service-jwt-secret-at-least-32-bytes")
                 .withProperty("auth.password-reset.reset-base-url", "https://community.example")
-                .withProperty("auth.password-reset.store", "redis")
                 .withProperty(
                         "auth.password-reset.identifier-hmac-secret",
                         "password-reset-identifier-secret-at-least-32-bytes"
@@ -413,11 +412,9 @@ class AuthStartupValidatorTest {
                 .withProperty("spring.mail.properties.mail.smtp.timeout", "10000")
                 .withProperty("spring.mail.properties.mail.smtp.writetimeout", "10000")
                 .withProperty("auth.registration.code.operation-lease-seconds", "120")
-                .withProperty("auth.registration.code.store", "redis")
                 .withProperty("auth.registration.code.ttl-seconds", "600")
                 .withProperty("auth.registration.code.max-failures", "3")
                 .withProperty("auth.registration.code.resend-cooldown-seconds", "60")
-                .withProperty("auth.registration.draft.store", "redis")
                 .withProperty("auth.registration.draft.ttl-seconds", "1800")
                 .withProperty("auth.login-rate-limit.enabled", "true")
                 .withProperty("auth.login-rate-limit.window-seconds", "60")
@@ -436,7 +433,6 @@ class AuthStartupValidatorTest {
                 .withProperty("auth.password-reset.max-requests-per-email", "3")
                 .withProperty("auth.password-reset.max-requests-per-ip", "20")
                 .withProperty("auth.captcha.ttl-seconds", "60")
-                .withProperty("auth.captcha.store", "redis")
                 .withProperty("auth.captcha.max-failures", "3")
                 .withProperty("auth.captcha.max-issue-requests-per-ip", "10")
                 .withProperty("auth.registration.request-limit.window-seconds", "3600")
@@ -491,10 +487,6 @@ class AuthStartupValidatorTest {
                 Arguments.of("auth.login-rate-limit.max-failures-per-user", "51"),
                 Arguments.of("auth.login-rate-limit.password-check-lease-seconds", "0"),
                 Arguments.of("auth.login-rate-limit.password-check-lease-seconds", "29"),
-                Arguments.of("auth.captcha.store", "memory"),
-                Arguments.of("auth.password-reset.store", "memory"),
-                Arguments.of("auth.registration.code.store", "memory"),
-                Arguments.of("auth.registration.draft.store", "memory"),
                 Arguments.of("auth.registration.code.ttl-seconds", "86400"),
                 Arguments.of("auth.registration.code.max-failures", "1000000"),
                 Arguments.of("auth.registration.code.resend-cooldown-seconds", "0"),

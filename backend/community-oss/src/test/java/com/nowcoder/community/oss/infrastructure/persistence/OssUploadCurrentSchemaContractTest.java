@@ -28,12 +28,12 @@ class OssUploadCurrentSchemaContractTest {
     private static Path currentSchema() {
         Path candidate = Path.of("").toAbsolutePath().normalize();
         while (candidate != null) {
-            Path schema = candidate.resolve("deploy/database/business/current-state/010_current_schema.sql");
+            Path schema = candidate.resolve("deploy/database/business/001_schema.sql");
             if (Files.isRegularFile(schema)) {
                 return schema;
             }
             candidate = candidate.getParent();
         }
-        throw new IllegalStateException("cannot locate current MySQL schema snapshot");
+        throw new IllegalStateException("cannot locate business MySQL schema");
     }
 }

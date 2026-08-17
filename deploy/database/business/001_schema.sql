@@ -1,4 +1,4 @@
--- Canonical current-state schema for disposable Community environments.
+-- Canonical business schema for disposable Community environments.
 -- MySQL executes this file only when the primary data directory is empty.
 -- Edit the final CREATE TABLE definitions in place and reset the MySQL volumes
 -- after every schema change. This file is not safe to replay on a populated schema.

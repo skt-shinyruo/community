@@ -116,7 +116,7 @@ cluster 默认使用独立的 `13880`、`13881`、`38848` 等端口。副本布�
 
 `reset-mysql` 会先停止目标 Stack，只删除显式命名的 MySQL volumes；cluster 会删除 primary 和两个 replica volumes。`down ... -- -v` 会删除目标 Stack 的全部 Compose volumes。两者都不可恢复，执行前必须确认 Stack 和 project。
 
-Schema 快照、不可变前向迁移和数据保留流程见[数据与存储手册](../docs/handbook/data-and-storage.md)及[运维手册](../docs/handbook/operations.md#community-前向-schema-迁移)。
+业务 schema 与开发期重建流程见[数据与存储手册](../docs/handbook/data-and-storage.md)及[运维手册](../docs/handbook/operations.md#business-mysql-schema)。
 
 ## 目录与验证
 
@@ -125,10 +125,10 @@ deploy/
   stacks/{infra,single,cluster}/  # Stack manifest、env 模板
   compose/                        # 基础设施、运行时、edge 和 overlay 片段
   images/                         # 生产镜像构建输入
-  database/                       # Schema、迁移和开发 seed
+  database/                       # 业务 schema、账号初始化和开发 seed
   config/                         # Nacos、Nginx、Garage 配置
   observability/                  # Collector、Kibana 和静态信号契约
-  scripts/                        # Bootstrap 和迁移脚本
+  scripts/                        # 基础设施 bootstrap 脚本
   tests/{contracts,smoke}/        # 静态契约与运行态 smoke
 ```
 

@@ -3,7 +3,7 @@
 Deployment verification is grouped by the contract it owns:
 
 - `contracts/compose/`: topology composition, isolation, ports and reset behavior.
-- `contracts/database/`: current-state schemas, forward migrations and control-plane seeds.
+- `contracts/database/`: canonical business schemas, initialization contracts and control-plane seeds.
 - `contracts/config/`: Nacos, Kafka, observability and retired-configuration guards.
 - `contracts/images/`: production image contracts.
 - `smoke/`: checks that require an already running deployment.

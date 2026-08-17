@@ -1,7 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  catalogRouteName,
   getCatalogRouteNames,
   getRouteAccess,
   getRouteBreadcrumbItems,
@@ -14,8 +13,6 @@ describe('router/routeCatalog', () => {
   it('owns the complete formal route-name inventory', () => {
     expect(getCatalogRouteNames()).toContain('posts')
     expect(getCatalogRouteNames()).toContain('notFound')
-    expect(catalogRouteName('messageDetail')).toBe('messageDetail')
-    expect(() => catalogRouteName('editorialPreviewA')).toThrow('Unknown route catalog entry')
   })
 
   it('owns stable workspace labels', () => {

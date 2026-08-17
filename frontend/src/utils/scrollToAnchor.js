@@ -19,10 +19,8 @@ export function scrollToAnchor(anchorId, options = {}) {
   try {
     el.scrollIntoView({ behavior, block })
   } catch {
-    // 滚动 API 抛错时回退为坐标滚动。
     try {
-      const top = el.getBoundingClientRect().top + window.scrollY - 80
-      window.scrollTo({ top: Math.max(0, top), behavior })
+      el.scrollIntoView()
     } catch {
       return false
     }

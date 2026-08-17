@@ -252,10 +252,6 @@ public class LoginRateLimitApplicationService {
         }
     }
 
-    public boolean isCaptchaRequired(String username, String ip) {
-        return isCaptchaRequired(username, ip, null);
-    }
-
     public boolean isCaptchaRequired(
             String subject,
             String ip,
@@ -303,14 +299,10 @@ public class LoginRateLimitApplicationService {
         meterRegistry.counter(METRIC, Tags.of("outcome", o, "ip_source", source)).increment();
     }
 
-    private int getCount(String key) {
-        return loginRateLimitRepository.count(key);
-    }
-
     private int getBudgetCount(String failureKey, PasswordCheckPermit permit) {
         String leaseKey = inFlightKey(failureKey);
         if (permit == null || !permit.isOpen() || !permit.keys().contains(leaseKey)) {
-            return getCount(failureKey);
+            return loginRateLimitRepository.count(failureKey);
         }
         return loginRateLimitRepository.countBudget(failureKey, leaseKey);
     }
@@ -323,19 +315,16 @@ public class LoginRateLimitApplicationService {
     private void scheduleRenewal(PasswordCheckPermit permit) {
         long intervalMillis = Math.max(1L, permit.leaseMillis() / 4L);
         ScheduledFuture<?> future = leaseRenewer.scheduleWithFixedDelay(
-                () -> renew(permit),
+                () -> {
+                    if (permit.isOpen()) {
+                        renewOwnedSlots(permit);
+                    }
+                },
                 intervalMillis,
                 intervalMillis,
                 TimeUnit.MILLISECONDS
         );
         permit.attach(future);
-    }
-
-    private void renew(PasswordCheckPermit permit) {
-        if (permit == null || !permit.isOpen()) {
-            return;
-        }
-        renewOwnedSlots(permit);
     }
 
     private boolean renewOwnedSlots(PasswordCheckPermit permit) {
@@ -407,10 +396,6 @@ public class LoginRateLimitApplicationService {
         private final AtomicBoolean valid = new AtomicBoolean(true);
         private final AtomicBoolean closed = new AtomicBoolean(false);
         private final AtomicReference<ScheduledFuture<?>> renewal = new AtomicReference<>();
-
-        public PasswordCheckPermit(UUID token, List<String> keys) {
-            this(token, keys, 0);
-        }
 
         private PasswordCheckPermit(UUID token, List<String> keys, int leaseMillis) {
             this.token = token;

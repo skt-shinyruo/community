@@ -5,14 +5,7 @@ import { createBatchRepository } from '../src/batches/batchRepository.mjs'
 import { createEntityRefRepository } from '../src/batches/entityRefRepository.mjs'
 import { createTargetRepository } from '../src/batches/targetRepository.mjs'
 import { bufferToUuid, isUuidV7 } from '../src/db/uuidv7.mjs'
-
-function normalizeSql(sql) {
-  return sql.replace(/;+\s*$/u, '').trim().replace(/\s+/gu, ' ').toLowerCase()
-}
-
-function stringifyKey(batchId, entityType, key) {
-  return `${batchId}:${entityType}:${key}`
-}
+import { FakeMysqlDb, normalizeFakeSql } from './support/fakeMysql.mjs'
 
 function metadataId(sequence) {
   return `01965429-b34a-7000-8000-${String(sequence).padStart(12, '0')}`
@@ -22,227 +15,63 @@ function normalizeDbId(value) {
   return bufferToUuid(value)
 }
 
-class FakeMetadataDb {
+function normalizeMetadataValue(value) {
+  if (value == null) return value
+  try {
+    return normalizeDbId(value)
+  } catch {
+    return String(value)
+  }
+}
+
+class FakeMetadataDb extends FakeMysqlDb {
   constructor() {
-    this.tables = {
-      demo_batch: [],
-      demo_batch_target: [],
-      demo_entity_ref: []
-    }
-    this.nextIds = {
-      demo_batch: 1,
-      demo_batch_target: 1,
-      demo_entity_ref: 1
-    }
+    super({
+      state: { demo_batch: [], demo_batch_target: [], demo_entity_ref: [] },
+      normalize: normalizeMetadataValue,
+      normalizeRow: (_table, row) => Object.fromEntries(
+        Object.entries(row).map(([key, value]) => [
+          key,
+          key === 'id' || key === 'batch_id' ? normalizeDbId(value) : value
+        ])
+      )
+    })
     this.failOnTargetKey = null
   }
 
   async execute(sql, params = []) {
-    return executeOnState(this, sql, params)
+    const normalized = normalizeFakeSql(sql)
+    if (normalized.startsWith('insert into demo_batch_target ')
+      && this.state.demo_batch_target.some((row) => row.batch_id === normalizeDbId(params[1]))) {
+      this.state.demo_batch_target = this.state.demo_batch_target.filter(
+        (row) => !(row.batch_id === normalizeDbId(params[1]) && row.entity_type === params[2] && row.target_key === params[3])
+      )
+    }
+    if (normalized.startsWith('insert into demo_entity_ref ')) {
+      this.state.demo_entity_ref = this.state.demo_entity_ref.filter(
+        (row) => !(row.batch_id === normalizeDbId(params[1]) && row.entity_type === params[2] && row.entity_key === params[3])
+      )
+    }
+    if (normalized.startsWith('insert into demo_batch_target ') && this.failOnTargetKey === params[3]) {
+      throw new Error(`Injected target insert failure for ${params[3]}`)
+    }
+    return super.execute(sql, params)
   }
 
   async query(sql, params = []) {
-    return queryOnState(this, sql, params)
+    const rows = await super.query(sql, params)
+    return rows.map((row) => hydrateTimestamps(normalizeFakeSql(sql), row))
   }
-
-  async withTransaction(callback) {
-    const snapshot = {
-      tables: structuredClone(this.tables),
-      nextIds: structuredClone(this.nextIds)
-    }
-
-    const txState = {
-      tables: structuredClone(this.tables),
-      nextIds: structuredClone(this.nextIds),
-      failOnTargetKey: this.failOnTargetKey
-    }
-
-    const txDb = {
-      execute(sql, params = []) {
-        return executeOnState(txState, sql, params)
-      },
-      query(sql, params = []) {
-        return queryOnState(txState, sql, params)
-      }
-    }
-
-    try {
-      const result = await callback(txDb)
-      this.tables = txState.tables
-      this.nextIds = txState.nextIds
-      return result
-    } catch (error) {
-      this.tables = snapshot.tables
-      this.nextIds = snapshot.nextIds
-      throw error
-    }
-  }
-}
-
-function executeOnState(state, sql, params) {
-  const normalized = normalizeSql(sql)
-
-  if (normalized.startsWith('insert into demo_batch ')) {
-    const row = {
-      id: normalizeDbId(params[0]),
-      batch_key: params[1],
-      batch_type: params[2],
-      requested_by: params[3],
-      status: params[4],
-      summary_json: params[5],
-      error_message: params[6],
-      created_at: params[7],
-      started_at: params[8],
-      finished_at: params[9]
-    }
-    state.tables.demo_batch.push(row)
-    return { affectedRows: 1 }
-  }
-
-  if (
-    normalized.startsWith(
-      'update demo_batch set status = ?, started_at = ?, finished_at = null, error_message = null where id = ? and status = ?'
-    )
-  ) {
-    const row = state.tables.demo_batch.find(
-      (candidate) => candidate.id === normalizeDbId(params[2]) && candidate.status === params[3]
-    )
-
-    if (!row) {
-      return { affectedRows: 0 }
-    }
-
-    row.status = params[0]
-    row.started_at = params[1]
-    row.finished_at = null
-    row.error_message = null
-    return { affectedRows: 1 }
-  }
-
-  if (
-    normalized.startsWith(
-      'update demo_batch set status = ?, finished_at = ?, summary_json = ?, error_message = ? where id = ? and status in ('
-    )
-  ) {
-    const expectedStatuses = params.slice(5)
-    const row = state.tables.demo_batch.find(
-      (candidate) => candidate.id === normalizeDbId(params[4]) && expectedStatuses.includes(candidate.status)
-    )
-
-    if (!row) {
-      return { affectedRows: 0 }
-    }
-
-    row.status = params[0]
-    row.finished_at = params[1]
-    row.summary_json = params[2]
-    row.error_message = params[3]
-    return { affectedRows: 1 }
-  }
-
-  if (normalized.startsWith('delete from demo_batch_target where batch_id = ?')) {
-    state.tables.demo_batch_target = state.tables.demo_batch_target.filter(
-      (row) => row.batch_id !== normalizeDbId(params[0])
-    )
-    return { affectedRows: 1 }
-  }
-
-  if (normalized.startsWith('insert into demo_batch_target ')) {
-    if (state.failOnTargetKey === params[3]) {
-      throw new Error(`Injected target insert failure for ${params[3]}`)
-    }
-
-    const compositeKey = stringifyKey(normalizeDbId(params[1]), params[2], params[3])
-    state.tables.demo_batch_target = state.tables.demo_batch_target.filter(
-      (row) => stringifyKey(row.batch_id, row.entity_type, row.target_key) !== compositeKey
-    )
-
-    const row = {
-      id: normalizeDbId(params[0]),
-      batch_id: normalizeDbId(params[1]),
-      entity_type: params[2],
-      target_key: params[3],
-      target_count: params[4],
-      payload_json: params[5],
-      created_at: params[6]
-    }
-    state.tables.demo_batch_target.push(row)
-    return { affectedRows: 1 }
-  }
-
-  if (normalized.startsWith('insert into demo_entity_ref ')) {
-    const compositeKey = stringifyKey(normalizeDbId(params[1]), params[2], params[3])
-    state.tables.demo_entity_ref = state.tables.demo_entity_ref.filter(
-      (row) => stringifyKey(row.batch_id, row.entity_type, row.entity_key) !== compositeKey
-    )
-
-    const row = {
-      id: normalizeDbId(params[0]),
-      batch_id: normalizeDbId(params[1]),
-      entity_type: params[2],
-      entity_key: params[3],
-      created_at: params[4]
-    }
-    state.tables.demo_entity_ref.push(row)
-    return { affectedRows: 1 }
-  }
-
-  throw new Error(`Unexpected SQL: ${sql}`)
-}
-
-function queryOnState(state, sql, params) {
-  const normalized = normalizeSql(sql)
-
-  if (
-    normalized.startsWith(
-      'select id, batch_key, batch_type, requested_by, status, summary_json, error_message, created_at, started_at, finished_at from demo_batch where id = ?'
-    )
-  ) {
-    return selectRows(state.tables.demo_batch, (row) => row.id === normalizeDbId(params[0]), 'demo_batch')
-  }
-
-  if (
-    normalized.startsWith(
-      'select id, batch_id, entity_type, target_key, target_count, payload_json, created_at from demo_batch_target where batch_id = ? order by id asc'
-    )
-  ) {
-    return selectRows(
-      state.tables.demo_batch_target,
-      (row) => row.batch_id === normalizeDbId(params[0]),
-      'demo_batch_target'
-    )
-  }
-
-  if (
-    normalized.startsWith(
-      'select id, batch_id, entity_type, entity_key, created_at from demo_entity_ref where batch_id = ? order by id asc'
-    )
-  ) {
-    return selectRows(
-      state.tables.demo_entity_ref,
-      (row) => row.batch_id === normalizeDbId(params[0]),
-      'demo_entity_ref'
-    )
-  }
-
-  throw new Error(`Unexpected SQL: ${sql}`)
-}
-
-function selectRows(rows, predicate, tableName) {
-  return rows
-    .filter(predicate)
-    .map((row) => structuredClone(row))
-    .map((row) => hydrateTimestamps(tableName, row))
 }
 
 function hydrateTimestamps(tableName, row) {
-  const timestampColumns = {
-    demo_batch: ['created_at', 'started_at', 'finished_at'],
-    demo_batch_target: ['created_at'],
-    demo_entity_ref: ['created_at']
-  }
+  const timestampColumns = tableName.includes('demo_batch_target')
+    ? ['created_at']
+    : tableName.includes('demo_entity_ref')
+      ? ['created_at']
+      : ['created_at', 'started_at', 'finished_at']
 
-  for (const column of timestampColumns[tableName]) {
+  for (const column of timestampColumns) {
     row[column] = hydrateTimestamp(row[column])
   }
 

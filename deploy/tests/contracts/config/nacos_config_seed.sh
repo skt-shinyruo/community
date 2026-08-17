@@ -290,7 +290,7 @@ if awk '
   exit 1
 fi
 grep -F 'username: prometheus' "${CONFIG_DIR}/community-shared.yaml"
-grep -F 'initialize: true' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'initialize: true' "${CONFIG_DIR}/community-search-policy.yaml"
 grep -F -- '- /api/ops/**' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-app.yaml"
@@ -317,13 +317,13 @@ grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/stacks/single/.env.example"
 grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
-grep -F -- '- DRIVE_SHARE_TICKET_SECRET=${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}' \
+grep -F 'DRIVE_SHARE_TICKET_SECRET: "${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}"' \
   "${REPO_ROOT}/deploy/compose/runtime/services/single.yml"
 test "$(grep -Fc -- 'DRIVE_SHARE_TICKET_SECRET: "${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}"' \
   "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/stacks/single/.env.example"
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
-grep -F -- '- AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}' \
+grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET: "${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}"' \
   "${REPO_ROOT}/deploy/compose/runtime/services/single.yml"
 test "$(grep -Fc -- 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET: "${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}"' \
   "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
@@ -363,7 +363,7 @@ grep -F 'processing-lease: 60s' "${CONFIG_DIR}/community-work-processing.yaml"
 grep -F 'room-flush-interval-ms: 50' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'max-inbound-chars: 10000' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'max-inbound-buffer-frames: 64' "${CONFIG_DIR}/community-im-gateway.yaml"
-grep -F 'timeout-ms: 1500' "${CONFIG_DIR}/im-realtime.yaml"
+grep -F 'snapshot-timeout-ms: 3000' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'event:' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'concurrency: 3' "${CONFIG_DIR}/im-realtime.yaml"
 grep -F 'draining: ${im.realtime.worker.drain-enabled:false}' "${CONFIG_DIR}/im-realtime.yaml"
@@ -431,7 +431,7 @@ smtp_runtime_env_vars=(
 test "$(grep -Fc -- '<<: *community-app-environment' \
   "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 3
 for env_var in "${smtp_runtime_env_vars[@]}"; do
-  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
+  test "$(grep -Ec -- "^      ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
   test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/single/.env.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
@@ -454,7 +454,7 @@ community_auth_runtime_env_vars=(
   AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP
 )
 for env_var in "${community_auth_runtime_env_vars[@]}"; do
-  test "$(grep -Fc -- "- ${env_var}=" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
+  test "$(grep -Ec -- "^      ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
   test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/single/.env.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/cluster/.env.example"

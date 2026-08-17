@@ -147,6 +147,23 @@ describe('PostsView', () => {
     expect(wrapper.text()).toContain('next page')
   })
 
+  it('keeps latest-feed state after the first opaque cursor is issued', async () => {
+    window.localStorage.setItem('community.read.posts.v1.7', JSON.stringify({ lastSeenAt: 1, items: {} }))
+    listGlobalFeed.mockResolvedValueOnce({
+      data: {
+        items: [{ id: 'post-1', title: 'current page', createTime: new Date(2000).toISOString() }],
+        nextCursor: 'opaque-cursor'
+      },
+      traceId: 'trace-page-1'
+    })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(listGlobalFeed).toHaveBeenCalledWith({ cursor: '', size: 10 })
+    expect(wrapper.vm.newSinceLastSeenCount).toBe(1)
+  })
+
   it('does not let a stale load-more completion restore an obsolete cursor', async () => {
     let resolveStalePage
     listGlobalFeed

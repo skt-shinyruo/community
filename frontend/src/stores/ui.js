@@ -1,16 +1,9 @@
 // UI 偏好状态：主题（light/dark）、密度（compact/comfortable）、侧边栏展开等。
 
 import { defineStore } from 'pinia'
+import { safeJsonParse } from '../utils/safeJson'
 
 const STORAGE_KEY = 'community.ui'
-
-function safeParse(json) {
-  try {
-    return JSON.parse(json)
-  } catch {
-    return null
-  }
-}
 
 function clampEnum(value, allowed, fallback) {
   return allowed.includes(value) ? value : fallback
@@ -27,8 +20,13 @@ export const useUiStore = defineStore('ui', {
     init() {
       if (typeof window === 'undefined') return
 
-      const raw = window.localStorage.getItem(STORAGE_KEY) || ''
-      const parsed = raw ? safeParse(raw) : null
+      let raw = ''
+      try {
+        raw = window.localStorage.getItem(STORAGE_KEY) || ''
+      } catch {
+        // Storage can be unavailable in private or restricted browser contexts.
+      }
+      const parsed = safeJsonParse(raw)
 
       const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
       const theme = clampEnum(parsed?.theme, ['light', 'dark'], prefersDark ? 'dark' : 'light')
@@ -53,14 +51,18 @@ export const useUiStore = defineStore('ui', {
 
     persist() {
       if (typeof window === 'undefined') return
-      window.localStorage.setItem(
-        STORAGE_KEY,
-        JSON.stringify({
-          theme: this.theme,
-          density: this.density,
-          sidebarCollapsed: this.sidebarCollapsed
-        })
-      )
+      try {
+        window.localStorage.setItem(
+          STORAGE_KEY,
+          JSON.stringify({
+            theme: this.theme,
+            density: this.density,
+            sidebarCollapsed: this.sidebarCollapsed
+          })
+        )
+      } catch {
+        // Storage can be unavailable in private or restricted browser contexts.
+      }
     },
 
     setTheme(theme) {

@@ -60,7 +60,6 @@ auth:
       enabled: true
       interval-ms: 3600000
   captcha:
-    store: redis
     ttl-seconds: ${AUTH_CAPTCHA_TTL_SECONDS:60}
     max-failures: ${AUTH_CAPTCHA_MAX_FAILURES:3}
     max-issue-requests-per-ip: ${AUTH_CAPTCHA_MAX_ISSUE_REQUESTS_PER_IP:10}
@@ -76,14 +75,12 @@ auth:
       max-requests-per-email: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_EMAIL:5}
       max-requests-per-ip: ${AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP:20}
     code:
-      store: redis
       ttl-seconds: 600
       max-failures: 3
       resend-cooldown-seconds: 60
       operation-lease-seconds: 120
       expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}
     draft:
-      store: redis
       ttl-seconds: ${AUTH_REGISTRATION_DRAFT_TTL_SECONDS:1800}
     mail:
       enabled: ${AUTH_MAIL_ENABLED:true}
@@ -94,7 +91,6 @@ auth:
     identifier-hmac-secret: ${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET}
     quota-hmac-secret: ${AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET}
     previous-identifier-hmac-secrets: ${AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS:}
-    store: redis
     ttl-seconds: ${AUTH_PASSWORD_RESET_TTL_SECONDS:600}
     request-window-seconds: ${AUTH_PASSWORD_RESET_REQUEST_WINDOW_SECONDS:3600}
     max-requests-per-email: ${AUTH_PASSWORD_RESET_MAX_REQUESTS_PER_EMAIL:3}
@@ -133,21 +129,6 @@ content:
     batch-size: ${CONTENT_COMMENT_THREAD_CLEANUP_BATCH_SIZE:100}
     max-batches-per-root: ${CONTENT_COMMENT_THREAD_CLEANUP_MAX_BATCHES_PER_ROOT:10}
     delay-ms: ${CONTENT_COMMENT_THREAD_CLEANUP_DELAY_MS:60000}
-  score:
-    refresh:
-      enabled: true
-      batch-size: 200
-
-events:
-  outbox:
-    enabled: true
-    batch-size: 50
-    processing-lease: 30s
-    max-retries: 50
-    base-backoff: 5s
-    max-backoff: 10m
-    worker-fixed-delay-ms: 1000
-
 growth:
   business-zone-id: Asia/Shanghai
 
@@ -163,21 +144,11 @@ search:
   reindex:
     page-size: ${SEARCH_REINDEX_PAGE_SIZE:500}
     lock-ttl: ${SEARCH_REINDEX_LOCK_TTL:PT30M}
-  idempotency:
-    cleanup-enabled: true
-    retention-days: 7
-    cleanup-interval-ms: 21600000
   index:
-    prefix: community_posts_v
-    initialize: true
     keep-history: ${SEARCH_INDEX_KEEP_HISTORY:2}
 
 analytics:
-  max-days-range: 31
   ingest:
-    enabled: false
-    record-uv: true
-    record-dau: true
     include-paths:
       - /api/posts/**
       - /api/search/**

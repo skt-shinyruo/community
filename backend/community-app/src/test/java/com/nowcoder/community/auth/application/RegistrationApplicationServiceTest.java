@@ -32,7 +32,6 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.ArgumentMatchers.matches;
-import static org.mockito.Mockito.doNothing;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.times;
@@ -99,7 +98,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
@@ -160,7 +158,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
@@ -187,7 +184,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30)))).thenReturn(false);
 
@@ -210,7 +206,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
@@ -234,7 +229,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenReturn(true);
@@ -257,7 +251,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = preparedUser(userId);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
         when(registrationDraftRepository.store(anyString(), any(PreparedRegistrationDraft.class), eq(Duration.ofMinutes(30))))
                 .thenThrow(new IllegalStateException("draft down"));
@@ -279,7 +272,6 @@ class RegistrationApplicationServiceTest {
 
         PreparedRegistrationUserView prepared = new PreparedRegistrationUserView(userId, "alice", " ", ENCODED_PASSWORD, HEADER_URL);
 
-        doNothing().when(captchaChallenge).requireValidCaptcha("cid", "abcd");
         when(userRegistrationActionApi.prepareRegistrationUser("alice", "secret", "alice@example.com")).thenReturn(prepared);
 
         assertThatThrownBy(() -> service.register(command))

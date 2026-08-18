@@ -2,7 +2,6 @@ import { normalizeOpaqueId, requireApiOpaqueId, sameOpaqueId } from '../utils/op
 
 const SIGNED_64_MINIMUM = 1n << 63n
 const UNSIGNED_64_MODULUS = 1n << 64n
-const MESSAGE_IDENTITY_ALIASES = Symbol('messageIdentityAliases')
 
 function toSigned64(value) {
   return value >= SIGNED_64_MINIMUM ? value - UNSIGNED_64_MODULUS : value
@@ -61,7 +60,7 @@ export function mapConversationMessage(raw) {
   if (!Number.isFinite(createTime) || createTime <= 0) {
     throw new Error('createdAtEpochMs 非法')
   }
-  return {
+  return withConversationMessageIdentity({
     id: requireApiOpaqueId(raw?.messageId, 'messageId'),
     seq,
     fromId: requireApiOpaqueId(raw?.fromUserId, 'fromUserId'),
@@ -69,7 +68,7 @@ export function mapConversationMessage(raw) {
     content: String(raw?.content || ''),
     clientMsgId: String(raw?.clientMsgId ?? ''),
     createTime
-  }
+  })
 }
 
 /**
@@ -78,7 +77,7 @@ export function mapConversationMessage(raw) {
 export function createPendingConversationMessage({ clientMsgId, fromId, toId, content, createTime = Date.now() } = {}) {
   const clientId = String(clientMsgId || '').trim()
   if (!clientId) throw new Error('clientMsgId 缺失')
-  return {
+  return withConversationMessageIdentity({
     id: `pending:${clientId}`,
     seq: 0,
     fromId: requireApiOpaqueId(fromId, 'fromUserId'),
@@ -87,19 +86,20 @@ export function createPendingConversationMessage({ clientMsgId, fromId, toId, co
     clientMsgId: clientId,
     createTime: Number(createTime || Date.now()),
     deliveryState: 'pending'
-  }
+  })
 }
 
 export function commitPendingConversationMessage(message, frame = {}) {
   const seq = Number(frame?.seq)
   if (!Number.isSafeInteger(seq) || seq <= 0) throw new Error('seq 非法')
-  return {
+  return withConversationMessageIdentity({
     ...(message || {}),
     id: requireApiOpaqueId(frame?.messageId, 'messageId'),
     seq,
     clientMsgId: String(frame?.clientMsgId || message?.clientMsgId || '').trim(),
+    requestId: String(frame?.requestId || message?.requestId || '').trim(),
     deliveryState: 'committed'
-  }
+  })
 }
 
 export function failPendingConversationMessage(message) {
@@ -135,79 +135,106 @@ function compareConversationMessages(a, b) {
   return String(a?.id || '').localeCompare(String(b?.id || ''))
 }
 
-function conversationMessageKeys(message) {
-  const keys = new Set(message?.[MESSAGE_IDENTITY_ALIASES] || [])
+function collectConversationMessageIdentity(message) {
+  const aliases = new Map()
+  const source = message?.messageIdentity || {}
 
-  const seq = Number(message?.seq)
-  if (Number.isSafeInteger(seq) && seq > 0) {
-    keys.add(`seq:${seq}`)
+  const addSequence = (value) => {
+    const sequence = Number(value)
+    if (Number.isSafeInteger(sequence) && sequence > 0) {
+      aliases.set(`sequence:${sequence}`, { field: 'sequences', value: sequence })
+    }
+  }
+  const addServerMessageId = (value) => {
+    const messageId = normalizeOpaqueId(value)
+    if (messageId && !messageId.startsWith('pending:')) {
+      aliases.set(`server:${messageId}`, { field: 'serverMessageIds', value: messageId })
+    }
+  }
+  const addClientMessageId = (value) => {
+    const clientMsgId = String(value?.clientMsgId ?? '').trim()
+    const fromId = normalizeOpaqueId(value?.fromId)
+    if (clientMsgId && fromId) {
+      aliases.set(`client:${fromId}:${clientMsgId}`, {
+        field: 'clientMessageIds',
+        value: { fromId, clientMsgId }
+      })
+    }
+  }
+  const addRequestId = (value) => {
+    const requestId = String(value ?? '').trim()
+    if (requestId) aliases.set(`request:${requestId}`, { field: 'requestIds', value: requestId })
   }
 
-  const id = normalizeOpaqueId(message?.id)
-  if (id) {
-    keys.add(`id:${id}`)
-  }
+  for (const value of Array.isArray(source.sequences) ? source.sequences : []) addSequence(value)
+  for (const value of Array.isArray(source.serverMessageIds) ? source.serverMessageIds : []) addServerMessageId(value)
+  for (const value of Array.isArray(source.clientMessageIds) ? source.clientMessageIds : []) addClientMessageId(value)
+  for (const value of Array.isArray(source.requestIds) ? source.requestIds : []) addRequestId(value)
 
-  const clientMsgId = String(message?.clientMsgId ?? '').trim()
-  const fromId = normalizeOpaqueId(message?.fromId)
-  if (clientMsgId && fromId) {
-    keys.add(`client:${fromId}:${clientMsgId}`)
-  }
+  addSequence(message?.seq)
+  addServerMessageId(message?.id)
+  addClientMessageId(message)
+  addRequestId(message?.requestId)
 
-  if (keys.size === 0) {
-    throw new Error('message identity 缺失')
+  if (aliases.size === 0) throw new Error('message identity 缺失')
+  return aliases
+}
+
+function toVisibleMessageIdentity(aliases) {
+  const identity = /** @type {Record<string, any[]>} */ ({
+    serverMessageIds: [],
+    clientMessageIds: [],
+    requestIds: [],
+    sequences: []
+  })
+  for (const alias of aliases.values()) identity[alias.field].push(alias.value)
+  return identity
+}
+
+function withConversationMessageIdentity(message) {
+  return {
+    ...message,
+    messageIdentity: toVisibleMessageIdentity(collectConversationMessageIdentity(message))
   }
-  return Array.from(keys)
 }
 
 export function mergeConversationMessages(currentItems, incomingItems) {
-  const merged = []
-  const active = []
-  const identityIndexes = new Map()
-  const identitiesByIndex = []
+  const records = new Set()
+  const recordsByAlias = new Map()
 
   const add = (message) => {
-    const keys = conversationMessageKeys(message)
+    const aliases = collectConversationMessageIdentity(message)
     const matches = new Set()
-    for (const key of keys) {
-      const index = identityIndexes.get(key)
-      if (index !== undefined && active[index]) {
-        matches.add(index)
-      }
+    for (const key of aliases.keys()) {
+      const record = recordsByAlias.get(key)
+      if (record) matches.add(record)
     }
 
-    const index = matches.size > 0 ? Math.min(...matches) : merged.length
-    if (index === merged.length) {
-      merged.push(message)
-      active.push(true)
-      identitiesByIndex.push(new Set())
-    } else {
-      merged[index] = message
+    const record = matches.values().next().value || { message, aliases: new Map() }
+    if (matches.size === 0) records.add(record)
+
+    for (const matchedRecord of matches) {
+      if (matchedRecord === record) continue
+      records.delete(matchedRecord)
+      for (const [key, alias] of matchedRecord.aliases) record.aliases.set(key, alias)
     }
 
-    for (const matchedIndex of matches) {
-      if (matchedIndex === index) continue
-      active[matchedIndex] = false
-      for (const key of identitiesByIndex[matchedIndex]) {
-        identityIndexes.set(key, index)
-        identitiesByIndex[index].add(key)
-      }
-    }
+    for (const [key, alias] of aliases) record.aliases.set(key, alias)
+    for (const key of record.aliases.keys()) recordsByAlias.set(key, record)
 
-    for (const key of keys) {
-      identityIndexes.set(key, index)
-      identitiesByIndex[index].add(key)
+    const persistedMatch = Number(message?.seq) <= 0
+      ? Array.from(matches).find((matchedRecord) => Number(matchedRecord.message?.seq) > 0)
+      : null
+    record.message = {
+      ...(persistedMatch?.message || message),
+      messageIdentity: toVisibleMessageIdentity(record.aliases)
     }
-    Object.defineProperty(merged[index], MESSAGE_IDENTITY_ALIASES, {
-      configurable: true,
-      value: new Set(identitiesByIndex[index])
-    })
   }
 
   for (const message of Array.isArray(currentItems) ? currentItems : []) add(message)
   for (const message of Array.isArray(incomingItems) ? incomingItems : []) add(message)
 
-  return merged.filter((_, index) => active[index]).sort(compareConversationMessages)
+  return Array.from(records, (record) => record.message).sort(compareConversationMessages)
 }
 
 export function mergeConversations(currentItems, incomingItems) {

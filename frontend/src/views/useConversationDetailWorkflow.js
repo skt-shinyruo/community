@@ -62,7 +62,11 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     if (realtimeState.value.connected) return '实时认证中'
     return '实时未连接'
   })
-  const messages = computed(() => items.value.map((message) => ({
+  const messages = computed(() => items.value.map(({
+    messageIdentity: _messageIdentity,
+    requestId: _requestId,
+    ...message
+  }) => ({
     ...message,
     timeLabel: new Date(message.createTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   })))

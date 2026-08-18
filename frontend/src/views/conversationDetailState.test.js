@@ -50,7 +50,7 @@ describe('conversationDetailState', () => {
       content: 'hello',
       clientMsgId: 'client-12',
       createdAtEpochMs: 123456789
-    })).toEqual({
+    })).toMatchObject({
       id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       seq: 12,
       fromId: '11111111-1111-7111-8111-111111111111',
@@ -110,28 +110,34 @@ describe('conversationDetailState', () => {
       content: 'newer-updated'
     }
 
-    expect(mergeConversationMessages([newer], [older, duplicateNewer])).toEqual([
+    expect(mergeConversationMessages([newer], [older, duplicateNewer])).toMatchObject([
       older,
       duplicateNewer
     ])
   })
 
-  it('merges messages when any positive seq, normalized id, or client message id matches', () => {
+  it('merges messages when any sequence, server, client, or request id matches', () => {
     const base = {
       id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       seq: 8,
       fromId: '11111111-1111-7111-8111-111111111111',
       clientMsgId: 'client-a',
+      requestId: 'request-a',
       createTime: 80,
       content: 'base'
     }
-    const bySeq = { ...base, id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', clientMsgId: 'client-b', content: 'seq replacement' }
-    const byId = { ...base, seq: 9, id: ' aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa ', clientMsgId: 'client-c', content: 'id replacement' }
-    const byClientMsgId = { ...base, seq: 10, id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc', clientMsgId: ' client-a ', content: 'client replacement' }
+    const bySeq = { ...base, id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', clientMsgId: 'client-b', requestId: 'request-b', content: 'seq replacement' }
+    const byId = { ...base, seq: 9, id: ' aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa ', clientMsgId: 'client-c', requestId: 'request-c', content: 'id replacement' }
+    const byClientMsgId = { ...base, seq: 10, id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc', clientMsgId: ' client-a ', requestId: 'request-d', content: 'client replacement' }
+    const byRequestId = { ...base, seq: 11, id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd', clientMsgId: 'client-e', requestId: ' request-a ', content: 'request replacement' }
 
-    expect(mergeConversationMessages([base], [bySeq])).toEqual([bySeq])
-    expect(mergeConversationMessages([base], [byId])).toEqual([byId])
-    expect(mergeConversationMessages([base], [byClientMsgId])).toEqual([byClientMsgId])
+    expect(mergeConversationMessages([base], [bySeq])).toMatchObject([bySeq])
+    expect(mergeConversationMessages([base], [byId])).toMatchObject([byId])
+    expect(mergeConversationMessages([base], [byClientMsgId])).toMatchObject([byClientMsgId])
+    expect(mergeConversationMessages([base], [byRequestId])).toMatchObject([{
+      ...byRequestId,
+      messageIdentity: { requestIds: ['request-a'] }
+    }])
   })
 
   it('transfers all aliases when one incoming message bridges two active records', () => {
@@ -141,7 +147,7 @@ describe('conversationDetailState', () => {
     const bridge = { id: ' second-id ', seq: 1, fromId, clientMsgId: 'bridge-client', createTime: 150, content: 'bridge' }
     const followUp = { id: 'follow-up-id', seq: 3, fromId, clientMsgId: 'second-client', createTime: 300, content: 'follow-up' }
 
-    expect(mergeConversationMessages([first, second], [bridge, followUp])).toEqual([followUp])
+    expect(mergeConversationMessages([first, second], [bridge, followUp])).toMatchObject([followUp])
   })
 
   it('retains replaced identities across separate merge calls', () => {
@@ -152,7 +158,7 @@ describe('conversationDetailState', () => {
 
     const firstMerge = mergeConversationMessages([current], [replacementById])
 
-    expect(mergeConversationMessages(firstMerge, [replacementByOldClient])).toEqual([replacementByOldClient])
+    expect(mergeConversationMessages(firstMerge, [replacementByOldClient])).toMatchObject([replacementByOldClient])
   })
 
   it('scopes client message identity by sender', () => {
@@ -183,15 +189,15 @@ describe('conversationDetailState', () => {
     }
 
     const withPeer = mergeConversationMessages([localPending], [peerMessage])
-    expect(withPeer).toEqual([localPending, peerMessage])
-    expect(mergeConversationMessages(withPeer, [localCommitted])).toEqual([peerMessage, localCommitted])
+    expect(withPeer).toMatchObject([localPending, peerMessage])
+    expect(mergeConversationMessages(withPeer, [localCommitted])).toMatchObject([peerMessage, localCommitted])
   })
 
   it('does not treat whitespace-only client message ids as an identity', () => {
     const first = { id: 'first-id', seq: 1, clientMsgId: '   ', createTime: 100, content: 'first' }
     const second = { id: 'second-id', seq: 2, clientMsgId: '\t', createTime: 200, content: 'second' }
 
-    expect(mergeConversationMessages([first], [second])).toEqual([first, second])
+    expect(mergeConversationMessages([first], [second])).toMatchObject([first, second])
   })
 
   it('keeps merged messages in chronological order after identity replacement', () => {
@@ -199,7 +205,7 @@ describe('conversationDetailState', () => {
     const second = { id: 'b', seq: 2, clientMsgId: 'two', createTime: 200, content: 'second' }
     const replacement = { id: ' b ', seq: 2, clientMsgId: 'two-updated', createTime: 200, content: 'second updated' }
 
-    expect(mergeConversationMessages([second], [first, replacement])).toEqual([first, replacement])
+    expect(mergeConversationMessages([second], [first, replacement])).toMatchObject([first, replacement])
   })
 
   it('replaces duplicate conversations by normalized id while preserving stable order', () => {
@@ -226,14 +232,112 @@ describe('conversationDetailState', () => {
       content: 'pending message',
       createTime: 100
     })
+    expect(pending.messageIdentity).toMatchObject({
+      clientMessageIds: [{ fromId: pending.fromId, clientMsgId: 'client-pending' }]
+    })
     const committed = commitPendingConversationMessage(pending, {
       clientMsgId: 'client-pending',
+      requestId: 'request-pending',
       messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       seq: 9
     })
 
-    expect(mergeConversationMessages([pending], [committed])).toEqual([committed])
-    expect(committed).toMatchObject({ seq: 9, deliveryState: 'committed' })
+    expect(mergeConversationMessages([pending], [committed])).toMatchObject([{
+      id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 9,
+      deliveryState: 'committed',
+      messageIdentity: {
+        serverMessageIds: ['aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'],
+        clientMessageIds: [{ fromId: pending.fromId, clientMsgId: 'client-pending' }],
+        requestIds: ['request-pending'],
+        sequences: [9]
+      }
+    }])
+  })
+
+  it('models multiple identifiers for one committed message fact', () => {
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-alias',
+      fromId: '11111111-1111-7111-8111-111111111111',
+      toId: '22222222-2222-7222-8222-222222222222',
+      content: 'one fact',
+      createTime: 100
+    })
+
+    expect(commitPendingConversationMessage(pending, {
+      clientMsgId: 'client-alias',
+      requestId: 'request-alias',
+      messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      seq: 10
+    }).messageIdentity).toEqual({
+      serverMessageIds: ['bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'],
+      clientMessageIds: [{ fromId: pending.fromId, clientMsgId: 'client-alias' }],
+      requestIds: ['request-alias'],
+      sequences: [10]
+    })
+  })
+
+  it('does not downgrade a committed message when its optimistic copy arrives out of order', () => {
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-out-of-order',
+      fromId: '11111111-1111-7111-8111-111111111111',
+      toId: '22222222-2222-7222-8222-222222222222',
+      content: 'already committed',
+      createTime: 100
+    })
+    const committed = commitPendingConversationMessage(pending, {
+      clientMsgId: 'client-out-of-order',
+      requestId: 'request-out-of-order',
+      messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      seq: 11
+    })
+
+    expect(mergeConversationMessages([committed], [pending])).toMatchObject([{
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      seq: 11,
+      deliveryState: 'committed',
+      messageIdentity: {
+        requestIds: ['request-out-of-order']
+      }
+    }])
+  })
+
+  it('deduplicates repeated backfill while retaining committed aliases', () => {
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const toId = '22222222-2222-7222-8222-222222222222'
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-backfill',
+      fromId,
+      toId,
+      content: 'optimistic',
+      createTime: 100
+    })
+    const committed = commitPendingConversationMessage(pending, {
+      clientMsgId: 'client-backfill',
+      requestId: 'request-backfill',
+      messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      seq: 12
+    })
+    const backfill = mapConversationMessage({
+      seq: 12,
+      messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      fromUserId: fromId,
+      toUserId: toId,
+      content: 'persisted backfill',
+      clientMsgId: 'client-backfill',
+      createdAtEpochMs: 101
+    })
+
+    expect(backfill.messageIdentity).toEqual({
+      serverMessageIds: ['dddddddd-dddd-7ddd-8ddd-dddddddddddd'],
+      clientMessageIds: [{ fromId, clientMsgId: 'client-backfill' }],
+      requestIds: [],
+      sequences: [12]
+    })
+    expect(mergeConversationMessages([committed], [backfill, backfill])).toMatchObject([{
+      content: 'persisted backfill',
+      messageIdentity: { requestIds: ['request-backfill'] }
+    }])
   })
 
   it('only advances an HTTP waterline through contiguous message sequences', () => {

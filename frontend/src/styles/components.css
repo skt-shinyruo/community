@@ -14,16 +14,6 @@
   border-color: var(--border-strong);
 }
 
-.object-card {
-  transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
-}
-
-.object-card:hover {
-  border-color: var(--border-strong);
-  box-shadow: var(--shadow-md);
-  transform: translateY(-1px);
-}
-
 .card.flat {
   box-shadow: none;
   border-color: transparent;
@@ -415,8 +405,7 @@
   gap: 6px;
 }
 
-.ui-state-kicker,
-.ui-state-trace {
+.ui-state-kicker {
   color: var(--text-3);
   font-size: var(--text-xs);
   font-family: var(--font-mono);

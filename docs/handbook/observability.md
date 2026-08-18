@@ -247,7 +247,7 @@ Resource-only alerts should not page by themselves unless they are tied to a use
 
 ## Governance
 
-The contract files under `deploy/observability/contracts` are the machine-readable source for static observability governance tests.
+静态治理脚本读取 `deploy/observability/contracts` 中的必需资源字段和禁用观测字段；指标族、有限维度与 trace 命名约定以本页为准，避免维护重复清单。
 
 Run static governance:
 

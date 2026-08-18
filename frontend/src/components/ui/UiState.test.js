@@ -21,12 +21,11 @@ describe('UiState', () => {
     expect(wrapper.text()).toContain('当前筛选条件下没有订单。')
   })
 
-  it('renders error trace id and action slot', () => {
+  it('renders an error state with an action slot', () => {
     const wrapper = mount(UiState, {
       props: {
         variant: 'error',
-        title: '加载失败',
-        traceId: 'trace-123'
+        title: '加载失败'
       },
       slots: {
         actions: '<button>重试</button>'
@@ -34,7 +33,6 @@ describe('UiState', () => {
     })
 
     expect(wrapper.text()).toContain('加载失败')
-    expect(wrapper.text()).toContain('trace-123')
     expect(wrapper.find('button').text()).toBe('重试')
   })
 

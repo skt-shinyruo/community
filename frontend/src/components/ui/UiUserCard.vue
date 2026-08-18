@@ -3,7 +3,7 @@
     <slot />
     
     <Transition name="pop">
-      <div v-if="show && cardUser" class="user-card-popover" :style="{ left: align === 'right' ? 'auto' : '0', right: align === 'right' ? '0' : 'auto' }">
+      <div v-if="show && cardUser" class="user-card-popover">
         <div class="row" style="gap: 12px; align-items: flex-start">
            <UiAvatar :src="cardUser.headerUrl" :name="cardUser.username" :size="48" />
            <div style="flex: 1">
@@ -80,8 +80,7 @@ import ReportModal from '../modals/ReportModal.vue'
 import { hasOpaqueId, normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
 
 const props = defineProps({
-  user: { type: Object, default: null },
-  align: { type: String, default: 'left' }
+  user: { type: Object, default: null }
 })
 
 const auth = useAuthStore()
@@ -93,7 +92,6 @@ const resolvedUserId = computed(() => {
 })
 
 const profile = ref(null)
-const profileLoading = ref(false)
 
 const cardUser = computed(() => profile.value || props.user || null)
 
@@ -144,13 +142,8 @@ async function ensureProfile() {
     return
   }
 
-  profileLoading.value = true
-  try {
-    const nextProfile = await getUserProfile(uid).catch(() => null)
-    if (isCurrentScope(requestId, uid, authGeneration)) profile.value = nextProfile
-  } finally {
-    if (isCurrentScope(requestId, uid, authGeneration)) profileLoading.value = false
-  }
+  const nextProfile = await getUserProfile(uid).catch(() => null)
+  if (isCurrentScope(requestId, uid, authGeneration)) profile.value = nextProfile
 }
 
 async function onEnter() {
@@ -174,7 +167,6 @@ function hide() {
 watch(resolvedUserId, () => {
   profileRequestId += 1
   actionRequestId += 1
-  profileLoading.value = false
   profile.value = null
   reportOpen.value = false
 })
@@ -182,7 +174,6 @@ watch(resolvedUserId, () => {
 watch(() => auth.tokenGeneration, () => {
   profileRequestId += 1
   actionRequestId += 1
-  profileLoading.value = false
   profile.value = null
   reportOpen.value = false
   actionLoading.value = false

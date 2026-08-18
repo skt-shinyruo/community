@@ -31,22 +31,16 @@ tests/playwright-single/
 │   ├── 05-drive.spec.ts          # 网盘目录和公开分享流程
 │   ├── 06-admin.spec.ts          # 权限拦截和后台只读页面
 │   └── 07-im.spec.ts             # IM 会话列表流程
-├── scripts/
-│   ├── health-check.mjs          # 不启动浏览器的前端/Gateway 健康检查
-│   └── markdown-report.mjs       # 将 Playwright JSON 结果转换为 Markdown 报告
-└── reports/                      # 生成的 JSON 与 Markdown 报告目录
 ```
 
-`node_modules/`、`.auth/`、`test-results/`、`playwright-report/` 以及
-`reports/` 下生成的 JSON/Markdown 均被 Git 忽略。仓库只保留
-`reports/.gitkeep` 以固定报告目录。
+`node_modules/`、`.auth/`、`test-results/` 和 `playwright-report/` 均被 Git 忽略。
 
 ## 前置条件
 
 从仓库根目录启动完整的单机拓扑：
 
 ```bash
-./deploy/deployment.sh up --stack single --no-observability
+./deploy/deployment.sh up --stack single --no-observability -- --wait --wait-timeout 120
 ```
 
 默认访问目标如下：
@@ -72,7 +66,7 @@ tests/playwright-single/
 ```bash
 SINGLE_WEB_BASE_URL=http://localhost:12881 \
 SINGLE_API_BASE_URL=http://localhost:12880 \
-npm --prefix tests/playwright-single run health
+npm --prefix tests/playwright-single run test:smoke
 ```
 
 ## 安装
@@ -90,26 +84,20 @@ npx --prefix tests/playwright-single playwright install chromium
 ## 推荐执行顺序
 
 ```bash
-npm --prefix tests/playwright-single run health
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression
-npm --prefix tests/playwright-single run report
 ```
 
-先用 `health` 排除部署、端口和 Gateway 健康问题，再用冒烟测试确认浏览器路径
-可用，最后执行完整产品回归。`report` 必须在至少执行过一次 Playwright 测试后
-运行，因为它读取 `reports/latest-results.json`。
+先用冒烟测试确认浏览器和 Gateway 路径可用，再执行完整产品回归。
 
 ## 可用命令
 
 | 命令 | 作用 |
 | --- | --- |
-| `npm --prefix tests/playwright-single run health` | 使用 `fetch` 检查前端首页返回 2xx，检查 Gateway `/actuator/health` 返回 `UP`；不启动浏览器。 |
 | `npm --prefix tests/playwright-single run test:smoke` | 只执行 `00-smoke.spec.ts`，快速验证部署可达、匿名访问、受保护路由跳转和登录。 |
 | `npm --prefix tests/playwright-single run test:regression` | 执行全部带 `@regression` 标签的产品回归。 |
 | `npm --prefix tests/playwright-single run test` | `test:regression` 的别名。 |
 | `npm --prefix tests/playwright-single run test:headed` | 以有界面模式运行常规回归，便于本地观察交互。 |
-| `npm --prefix tests/playwright-single run report` | 将最近一次 JSON 结果写成带时间戳的 Markdown 报告。 |
 | `npm --prefix tests/playwright-single run show-report` | 打开 Playwright HTML 报告 `playwright-report/`。 |
 
 可用的运行时变量：
@@ -155,13 +143,7 @@ npm --prefix tests/playwright-single run report
 - 测试目录为 `tests/`，默认超时为 60 秒，普通断言超时为 15 秒。
 - 默认单 worker 且关闭完全并行，降低本地共享账号和数据互相干扰的概率。
 - 失败时保留 trace、截图和视频，写入 `test-results/`。
-- 同时生成控制台列表、`playwright-report/` HTML 报告和
-  `reports/latest-results.json` JSON 结果。
-
-`scripts/markdown-report.mjs` 读取最近一次的 JSON 结果，统计通过、失败、跳过
-数量，并在 `reports/` 下生成
-`single-playwright-report-<ISO 时间戳>.md`。`latest-results.json` 会被下一次
-Playwright 执行覆盖，带时间戳的 Markdown 报告不会覆盖之前的报告。
+- 同时生成控制台列表和 `playwright-report/` HTML 报告。
 
 ## 数据影响与排查建议
 
@@ -169,8 +151,8 @@ Playwright 执行覆盖，带时间戳的 Markdown 报告不会覆盖之前的�
 当前不会自动清理 MySQL、Redis、对象存储或 Elasticsearch。进行可重复验收时，
 请使用隔离的本地数据卷或先自行准备干净环境。
 
-若 `health` 失败，先确认 single 拓扑已启动、两个端口未被其他服务占用，以及
+若 smoke 失败，先确认 single 拓扑已启动、两个端口未被其他服务占用，以及
 Gateway 的 `/actuator/health` 是否为 `UP`。若登录、转账、IM、网盘或后台权限
 用例失败，先检查测试账号、密码、角色和固定用户 ID 是否与部署 seed 数据一致。
-然后查看 `playwright-report/`、`test-results/` 和生成的 Markdown 报告定位；报告会
+然后查看 `playwright-report/` 和 `test-results/` 定位；报告会
 保留失败请求、页面错误和控制台错误的具体信息。

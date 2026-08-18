@@ -282,7 +282,7 @@
         </div>
         <div class="posts-context-block">
           <strong>快速入口</strong>
-          <span>使用未读、热门和订阅筛选快速回到关注的话题。</span>
+          <span>使用分类筛选快速定位讨论。</span>
         </div>
       </aside>
     </div>
@@ -303,14 +303,13 @@ import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import { usePostsFeed } from './posts/usePostsFeed'
 
-const emit = defineEmits(['trace'])
 const {
   session,
   scope,
   feed,
   unread,
   composer
-} = usePostsFeed(emit)
+} = usePostsFeed()
 const {
   authed,
   me,

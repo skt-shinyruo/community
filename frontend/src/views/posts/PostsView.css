@@ -659,7 +659,6 @@
   }
 }
 
-html[data-theme='dark'] .posts-context-chip,
 html[data-theme='dark'] .posts-composer,
 html[data-theme='dark'] .posts-skeleton-card,
 html[data-theme='dark'] .discussion-card {
@@ -668,7 +667,6 @@ html[data-theme='dark'] .discussion-card {
   box-shadow: 0 20px 36px rgba(0, 0, 0, 0.26);
 }
 
-html[data-theme='dark'] .input-fake,
 html[data-theme='dark'] .discussion-category-chip,
 html[data-theme='dark'] .discussion-like-btn {
   background: var(--surface-3);
@@ -686,7 +684,6 @@ html[data-theme='dark'] .topic-new-hint {
   box-shadow: 0 18px 28px rgba(0, 0, 0, 0.24);
 }
 
-html[data-theme='dark'] .posts-context-chip,
 html[data-theme='dark'] .discussion-divider {
   color: var(--text-3);
 }

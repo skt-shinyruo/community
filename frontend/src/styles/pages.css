@@ -70,7 +70,6 @@
   opacity: 0.95;
 }
 
-.virtual-market-page,
 .market-page {
   display: flex;
   flex-direction: column;

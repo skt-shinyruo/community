@@ -14,21 +14,8 @@ import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { getBreadcrumbItems } from '../../router/navigation'
 
-const props = defineProps({
-  // 允许页面显式传入面包屑项：[{ label, to? }]
-  items: { type: Array, default: () => [] },
-  // 自动推导：当 items 为空时，根据 route + navigation 配置生成。
-  auto: { type: Boolean, default: true }
-})
-
 const route = useRoute()
-
-const resolvedItems = computed(() => {
-  const manual = Array.isArray(props.items) ? props.items : []
-  if (manual.length > 0) return manual
-  if (!props.auto) return []
-  return getBreadcrumbItems(route)
-})
+const resolvedItems = computed(() => getBreadcrumbItems(route))
 </script>
 
 <style scoped>

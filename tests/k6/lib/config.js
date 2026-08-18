@@ -25,10 +25,6 @@ export function loadConfig() {
     wsUrl: env('K6_WS_URL', derivedWsUrl),
     username: env('K6_USERNAME', 'aaa'),
     password: env('K6_PASSWORD', 'aaa'),
-    secondaryUsername: env('K6_SECONDARY_USERNAME', 'bbb'),
-    secondaryPassword: env('K6_SECONDARY_PASSWORD', 'aaa'),
-    adminUsername: env('K6_ADMIN_USERNAME', 'admin'),
-    adminPassword: env('K6_ADMIN_PASSWORD', 'aaa'),
     loginOnEveryIteration: boolEnv('K6_LOGIN_EACH_ITERATION', false),
     writeRatio: intEnv('K6_WRITE_RATIO', 10),
     readSize: intEnv('K6_READ_SIZE', 20),
@@ -40,8 +36,7 @@ export function loadConfig() {
     imRoomId: env('K6_IM_ROOM_ID', ''),
     postTag: env('K6_POST_TAG', 'k6'),
     postCategoryId: env('K6_POST_CATEGORY_ID', ''),
-    allowWrites: boolEnv('K6_ALLOW_WRITES', true),
-    allowDestructiveWrites: boolEnv('K6_ALLOW_DESTRUCTIVE_WRITES', false)
+    allowWrites: boolEnv('K6_ALLOW_WRITES', true)
   }
 }
 

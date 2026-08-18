@@ -42,7 +42,7 @@ describe('authGuard', () => {
 
   it('should allow when route requires auth and token exists', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('t1')
+    auth.installSession({ accessToken: 't1' })
     ensureSessionReady.mockResolvedValue({ state: 'ready' })
 
     const to = { name: 'settings', fullPath: '/settings', meta: { requiresAuth: true } }
@@ -52,7 +52,7 @@ describe('authGuard', () => {
 
   it('should redirect away from login when already logged in', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('t1')
+    auth.installSession({ accessToken: 't1' })
     shouldBootstrapSession.mockReturnValue(true)
     ensureSessionReady.mockResolvedValue({ state: 'ready' })
 
@@ -73,7 +73,7 @@ describe('authGuard', () => {
 
   it('should not redirect to forbidden when loading authorities fails', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('t1')
+    auth.installSession({ accessToken: 't1' })
     ensureSessionReady.mockResolvedValue({ state: 'error' })
 
     const to = {
@@ -87,7 +87,7 @@ describe('authGuard', () => {
 
   it('should allow auth-only route when profile loading is temporarily unavailable', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('t1')
+    auth.installSession({ accessToken: 't1' })
     ensureSessionReady.mockResolvedValue({ state: 'error' })
 
     const to = {

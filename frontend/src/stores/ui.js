@@ -90,15 +90,6 @@ export const useUiStore = defineStore('ui', {
       this.persist()
     },
 
-    setSidebarCollapsed(v) {
-      this.sidebarCollapsed = !!v
-      this.persist()
-    },
-
-    openMobileSidebar() {
-      this.mobileSidebarOpen = true
-    },
-
     closeMobileSidebar() {
       this.mobileSidebarOpen = false
     },

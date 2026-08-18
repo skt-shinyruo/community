@@ -4,14 +4,14 @@
 
   <div v-if="isAuthRoute" class="auth-app-frame">
     <AuthShell>
-      <RouterView @trace="app.setTraceId($event)" />
+      <RouterView />
     </AuthShell>
   </div>
 
   <AppShell v-else :mode="shellMode">
     <RouterView v-slot="{ Component }">
       <Transition name="fade" mode="out-in">
-        <component :is="Component" @trace="app.setTraceId($event)" />
+        <component :is="Component" />
       </Transition>
     </RouterView>
   </AppShell>
@@ -24,7 +24,6 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { ensureSessionReady, shouldBootstrapSession } from './auth/session'
 import { useAuthStore } from './stores/auth'
-import { useAppStore } from './stores/app'
 import { imRealtimeClient } from './im/imRealtimeClient'
 import { setToastHandler } from './ui/toastService'
 import AppShell from './components/layout/AppShell.vue'
@@ -33,7 +32,6 @@ import UiToast from './components/ui/UiToast.vue'
 import UiScrollTop from './components/ui/UiScrollTop.vue'
 
 const auth = useAuthStore()
-const app = useAppStore()
 const route = useRoute()
 const toastRef = ref(null)
 

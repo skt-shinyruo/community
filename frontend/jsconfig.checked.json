@@ -36,13 +36,11 @@
     "src/auth/refreshCoordinator.js",
     "src/auth/refreshTransport.js",
     "src/auth/session.js",
-    "src/stores/app.js",
     "src/stores/auth.js",
 
     // User and social read-side caches
     "src/api/services/blockService.js",
     "src/api/services/socialService.js",
-    "src/api/services/subscriptionService.js",
     "src/api/services/taxonomyService.js",
     "src/api/services/userService.js",
     "src/stores/postMetaCache.js",
@@ -66,7 +64,6 @@
     "src/views/post-detail/usePostDetailDiscussion.js",
     "src/views/post-detail/usePostDetailDrafts.js",
     "src/views/post-detail/usePostDetailLoader.js",
-    "src/views/post-detail/usePostDetailModeration.js",
     "src/views/postDetailState.js",
     "src/views/postsViewState.js",
     "src/views/searchResultSurface.js",

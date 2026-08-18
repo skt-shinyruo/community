@@ -5,13 +5,13 @@
 
 <mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper">
 
-    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject">
+    <select id="selectByRequestId" resultType="com.nowcoder.community.wallet.domain.model.WalletTxn">
         select txn_id, request_id, txn_type, biz_type, biz_id, status, amount, remark, create_time, update_time
         from wallet_txn
         where request_id = #{requestId}
     </select>
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject">
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.domain.model.WalletTxn">
         insert into wallet_txn(txn_id, request_id, txn_type, biz_type, biz_id, status, amount, remark)
         values(#{txnId, jdbcType=BINARY}, #{requestId}, #{txnType}, #{bizType}, #{bizId}, #{status}, #{amount}, #{remark})
     </insert>

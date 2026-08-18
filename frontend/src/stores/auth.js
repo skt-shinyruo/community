@@ -20,20 +20,6 @@ export const useAuthStore = defineStore('auth', {
     }
   },
   actions: {
-    setAccessToken(token) {
-      const nextToken = token || ''
-      if (!nextToken) {
-        this.clear()
-        return
-      }
-      if (this.accessToken !== nextToken) {
-        this.accessToken = nextToken
-        this.me = null
-        this.identityState = 'unresolved'
-        this.tokenGeneration += 1
-      }
-      setSessionHint()
-    },
     /** @param {{ accessToken?: string, me?: any }} [session] */
     installSession({ accessToken, me } = {}) {
       const nextToken = accessToken || ''

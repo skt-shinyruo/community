@@ -7,7 +7,6 @@ export const options = buildOptions('smoke', { exec: 'smoke' })
 
 export function smoke() {
   get('/actuator/health')
-  get('/api/runtime-config')
   get('/api/categories')
   get('/api/tags/hot?limit=20')
   get('/api/posts?page=0&size=10&order=latest')

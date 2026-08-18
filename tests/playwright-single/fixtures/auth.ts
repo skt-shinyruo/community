@@ -1,7 +1,7 @@
 import fs from 'node:fs/promises'
 import path from 'node:path'
 import { expect, type Browser, type Page } from '@playwright/test'
-import { accounts, type TestAccount } from './accounts'
+import { type TestAccount } from './accounts'
 import { appUrl } from './helpers'
 
 async function ensureAuthDir(): Promise<void> {
@@ -39,10 +39,4 @@ export async function ensureStorageState(browser: Browser, account: TestAccount)
     await saveStorageState(browser, account)
     return path.resolve(account.storageStatePath)
   }
-}
-
-export async function ensureAllStorageStates(browser: Browser): Promise<void> {
-  await ensureStorageState(browser, accounts.aaa)
-  await ensureStorageState(browser, accounts.bbb)
-  await ensureStorageState(browser, accounts.admin)
 }

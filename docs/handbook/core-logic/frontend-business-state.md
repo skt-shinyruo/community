@@ -20,7 +20,7 @@
 | `walletService.js` | 钱包概览、流水、测试积分领取/销毁兼容路径、转账、管理员冻结和交易回滚。 |
 | `imCoreChatService.js` | IM core 会话列表、按 `afterSeq` 拉取会话消息、标记已读；使用 `imCoreHttp` 而不是主应用 `http`。 |
 
-以下文件当前只是薄 endpoint mapping、参数整理或响应拆包，保持 `IndexOnly`：`adminUserService.js`、`moderationService.js`、`noticeService.js`、`reportService.js`、`blockService.js`、`taxonomyService.js`、`subscriptionService.js`、`bookmarkService.js`、`searchService.js`、`analyticsService.js`。
+以下文件当前只是薄 endpoint mapping、参数整理或响应拆包，保持 `IndexOnly`：`adminUserService.js`、`moderationService.js`、`noticeService.js`、`reportService.js`、`blockService.js`、`taxonomyService.js`、`bookmarkService.js`、`searchService.js`、`analyticsService.js`。
 
 ## 业务状态
 

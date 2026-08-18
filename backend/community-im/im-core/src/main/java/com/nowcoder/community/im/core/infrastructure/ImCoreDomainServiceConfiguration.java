@@ -12,7 +12,6 @@ import com.nowcoder.community.im.core.domain.service.PrivateMessageDomainService
 import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService;
 import com.nowcoder.community.im.core.domain.service.RoomMessageDomainService;
 import com.nowcoder.community.im.core.domain.service.SeqAllocator;
-import com.nowcoder.community.im.core.domain.service.UnreadDomainService;
 import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
@@ -81,8 +80,4 @@ public class ImCoreDomainServiceConfiguration {
         );
     }
 
-    @Bean
-    public UnreadDomainService unreadDomainService(UnreadRepository unreadRepository) {
-        return new UnreadDomainService(unreadRepository);
-    }
 }

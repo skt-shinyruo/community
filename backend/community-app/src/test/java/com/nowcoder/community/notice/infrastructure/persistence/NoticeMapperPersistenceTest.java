@@ -9,7 +9,7 @@ import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
-import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
+import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -63,7 +63,7 @@ class NoticeMapperPersistenceTest {
 
     @Test
     void insertNoticeShouldPersistApplicationAssignedUuidNoticeId() {
-        NoticeRecordDataObject notice = new NoticeRecordDataObject();
+        NoticeRecord notice = new NoticeRecord();
         notice.setId(NOTICE_ID);
         notice.setSenderUserId(NoticeRecord.SYSTEM_NOTICE_SENDER_ID);
         notice.setRecipientUserId(RECIPIENT_USER_ID);
@@ -88,7 +88,7 @@ class NoticeMapperPersistenceTest {
         assertThat(storedId).hasSize(16);
         assertThat(BinaryUuidCodec.fromBytes(storedId)).isEqualTo(NOTICE_ID);
 
-        List<NoticeRecordDataObject> notices = noticeMapper.selectNotices(RECIPIENT_USER_ID, "comment", 0, 10);
+        List<NoticeRecord> notices = noticeMapper.selectNotices(RECIPIENT_USER_ID, "comment", 0, 10);
         assertThat(notices).singleElement().satisfies(persisted -> {
             assertThat(persisted.getId()).isEqualTo(NOTICE_ID);
             assertThat(persisted.getRecipientUserId()).isEqualTo(RECIPIENT_USER_ID);
@@ -103,7 +103,7 @@ class NoticeMapperPersistenceTest {
                 "type", "CommentCreated",
                 "payload", Map.of("content", sourceContent)
         ));
-        NoticeRecordDataObject notice = new NoticeRecordDataObject();
+        NoticeRecord notice = new NoticeRecord();
         notice.setId(NOTICE_ID);
         notice.setSenderUserId(NoticeRecord.SYSTEM_NOTICE_SENDER_ID);
         notice.setRecipientUserId(RECIPIENT_USER_ID);

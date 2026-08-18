@@ -14,13 +14,13 @@ describe('auth store session generations', () => {
 
     expect(auth.tokenGeneration).toBe(0)
 
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     expect(auth.tokenGeneration).toBe(1)
 
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     expect(auth.tokenGeneration).toBe(1)
 
-    auth.setAccessToken('token-2')
+    auth.installSession({ accessToken: 'token-2' })
     expect(auth.tokenGeneration).toBe(2)
   })
 
@@ -29,7 +29,7 @@ describe('auth store session generations', () => {
     const currentProfile = { userId: 7, username: 'alice' }
     auth.setMe(currentProfile)
 
-    auth.setAccessToken('refreshed-token')
+    auth.installSession({ accessToken: 'refreshed-token' })
 
     expect(auth.me).toBeNull()
     expect(auth.identityState).toBe('unresolved')
@@ -39,7 +39,7 @@ describe('auth store session generations', () => {
     const auth = useAuthStore()
     const oldProfile = { userId: 7, username: 'alice' }
     const newProfile = { userId: 8, username: 'bob' }
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     auth.setMe(oldProfile)
 
     auth.installSession({ accessToken: 'token-2', me: newProfile })
@@ -86,7 +86,7 @@ describe('auth store session generations', () => {
       me: { userId: 7, username: 'alice' }
     })
 
-    auth.setAccessToken('')
+    auth.installSession({ accessToken: '' })
 
     expect(auth.accessToken).toBe('')
     expect(auth.me).toBeNull()

@@ -5,7 +5,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -26,7 +26,7 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
     @Override
     public CreateResult create(MarketWalletAction action) {
         try {
-            return mapper.insert(MarketWalletActionDataObject.from(action)) == 1
+            return mapper.insert(action) == 1
                     ? new CreateResult(CreateStatus.CREATED, action)
                     : new CreateResult(CreateStatus.CONFLICT, null);
         } catch (DuplicateKeyException ignored) {
@@ -54,17 +54,17 @@ public class MyBatisMarketWalletActionRepository implements MarketWalletActionRe
 
     @Override
     public List<MarketWalletAction> findDue(Date asOf, int maxRetryAttempts, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectDue(asOf, maxRetryAttempts, limit));
+        return mapper.selectDue(asOf, maxRetryAttempts, limit);
     }
 
     @Override
     public List<MarketWalletAction> findExpiredProcessing(Date asOf, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectExpiredProcessing(asOf, limit));
+        return mapper.selectExpiredProcessing(asOf, limit);
     }
 
     @Override
     public List<MarketWalletAction> findUnfinishedWithWalletTxn(int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectUnfinishedWithWalletTxn(limit));
+        return mapper.selectUnfinishedWithWalletTxn(limit);
     }
 
     @Override

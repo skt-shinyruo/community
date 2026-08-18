@@ -97,14 +97,14 @@ request_trace_id() {
   local deadline=$((SECONDS + timeout_seconds))
   local trace_id
 
-  headers_file="${tmp_dir}/runtime-config.headers"
-  body_file="${tmp_dir}/runtime-config.body"
+  headers_file="${tmp_dir}/trace-probe.headers"
+  body_file="${tmp_dir}/trace-probe.body"
 
   while :; do
     : >"${headers_file}"
     : >"${body_file}"
 
-    if curl -fsS -D "${headers_file}" -o "${body_file}" "${gateway_url}/api/runtime-config" >/dev/null 2>&1; then
+    if curl -fsS -D "${headers_file}" -o "${body_file}" "${gateway_url}/api/categories" >/dev/null 2>&1; then
       trace_id="$(sed -n 's/.*"traceId"[[:space:]]*:[[:space:]]*"\([0-9a-fA-F]\{32\}\)".*/\1/p' "${body_file}" | head -n 1)"
       if [ -z "${trace_id}" ]; then
         trace_id="$(sed -n 's/^[Tt][Rr][Aa][Cc][Ee][Pp][Aa][Rr][Ee][Nn][Tt][[:space:]]*:[[:space:]]*//p' "${headers_file}" |
@@ -124,7 +124,7 @@ request_trace_id() {
       cat "${body_file}" >&2
       echo "response headers:" >&2
       cat "${headers_file}" >&2
-      fail "could not extract trace id from ${gateway_url}/api/runtime-config"
+      fail "could not extract trace id from ${gateway_url}/api/categories"
     fi
     sleep "${sleep_seconds}"
   done

@@ -62,7 +62,6 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
-const emit = defineEmits(['trace'])
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -76,8 +75,7 @@ const captchaRequired = ref(false)
 
 async function refreshCaptcha() {
   try {
-    const { data, traceId } = await issueCaptcha()
-    emit('trace', traceId || '')
+    const { data } = await issueCaptcha()
     captchaId.value = data?.captchaId || ''
     captchaSrc.value = data?.imageBase64 ? `data:image/png;base64,${data.imageBase64}` : ''
   } catch {
@@ -100,8 +98,7 @@ async function onLogin() {
   loading.value = true
   try {
     const captcha = captchaRequired.value ? { captchaId: captchaId.value, captchaCode: form.captcha } : {}
-    const { data, traceId } = await apiLogin(form.username, form.password, captcha)
-    emit('trace', traceId || '')
+    const { data } = await apiLogin(form.username, form.password, captcha)
     const token = data?.accessToken
     if (!token) throw new Error('No access token returned')
 

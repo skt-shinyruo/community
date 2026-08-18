@@ -2,7 +2,6 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 
 import { useAuthStore } from '../stores/auth'
-import { useAppStore } from '../stores/app'
 import { ensureSessionReady, shouldBootstrapSession } from './session'
 
 const refreshTransport = vi.hoisted(() => ({
@@ -18,7 +17,6 @@ describe('session bootstrap', () => {
     setActivePinia(createPinia())
     vi.stubGlobal('localStorage', createStorage())
     useAuthStore().clear()
-    useAppStore().setTraceId('')
     refreshTransport.requestRefreshToken.mockReset()
     refreshTransport.requestCurrentUser.mockReset()
   })
@@ -54,11 +52,9 @@ describe('session bootstrap', () => {
     const result = await ensureSessionReady()
 
     const auth = useAuthStore()
-    const app = useAppStore()
     expect(result).toEqual({ state: 'ready' })
     expect(auth.accessToken).toBe('new-token')
     expect(auth.me).toEqual({ userId: 7, username: 'alice', authorities: ['ROLE_USER'] })
-    expect(app.traceId).toBe('trace-me')
     expect(refreshTransport.requestRefreshToken).toHaveBeenCalledTimes(1)
     expect(refreshTransport.requestCurrentUser).toHaveBeenCalledTimes(1)
   })
@@ -78,7 +74,7 @@ describe('session bootstrap', () => {
 
   it('returns error instead of anonymous when profile loading fails but token still exists', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     refreshTransport.requestCurrentUser.mockRejectedValue(new Error('profile temporarily unavailable'))
 
     const result = await ensureSessionReady()
@@ -90,7 +86,7 @@ describe('session bootstrap', () => {
 
   it('loads a missing profile directly without refreshing a valid token', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     refreshTransport.requestCurrentUser.mockResolvedValue({
       data: { userId: 7, username: 'alice', authorities: ['ROLE_USER'] },
       traceId: 'trace-me'
@@ -105,7 +101,7 @@ describe('session bootstrap', () => {
 
   it('refreshes once after the existing token profile request returns 401', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     refreshTransport.requestCurrentUser
       .mockRejectedValueOnce({ response: { status: 401 } })
       .mockResolvedValueOnce({

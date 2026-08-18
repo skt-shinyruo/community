@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.RechargeOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.RechargeOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -11,12 +11,12 @@ import java.util.UUID;
 @Mapper
 public interface RechargeOrderMapper {
 
-    RechargeOrderDataObject selectByRequestId(@Param("requestId") String requestId);
+    RechargeOrder selectByRequestId(@Param("requestId") String requestId);
 
-    RechargeOrderDataObject selectByUserIdAndRequestId(@Param("userId") UUID userId,
+    RechargeOrder selectByUserIdAndRequestId(@Param("userId") UUID userId,
                                              @Param("requestId") String requestId);
 
-    int insert(RechargeOrderDataObject order);
+    int insert(RechargeOrder order);
 
     int updateStatus(@Param("userId") UUID userId,
                      @Param("requestId") String requestId,

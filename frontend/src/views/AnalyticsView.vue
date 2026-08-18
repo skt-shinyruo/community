@@ -79,8 +79,8 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { settleNamedRequests } from '../utils/settledRequests'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 
-const emit = defineEmits(['trace'])
 const auth = useAuthStore()
 
 const today = new Date().toISOString().slice(0, 10)
@@ -91,7 +91,6 @@ const loading = ref(false)
 const error = ref('')
 const uResult = ref('-')
 const dResult = ref('-')
-let requestGeneration = 0
 
 const uvResult = computed(() => uResult.value)
 const dauResult = computed(() => dResult.value)
@@ -100,26 +99,25 @@ const sessionScope = computed(() => [
   normalizeOpaqueId(auth.userId),
   [...auth.authorities].sort().join(',')
 ].join(':'))
+const requestTracker = createLatestRequestTracker({
+  getScope: () => `${sessionScope.value}:${start.value}:${end.value}`
+})
 
-function isCurrentQuery(generation, scope, range) {
-  return generation === requestGeneration &&
-    scope === sessionScope.value &&
-    range === `${start.value}:${end.value}` &&
+function isCurrentQuery(requestHandle) {
+  return requestTracker.isCurrent(requestHandle) &&
     auth.authed &&
     auth.isAdminOrModerator
 }
 
 async function query() {
   if (!auth.authed || !auth.isAdminOrModerator) return
-  const generation = ++requestGeneration
-  const scope = sessionScope.value
-  const range = `${start.value}:${end.value}`
+  const requestHandle = requestTracker.begin()
   const request = { start: start.value, end: end.value }
   error.value = ''
   loading.value = true
   try {
     const outcome = await settleNamedRequests({ uv: () => uv(request), dau: () => dau(request) })
-    if (!isCurrentQuery(generation, scope, range)) return
+    if (!isCurrentQuery(requestHandle)) return
     if (outcome.results.uv.ok) uResult.value = outcome.results.uv.value?.data ?? 0
     else uResult.value = '—'
     if (outcome.results.dau.ok) dResult.value = outcome.results.dau.value?.data ?? 0
@@ -130,15 +128,13 @@ async function query() {
         ? `部分统计加载失败：${firstError?.message || '请稍后重试'}`
         : (firstError?.message || '加载统计失败')
     }
-    const traceResult = outcome.results.uv.ok ? outcome.results.uv.value : outcome.results.dau.value
-    if (traceResult?.traceId) emit('trace', traceResult.traceId)
   } finally {
-    if (isCurrentQuery(generation, scope, range)) loading.value = false
+    if (isCurrentQuery(requestHandle)) loading.value = false
   }
 }
 
 function invalidateResults() {
-  requestGeneration += 1
+  requestTracker.invalidate()
   loading.value = false
   error.value = ''
   uResult.value = '-'
@@ -148,7 +144,7 @@ function invalidateResults() {
 watch([start, end], invalidateResults)
 watch(sessionScope, invalidateResults)
 onBeforeUnmount(() => {
-  requestGeneration += 1
+  requestTracker.invalidate()
 })
 </script>
 

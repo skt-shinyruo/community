@@ -122,7 +122,6 @@ describe('AnalyticsView', () => {
     expect(wrapper.text()).toContain('222')
     expect(wrapper.text()).toContain('22')
     expect(wrapper.text()).not.toContain('111')
-    expect(wrapper.emitted('trace').flat()).toEqual(['trace-new-uv'])
   })
 
   it('drops pending analytics results after the viewer role changes', async () => {
@@ -143,6 +142,5 @@ describe('AnalyticsView', () => {
     await nextTick()
     expect(wrapper.text()).not.toContain('999')
     expect(wrapper.text()).not.toContain('888')
-    expect(wrapper.emitted('trace')).toBeUndefined()
   })
 })

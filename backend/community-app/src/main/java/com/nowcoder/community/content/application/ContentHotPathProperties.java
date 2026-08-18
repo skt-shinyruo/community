@@ -24,28 +24,10 @@ public class ContentHotPathProperties {
     }
 
     public static class PrewarmProperties {
-        private boolean enabled = true;
-        private long delayMs = 60_000L;
         private int pages = 2;
         private int pageSize = 20;
         private int boardLimit = 20;
         private long lockTtlSeconds = 30L;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
-        }
-
-        public long getDelayMs() {
-            return delayMs;
-        }
-
-        public void setDelayMs(long delayMs) {
-            this.delayMs = delayMs;
-        }
 
         public int getPages() {
             return pages;

@@ -6,12 +6,12 @@ import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.RechargeOrderDataObject;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.TransferOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.RechargeOrder;
+import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAccountDataObject;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WithdrawOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
+import com.nowcoder.community.wallet.domain.model.WalletTxn;
+import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.RechargeOrderMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.TransferOrderMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAccountMapper;
@@ -89,7 +89,7 @@ class WalletSemanticCreateRepositoryTest {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000101");
         String requestId = "recharge:semantic-create";
         RechargeOrder candidate = mock(RechargeOrder.class);
-        RechargeOrderDataObject existing = mock(RechargeOrderDataObject.class);
+        RechargeOrder existing = mock(RechargeOrder.class);
         RechargeOrderMapper mapper = mock(RechargeOrderMapper.class);
         when(candidate.getUserId()).thenReturn(userId);
         when(candidate.getRequestId()).thenReturn(requestId);
@@ -100,13 +100,13 @@ class WalletSemanticCreateRepositoryTest {
                 RechargeOrder.class,
                 candidate,
                 existing,
-                () -> when(mapper.insert(any(RechargeOrderDataObject.class))).thenReturn(1),
+                () -> when(mapper.insert(any(RechargeOrder.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate recharge request"))
-                            .when(mapper).insert(any(RechargeOrderDataObject.class));
+                            .when(mapper).insert(any(RechargeOrder.class));
                     when(mapper.selectByUserIdAndRequestId(userId, requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(mapper).insert(any(RechargeOrderDataObject.class)),
+                () -> doThrow(unknown).when(mapper).insert(any(RechargeOrder.class)),
                 () -> verify(mapper).selectByUserIdAndRequestId(userId, requestId),
                 () -> verify(mapper, never()).selectByUserIdAndRequestId(userId, requestId),
                 unknown
@@ -117,7 +117,7 @@ class WalletSemanticCreateRepositoryTest {
         UUID userId = UUID.fromString("00000000-0000-7000-8000-000000000102");
         String requestId = "withdraw:semantic-create";
         WithdrawOrder candidate = mock(WithdrawOrder.class);
-        WithdrawOrderDataObject existing = mock(WithdrawOrderDataObject.class);
+        WithdrawOrder existing = mock(WithdrawOrder.class);
         WithdrawOrderMapper mapper = mock(WithdrawOrderMapper.class);
         when(candidate.getUserId()).thenReturn(userId);
         when(candidate.getRequestId()).thenReturn(requestId);
@@ -128,13 +128,13 @@ class WalletSemanticCreateRepositoryTest {
                 WithdrawOrder.class,
                 candidate,
                 existing,
-                () -> when(mapper.insert(any(WithdrawOrderDataObject.class))).thenReturn(1),
+                () -> when(mapper.insert(any(WithdrawOrder.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate withdraw request"))
-                            .when(mapper).insert(any(WithdrawOrderDataObject.class));
+                            .when(mapper).insert(any(WithdrawOrder.class));
                     when(mapper.selectByUserIdAndRequestId(userId, requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(mapper).insert(any(WithdrawOrderDataObject.class)),
+                () -> doThrow(unknown).when(mapper).insert(any(WithdrawOrder.class)),
                 () -> verify(mapper).selectByUserIdAndRequestId(userId, requestId),
                 () -> verify(mapper, never()).selectByUserIdAndRequestId(userId, requestId),
                 unknown
@@ -145,7 +145,7 @@ class WalletSemanticCreateRepositoryTest {
         UUID fromUserId = UUID.fromString("00000000-0000-7000-8000-000000000103");
         String requestId = "transfer:semantic-create";
         TransferOrder candidate = mock(TransferOrder.class);
-        TransferOrderDataObject existing = mock(TransferOrderDataObject.class);
+        TransferOrder existing = mock(TransferOrder.class);
         TransferOrderMapper mapper = mock(TransferOrderMapper.class);
         when(candidate.getFromUserId()).thenReturn(fromUserId);
         when(candidate.getRequestId()).thenReturn(requestId);
@@ -156,13 +156,13 @@ class WalletSemanticCreateRepositoryTest {
                 TransferOrder.class,
                 candidate,
                 existing,
-                () -> when(mapper.insert(any(TransferOrderDataObject.class))).thenReturn(1),
+                () -> when(mapper.insert(any(TransferOrder.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate transfer request"))
-                            .when(mapper).insert(any(TransferOrderDataObject.class));
+                            .when(mapper).insert(any(TransferOrder.class));
                     when(mapper.selectByFromUserIdAndRequestId(fromUserId, requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(mapper).insert(any(TransferOrderDataObject.class)),
+                () -> doThrow(unknown).when(mapper).insert(any(TransferOrder.class)),
                 () -> verify(mapper).selectByFromUserIdAndRequestId(fromUserId, requestId),
                 () -> verify(mapper, never()).selectByFromUserIdAndRequestId(fromUserId, requestId),
                 unknown
@@ -209,7 +209,7 @@ class WalletSemanticCreateRepositoryTest {
     private static Scenario ledgerScenario() {
         String requestId = "wallet:txn:semantic-create";
         WalletTxn candidate = mock(WalletTxn.class);
-        WalletTxnDataObject existing = mock(WalletTxnDataObject.class);
+        WalletTxn existing = mock(WalletTxn.class);
         WalletTxnMapper txnMapper = mock(WalletTxnMapper.class);
         WalletEntryMapper entryMapper = mock(WalletEntryMapper.class);
         when(candidate.getRequestId()).thenReturn(requestId);
@@ -220,13 +220,13 @@ class WalletSemanticCreateRepositoryTest {
                 WalletTxn.class,
                 candidate,
                 existing,
-                () -> when(txnMapper.insert(any(WalletTxnDataObject.class))).thenReturn(1),
+                () -> when(txnMapper.insert(any(WalletTxn.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate wallet transaction"))
-                            .when(txnMapper).insert(any(WalletTxnDataObject.class));
+                            .when(txnMapper).insert(any(WalletTxn.class));
                     when(txnMapper.selectByRequestId(requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(txnMapper).insert(any(WalletTxnDataObject.class)),
+                () -> doThrow(unknown).when(txnMapper).insert(any(WalletTxn.class)),
                 () -> verify(txnMapper).selectByRequestId(requestId),
                 () -> verify(txnMapper, never()).selectByRequestId(requestId),
                 unknown
@@ -236,7 +236,7 @@ class WalletSemanticCreateRepositoryTest {
     private static Scenario adminActionScenario() {
         String requestId = "wallet-admin:semantic-create";
         WalletAdminAction candidate = mock(WalletAdminAction.class);
-        WalletAdminActionDataObject existing = mock(WalletAdminActionDataObject.class);
+        WalletAdminAction existing = mock(WalletAdminAction.class);
         WalletAdminActionMapper mapper = mock(WalletAdminActionMapper.class);
         when(candidate.getRequestId()).thenReturn(requestId);
         DataIntegrityViolationException unknown = unknownFailure("wallet admin action");
@@ -246,13 +246,13 @@ class WalletSemanticCreateRepositoryTest {
                 WalletAdminAction.class,
                 candidate,
                 existing,
-                () -> when(mapper.insert(any(WalletAdminActionDataObject.class))).thenReturn(1),
+                () -> when(mapper.insert(any(WalletAdminAction.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate wallet admin action"))
-                            .when(mapper).insert(any(WalletAdminActionDataObject.class));
+                            .when(mapper).insert(any(WalletAdminAction.class));
                     when(mapper.selectByRequestId(requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(mapper).insert(any(WalletAdminActionDataObject.class)),
+                () -> doThrow(unknown).when(mapper).insert(any(WalletAdminAction.class)),
                 () -> verify(mapper).selectByRequestId(requestId),
                 () -> verify(mapper, never()).selectByRequestId(requestId),
                 unknown

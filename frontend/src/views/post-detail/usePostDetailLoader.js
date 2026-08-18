@@ -12,7 +12,7 @@ import { getPostDetail } from '../../api/services/postService'
 import { usePostDetailActions } from './usePostDetailActions'
 import { usePostDetailDiscussion } from './usePostDetailDiscussion'
 
-export function usePostDetailLoader(emit) {
+export function usePostDetailLoader() {
   const route = useRoute()
   const auth = useAuthStore()
   const prefs = useSocialPrefsStore()
@@ -26,10 +26,6 @@ export function usePostDetailLoader(emit) {
   const loading = ref(false)
   const error = ref('')
   const postRequestTracker = createLatestRequestTracker()
-
-  function emitTrace(traceId) {
-    emit('trace', traceId || '')
-  }
 
   function categoryLabel(id) {
     const categoryId = normalizeOpaqueId(id)
@@ -58,7 +54,6 @@ export function usePostDetailLoader(emit) {
       const resp = await getPostDetail(postId.value)
       if (!postRequestTracker.isCurrent(token)) return
       post.value = resp?.data || null
-      emitTrace(resp?.traceId)
       actions.applyPostLikeOverlay()
 
       if (post.value?.userId) {
@@ -79,7 +74,6 @@ export function usePostDetailLoader(emit) {
     postId,
     meUserId,
     post,
-    emitTrace,
     captureViewScope,
     isCurrentViewScope,
     refreshPost: loadPost
@@ -111,7 +105,6 @@ export function usePostDetailLoader(emit) {
     post,
     meUserId,
     error,
-    emitTrace,
     captureViewScope,
     isCurrentViewScope,
     refreshPost: loadPost,

@@ -3,7 +3,7 @@ package com.nowcoder.community.market.infrastructure.persistence.mapper;
 import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -16,32 +16,32 @@ import java.util.UUID;
 @Mapper
 public interface MarketWalletActionMapper {
 
-    int insert(MarketWalletActionDataObject action);
+    int insert(MarketWalletAction action);
 
-    MarketWalletActionDataObject selectById(@Param("actionId") UUID actionId);
+    MarketWalletAction selectById(@Param("actionId") UUID actionId);
 
-    MarketWalletActionDataObject selectByRequestId(@Param("requestId") String requestId);
+    MarketWalletAction selectByRequestId(@Param("requestId") String requestId);
 
-    MarketWalletActionDataObject selectByOrderAndType(@Param("orderId") UUID orderId, @Param("actionType") String actionType);
+    MarketWalletAction selectByOrderAndType(@Param("orderId") UUID orderId, @Param("actionType") String actionType);
 
-    List<MarketWalletActionDataObject> selectDue(
+    List<MarketWalletAction> selectDue(
             @Param("asOf") Date asOf,
             @Param("maxRetryAttempts") int maxRetryAttempts,
             @Param("limit") int limit
     );
 
-    List<MarketWalletActionDataObject> selectExpiredProcessing(@Param("asOf") Date asOf, @Param("limit") int limit);
+    List<MarketWalletAction> selectExpiredProcessing(@Param("asOf") Date asOf, @Param("limit") int limit);
 
-    List<MarketWalletActionDataObject> selectUnfinishedWithWalletTxn(@Param("limit") int limit);
+    List<MarketWalletAction> selectUnfinishedWithWalletTxn(@Param("limit") int limit);
 
     int claimProcessing(@Param("claim") MarketWalletActionClaim claim);
 
-    MarketWalletActionDataObject selectClaimed(@Param("lease") MarketWalletActionLease lease);
+    MarketWalletAction selectClaimed(@Param("lease") MarketWalletActionLease lease);
 
-    MarketWalletActionDataObject selectClaimedForUpdate(@Param("lease") MarketWalletActionLease lease,
+    MarketWalletAction selectClaimedForUpdate(@Param("lease") MarketWalletActionLease lease,
                                                         @Param("leaseValidAt") Date leaseValidAt);
 
-    MarketWalletActionDataObject selectByIdForUpdate(@Param("actionId") UUID actionId);
+    MarketWalletAction selectByIdForUpdate(@Param("actionId") UUID actionId);
 
     int recordWalletTxn(@Param("lease") MarketWalletActionLease lease,
                         @Param("walletTxnId") UUID walletTxnId,

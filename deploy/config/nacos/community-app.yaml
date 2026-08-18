@@ -107,7 +107,6 @@ auth:
 http:
   idempotency:
     enabled: true
-    store: DB
 
 market:
   order:

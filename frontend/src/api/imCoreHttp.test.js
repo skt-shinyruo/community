@@ -88,7 +88,7 @@ describe('imCoreHttp authentication recovery', () => {
 
   it('records the token generation on the Axios config without leaking a header', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
     mock.onGet('/api/im/ping').reply((config) => [200, {
       auth: config.headers?.Authorization || '',
       generation: config._authTokenGeneration,
@@ -104,10 +104,10 @@ describe('imCoreHttp authentication recovery', () => {
 
   it('uses the shared coordinator token for one retry', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const generation = auth.tokenGeneration
     coordinator.recoverUnauthorized.mockImplementationOnce(async ({ auth: currentAuth }) => {
-      currentAuth.setAccessToken('new-token')
+      currentAuth.installSession({ accessToken: 'new-token' })
       return 'new-token'
     })
     mock.onGet('/api/im/protected')
@@ -126,9 +126,9 @@ describe('imCoreHttp authentication recovery', () => {
 
   it('does not recover twice when the retried IM request also returns 401', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     coordinator.recoverUnauthorized.mockImplementationOnce(async ({ auth: currentAuth }) => {
-      currentAuth.setAccessToken('new-token')
+      currentAuth.installSession({ accessToken: 'new-token' })
       return 'new-token'
     })
     mock.onGet('/api/im/still-unauthorized').reply(401)

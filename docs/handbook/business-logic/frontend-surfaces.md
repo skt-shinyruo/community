@@ -71,7 +71,7 @@
 | --- | --- |
 | `authService.js` | auth |
 | `userService.js`, `adminUserService.js` | user |
-| `postService.js`, `postMediaService.js`, `bookmarkService.js`, `taxonomyService.js`, `subscriptionService.js`, `reportService.js`, `moderationService.js` | content |
+| `postService.js`, `postMediaService.js`, `bookmarkService.js`, `taxonomyService.js`, `reportService.js`, `moderationService.js` | content |
 | `socialService.js`, `blockService.js` | social |
 | `walletService.js` | wallet |
 | `marketService.js` | market |

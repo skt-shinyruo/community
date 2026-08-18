@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.domain.repository.MarketDisputeRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject;
+import com.nowcoder.community.market.domain.model.MarketDispute;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketDisputeMapper;
 import org.springframework.stereotype.Repository;
 
@@ -20,7 +20,7 @@ public class MyBatisMarketDisputeRepository implements MarketDisputeRepository {
 
     @Override
     public int save(MarketDispute dispute) {
-        return mapper.insert(MarketDisputeDataObject.from(dispute));
+        return mapper.insert(dispute);
     }
 
     @Override
@@ -35,16 +35,16 @@ public class MyBatisMarketDisputeRepository implements MarketDisputeRepository {
 
     @Override
     public List<MarketDispute> findByOrderId(UUID orderId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByOrderId(orderId));
+        return mapper.selectByOrderId(orderId);
     }
 
     @Override
     public List<MarketDispute> findOpenDisputes() {
-        return DomainRowAdapter.asDomainList(mapper.selectOpenDisputes());
+        return mapper.selectOpenDisputes();
     }
 
     @Override
     public int saveChanges(MarketDispute dispute) {
-        return mapper.update(MarketDisputeDataObject.from(dispute));
+        return mapper.update(dispute);
     }
 }

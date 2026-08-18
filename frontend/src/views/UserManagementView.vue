@@ -101,7 +101,6 @@ import { useAuthStore } from '../stores/auth'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { showErrorToast, showToast } from '../ui/toastService'
 
-const emit = defineEmits(['trace'])
 const auth = useAuthStore()
 
 const qUserId = ref('')
@@ -162,9 +161,8 @@ async function onSearch() {
   confirmOpen.value = false
   loading.value = true
   try {
-    const { data, traceId } = await adminSearchUser(query)
+    const { data } = await adminSearchUser(query)
     if (!isCurrentSearch(generation, scope)) return
-    emit('trace', traceId || '')
     if (!data) {
       successMsg.value = '未找到用户'
       return
@@ -208,15 +206,13 @@ async function onConfirmUpdate() {
   const auditReason = String(reason.value || '').trim()
   loading.value = true
   try {
-    const { traceId } = await adminUpdateUserRole({
+    await adminUpdateUserRole({
       targetUserId,
       type,
       reason: auditReason,
       confirm: true
     })
     if (!isCurrentAction(generation, scope, targetUserId)) return
-    emit('trace', traceId || '')
-
     user.value = { ...user.value, type }
     successMsg.value = '角色已更新（用户需重新登录/刷新 token 后生效）。'
     showToast({ type: 'success', title: '已更新', text: successMsg.value })

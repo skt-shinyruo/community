@@ -5,7 +5,7 @@
 
 <mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketInventoryUnitMapper">
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">
+    <insert id="insert" parameterType="com.nowcoder.community.market.domain.model.MarketInventoryUnit">
         insert into market_inventory_unit(
             inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status, reserved_order_id, delivered_at
         )
@@ -21,7 +21,7 @@
           and status = 'AVAILABLE'
     </select>
 
-    <select id="selectAvailableForUpdate" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">
+    <select id="selectAvailableForUpdate" resultType="com.nowcoder.community.market.domain.model.MarketInventoryUnit">
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
@@ -32,7 +32,7 @@
         for update
     </select>
 
-    <select id="selectByReservedOrderId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">
+    <select id="selectByReservedOrderId" resultType="com.nowcoder.community.market.domain.model.MarketInventoryUnit">
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
@@ -40,7 +40,7 @@
         order by inventory_unit_id asc
     </select>
 
-    <select id="selectByListingId" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">
+    <select id="selectByListingId" resultType="com.nowcoder.community.market.domain.model.MarketInventoryUnit">
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit
@@ -49,7 +49,7 @@
         limit #{limit} offset #{offset}
     </select>
 
-    <select id="selectById" resultType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject">
+    <select id="selectById" resultType="com.nowcoder.community.market.domain.model.MarketInventoryUnit">
         select inventory_unit_id, listing_id, seller_user_id, payload_type, payload_content, status,
                reserved_order_id, delivered_at, create_time
         from market_inventory_unit

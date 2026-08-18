@@ -6,7 +6,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLeaseRecovery;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,7 +50,7 @@ class MarketWalletActionMapperPersistenceTest {
         MarketWalletAction action = pendingAction("market-order:" + uuid(201) + ":escrow", "ESCROW");
         action.setLeaseToken(uuid(901));
 
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
 
         MarketWalletAction loaded = mapper.selectByRequestId(action.getRequestId());
         assertThat(loaded.getActionId()).isEqualTo(action.getActionId());
@@ -74,7 +74,7 @@ class MarketWalletActionMapperPersistenceTest {
     @Test
     void claimProcessingShouldMovePendingActionToProcessingWithLease() {
         MarketWalletAction action = pendingAction("market-order:" + uuid(202) + ":release", "RELEASE");
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
 
         Date claimedAt = Date.from(Instant.parse("2026-04-25T09:59:00Z"));
         Date leaseUntil = Date.from(Instant.parse("2026-04-25T10:00:00Z"));
@@ -140,7 +140,7 @@ class MarketWalletActionMapperPersistenceTest {
     @Test
     void claimShouldFenceStaleCandidatesBackoffAndRetryBudget() {
         MarketWalletAction action = pendingAction("market-action-claim-cas", "RELEASE");
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
         MarketWalletAction staleCandidate = mapper.selectById(action.getActionId());
         MarketWalletActionLease firstLease = new MarketWalletActionLease(action.getActionId(), uuid(922));
         Date firstClaimedAt = Date.from(Instant.parse("2026-04-25T10:00:00Z"));
@@ -210,9 +210,9 @@ class MarketWalletActionMapperPersistenceTest {
         future.setNextRetryAt(Date.from(Instant.parse("2026-04-25T10:00:01Z")));
         MarketWalletAction exhausted = pendingAction("market-due:exhausted", "RELEASE");
         exhausted.setRetryCount(8);
-        mapper.insert(MarketWalletActionDataObject.from(due));
-        mapper.insert(MarketWalletActionDataObject.from(future));
-        mapper.insert(MarketWalletActionDataObject.from(exhausted));
+        mapper.insert(due);
+        mapper.insert(future);
+        mapper.insert(exhausted);
 
         assertThat(mapper.selectDue(asOf, 8, 10))
                 .extracting(MarketWalletAction::getActionId)
@@ -225,8 +225,8 @@ class MarketWalletActionMapperPersistenceTest {
         Date secondExpiry = Date.from(Instant.parse("2026-04-25T09:59:00Z"));
         MarketWalletAction first = processingAction("market-expired:first", uuid(927), firstExpiry, 0);
         MarketWalletAction second = processingAction("market-expired:second", uuid(928), secondExpiry, 0);
-        mapper.insert(MarketWalletActionDataObject.from(first));
-        mapper.insert(MarketWalletActionDataObject.from(second));
+        mapper.insert(first);
+        mapper.insert(second);
         Date asOf = Date.from(Instant.parse("2026-04-25T10:00:00Z"));
 
         assertThat(mapper.selectExpiredProcessing(asOf, 1))
@@ -254,7 +254,7 @@ class MarketWalletActionMapperPersistenceTest {
     void expiredLeaseRecoveryShouldStopAtRetryBudget() {
         Date expiredAt = Date.from(Instant.parse("2026-04-25T09:59:00Z"));
         MarketWalletAction action = processingAction("market-expired:exhausted", uuid(929), expiredAt, 7);
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
         Date asOf = Date.from(Instant.parse("2026-04-25T10:00:00Z"));
 
         assertThat(mapper.recoverExpiredProcessing(recovery(
@@ -443,7 +443,7 @@ class MarketWalletActionMapperPersistenceTest {
         action.setStatus("FAILED");
         action.setFailureCode("17004");
         action.setRetryCount(7);
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
         Date nextRetryAt = Date.from(Instant.parse("2026-04-25T10:05:00Z"));
 
         assertThat(mapper.rescheduleFailed(
@@ -499,8 +499,8 @@ class MarketWalletActionMapperPersistenceTest {
         MarketWalletAction pending = pendingAction("market-cancel:pending", "ESCROW");
         MarketWalletAction retrying = pendingAction("market-cancel:retrying", "ESCROW");
         retrying.setStatus("RETRYING");
-        mapper.insert(MarketWalletActionDataObject.from(pending));
-        mapper.insert(MarketWalletActionDataObject.from(retrying));
+        mapper.insert(pending);
+        mapper.insert(retrying);
 
         assertThat(mapper.cancelPendingEscrow(pending.getRequestId(), "NOOP")).isEqualTo(1);
         assertThat(mapper.cancelPendingEscrow(retrying.getRequestId(), "NOOP")).isZero();
@@ -516,8 +516,8 @@ class MarketWalletActionMapperPersistenceTest {
         MarketWalletAction second = pendingAction("market-recovery:second", "RELEASE");
         second.setStatus("FAILED");
         second.setWalletTxnId(uuid(926));
-        mapper.insert(MarketWalletActionDataObject.from(first));
-        mapper.insert(MarketWalletActionDataObject.from(second));
+        mapper.insert(first);
+        mapper.insert(second);
         MarketWalletAction selected = mapper.selectUnfinishedWithWalletTxn(1).get(0);
 
         assertThat(mapper.deferWalletTxnRecovery(
@@ -537,7 +537,7 @@ class MarketWalletActionMapperPersistenceTest {
 
     private MarketWalletActionLease claimFreshAction(int seed, UUID token) {
         MarketWalletAction action = pendingAction("market-action-fencing:" + seed, "RELEASE");
-        mapper.insert(MarketWalletActionDataObject.from(action));
+        mapper.insert(action);
         MarketWalletActionLease lease = new MarketWalletActionLease(action.getActionId(), token);
         Date claimedAt = Date.from(Instant.parse("2026-04-25T10:00:00Z"));
         Date leaseUntil = Date.from(Instant.parse("2026-04-25T10:01:00Z"));

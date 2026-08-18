@@ -15,7 +15,6 @@
       <p v-if="description || $slots.description" class="ui-state-description">
         <slot name="description">{{ description }}</slot>
       </p>
-      <p v-if="traceId" class="ui-state-trace">Trace ID: {{ traceId }}</p>
       <div v-if="$slots.actions" class="ui-state-actions">
         <slot name="actions" />
       </div>
@@ -31,8 +30,7 @@ defineOptions({ name: 'UiState' })
 const props = defineProps({
   variant: { type: String, default: 'empty' },
   title: { type: String, default: '' },
-  description: { type: String, default: '' },
-  traceId: { type: String, default: '' }
+  description: { type: String, default: '' }
 })
 
 const variants = ['empty', 'error', 'development']

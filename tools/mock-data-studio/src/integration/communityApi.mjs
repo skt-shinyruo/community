@@ -1,9 +1,5 @@
 import { createHmac } from 'node:crypto'
 
-function resolveCommunityBaseUrl(config) {
-  return config?.communityBaseUrl ?? config?.upstreams?.communityAppBaseUrl
-}
-
 function encodeBase64UrlJson(value) {
   return Buffer.from(JSON.stringify(value)).toString('base64url')
 }
@@ -54,7 +50,7 @@ export function createCommunityApi({ config, fetchImpl = globalThis.fetch } = {}
     throw new Error('fetch implementation is required')
   }
 
-  const communityBaseUrl = resolveCommunityBaseUrl(config)
+  const communityBaseUrl = config?.communityBaseUrl
 
   if (!communityBaseUrl) {
     throw new Error('community base URL is required')

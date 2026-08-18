@@ -8,21 +8,12 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "im.room-fanout")
 public class RoomFanoutProperties {
 
-    private String ownerGroupId = "im-realtime-room-fanout-owner";
     private String routedCommandTopic = "im.command.room-fanout-routed";
     private int routedCommandPartitions = 64;
     private Integer workerInboxSlot;
     private String workerInboxSlotMetadataKey = "roomFanoutInboxSlot";
     private Duration workerDirectoryCacheTtl = Duration.ofMillis(500);
     private Duration publishTimeout = Duration.ofSeconds(1);
-
-    public String getOwnerGroupId() {
-        return ownerGroupId;
-    }
-
-    public void setOwnerGroupId(String ownerGroupId) {
-        this.ownerGroupId = ownerGroupId;
-    }
 
     public String getRoutedCommandTopic() {
         return routedCommandTopic;

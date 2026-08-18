@@ -158,7 +158,6 @@ describe('NoticeDetailView', () => {
 
     expect(wrapper.text()).toContain('你的内容收到了新的点赞')
     expect(wrapper.text()).not.toContain('有人回复了你的内容')
-    expect(wrapper.emitted('trace')).toEqual([['trace-like']])
   })
 
   it('does not refresh the new identity after an old mark-read request completes', async () => {
@@ -203,6 +202,5 @@ describe('NoticeDetailView', () => {
     expect(listNotices).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('你收到了新的关注')
     expect(wrapper.text()).not.toContain('有人回复了你的内容')
-    expect(wrapper.emitted('trace')).toEqual([['trace-user-a'], ['trace-user-b']])
   })
 })

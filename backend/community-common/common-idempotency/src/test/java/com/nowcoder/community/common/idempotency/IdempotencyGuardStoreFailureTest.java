@@ -41,8 +41,6 @@ class IdempotencyGuardStoreFailureTest {
                 .isInstanceOfAny(IllegalStateException.class, com.nowcoder.community.common.exception.BusinessException.class);
 
         assertThat(supplierCalls).hasValue(1);
-        verify(store, never()).extendProcessing(anyString(), any(), anyString(), any(Duration.class));
-        verify(store, never()).delete(anyString(), any(), anyString());
     }
 
     @Test
@@ -59,8 +57,6 @@ class IdempotencyGuardStoreFailureTest {
                 "op", USER_ID, "k1", "hash-1", null, String.class, () -> "OK"))
                 .isSameAs(failure);
 
-        verify(store, never()).extendProcessing(anyString(), any(), anyString(), any(Duration.class));
-        verify(store, never()).delete(anyString(), any(), anyString());
     }
 
     @Test
@@ -77,8 +73,6 @@ class IdempotencyGuardStoreFailureTest {
                 }))
                 .isSameAs(failure);
 
-        verify(store, never()).extendProcessing(anyString(), any(), anyString(), any(Duration.class));
-        verify(store, never()).delete(anyString(), any(), anyString());
         verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
     }
 

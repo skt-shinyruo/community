@@ -63,19 +63,20 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const auth = useAuthStore()
 const error = ref('')
 const submittingKey = ref('')
 const actions = ref([])
-let actionGeneration = 0
 
 const sessionScope = computed(() => [
   auth.tokenGeneration,
   normalizeOpaqueId(auth.userId),
   auth.authed ? 'authenticated' : 'anonymous'
 ].join(':'))
+const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 const freezeForm = ref({
   userId: '',
@@ -98,10 +99,6 @@ function pushAction(label, text) {
   ].slice(0, 10)
 }
 
-function isCurrentAction(generation, scope) {
-  return generation === actionGeneration && scope === sessionScope.value
-}
-
 async function submitFreeze() {
   const userId = normalizeOpaqueId(freezeForm.value.userId)
   const reason = String(freezeForm.value.reason || '').trim()
@@ -114,21 +111,20 @@ async function submitFreeze() {
     return
   }
 
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   submittingKey.value = 'freeze'
   error.value = ''
   try {
     await freezeWallet({ userId, reason })
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     pushAction('已冻结钱包', `用户 ${userId} · ${reason}`)
     freezeForm.value.userId = ''
     freezeForm.value.reason = ''
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '冻结失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submittingKey.value = ''
+    if (actionTracker.isCurrent(requestHandle)) submittingKey.value = ''
   }
 }
 
@@ -144,26 +140,25 @@ async function submitReverse() {
     return
   }
 
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   submittingKey.value = 'reverse'
   error.value = ''
   try {
     await reverseWalletTxn({ txnRef, reason })
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     pushAction('已提交回滚', `${txnRef} · ${reason}`)
     reverseForm.value.txnRef = ''
     reverseForm.value.reason = ''
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '回滚失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submittingKey.value = ''
+    if (actionTracker.isCurrent(requestHandle)) submittingKey.value = ''
   }
 }
 
 watch(sessionScope, () => {
-  actionGeneration += 1
+  actionTracker.invalidate()
   error.value = ''
   submittingKey.value = ''
   actions.value = []
@@ -171,7 +166,7 @@ watch(sessionScope, () => {
   reverseForm.value = { txnRef: '', reason: '' }
 })
 onBeforeUnmount(() => {
-  actionGeneration += 1
+  actionTracker.invalidate()
 })
 </script>
 

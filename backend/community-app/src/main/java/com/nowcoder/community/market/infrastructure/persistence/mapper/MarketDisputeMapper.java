@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDisputeDataObject;
+import com.nowcoder.community.market.domain.model.MarketDispute;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -12,15 +12,15 @@ import java.util.UUID;
 @Mapper
 public interface MarketDisputeMapper {
 
-    int insert(MarketDisputeDataObject dispute);
+    int insert(MarketDispute dispute);
 
-    MarketDisputeDataObject selectById(@Param("disputeId") UUID disputeId);
+    MarketDispute selectById(@Param("disputeId") UUID disputeId);
 
-    MarketDisputeDataObject selectByIdForUpdate(@Param("disputeId") UUID disputeId);
+    MarketDispute selectByIdForUpdate(@Param("disputeId") UUID disputeId);
 
-    List<MarketDisputeDataObject> selectByOrderId(@Param("orderId") UUID orderId);
+    List<MarketDispute> selectByOrderId(@Param("orderId") UUID orderId);
 
-    List<MarketDisputeDataObject> selectOpenDisputes();
+    List<MarketDispute> selectOpenDisputes();
 
-    int update(MarketDisputeDataObject dispute);
+    int update(MarketDispute dispute);
 }

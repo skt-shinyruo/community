@@ -87,6 +87,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { createMarketListing } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const DEFAULT_MESSAGE = '发布后可从“我的出售”继续管理库存和订单。'
@@ -95,7 +96,6 @@ const form = ref(emptyListingForm())
 const inventoryText = ref('')
 const submitting = ref(false)
 const message = ref(DEFAULT_MESSAGE)
-let submitGeneration = 0
 
 const isVirtual = computed(() => form.value.goodsType === 'VIRTUAL')
 const sessionScope = computed(() => [
@@ -103,6 +103,7 @@ const sessionScope = computed(() => [
   normalizeOpaqueId(auth.userId),
   auth.authed ? 'authenticated' : 'anonymous'
 ].join(':'))
+const submitTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 function emptyListingForm() {
   return {
@@ -117,8 +118,8 @@ function emptyListingForm() {
   }
 }
 
-function isCurrentSubmit(generation, scope) {
-  return generation === submitGeneration && scope === sessionScope.value && auth.authed
+function isCurrentSubmit(requestHandle) {
+  return submitTracker.isCurrent(requestHandle) && auth.authed
 }
 
 async function submit() {
@@ -134,8 +135,7 @@ async function submit() {
     return
   }
 
-  const generation = ++submitGeneration
-  const scope = sessionScope.value
+  const requestHandle = submitTracker.begin()
   const currentForm = { ...form.value }
   submitting.value = true
   message.value = ''
@@ -159,19 +159,19 @@ async function submit() {
     }
 
     await createMarketListing(payload)
-    if (!isCurrentSubmit(generation, scope)) return
+    if (!isCurrentSubmit(requestHandle)) return
     message.value = '发布成功，继续前往我的出售查看商品状态。'
     inventoryText.value = ''
   } catch (e) {
-    if (!isCurrentSubmit(generation, scope)) return
+    if (!isCurrentSubmit(requestHandle)) return
     message.value = e?.message || '发布失败'
   } finally {
-    if (isCurrentSubmit(generation, scope)) submitting.value = false
+    if (isCurrentSubmit(requestHandle)) submitting.value = false
   }
 }
 
 watch(sessionScope, () => {
-  submitGeneration += 1
+  submitTracker.invalidate()
   form.value = emptyListingForm()
   inventoryText.value = ''
   submitting.value = false
@@ -179,6 +179,6 @@ watch(sessionScope, () => {
 })
 
 onBeforeUnmount(() => {
-  submitGeneration += 1
+  submitTracker.invalidate()
 })
 </script>

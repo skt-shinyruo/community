@@ -87,7 +87,6 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiState from '../components/ui/UiState.vue'
 import { useConversationDetailWorkflow } from './useConversationDetailWorkflow'
 
-defineEmits(['trace'])
 const props = defineProps({ conversationId: String })
 const chatArea = ref(null)
 const conversationId = computed(() => props.conversationId)

@@ -18,12 +18,11 @@ import org.springframework.jdbc.core.JdbcTemplate;
 public class JdbcIdempotencyAutoConfiguration {
 
     @Bean
-    @ConditionalOnProperty(prefix = "http.idempotency", name = "store", havingValue = "DB")
     @ConditionalOnMissingBean(IdempotencyStore.class)
     public TransactionalIdempotencyStore idempotencyStore(ObjectProvider<JdbcTemplate> jdbcTemplateProvider) {
         JdbcTemplate jdbcTemplate = jdbcTemplateProvider == null ? null : jdbcTemplateProvider.getIfAvailable();
         if (jdbcTemplate == null) {
-            throw new IllegalStateException("http.idempotency.store=DB 需要 JdbcTemplate");
+            throw new IllegalStateException("http.idempotency.enabled=true 需要 JdbcTemplate");
         }
         return new JdbcIdempotencyStore(jdbcTemplate);
     }

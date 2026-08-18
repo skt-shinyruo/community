@@ -92,7 +92,7 @@ describe('SettingsView', () => {
     setActivePinia(pinia)
 
     const auth = useAuthStore()
-    auth.setAccessToken('token')
+    auth.installSession({ accessToken: 'token' })
     auth.setMe({
       userId: 7,
       username: 'aaa',

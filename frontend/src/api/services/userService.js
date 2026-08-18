@@ -79,7 +79,7 @@ function normalizeUserLevelProfileFields(raw) {
   }
 }
 
-function normalizeUserProfile(raw, traceId) {
+function normalizeUserProfile(raw) {
   const source = raw && typeof raw === 'object' && !Array.isArray(raw) ? raw : {}
   const profile = {}
   for (const field of USER_PROFILE_CACHE_FIELDS) {
@@ -88,8 +88,7 @@ function normalizeUserProfile(raw, traceId) {
   if (Object.hasOwn(profile, 'id')) profile.id = normalizeOpaqueId(profile.id)
   return {
     ...profile,
-    ...normalizeUserLevelProfileFields(source),
-    _traceId: traceId
+    ...normalizeUserLevelProfileFields(source)
   }
 }
 
@@ -112,8 +111,8 @@ export async function getUserProfile(userId, { force = false } = {}) {
   })
   const p = (async () => {
     const resp = await http.get(`/api/users/${uid}`)
-    const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
-    const value = normalizeUserProfile(data, traceId)
+    const { data } = unwrapResultBody(resp.data, '获取用户信息')
+    const value = normalizeUserProfile(data)
     if (request.cacheable) {
       writeCachedProfile(uid, value)
     }

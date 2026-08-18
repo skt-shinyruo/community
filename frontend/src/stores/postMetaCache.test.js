@@ -75,7 +75,6 @@ describe('stores/postMetaCache', () => {
     expect(users).toEqual({
       [userId]: summary
     })
-    expect(store.getUser(userId)).toEqual(summary)
   })
 
   it('should reject like count responses that omit requested entity ids', async () => {

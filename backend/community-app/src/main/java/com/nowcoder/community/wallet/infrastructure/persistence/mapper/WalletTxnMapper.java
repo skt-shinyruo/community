@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -11,9 +11,9 @@ import java.util.UUID;
 @Mapper
 public interface WalletTxnMapper {
 
-    WalletTxnDataObject selectByRequestId(@Param("requestId") String requestId);
+    WalletTxn selectByRequestId(@Param("requestId") String requestId);
 
-    int insert(WalletTxnDataObject txn);
+    int insert(WalletTxn txn);
 
     int markSucceeded(@Param("txnId") UUID txnId);
 }

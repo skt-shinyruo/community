@@ -94,7 +94,6 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 
-const emit = defineEmits(['trace'])
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
@@ -121,10 +120,9 @@ async function load() {
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await topicSummary()
+    const { data } = await topicSummary()
     if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
     items.value = Array.isArray(data) ? data : []
-    emit('trace', traceId || '')
   } catch (e) {
     if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
     error.value = e?.message || '加载通知失败'

@@ -146,8 +146,6 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `im.infrastructure.event.ImPolicyBackboneKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `notice.infrastructure.event.NoticeProjectionKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
-| `runtime.application.RuntimeConfigApplicationService` | `Covered` | [Runtime Configuration](core-logic/runtime-configuration.md) |
-| `runtime.controller.RuntimeConfigController` | `IndexOnly` | [Runtime Configuration](core-logic/runtime-configuration.md) |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `social.application.SocialEventDispatchApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `social.infrastructure.event.SocialEventKafkaOutboxHandler` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
@@ -164,7 +162,6 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `im.core.domain.service.PrivateMessageDomainService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.domain.service.RoomMembershipDomainService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.core.domain.service.RoomMessageDomainService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
-| `im.core.domain.service.UnreadDomainService` | `IndexOnly` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.realtime.fanout.RoomFanoutOwnerService` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.realtime.fanout.KafkaRoomFanoutDispatcher` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |
 | `im.realtime.fanout.RoomFanoutTargetConsumer` | `Covered` | [IM Core Runtime](core-logic/im-core-runtime.md) |

@@ -3,7 +3,7 @@ package com.nowcoder.community.notice.infrastructure.persistence.dataobject;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.model.NoticeTopicSummary;
 
-public class NoticeTopicSummaryDataObject extends NoticeRecordDataObject {
+public class NoticeTopicSummaryDataObject extends NoticeRecord {
 
     private int noticeCount;
     private int unreadCount;

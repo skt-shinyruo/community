@@ -52,12 +52,8 @@ class ArchitectureModuleInventoryTest {
     void moduleClassificationsMustNotOverlap() {
         assertThat(ArchitectureRulesSupport.CORE_DOMAINS)
                 .doesNotContainAnyElementsOf(ArchitectureRulesSupport.ADAPTER_DOMAINS)
-                .doesNotContainAnyElementsOf(ArchitectureRulesSupport.PLATFORM_MODULES)
                 .doesNotContainAnyElementsOf(ArchitectureRulesSupport.TECHNICAL_ROOTS);
         assertThat(ArchitectureRulesSupport.ADAPTER_DOMAINS)
-                .doesNotContainAnyElementsOf(ArchitectureRulesSupport.PLATFORM_MODULES)
-                .doesNotContainAnyElementsOf(ArchitectureRulesSupport.TECHNICAL_ROOTS);
-        assertThat(ArchitectureRulesSupport.PLATFORM_MODULES)
                 .doesNotContainAnyElementsOf(ArchitectureRulesSupport.TECHNICAL_ROOTS);
     }
 

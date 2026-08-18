@@ -7,10 +7,6 @@ import { safeJsonParse } from './safeJson'
 const STORAGE_KEY = 'community.read.posts.v1'
 const MAX_ITEMS = 800
 
-function nowMs() {
-  return Date.now()
-}
-
 function storageKey(identityId) {
   const identity = normalizeOpaqueId(identityId)
   return identity ? `${STORAGE_KEY}.${encodeURIComponent(identity)}` : STORAGE_KEY
@@ -38,10 +34,6 @@ function saveState(state, identityId) {
   }
 }
 
-function normalizePostId(postId) {
-  return normalizeOpaqueId(postId)
-}
-
 function pruneItems(items) {
   const entries = Object.entries(items || {})
     .map(([k, v]) => /** @type {[string, number]} */ ([String(k), Number(v || 0)]))
@@ -61,7 +53,7 @@ function pruneItems(items) {
 export function getPostsListBaselineAt({ identityId } = {}) {
   const state = loadState(identityId)
   const prev = Number(state.lastSeenAt || 0)
-  const now = nowMs()
+  const now = Date.now()
   return prev > 0 ? prev : now
 }
 
@@ -70,7 +62,7 @@ export function getPostsListBaselineAt({ identityId } = {}) {
 export function touchPostsListSeen({ identityId } = {}) {
   const state = loadState(identityId)
   const prev = Number(state.lastSeenAt || 0)
-  const now = nowMs()
+  const now = Date.now()
 
   // 首次访问：不希望全量显示“未读”，因此 baseline 直接设为 now。
   const baseline = prev > 0 ? prev : now
@@ -87,8 +79,8 @@ export function touchPostsListSeen({ identityId } = {}) {
  * @param {unknown} postId
  * @param {{ at?: number, identityId?: unknown }} [options]
  */
-export function markPostRead(postId, { at = nowMs(), identityId } = {}) {
-  const id = normalizePostId(postId)
+export function markPostRead(postId, { at = Date.now(), identityId } = {}) {
+  const id = normalizeOpaqueId(postId)
   if (!id) return
 
   const state = loadState(identityId)
@@ -106,7 +98,7 @@ export function markPostRead(postId, { at = nowMs(), identityId } = {}) {
 
 /** @param {unknown} postId @param {{ identityId?: unknown }} [options] */
 export function getPostReadAt(postId, { identityId } = {}) {
-  const id = normalizePostId(postId)
+  const id = normalizeOpaqueId(postId)
   if (!id) return 0
   const state = loadState(identityId)
   const v = Number(state?.items?.[String(id)] || 0)

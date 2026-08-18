@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketShipment;
 import com.nowcoder.community.market.domain.repository.MarketShipmentRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketShipmentDataObject;
+import com.nowcoder.community.market.domain.model.MarketShipment;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketShipmentMapper;
 import org.springframework.stereotype.Repository;
 
@@ -19,7 +19,7 @@ public class MyBatisMarketShipmentRepository implements MarketShipmentRepository
 
     @Override
     public int save(MarketShipment shipment) {
-        return mapper.insert(MarketShipmentDataObject.from(shipment));
+        return mapper.insert(shipment);
     }
 
     @Override

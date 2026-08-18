@@ -13,7 +13,7 @@ import { buildCanonicalConversationId } from './conversationDetailState'
 import { buildCommunityNextSteps, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
-export function useUserProfilePage({ userId: userIdSource, onTrace = () => {} }) {
+export function useUserProfilePage({ userId: userIdSource }) {
   const auth = useAuthStore()
   const postMetaCache = usePostMetaCacheStore()
   const prefs = useSocialPrefsStore()
@@ -81,10 +81,6 @@ export function useUserProfilePage({ userId: userIdSource, onTrace = () => {} })
     usersById: timelineUsers.value,
     limit: 6
   }))
-
-  function emitTrace(traceId) {
-    onTrace(traceId || '')
-  }
 
   function reloadIsCurrent(generation, scope) {
     return generation === reloadGeneration && scope === viewScope.value
@@ -162,10 +158,6 @@ export function useUserProfilePage({ userId: userIdSource, onTrace = () => {} })
         followStatusState.value = 'idle'
       }
 
-      emitTrace(profileResult.value?._traceId)
-      if (postsResult.ok) emitTrace(postsResult.value?.traceId)
-      if (commentsResult.ok) emitTrace(commentsResult.value?.traceId)
-      if (loadFollowStatus && nextFollowResult.ok) emitTrace(nextFollowResult.value?.traceId)
     } catch (cause) {
       if (reloadIsCurrent(generation, scope)) error.value = cause?.message || '加载失败'
     } finally {
@@ -204,11 +196,9 @@ export function useUserProfilePage({ userId: userIdSource, onTrace = () => {} })
     const action = beginAction()
     if (!action) return
     try {
-      const response = following
-        ? await followUser(3, action.targetId)
-        : await unfollowUser(3, action.targetId)
+      if (following) await followUser(3, action.targetId)
+      else await unfollowUser(3, action.targetId)
       if (!actionIsCurrent(action)) return
-      emitTrace(response?.traceId)
       await reload()
     } catch (cause) {
       if (actionIsCurrent(action)) error.value = cause?.message || '关注操作失败'

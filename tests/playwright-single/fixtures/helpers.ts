@@ -1,4 +1,4 @@
-import { expect, type APIRequestContext, type Locator, type Page } from '@playwright/test'
+import { expect, type APIRequestContext, type Page } from '@playwright/test'
 
 export const webBaseUrl = (process.env.SINGLE_WEB_BASE_URL || 'http://localhost:12881').replace(/\/$/, '')
 export const apiBaseUrl = (process.env.SINGLE_API_BASE_URL || 'http://localhost:12880').replace(/\/$/, '')
@@ -23,21 +23,4 @@ export async function expectFrontendReachable(request: APIRequestContext): Promi
 
 export async function gotoHash(page: Page, hashPath: string): Promise<void> {
   await page.goto(appUrl(hashPath))
-}
-
-export async function fillByLabelOrPlaceholder(page: Page, name: string, value: string): Promise<void> {
-  const byRole = page.getByRole('textbox', { name }).first()
-  if (await byRole.count()) {
-    await byRole.fill(value)
-    return
-  }
-  await page.getByPlaceholder(name).fill(value)
-}
-
-export async function clickFirst(locator: Locator): Promise<void> {
-  await locator.first().click()
-}
-
-export async function expectText(page: Page, text: string | RegExp): Promise<void> {
-  await expect(page.getByText(text).first()).toBeVisible()
 }

@@ -5,7 +5,7 @@ import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import com.nowcoder.community.growth.domain.repository.UserLevelRuleConfigRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
-import com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserLevelRuleConfigDataObject;
+import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserLevelRuleConfigMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper;
@@ -92,7 +92,7 @@ class GrowthCreationOutcomeRepositoryTest {
     void levelConfigCreateShouldReloadSingletonBeforeReturningAlreadyExists() {
         UserLevelRuleConfigMapper mapper = mock(UserLevelRuleConfigMapper.class);
         UserLevelRuleConfig candidate = levelConfig(uuid(4), 120);
-        UserLevelRuleConfigDataObject existing = UserLevelRuleConfigDataObject.from(levelConfig(uuid(5), 90));
+        UserLevelRuleConfig existing = levelConfig(uuid(5), 90);
         when(mapper.insert(any())).thenThrow(new DuplicateKeyException("uk_user_level_rule_config_key"));
         when(mapper.selectCurrent()).thenReturn(existing);
 
@@ -109,7 +109,7 @@ class GrowthCreationOutcomeRepositoryTest {
         UserLevelRuleConfig candidate = levelConfig(uuid(4), 120);
         DataIntegrityViolationException failure = new DataIntegrityViolationException("unknown constraint");
         when(mapper.insert(any())).thenThrow(failure);
-        when(mapper.selectCurrent()).thenReturn(UserLevelRuleConfigDataObject.from(levelConfig(uuid(5), 90)));
+        when(mapper.selectCurrent()).thenReturn(levelConfig(uuid(5), 90));
 
         assertThatThrownBy(() -> new MyBatisUserLevelRuleConfigRepository(mapper).create(candidate))
                 .isSameAs(failure);

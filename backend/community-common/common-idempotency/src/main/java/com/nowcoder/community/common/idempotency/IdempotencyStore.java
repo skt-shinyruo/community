@@ -28,10 +28,6 @@ public interface IdempotencyStore {
      */
     boolean saveSuccess(String operation, UUID userId, String key, String requestHash, String successJson, Duration ttl);
 
-    void extendProcessing(String operation, UUID userId, String key, Duration ttl);
-
-    void delete(String operation, UUID userId, String key);
-
     enum Status {
         PROCESSING,
         SUCCESS,

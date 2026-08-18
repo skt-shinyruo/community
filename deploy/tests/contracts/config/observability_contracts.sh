@@ -24,13 +24,7 @@ required_files=(
   "backend/community-oss/src/main/resources/application.yml"
   "${contract_dir}/README.md"
   "${contract_dir}/required-resource-fields.txt"
-  "${contract_dir}/metric-families.txt"
-  "${contract_dir}/allowed-metric-dimensions.txt"
   "${contract_dir}/forbidden-observability-fields.txt"
-  "${contract_dir}/manual-span-names.txt"
-  "deploy/observability/production/README.md"
-  "deploy/observability/production/collector-agent.yml"
-  "deploy/observability/production/collector-gateway.yml"
 )
 
 for file in "${required_files[@]}"; do
@@ -63,110 +57,6 @@ if rg -n 'logstash-logback-encoder|community-common-observability' \
   backend/*/pom.xml backend/community-im/*/pom.xml >/dev/null; then
   fail "retired custom logging dependencies remain in backend deployables"
 fi
-
-for file in deploy/observability/production/collector-agent.yml deploy/observability/production/collector-gateway.yml; do
-  for token in receivers processors exporters service; do
-    if ! rg -n "^${token}:" "${file}" >/dev/null; then
-      fail "collector template ${file} missing top-level ${token}"
-    fi
-  done
-  if ! rg -n "^  pipelines:" "${file}" >/dev/null; then
-    fail "collector template ${file} missing service pipelines"
-  fi
-done
-
-if ! rg -n '^  tail_sampling:' deploy/observability/production/collector-gateway.yml >/dev/null; then
-  fail "gateway collector template must include tail_sampling"
-fi
-
-if ! rg -n '^  attributes/drop_sensitive:' deploy/observability/production/collector-gateway.yml >/dev/null; then
-  fail "gateway collector template must include sensitive attribute deletion"
-fi
-
-require_gateway_redaction_delete() {
-  local redaction_key="$1"
-
-  if ! awk -v required_key="${redaction_key}" '
-    /^  attributes\/drop_sensitive:$/ {
-      in_processor = 1
-      next
-    }
-    in_processor && /^  [^[:space:]][^:]*:$/ {
-      exit found ? 0 : 1
-    }
-    in_processor && /^    actions:$/ {
-      in_actions = 1
-      next
-    }
-    in_actions && /^    [^[:space:]][^:]*:$/ {
-      exit found ? 0 : 1
-    }
-    in_actions && /^      - key: / {
-      pending_key = ($0 == "      - key: " required_key)
-      next
-    }
-    in_actions && pending_key && /^        action: delete$/ {
-      found = 1
-      exit 0
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' deploy/observability/production/collector-gateway.yml; then
-    fail "gateway collector template must delete sensitive attribute: ${redaction_key}"
-  fi
-}
-
-reject_gateway_redaction_delete() {
-  local redaction_key="$1"
-
-  if awk -v rejected_key="${redaction_key}" '
-    /^  attributes\/drop_sensitive:$/ {
-      in_processor = 1
-      next
-    }
-    in_processor && /^  [^[:space:]][^:]*:$/ {
-      exit found ? 0 : 1
-    }
-    in_processor && /^    actions:$/ {
-      in_actions = 1
-      next
-    }
-    in_actions && /^    [^[:space:]][^:]*:$/ {
-      exit found ? 0 : 1
-    }
-    in_actions && /^      - key: / {
-      pending_key = ($0 == "      - key: " rejected_key)
-      next
-    }
-    in_actions && pending_key && /^        action: delete$/ {
-      found = 1
-      exit 0
-    }
-    END {
-      exit found ? 0 : 1
-    }
-  ' deploy/observability/production/collector-gateway.yml; then
-    fail "gateway collector template must preserve correlation attribute: ${redaction_key}"
-  fi
-}
-
-while IFS= read -r redaction_key; do
-  case "${redaction_key}" in
-    '' | '#'* | 'trace.id' | 'span.id')
-      continue
-      ;;
-  esac
-  require_gateway_redaction_delete "${redaction_key}"
-done <"${contract_dir}/forbidden-observability-fields.txt"
-
-for redaction_key in http.request.body http.response.body db.statement.parameters redis.key messaging.message.body; do
-  require_gateway_redaction_delete "${redaction_key}"
-done
-
-for correlation_key in trace.id span.id; do
-  reject_gateway_redaction_delete "${correlation_key}"
-done
 
 unfinished_pattern='TB''D|TO''DO|FIX''ME|place''holder|to be ''decided'
 if rg -n "${unfinished_pattern}" "${handbook}" "${contract_dir}" >/dev/null; then

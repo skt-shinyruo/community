@@ -64,7 +64,6 @@ import UiPagination from '../components/ui/UiPagination.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 
-const emit = defineEmits(['trace'])
 const props = defineProps({
   relationKind: {
     type: String,
@@ -93,8 +92,7 @@ const {
   refresh
 } = useFollowRelationListState({
   relationKind: toRef(props, 'relationKind'),
-  profileUserId: toRef(props, 'userId'),
-  emitTrace: (traceId) => emit('trace', traceId)
+  profileUserId: toRef(props, 'userId')
 })
 
 defineExpose({ cursorHistory, load })

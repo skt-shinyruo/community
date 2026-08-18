@@ -1,6 +1,6 @@
 package com.nowcoder.community.growth.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserLevelRuleConfigDataObject;
+import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
 import org.apache.ibatis.annotations.Mapper;
 import org.springframework.stereotype.Repository;
 
@@ -8,9 +8,9 @@ import org.springframework.stereotype.Repository;
 @Mapper
 public interface UserLevelRuleConfigMapper {
 
-    UserLevelRuleConfigDataObject selectCurrent();
+    UserLevelRuleConfig selectCurrent();
 
-    int updateCurrent(UserLevelRuleConfigDataObject config);
+    int updateCurrent(UserLevelRuleConfig config);
 
-    int insert(UserLevelRuleConfigDataObject config);
+    int insert(UserLevelRuleConfig config);
 }

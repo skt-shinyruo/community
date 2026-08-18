@@ -104,7 +104,7 @@ describe('LoginView', () => {
 
     const wrapper = mountView()
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     auth.setMe({ userId: 7, username: 'alice' })
     const installSession = vi.spyOn(auth, 'installSession')
     let profileSeenByBootstrap = 'not-called'

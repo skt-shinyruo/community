@@ -141,10 +141,6 @@ search:
     consumer:
       group-id: ${SEARCH_KAFKA_CONSUMER_GROUP_ID:search-post-projection}
       concurrency: ${SEARCH_KAFKA_CONSUMER_CONCURRENCY:3}
-  idempotency:
-    cleanup-enabled: false
-    retention-days: 1
-
 analytics:
   max-days-range: 31
   ingest:
@@ -171,7 +167,6 @@ clients:
 http:
   idempotency:
     enabled: true
-    store: DB
 
 market:
   scheduling:

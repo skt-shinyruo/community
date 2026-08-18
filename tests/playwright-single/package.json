@@ -4,13 +4,11 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "health": "node scripts/health-check.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "test": "npm run test:regression",
     "test:smoke": "playwright test --grep @smoke",
     "test:regression": "playwright test --grep @regression",
     "test:headed": "playwright test --headed --grep @regression",
-    "report": "node scripts/markdown-report.mjs",
     "show-report": "playwright show-report playwright-report"
   },
   "devDependencies": {

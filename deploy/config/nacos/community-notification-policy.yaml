@@ -1,11 +1,3 @@
 notice:
   channels:
-    email-enabled: true
     in-app-enabled: true
-  templates:
-    sender-display-name: Community
-    default-title: Community notification
-    default-link-path: /notifications
-  digest:
-    enabled: false
-    window: PT1H

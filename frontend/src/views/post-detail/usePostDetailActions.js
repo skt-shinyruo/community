@@ -17,7 +17,22 @@ import {
   updateComment,
   updatePost
 } from '../../api/services/postService'
-import { isDangerConfirmation, resolvePostDetailConfirmation } from './usePostDetailModeration'
+
+const CONFIRMATION_COPY = {
+  top: ['确认置顶', (postId) => `是否将帖子 #${postId} 置顶？`],
+  wonderful: ['确认加精', (postId) => `是否将帖子 #${postId} 加精？`],
+  delete: ['确认删除', (postId) => `是否删除帖子 #${postId}？删除后列表将不再展示。`],
+  authorDelete: ['确认删除', (postId) => `是否删除帖子 #${postId}？该操作会将帖子标记为已删除。`]
+}
+
+function isDangerConfirmation(type) {
+  return type === 'delete' || type === 'authorDelete'
+}
+
+function resolveConfirmation(type, postId) {
+  const [title, message] = CONFIRMATION_COPY[type] || ['确认操作', () => '是否继续？']
+  return { title, message: message(postId) }
+}
 
 function isWithinEditWindow(createTime, windowMs) {
   const createdAt = new Date(createTime).getTime()
@@ -32,7 +47,6 @@ export function usePostDetailActions({
   post,
   meUserId,
   error,
-  emitTrace,
   captureViewScope,
   isCurrentViewScope,
   refreshPost,
@@ -106,7 +120,6 @@ export function usePostDetailActions({
       if (!followStatusRequestTracker.isCurrent(token)) return
       if (auth.tokenGeneration !== authGeneration) return
       if (!sameOpaqueId(post.value?.userId, expectedUserId)) return
-      emitTrace(resp?.traceId || '')
       followStatus.value = resp?.data ?? null
     } catch {
       if (followStatusRequestTracker.isCurrent(token)) followStatus.value = null
@@ -121,7 +134,6 @@ export function usePostDetailActions({
     try {
       const resp = await setLike({ entityType: 1, entityId: targetPostId, liked: null })
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       const likeData = resp?.data && typeof resp.data === 'object'
         ? /** @type {Record<string, any>} */ (resp.data)
         : {}
@@ -146,11 +158,9 @@ export function usePostDetailActions({
     const targetUserId = normalizeOpaqueId(post.value.userId)
     loading.value = true
     try {
-      const resp = doFollow
-        ? await followUser(3, targetUserId)
-        : await unfollowUser(3, targetUserId)
+      if (doFollow) await followUser(3, targetUserId)
+      else await unfollowUser(3, targetUserId)
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       followStatus.value = doFollow
     } catch (cause) {
       if (isCurrentViewScope(scope)) error.value = cause?.message || '关注操作失败'
@@ -166,11 +176,9 @@ export function usePostDetailActions({
     const wasBookmarked = !!post.value.bookmarked
     loading.value = true
     try {
-      const resp = wasBookmarked
-        ? await unbookmarkPost(targetPostId)
-        : await bookmarkPost(targetPostId)
+      if (wasBookmarked) await unbookmarkPost(targetPostId)
+      else await bookmarkPost(targetPostId)
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       post.value.bookmarked = !wasBookmarked
     } catch (cause) {
       if (isCurrentViewScope(scope)) error.value = cause?.message || '收藏操作失败'
@@ -231,7 +239,7 @@ export function usePostDetailActions({
     if (!post.value) return
     confirmationAction.value = type
     confirmationOpen.value = true
-    const confirmation = resolvePostDetailConfirmation(type, post.value.id)
+    const confirmation = resolveConfirmation(type, post.value.id)
     confirmationTitle.value = confirmation.title
     confirmationMessage.value = confirmation.message
   }
@@ -248,13 +256,11 @@ export function usePostDetailActions({
     if (!type || !targetPostId) return
     loading.value = true
     try {
-      let resp
-      if (type === 'top') resp = await moderationTop(targetPostId)
-      else if (type === 'wonderful') resp = await moderationWonderful(targetPostId)
-      else if (type === 'delete') resp = await moderationDelete(targetPostId)
-      else if (type === 'authorDelete') resp = await deletePostByAuthor(targetPostId)
+      if (type === 'top') await moderationTop(targetPostId)
+      else if (type === 'wonderful') await moderationWonderful(targetPostId)
+      else if (type === 'delete') await moderationDelete(targetPostId)
+      else if (type === 'authorDelete') await deletePostByAuthor(targetPostId)
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       if (type === 'authorDelete') {
         router.push({ name: 'posts' })
         return
@@ -307,14 +313,13 @@ export function usePostDetailActions({
     loading.value = true
     try {
       if (targetMode === 'post') {
-        const resp = await updatePost(targetPostId, {
+        await updatePost(targetPostId, {
           title: String(payload?.title || '').trim(),
           blocks: Array.isArray(payload?.blocks) ? payload.blocks : [],
           categoryId: post.value.categoryId,
           tags: Array.isArray(post.value.tags) ? post.value.tags : []
         })
         if (!isCurrentViewScope(scope)) return
-        emitTrace(resp?.traceId || '')
         const query = String(payload?.title || '').trim()
         showToast({
           type: 'success',
@@ -327,11 +332,10 @@ export function usePostDetailActions({
         closeEditor()
         await refreshPost()
       } else {
-        const resp = await updateComment(targetPostId, targetCommentId, {
+        await updateComment(targetPostId, targetCommentId, {
           content: String(payload?.content || '').trim()
         })
         if (!isCurrentViewScope(scope)) return
-        emitTrace(resp?.traceId || '')
         showToast({ type: 'success', text: '已保存' })
         closeEditor()
         await refreshComments()

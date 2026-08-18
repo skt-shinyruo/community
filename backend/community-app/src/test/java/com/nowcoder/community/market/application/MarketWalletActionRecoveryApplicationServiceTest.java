@@ -10,7 +10,7 @@ import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
@@ -462,7 +462,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setStatus("PROCESSING");
         action.setProcessingLeaseUntil(Date.from(expiredAt));
         action.setLeaseToken(uuid(303));
-        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+        marketWalletActionMapper.insert(action);
         return actionId;
     }
 
@@ -561,7 +561,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setWalletTxnId(refundTxnId);
         action.setFailureCode("SAGA_STATE_NOT_ADVANCED");
         action.setLastError("market order saga did not advance after wallet success");
-        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+        marketWalletActionMapper.insert(action);
     }
 
     private void seedFailedActionWithoutWalletTxn(String actionType) {
@@ -573,7 +573,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setStatus("FAILED");
         action.setFailureCode(failureCode);
         action.setLastError("escrow insufficient");
-        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+        marketWalletActionMapper.insert(action);
     }
 
     private void seedSkippedWalletTxnAction() {
@@ -614,7 +614,7 @@ class MarketWalletActionRecoveryApplicationServiceTest {
         action.setWalletTxnId(uuid(504));
         action.setFailureCode("SAGA_STATE_NOT_ADVANCED");
         action.setLastError("market order saga did not advance after wallet success");
-        marketWalletActionMapper.insert(MarketWalletActionDataObject.from(action));
+        marketWalletActionMapper.insert(action);
     }
 
     private MarketWalletAction action(UUID actionId, UUID actionOrderId, String actionType) {

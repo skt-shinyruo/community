@@ -3,7 +3,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -99,7 +99,7 @@ class MarketSemanticCreateRepositoryTest {
     private static Scenario walletActionScenario() {
         String requestId = "market-wallet-action:semantic-create";
         MarketWalletAction candidate = mock(MarketWalletAction.class);
-        MarketWalletActionDataObject existing = mock(MarketWalletActionDataObject.class);
+        MarketWalletAction existing = mock(MarketWalletAction.class);
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         when(candidate.getRequestId()).thenReturn(requestId);
         DataIntegrityViolationException unknown = unknownFailure("market wallet action");
@@ -109,13 +109,13 @@ class MarketSemanticCreateRepositoryTest {
                 MarketWalletAction.class,
                 candidate,
                 existing,
-                () -> when(mapper.insert(any(MarketWalletActionDataObject.class))).thenReturn(1),
+                () -> when(mapper.insert(any(MarketWalletAction.class))).thenReturn(1),
                 () -> {
                     doThrow(new DuplicateKeyException("duplicate market wallet action request"))
-                            .when(mapper).insert(any(MarketWalletActionDataObject.class));
+                            .when(mapper).insert(any(MarketWalletAction.class));
                     when(mapper.selectByRequestId(requestId)).thenReturn(existing);
                 },
-                () -> doThrow(unknown).when(mapper).insert(any(MarketWalletActionDataObject.class)),
+                () -> doThrow(unknown).when(mapper).insert(any(MarketWalletAction.class)),
                 () -> verify(mapper).selectByRequestId(requestId),
                 () -> verify(mapper, never()).selectByRequestId(requestId),
                 unknown

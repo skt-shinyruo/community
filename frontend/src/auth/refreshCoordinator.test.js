@@ -66,7 +66,7 @@ describe('refreshCoordinator', () => {
 
   it('reuses a newer token for a stale 401 without starting refresh', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const requestGeneration = auth.tokenGeneration
     auth.installSession({
       accessToken: 'new-token',
@@ -80,7 +80,7 @@ describe('refreshCoordinator', () => {
 
   it('rejects stale work after logout without starting refresh', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const requestGeneration = auth.tokenGeneration
     auth.clear()
 
@@ -92,7 +92,7 @@ describe('refreshCoordinator', () => {
 
   it('ignores an old refresh failure after a newer login succeeds', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const generation = auth.tokenGeneration
     const refresh = deferred()
     transport.requestRefreshToken.mockReturnValueOnce(refresh.promise)
@@ -112,7 +112,7 @@ describe('refreshCoordinator', () => {
 
   it('discards an old refresh success after a newer login succeeds', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const generation = auth.tokenGeneration
     const refresh = deferred()
     transport.requestRefreshToken.mockReturnValueOnce(refresh.promise)
@@ -133,7 +133,7 @@ describe('refreshCoordinator', () => {
 
   it('does not restore a session when an old refresh succeeds after logout', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const generation = auth.tokenGeneration
     const refresh = deferred()
     transport.requestRefreshToken.mockReturnValueOnce(refresh.promise)
@@ -149,7 +149,7 @@ describe('refreshCoordinator', () => {
 
   it('keeps the session and shares one retryable refresh failure across all joiners', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const generation = auth.tokenGeneration
     const failure = new Error('refresh rejected')
     transport.requestRefreshToken.mockRejectedValueOnce(failure)

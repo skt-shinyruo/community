@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.TransferOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -11,12 +11,12 @@ import java.util.UUID;
 @Mapper
 public interface TransferOrderMapper {
 
-    TransferOrderDataObject selectByRequestId(@Param("requestId") String requestId);
+    TransferOrder selectByRequestId(@Param("requestId") String requestId);
 
-    TransferOrderDataObject selectByFromUserIdAndRequestId(@Param("fromUserId") UUID fromUserId,
+    TransferOrder selectByFromUserIdAndRequestId(@Param("fromUserId") UUID fromUserId,
                                                 @Param("requestId") String requestId);
 
-    int insert(TransferOrderDataObject order);
+    int insert(TransferOrder order);
 
     int updateStatus(@Param("fromUserId") UUID fromUserId,
                      @Param("requestId") String requestId,

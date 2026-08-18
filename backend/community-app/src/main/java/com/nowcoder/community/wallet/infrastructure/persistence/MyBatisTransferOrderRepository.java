@@ -3,7 +3,7 @@ package com.nowcoder.community.wallet.infrastructure.persistence;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.TransferOrderRepository;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.TransferOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.TransferOrder;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.TransferOrderMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -32,7 +32,7 @@ public class MyBatisTransferOrderRepository implements TransferOrderRepository {
     @Override
     public CreationOutcome<TransferOrder> create(TransferOrder order) {
         try {
-            return mapper.insert(TransferOrderDataObject.from(order)) == 1
+            return mapper.insert(order) == 1
                     ? CreationOutcome.created(order)
                     : CreationOutcome.conflict();
         } catch (DuplicateKeyException exception) {

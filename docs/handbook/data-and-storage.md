@@ -175,7 +175,6 @@ Redis 用于 session / 验证码 / 风控 / 缓存 / analytics / single-flight �
 | 找回密码请求邮箱限流 | `auth:pwdreset:req:email:<hmac>` |
 | 找回密码请求 IP 限流 | `auth:pwdreset:req:ip:<hmac>` |
 | 找回密码实际投递限流 | `auth:pwdreset:req:delivery:<hmac>` |
-| HTTP 幂等 Redis 方案 | `idem:<operation>:<userId>:<Idempotency-Key>` |
 | 全站热门流 | `post:feed:global:hot` |
 | 板块热门流 | `post:feed:board:hot:<boardId>` |
 | Hot-feed 完整排序投影 | `post:feed:projection:{<完整 feed zset key>}`（72 字符 lex member：`type + score + createTime + postId`） |

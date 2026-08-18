@@ -106,7 +106,6 @@ export function usePostDetailDiscussion({
   postId,
   meUserId,
   post,
-  emitTrace,
   captureViewScope,
   isCurrentViewScope,
   refreshPost
@@ -246,7 +245,6 @@ export function usePostDetailDiscussion({
       const cursor = reset ? '' : currentCommentsCursor(requestedPage)
       const resp = await apiListComments(postId.value, { cursor, size: commentsSize })
       if (!commentsRequestTracker.isCurrent(token)) return
-      emitTrace(resp?.traceId || '')
       const page = normalizeCommentCursorPage(resp?.data)
       const raw = page.items
       if (requestedPage > commentsPage.value && raw.length === 0) {
@@ -295,7 +293,6 @@ export function usePostDetailDiscussion({
       const cursor = reset ? '' : currentRepliesCursor(comment, requestedPage)
       const resp = await apiListReplies(postId.value, comment.id, { cursor, size: comment._repliesSize })
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       const page = normalizeCommentCursorPage(resp?.data)
       const raw = page.items
       if (requestedPage > comment._repliesPage && raw.length === 0) {
@@ -392,9 +389,8 @@ export function usePostDetailDiscussion({
     try {
       const record = replyAttemptRecord(comment)
       const attempt = bindReplyAttempt(comment, content, parentCommentId)
-      const resp = await apiAddComment(scope.postId, { content, parentCommentId }, { writeAttempt: attempt })
+      await apiAddComment(scope.postId, { content, parentCommentId }, { writeAttempt: attempt })
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       comment._replyDraft = ''
       attempt.succeed()
       record.signature = ''
@@ -421,7 +417,6 @@ export function usePostDetailDiscussion({
     try {
       const resp = await setLike({ entityType: 2, entityId: targetCommentId, liked: null })
       if (!isCurrentViewScope(scope) || !comments.value.includes(comment)) return
-      emitTrace(resp?.traceId || '')
       const likeData = resp?.data && typeof resp.data === 'object'
         ? /** @type {Record<string, any>} */ (resp.data)
         : {}
@@ -449,7 +444,6 @@ export function usePostDetailDiscussion({
     try {
       const resp = await setLike({ entityType: 2, entityId: targetReplyId, liked: null })
       if (!isCurrentViewScope(scope) || !comments.value.includes(comment) || !comment._replies.includes(reply)) return
-      emitTrace(resp?.traceId || '')
       const likeData = resp?.data && typeof resp.data === 'object'
         ? /** @type {Record<string, any>} */ (resp.data)
         : {}
@@ -481,9 +475,8 @@ export function usePostDetailDiscussion({
     const content = String(newComment.value)
     commenting.value = true
     try {
-      const resp = await apiAddComment(scope.postId, { content }, { writeAttempt: commentAttempt })
+      await apiAddComment(scope.postId, { content }, { writeAttempt: commentAttempt })
       if (!isCurrentViewScope(scope)) return
-      emitTrace(resp?.traceId || '')
       setNewComment('')
       commentAttempt.succeed()
       await loadComments(0, { reset: true })

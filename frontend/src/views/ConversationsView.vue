@@ -82,7 +82,6 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
 
-const emit = defineEmits(['trace'])
 const auth = useAuthStore()
 const loading = ref(false)
 const loadingMore = ref(false)
@@ -131,7 +130,6 @@ async function load() {
     items.value = mergeConversations([], Array.isArray(page?.items) ? page.items : [])
     nextCursor.value = String(page?.nextCursor || '')
     hasMore.value = Boolean(page?.hasMore && nextCursor.value)
-    emit('trace', '')
   } catch (e) {
     if (!isCurrentRequest(generation, identityScope)) return
     error.value = e?.message || '加载会话失败'

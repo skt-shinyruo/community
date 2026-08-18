@@ -1,14 +1,4 @@
-function formatErrorMessage(error) {
-  if (error instanceof Error && error.message) {
-    return error.message
-  }
-
-  return String(error)
-}
-
-function padNumber(value, length = 2) {
-  return String(value).padStart(length, '0')
-}
+import mysql from 'mysql2/promise'
 
 function coerceDate(value, label) {
   if (value == null) {
@@ -51,10 +41,7 @@ export function formatMysqlTimestamp(value, label = 'timestamp') {
     return null
   }
 
-  return [
-    `${date.getUTCFullYear()}-${padNumber(date.getUTCMonth() + 1)}-${padNumber(date.getUTCDate())}`,
-    `${padNumber(date.getUTCHours())}:${padNumber(date.getUTCMinutes())}:${padNumber(date.getUTCSeconds())}.${padNumber(date.getUTCMilliseconds(), 3)}`
-  ].join(' ')
+  return date.toISOString().slice(0, 23).replace('T', ' ')
 }
 
 export function toIsoTimestamp(value, label = 'timestamp') {
@@ -95,16 +82,6 @@ function parseMysqlConnectionUrl(url) {
   }
 }
 
-async function loadMysqlDriver() {
-  try {
-    return await import('mysql2/promise')
-  } catch (error) {
-    throw new Error(
-      `mock-data-studio requires the mysql2 package for DB bootstrap: ${formatErrorMessage(error)}`
-    )
-  }
-}
-
 function createQueryClient(client) {
   return {
     async execute(sql, params = []) {
@@ -126,7 +103,6 @@ function createQueryClient(client) {
 
 export async function createDb(config) {
   const connection = parseMysqlConnectionUrl(config.db.url)
-  const mysql = await loadMysqlDriver()
   const pool = mysql.createPool({
     host: connection.host,
     port: connection.port,

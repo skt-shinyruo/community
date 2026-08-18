@@ -91,7 +91,7 @@ describe('PostDetailView', () => {
     setActivePinia(pinia)
 
     const auth = useAuthStore()
-    auth.setAccessToken('token')
+    auth.installSession({ accessToken: 'token' })
     if (resolveIdentity) {
       auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
     }
@@ -134,7 +134,7 @@ describe('PostDetailView', () => {
     setActivePinia(pinia)
 
     const auth = useAuthStore()
-    auth.setAccessToken('token')
+    auth.installSession({ accessToken: 'token' })
     auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
     useTaxonomyStore().ensureCategories = vi.fn()
     useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue()

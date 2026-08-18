@@ -193,13 +193,11 @@ tests/playwright-single
 `http://localhost:12880`。常用命令：
 
 ```bash
-./deploy/deployment.sh up --stack single --no-observability
+./deploy/deployment.sh up --stack single --no-observability -- --wait --wait-timeout 120
 npm --prefix tests/playwright-single install
 npm --prefix tests/playwright-single run typecheck
-npm --prefix tests/playwright-single run health
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression
-npm --prefix tests/playwright-single run report
 ```
 
 `test` 是 `test:regression` 的别名。所有产品用例都使用成功语义；统一 fixture

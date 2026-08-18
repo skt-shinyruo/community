@@ -71,7 +71,6 @@ describe('usePostDetailActions', () => {
       likeCount: 1
     })
     const error = ref('')
-    const emitTrace = vi.fn()
     const refreshPost = vi.fn().mockResolvedValue(undefined)
     const refreshComments = vi.fn().mockResolvedValue(undefined)
     const reloadPage = vi.fn().mockResolvedValue(undefined)
@@ -82,14 +81,13 @@ describe('usePostDetailActions', () => {
       post,
       meUserId: ref(VIEWER_ID),
       error,
-      emitTrace,
       captureViewScope: vi.fn(() => ({ generation: auth.tokenGeneration })),
       isCurrentViewScope: vi.fn(() => current),
       refreshPost,
       refreshComments,
       reloadPage
     })
-    return { auth, post, error, emitTrace, refreshPost, refreshComments, reloadPage, ...actions }
+    return { auth, post, error, refreshPost, refreshComments, reloadPage, ...actions }
   }
 
   beforeEach(() => {
@@ -123,7 +121,6 @@ describe('usePostDetailActions', () => {
     await subject.loadFollowStatus()
     expect(getFollowStatus).toHaveBeenCalledWith(3, AUTHOR_ID, { force: true })
     expect(subject.model.followStatus).toBe(false)
-    expect(subject.emitTrace).toHaveBeenCalledWith('trace-follow-status')
   })
 
   it('updates likes, follows, bookmarks, and reports through the grouped action model', async () => {
@@ -233,7 +230,6 @@ describe('usePostDetailActions', () => {
     await stale.model.toggleLike()
     await stale.model.toggleBookmark()
     expect(stale.post.value).toMatchObject({ likeCount: 1, liked: false, bookmarked: false })
-    expect(stale.emitTrace).not.toHaveBeenCalled()
 
     const current = createSubject()
     setLike.mockRejectedValueOnce(new Error('like unavailable'))

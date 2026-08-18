@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject;
+import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketInventoryUnitMapper;
 import org.springframework.stereotype.Repository;
 
@@ -21,7 +21,7 @@ public class MyBatisMarketInventoryRepository implements MarketInventoryReposito
 
     @Override
     public int save(MarketInventoryUnit unit) {
-        return mapper.insert(MarketInventoryUnitDataObject.from(unit));
+        return mapper.insert(unit);
     }
 
     @Override
@@ -31,17 +31,17 @@ public class MyBatisMarketInventoryRepository implements MarketInventoryReposito
 
     @Override
     public List<MarketInventoryUnit> lockAvailable(UUID listingId, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectAvailableForUpdate(listingId, limit));
+        return mapper.selectAvailableForUpdate(listingId, limit);
     }
 
     @Override
     public List<MarketInventoryUnit> findByReservedOrderId(UUID reservedOrderId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByReservedOrderId(reservedOrderId));
+        return mapper.selectByReservedOrderId(reservedOrderId);
     }
 
     @Override
     public List<MarketInventoryUnit> findByListingId(UUID listingId, long offset, int limit) {
-        return DomainRowAdapter.asDomainList(mapper.selectByListingId(listingId, offset, limit));
+        return mapper.selectByListingId(listingId, offset, limit);
     }
 
     @Override

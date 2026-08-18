@@ -138,8 +138,7 @@ import PostDetailComposer from './post-detail/PostDetailComposer.vue'
 import { formatTime } from '../utils/time'
 import { usePostDetailLoader } from './post-detail/usePostDetailLoader'
 
-const emit = defineEmits(['trace'])
-const { page, postActions, discussion } = usePostDetailLoader(emit)
+const { page, postActions, discussion } = usePostDetailLoader()
 </script>
 
 <style scoped src="./post-detail/PostDetailView.css"></style>

@@ -4,7 +4,7 @@ import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.domain.model.NoticeTopicSummary;
 import com.nowcoder.community.notice.domain.repository.NoticeRepository;
 import com.nowcoder.community.notice.domain.service.NoticeDomainService;
-import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
+import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.infrastructure.persistence.mapper.NoticeMapper;
 import org.springframework.stereotype.Repository;
 
@@ -23,7 +23,7 @@ public class MyBatisNoticeRepository implements NoticeRepository {
 
     @Override
     public int insert(NoticeRecord notice) {
-        return noticeMapper.insertNotice(NoticeRecordDataObject.from(notice));
+        return noticeMapper.insertNotice(notice);
     }
 
     @Override

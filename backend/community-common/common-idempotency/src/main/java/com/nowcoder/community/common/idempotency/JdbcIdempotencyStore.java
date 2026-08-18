@@ -162,53 +162,6 @@ public class JdbcIdempotencyStore implements TransactionalIdempotencyStore {
         return updated == 1;
     }
 
-    @Override
-    public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
-        String op = normalizeOp(operation);
-        String k = normalizeKey(key);
-        if (userId == null) {
-            throw new IllegalArgumentException("userId is invalid");
-        }
-        Duration safeTtl = ttl == null ? Duration.ofSeconds(30) : ttl;
-        Timestamp processingExpiresAt = Timestamp.from(Instant.now().plus(safeTtl));
-        jdbcTemplate.update(
-                """
-                        update http_idempotency
-                        set processing_expires_at = ?,
-                            updated_at = now()
-                        where operation = ?
-                          and user_id = ?
-                          and idem_key = ?
-                          and status = ?
-                        """,
-                processingExpiresAt,
-                op,
-                BinaryUuidCodec.toBytes(userId),
-                k,
-                STATUS_PROCESSING
-        );
-    }
-
-    @Override
-    public void delete(String operation, UUID userId, String key) {
-        String op = normalizeOp(operation);
-        String k = normalizeKey(key);
-        if (userId == null) {
-            return;
-        }
-        jdbcTemplate.update(
-                """
-                        delete from http_idempotency
-                        where operation = ?
-                          and user_id = ?
-                          and idem_key = ?
-                        """,
-                op,
-                BinaryUuidCodec.toBytes(userId),
-                k
-        );
-    }
-
     private Entry mapEntryOrNull(ResultSet rs, String op, UUID userId, String key, Instant now) throws java.sql.SQLException {
         if (rs == null || !rs.next()) {
             return null;

@@ -391,9 +391,6 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
     expect(wrapper.vm.model.recentPosts.map((post) => post.title)).toEqual(['current post'])
     expect(wrapper.vm.model.followStatus).toBe(true)
-    const traces = (wrapper.emitted('trace') || []).flat()
-    expect(traces).not.toContain('trace-previous-profile')
-    expect(traces).not.toContain('trace-previous-follow')
   })
 
   it('discards an old viewer follow-status response after the account changes', async () => {
@@ -430,7 +427,6 @@ describe('UserProfileView route contract', () => {
     previousFollowRequest.resolve({ data: false, traceId: 'trace-previous-viewer-follow' })
     await flushPromises()
     expect(wrapper.vm.model.followStatus).toBe(true)
-    expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-previous-viewer-follow')
   })
 
   it('does not refresh a new route with an old follow mutation result', async () => {
@@ -474,7 +470,6 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
     expect(wrapper.vm.model.followStatus).toBe(true)
     expect(wrapper.vm.model.actionLoading).toBe(false)
-    expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-stale-follow-mutation')
     const profileRequests = http.get.mock.calls
       .map(([url]) => url)
       .filter((url) => url === `/api/users/${previousUserId}` || url === `/api/users/${currentUserId}`)

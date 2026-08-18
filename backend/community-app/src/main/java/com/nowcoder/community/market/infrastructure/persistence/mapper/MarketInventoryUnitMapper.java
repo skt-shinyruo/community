@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketInventoryUnitDataObject;
+import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -12,20 +12,20 @@ import java.util.UUID;
 @Mapper
 public interface MarketInventoryUnitMapper {
 
-    int insert(MarketInventoryUnitDataObject unit);
+    int insert(MarketInventoryUnit unit);
 
     int countAvailableByListingId(@Param("listingId") UUID listingId);
 
-    List<MarketInventoryUnitDataObject> selectAvailableForUpdate(@Param("listingId") UUID listingId,
+    List<MarketInventoryUnit> selectAvailableForUpdate(@Param("listingId") UUID listingId,
                                                                  @Param("limit") int limit);
 
-    List<MarketInventoryUnitDataObject> selectByReservedOrderId(@Param("reservedOrderId") UUID reservedOrderId);
+    List<MarketInventoryUnit> selectByReservedOrderId(@Param("reservedOrderId") UUID reservedOrderId);
 
-    List<MarketInventoryUnitDataObject> selectByListingId(@Param("listingId") UUID listingId,
+    List<MarketInventoryUnit> selectByListingId(@Param("listingId") UUID listingId,
                                                           @Param("offset") long offset,
                                                           @Param("limit") int limit);
 
-    MarketInventoryUnitDataObject selectById(@Param("inventoryUnitId") UUID inventoryUnitId);
+    MarketInventoryUnit selectById(@Param("inventoryUnitId") UUID inventoryUnitId);
 
     int invalidateAvailable(@Param("inventoryUnitId") UUID inventoryUnitId,
                             @Param("sellerUserId") UUID sellerUserId);

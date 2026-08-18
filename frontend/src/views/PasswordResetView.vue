@@ -84,7 +84,6 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 
-const emit = defineEmits(['trace'])
 const route = useRoute()
 const router = useRouter()
 
@@ -106,8 +105,7 @@ const debugResetLink = ref('')
 
 async function refreshCaptcha() {
   try {
-    const { data, traceId } = await issueCaptcha()
-    emit('trace', traceId || '')
+    const { data } = await issueCaptcha()
     captchaId.value = data?.captchaId || ''
     captchaSrc.value = data?.imageBase64 ? `data:image/png;base64,${data.imageBase64}` : ''
     form.captcha = ''
@@ -129,11 +127,10 @@ async function onRequestReset() {
 
   loading.value = true
   try {
-    const { data, traceId } = await requestPasswordReset(form.email, {
+    const { data } = await requestPasswordReset(form.email, {
       captchaId: captchaId.value,
       captchaCode: form.captcha
     })
-    emit('trace', traceId || '')
     debugResetLink.value = data?.resetLink || ''
     if (debugResetLink.value) {
       successMsg.value = '已生成本地/测试重置链接（见下方），请继续完成重置。'
@@ -166,11 +163,10 @@ async function onConfirmReset() {
 
   loading.value = true
   try {
-    const { data, traceId } = await confirmPasswordReset(token.value, form.newPassword, {
+    const { data } = await confirmPasswordReset(token.value, form.newPassword, {
       captchaId: captchaId.value,
       captchaCode: form.captcha
     })
-    emit('trace', traceId || '')
     if (!data) {
       error.value = '重置失败'
       await refreshCaptcha()

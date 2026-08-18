@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketDelivery;
 import com.nowcoder.community.market.domain.repository.MarketDeliveryRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketDeliveryDataObject;
+import com.nowcoder.community.market.domain.model.MarketDelivery;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketDeliveryMapper;
 import org.springframework.stereotype.Repository;
 
@@ -20,11 +20,11 @@ public class MyBatisMarketDeliveryRepository implements MarketDeliveryRepository
 
     @Override
     public int save(MarketDelivery delivery) {
-        return mapper.insert(MarketDeliveryDataObject.from(delivery));
+        return mapper.insert(delivery);
     }
 
     @Override
     public List<MarketDelivery> findByOrderId(UUID orderId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByOrderId(orderId));
+        return mapper.selectByOrderId(orderId);
     }
 }

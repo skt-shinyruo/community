@@ -26,7 +26,7 @@ const RELATION_POLICIES = Object.freeze({
   })
 })
 
-export function useFollowRelationListState({ relationKind, profileUserId, emitTrace = () => {} }) {
+export function useFollowRelationListState({ relationKind, profileUserId }) {
   const auth = useAuthStore()
   const policy = computed(() => RELATION_POLICIES[relationKind.value])
   const authed = computed(() => auth.authed)
@@ -62,7 +62,7 @@ export function useFollowRelationListState({ relationKind, profileUserId, emitTr
     error.value = ''
     loading.value = true
     try {
-      const { data, traceId } = await policy.value.list(targetUserId, {
+      const { data } = await policy.value.list(targetUserId, {
         cursor: targetCursor,
         size: size.value
       })
@@ -75,7 +75,6 @@ export function useFollowRelationListState({ relationKind, profileUserId, emitTr
       const nextCursor = data?.hasNext === true && data?.nextCursor
         ? String(data.nextCursor)
         : ''
-      emitTrace(traceId || '')
       if (targetPage > page.value && nextItems.length === 0) {
         hasNext.value = false
         cursorHistory.value = cursorHistory.value.slice(0, targetPage)
@@ -128,10 +127,9 @@ export function useFollowRelationListState({ relationKind, profileUserId, emitTr
     const mutation = beginMutation(item?.targetId)
     if (!mutation) return
     try {
-      const result = await mutateRelation(3, mutation.normalizedTargetId)
+      await mutateRelation(3, mutation.normalizedTargetId)
       const currentItem = currentMutationItem(mutation)
       if (!currentItem) return
-      emitTrace(result?.traceId || '')
       currentItem.hasFollowed = nextFollowed
     } catch (e) {
       if (!currentMutationItem(mutation)) return

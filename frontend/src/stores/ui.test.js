@@ -38,7 +38,7 @@ describe('stores/ui', () => {
     expect(store.sidebarCollapsed).toBe(false)
     expect(store.mobileSidebarOpen).toBe(false)
 
-    store.openMobileSidebar()
+    store.toggleMobileSidebar()
     expect(store.mobileSidebarOpen).toBe(true)
     expect(store.sidebarCollapsed).toBe(false)
 
@@ -51,8 +51,8 @@ describe('stores/ui', () => {
     const storage = installWindow(1200)
     const store = useUiStore()
 
-    store.setSidebarCollapsed(true)
-    store.openMobileSidebar()
+    store.toggleSidebar()
+    store.toggleMobileSidebar()
     store.setTheme('dark')
     store.setDensity('comfortable')
 

@@ -125,7 +125,6 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiState from '../components/ui/UiState.vue'
 
-const emit = defineEmits(['trace'])
 const route = useRoute()
 const router = useRouter()
 const auth = useAuthStore()
@@ -162,8 +161,7 @@ function resetPersistedFlow(message) {
 
 async function refreshCaptcha() {
   try {
-    const { data, traceId } = await issueCaptcha()
-    emit('trace', traceId || '')
+    const { data } = await issueCaptcha()
     captchaId.value = data?.captchaId || ''
     captchaSrc.value = data?.imageBase64 ? `data:image/png;base64,${data.imageBase64}` : ''
     form.captcha = ''
@@ -185,14 +183,13 @@ async function onRegister() {
 
   loading.value = true
   try {
-    const { data, traceId } = await apiRegister({
+    const { data } = await apiRegister({
       username: form.username,
       password: form.password,
       email: form.email,
       captchaId: captchaId.value,
       captchaCode: form.captcha
     })
-    emit('trace', traceId || '')
     applyFlow(buildRegisterFlowState(data))
     successMsg.value = flow.value.successMessage
     form.password = ''
@@ -223,11 +220,10 @@ async function onResendCode() {
 
   loading.value = true
   try {
-    const { data, traceId } = await resendRegisterCode(flow.value.registrationToken, {
+    const { data } = await resendRegisterCode(flow.value.registrationToken, {
       captchaId: captchaId.value,
       captchaCode: form.captcha
     })
-    emit('trace', traceId || '')
     applyFlow({
       ...flow.value,
       maskedEmail: data?.maskedEmail || flow.value.maskedEmail,
@@ -267,8 +263,7 @@ async function onVerifyCode() {
 
   loading.value = true
   try {
-    const { data, traceId } = await verifyRegisterCode(flow.value.registrationToken, form.emailCode)
-    emit('trace', traceId || '')
+    const { data } = await verifyRegisterCode(flow.value.registrationToken, form.emailCode)
     const token = data?.accessToken
     if (!token) throw new Error('No access token returned')
 

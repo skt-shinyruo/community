@@ -5,12 +5,12 @@
 
 <mapper namespace="com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletEntryMapper">
 
-    <insert id="insert" parameterType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject">
+    <insert id="insert" parameterType="com.nowcoder.community.wallet.domain.model.WalletEntry">
         insert into wallet_entry(entry_id, txn_id, account_id, direction, amount, balance_after)
         values(#{entryId, jdbcType=BINARY}, #{txnId, jdbcType=BINARY}, #{accountId, jdbcType=BINARY}, #{direction}, #{amount}, #{balanceAfter})
     </insert>
 
-    <select id="selectByTxnId" resultType="com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject">
+    <select id="selectByTxnId" resultType="com.nowcoder.community.wallet.domain.model.WalletEntry">
         select entry_id, txn_id, account_id, direction, amount, balance_after, create_time
         from wallet_entry
         where txn_id = #{txnId, jdbcType=BINARY}

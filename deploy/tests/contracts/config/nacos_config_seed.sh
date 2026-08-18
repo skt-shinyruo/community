@@ -41,7 +41,6 @@ assert_runtime_environment_key() {
 required_data_ids=(
   community-shared.yaml
   community-feature-flags.yaml
-  community-frontend-runtime.yaml
   community-search-policy.yaml
   community-upload-policy.yaml
   community-notification-policy.yaml
@@ -115,7 +114,6 @@ PATH="${fake_bin}:${PATH}" \
   AUTH_MAIL_ENABLED="false" \
   AUTH_MAIL_FROM="auth-test@community.invalid" \
   AUTH_REGISTRATION_EXPOSE_CODE="true" \
-  GATEWAY_PUBLIC_BASE_URL="http://localhost:13109" \
   OSS_PUBLIC_BASE_URL="http://localhost:13109" \
   IM_GATEWAY_PUBLIC_WS_URL="ws://localhost:13109/ws/im" \
   CONFIG_DIR="${CONFIG_DIR}" \
@@ -130,7 +128,7 @@ if [ "$(grep -Fc '/nacos/v3/admin/core/state/readiness' "${curl_log}")" -ne 2 ];
   echo 'seed script must call the Nacos v3 readiness endpoint until code=0' >&2
   exit 1
 fi
-if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 14 ]; then
+if [ "$(grep -Fc '/nacos/v1/cs/configs' "${curl_log}")" -ne 13 ]; then
   echo 'seed script must publish every required Nacos configuration after readiness' >&2
   exit 1
 fi
@@ -156,8 +154,6 @@ grep -F 'refresh-cookie-same-site: ${AUTH_REFRESH_COOKIE_SAME_SITE:Lax}' "${CONF
 grep -F 'enabled: ${AUTH_MAIL_ENABLED:true}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'from: ${AUTH_MAIL_FROM:no-reply@community.local}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'public-gateway-origin: ${GATEWAY_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'websocket-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
 grep -F '"[/api/drive/shares/{shareToken}/verify]":' "${CONFIG_DIR}/community-gateway.yaml"
@@ -169,15 +165,13 @@ grep -F 'refresh-cookie-same-site: Strict' "${curl_log}"
 grep -F 'enabled: false' "${curl_log}"
 grep -F 'from: auth-test@community.invalid' "${curl_log}"
 grep -F 'expose-code: true' "${curl_log}"
-grep -F 'public-gateway-origin: http://localhost:13109' "${curl_log}"
-grep -F 'websocket-url: ws://localhost:13109/ws/im' "${curl_log}"
 grep -F 'public-base-url: http://localhost:13109' "${curl_log}"
 grep -F 'public-ws-url: ws://localhost:13109/ws/im' "${curl_log}"
 if grep -F '${BROWSER_ALLOWED_ORIGINS}' "${curl_log}" >/dev/null; then
   echo 'published Nacos config must not contain an unresolved browser origin placeholder' >&2
   exit 1
 fi
-for placeholder in FRONTEND_PUBLIC_ORIGIN AUTH_REFRESH_COOKIE_SECURE AUTH_REFRESH_COOKIE_SAME_SITE AUTH_MAIL_ENABLED AUTH_MAIL_FROM AUTH_REGISTRATION_EXPOSE_CODE GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+for placeholder in FRONTEND_PUBLIC_ORIGIN AUTH_REFRESH_COOKIE_SECURE AUTH_REFRESH_COOKIE_SAME_SITE AUTH_MAIL_ENABLED AUTH_MAIL_FROM AUTH_REGISTRATION_EXPOSE_CODE OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   if grep -F "\${${placeholder}" "${curl_log}" >/dev/null; then
     echo "published Nacos config must not contain an unresolved ${placeholder} placeholder" >&2
     exit 1
@@ -203,7 +197,6 @@ if PATH="${fake_bin}:${PATH}" \
   FRONTEND_PUBLIC_ORIGIN="https://community.invalid" \
   AUTH_REFRESH_COOKIE_SECURE="true" \
   AUTH_REFRESH_COOKIE_SAME_SITE="CrossSite" \
-  GATEWAY_PUBLIC_BASE_URL="https://api.community.invalid" \
   OSS_PUBLIC_BASE_URL="https://api.community.invalid" \
   IM_GATEWAY_PUBLIC_WS_URL="wss://api.community.invalid/ws/im" \
   CONFIG_DIR="${CONFIG_DIR}" \
@@ -220,7 +213,6 @@ if PATH="${fake_bin}:${PATH}" \
   FRONTEND_PUBLIC_ORIGIN="https://community.invalid" \
   AUTH_REFRESH_COOKIE_SECURE="false" \
   AUTH_REFRESH_COOKIE_SAME_SITE="None" \
-  GATEWAY_PUBLIC_BASE_URL="https://api.community.invalid" \
   OSS_PUBLIC_BASE_URL="https://api.community.invalid" \
   IM_GATEWAY_PUBLIC_WS_URL="wss://api.community.invalid/ws/im" \
   CONFIG_DIR="${CONFIG_DIR}" \
@@ -270,7 +262,6 @@ for application_yml in "${backend_application_ymls[@]}"; do
   done
 done
 
-grep -F 'community-frontend-runtime.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
 grep -F 'community-search-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
 grep -F 'community-notification-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
 grep -F 'community-upload-policy.yaml' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
@@ -338,8 +329,6 @@ grep -F 'grant-quota-per-user: ${WALLET_TEST_CREDIT_GRANT_QUOTA_PER_USER:5000}' 
 grep -F 'discard-quota-per-user: ${WALLET_TEST_CREDIT_DISCARD_QUOTA_PER_USER:5000}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
-grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}' "${CONFIG_DIR}/community-app.yaml"
 single_runtime_rendered="${tmp_dir}/single-runtime.yml"
 cluster_runtime_rendered="${tmp_dir}/cluster-runtime.yml"
@@ -362,13 +351,6 @@ for app_number in 1 2 3; do
   assert_runtime_environment_key \
     "${cluster_runtime_rendered}" "community-app-${app_number}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET
 done
-grep -F 'allowed-mime-types:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'image/jpeg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'allowed-extensions:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'jpg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'avatar-upload-enabled: true' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-grep -F 'media-upload-enabled: true' "${CONFIG_DIR}/community-frontend-runtime.yaml"
-
 grep -F '      enabled: ${AUTH_MAIL_ENABLED:true}' "${CONFIG_DIR}/community-app.yaml"
 
 grep -F 'refresh:' "${CONFIG_DIR}/community-app.yaml"
@@ -509,7 +491,6 @@ nacos_owned_env_vars=(
   SPRING_SERVLET_MULTIPART_MAX_REQUEST_SIZE
   BROWSER_ALLOWED_ORIGINS
   FRONTEND_PUBLIC_ORIGIN
-  GATEWAY_PUBLIC_BASE_URL
   AUTH_ORIGIN_GUARD_ALLOWED_ORIGINS
   AUTH_MAIL_ENABLED
   AUTH_MAIL_FROM

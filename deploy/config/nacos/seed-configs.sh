@@ -12,7 +12,6 @@ AUTH_REFRESH_COOKIE_SAME_SITE="${AUTH_REFRESH_COOKIE_SAME_SITE:-Lax}"
 AUTH_MAIL_ENABLED="${AUTH_MAIL_ENABLED:-true}"
 AUTH_MAIL_FROM="${AUTH_MAIL_FROM:-no-reply@community.local}"
 AUTH_REGISTRATION_EXPOSE_CODE="${AUTH_REGISTRATION_EXPOSE_CODE:-false}"
-GATEWAY_PUBLIC_BASE_URL="${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}"
 OSS_PUBLIC_BASE_URL="${OSS_PUBLIC_BASE_URL:?OSS_PUBLIC_BASE_URL is required}"
 IM_GATEWAY_PUBLIC_WS_URL="${IM_GATEWAY_PUBLIC_WS_URL:?IM_GATEWAY_PUBLIC_WS_URL is required}"
 
@@ -28,7 +27,6 @@ validate_template_value() {
 validate_template_value BROWSER_ALLOWED_ORIGINS "${BROWSER_ALLOWED_ORIGINS}"
 validate_template_value FRONTEND_PUBLIC_ORIGIN "${FRONTEND_PUBLIC_ORIGIN}"
 validate_template_value AUTH_MAIL_FROM "${AUTH_MAIL_FROM}"
-validate_template_value GATEWAY_PUBLIC_BASE_URL "${GATEWAY_PUBLIC_BASE_URL}"
 validate_template_value OSS_PUBLIC_BASE_URL "${OSS_PUBLIC_BASE_URL}"
 validate_template_value IM_GATEWAY_PUBLIC_WS_URL "${IM_GATEWAY_PUBLIC_WS_URL}"
 case "${AUTH_REFRESH_COOKIE_SECURE}" in
@@ -80,7 +78,6 @@ escaped_refresh_cookie_same_site="$(escape_sed_replacement "${AUTH_REFRESH_COOKI
 escaped_mail_enabled="$(escape_sed_replacement "${AUTH_MAIL_ENABLED}")"
 escaped_mail_from="$(escape_sed_replacement "${AUTH_MAIL_FROM}")"
 escaped_registration_expose_code="$(escape_sed_replacement "${AUTH_REGISTRATION_EXPOSE_CODE}")"
-escaped_gateway_base_url="$(escape_sed_replacement "${GATEWAY_PUBLIC_BASE_URL}")"
 escaped_oss_base_url="$(escape_sed_replacement "${OSS_PUBLIC_BASE_URL}")"
 escaped_im_ws_url="$(escape_sed_replacement "${IM_GATEWAY_PUBLIC_WS_URL}")"
 render_config() {
@@ -96,11 +93,10 @@ render_config() {
     -e "s|\${AUTH_MAIL_ENABLED:true}|${escaped_mail_enabled}|g" \
     -e "s|\${AUTH_MAIL_FROM:no-reply@community.local}|${escaped_mail_from}|g" \
     -e "s|\${AUTH_REGISTRATION_EXPOSE_CODE:false}|${escaped_registration_expose_code}|g" \
-    -e "s|\${GATEWAY_PUBLIC_BASE_URL}|${escaped_gateway_base_url}|g" \
     -e "s|\${OSS_PUBLIC_BASE_URL}|${escaped_oss_base_url}|g" \
     -e "s|\${IM_GATEWAY_PUBLIC_WS_URL}|${escaped_im_ws_url}|g" \
     "${source_file}" >"${rendered_file}"
-  for placeholder in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN AUTH_REFRESH_COOKIE_SECURE AUTH_REFRESH_COOKIE_SAME_SITE AUTH_MAIL_ENABLED AUTH_MAIL_FROM AUTH_REGISTRATION_EXPOSE_CODE GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
+  for placeholder in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN AUTH_REFRESH_COOKIE_SECURE AUTH_REFRESH_COOKIE_SAME_SITE AUTH_MAIL_ENABLED AUTH_MAIL_FROM AUTH_REGISTRATION_EXPOSE_CODE OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
     if grep -F "\${${placeholder}" "${rendered_file}" >/dev/null; then
       echo "[nacos-config-bootstrap] unresolved ${placeholder} placeholder in ${data_id}" >&2
       exit 1
@@ -112,7 +108,6 @@ render_config() {
 data_ids="
 community-shared.yaml
 community-feature-flags.yaml
-community-frontend-runtime.yaml
 community-search-policy.yaml
 community-upload-policy.yaml
 community-notification-policy.yaml

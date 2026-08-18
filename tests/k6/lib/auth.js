@@ -4,7 +4,6 @@ import { authHeaders, postJson, resultData } from './http.js'
 import { loginFailures } from './metrics.js'
 
 let cachedToken
-let cachedSecondaryToken
 
 export function login(username = config.username, password = config.password) {
   const response = postJson('/api/auth/login', {
@@ -32,13 +31,6 @@ export function token() {
     cachedToken = login()
   }
   return cachedToken
-}
-
-export function secondaryToken() {
-  if (config.loginOnEveryIteration || !cachedSecondaryToken) {
-    cachedSecondaryToken = login(config.secondaryUsername, config.secondaryPassword)
-  }
-  return cachedSecondaryToken
 }
 
 export function authenticatedParams(accessToken, extraHeaders = {}) {

@@ -13,6 +13,7 @@ import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -350,14 +351,8 @@ public class RedisPasswordResetTokenRepository implements PasswordResetTokenRepo
 
     private String tokenId(String token) {
         try {
-            byte[] digest = MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8));
-            StringBuilder hex = new StringBuilder(digest.length * 2);
-            for (byte value : digest) {
-                hex.append(Character.forDigit((value >> 4) & 0xF, 16));
-                hex.append(Character.forDigit(value & 0xF, 16));
-            }
-            return hex.toString();
+            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
+                    .digest(token.getBytes(StandardCharsets.UTF_8)));
         } catch (NoSuchAlgorithmException e) {
             throw new IllegalStateException("SHA-256 not available", e);
         }

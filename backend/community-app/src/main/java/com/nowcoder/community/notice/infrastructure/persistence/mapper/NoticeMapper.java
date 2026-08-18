@@ -1,6 +1,6 @@
 package com.nowcoder.community.notice.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeRecordDataObject;
+import com.nowcoder.community.notice.domain.model.NoticeRecord;
 import com.nowcoder.community.notice.infrastructure.persistence.dataobject.NoticeTopicSummaryDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -13,9 +13,9 @@ import java.util.UUID;
 @Repository
 public interface NoticeMapper {
 
-    int insertNotice(NoticeRecordDataObject notice);
+    int insertNotice(NoticeRecord notice);
 
-    List<NoticeRecordDataObject> selectNotices(@Param("userId") UUID userId, @Param("topic") String topic, @Param("offset") int offset, @Param("limit") int limit);
+    List<NoticeRecord> selectNotices(@Param("userId") UUID userId, @Param("topic") String topic, @Param("offset") int offset, @Param("limit") int limit);
 
     int selectNoticeCount(@Param("userId") UUID userId, @Param("topic") String topic);
 

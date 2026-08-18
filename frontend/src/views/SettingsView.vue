@@ -118,7 +118,6 @@ import UiAvatar from '../components/ui/UiAvatar.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
-const emit = defineEmits(['trace'])
 const auth = useAuthStore()
 
 const loading = ref(false)
@@ -187,17 +186,15 @@ async function createUploadSession(file, userId, signal) {
     contentLength: file?.size || 0,
     checksumSha256: ''
   }, { signal })
-  const { data, traceId } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
+  const { data } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
   return {
-    session: normalizeUploadSession(data || {}),
-    traceId
+    session: normalizeUploadSession(data || {})
   }
 }
 
 async function updateAvatar(objectId, userId) {
   const resp = await http.put(`/api/users/${userId}/avatar`, { objectId })
-  const { traceId } = unwrapResultBody(resp.data, 'Update Avatar')
-  return traceId
+  unwrapResultBody(resp.data, 'Update Avatar')
 }
 
 function isCurrentUpload(generation, scope) {
@@ -221,11 +218,10 @@ async function uploadAndUpdate() {
   try {
     const created = await createUploadSession(file, userId, controller.signal)
     if (!isCurrentUpload(generation, scope)) return
-    emit('trace', created.traceId || '')
     Object.assign(uploadSession, created.session)
 
     uploadPhase.value = 'uploading'
-    const { data, traceId } = await executeUploadSession({
+    const { data } = await executeUploadSession({
       session: created.session,
       file,
       operation: 'Upload Avatar',
@@ -235,21 +231,17 @@ async function uploadAndUpdate() {
       }
     })
     if (!isCurrentUpload(generation, scope)) return
-    emit('trace', traceId || '')
-
     const objectId = String(data?.objectId || created.session.objectId || '').trim()
     if (!objectId) {
       throw new Error('头像对象缺失，请重新上传')
     }
     uploadPhase.value = 'saving'
-    const updateTraceId = await updateAvatar(objectId, userId)
+    await updateAvatar(objectId, userId)
     if (!isCurrentUpload(generation, scope)) return
     invalidateUserProfile(userId)
-    emit('trace', updateTraceId || '')
     try {
-      const { data, traceId } = await apiMe()
+      const { data } = await apiMe()
       if (!isCurrentUpload(generation, scope)) return
-      emit('trace', traceId || '')
       auth.setMe(data)
     } catch {
       if (!isCurrentUpload(generation, scope)) return

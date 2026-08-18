@@ -44,6 +44,7 @@ import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 
@@ -52,8 +53,6 @@ const loading = ref(false)
 const error = ref('')
 const submittingId = ref('')
 const disputes = ref([])
-let loadGeneration = 0
-let actionGeneration = 0
 
 const state = computed(() => buildMarketState({ disputes: disputes.value }))
 const sessionScope = computed(() => [
@@ -61,14 +60,15 @@ const sessionScope = computed(() => [
   normalizeOpaqueId(auth.userId),
   [...auth.authorities].sort().join(',')
 ].join(':'))
+const loadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
-function isCurrentLoad(generation, scope) {
-  return generation === loadGeneration && scope === sessionScope.value && auth.authed && auth.isAdmin
+function isCurrentLoad(requestHandle) {
+  return loadTracker.isCurrent(requestHandle) && auth.authed && auth.isAdmin
 }
 
-function isCurrentAction(generation, scope, disputeId) {
-  return generation === actionGeneration &&
-    scope === sessionScope.value &&
+function isCurrentAction(requestHandle, disputeId) {
+  return actionTracker.isCurrent(requestHandle) &&
     submittingId.value === disputeId &&
     auth.authed &&
     auth.isAdmin
@@ -76,43 +76,41 @@ function isCurrentAction(generation, scope, disputeId) {
 
 async function reload() {
   if (!auth.authed || !auth.isAdmin) return
-  const generation = ++loadGeneration
-  const scope = sessionScope.value
+  const requestHandle = loadTracker.begin()
   loading.value = true
   error.value = ''
   try {
     const { data } = await listAdminMarketDisputes()
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     disputes.value = Array.isArray(data) ? data : []
   } catch (e) {
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     error.value = e?.message || '加载争议失败'
   } finally {
-    if (isCurrentLoad(generation, scope)) loading.value = false
+    if (isCurrentLoad(requestHandle)) loading.value = false
   }
 }
 
 async function resolve(disputeId, action) {
   const normalizedDisputeId = normalizeOpaqueId(disputeId)
   if (!normalizedDisputeId || !auth.authed || !auth.isAdmin || submittingId.value !== '') return
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   submittingId.value = normalizedDisputeId
   try {
     await adminResolveMarketDispute(disputeId, action, { note: action === 'refund' ? 'refund' : 'release' })
-    if (!isCurrentAction(generation, scope, normalizedDisputeId)) return
+    if (!isCurrentAction(requestHandle, normalizedDisputeId)) return
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope, normalizedDisputeId)) return
+    if (!isCurrentAction(requestHandle, normalizedDisputeId)) return
     error.value = e?.message || '处理争议失败'
   } finally {
-    if (isCurrentAction(generation, scope, normalizedDisputeId)) submittingId.value = ''
+    if (isCurrentAction(requestHandle, normalizedDisputeId)) submittingId.value = ''
   }
 }
 
 function resetForSession() {
-  loadGeneration += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
   loading.value = false
   error.value = ''
   submittingId.value = ''
@@ -125,7 +123,7 @@ onMounted(() => {
   if (auth.authed && auth.isAdmin) reload()
 })
 onBeforeUnmount(() => {
-  loadGeneration += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>

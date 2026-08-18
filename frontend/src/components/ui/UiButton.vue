@@ -1,14 +1,14 @@
-<!-- 基础按钮组件：统一 primary/secondary、loading/disabled 的交互表现。 -->
+<!-- 基础按钮组件：统一 primary/secondary 与 disabled 的交互表现。 -->
 <template>
   <button
     class="btn"
     :class="variantClass"
     :type="type"
-    :disabled="disabled || loading"
+    :disabled="disabled"
     :title="title"
     @click="$emit('click', $event)"
   >
-    <slot>{{ loading ? '处理中...' : '' }}</slot>
+    <slot />
   </button>
 </template>
 
@@ -19,8 +19,7 @@ const props = defineProps({
   variant: { type: String, default: 'primary' }, // primary | secondary | ghost | danger | dangerSecondary
   type: { type: String, default: 'button' },
   title: { type: String, default: '' },
-  disabled: { type: Boolean, default: false },
-  loading: { type: Boolean, default: false }
+  disabled: { type: Boolean, default: false }
 })
 
 defineEmits(['click'])

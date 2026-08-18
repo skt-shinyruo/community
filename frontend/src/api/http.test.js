@@ -43,7 +43,7 @@ describe('http', () => {
 
   it('should attach Authorization header when accessToken exists', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('token-1')
+    auth.installSession({ accessToken: 'token-1' })
 
     mock.onGet('/api/ping').reply((config) => {
       return [200, {
@@ -61,7 +61,7 @@ describe('http', () => {
 
   it('should refresh token once and retry request on 401', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
 
     refreshTransport.requestRefreshToken.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
@@ -89,7 +89,7 @@ describe('http', () => {
 
   it('keeps the current session and avoids redirect when refresh is temporarily unavailable', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
 
     refreshTransport.requestRefreshToken.mockRejectedValueOnce(new Error('refresh failed'))
     mock.onGet('/api/protected').replyOnce(401)
@@ -101,7 +101,7 @@ describe('http', () => {
 
   it('clears the session and redirects only when refresh is explicitly unauthorized', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     refreshTransport.requestRefreshToken.mockRejectedValueOnce({ response: { status: 401 } })
     mock.onGet('/api/terminal').replyOnce(401)
 
@@ -112,7 +112,7 @@ describe('http', () => {
 
   it('retries a stale 401 with the newer token without refreshing', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     let attempts = 0
     mock.onGet('/api/stale').reply((config) => {
       attempts += 1
@@ -135,7 +135,7 @@ describe('http', () => {
 
   it('does not redirect when an old refresh failure loses a race to a newer login', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     const refresh = deferred()
     refreshTransport.requestRefreshToken.mockReturnValueOnce(refresh.promise)
     let attempts = 0
@@ -163,7 +163,7 @@ describe('http', () => {
 
   it('shares one refresh between concurrent community and IM 401 responses', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     refreshTransport.requestRefreshToken.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
       traceId: 'trace-refresh'
@@ -221,7 +221,7 @@ describe('http', () => {
 
   it('does not enter another refresh loop when the retried request also returns 401', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
     refreshTransport.requestRefreshToken.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
       traceId: 'trace-refresh'
@@ -248,7 +248,7 @@ describe('http', () => {
 
   it('should not attempt refresh for any auth endpoint 401 response', async () => {
     const auth = useAuthStore()
-    auth.setAccessToken('old-token')
+    auth.installSession({ accessToken: 'old-token' })
 
     mock.onPost('/api/auth/password/reset/confirm').replyOnce(401, { code: 401, message: '未登录' })
     mock.onPost('/api/auth/refresh').replyOnce(200, { code: 0, data: { accessToken: 'new-token' } })

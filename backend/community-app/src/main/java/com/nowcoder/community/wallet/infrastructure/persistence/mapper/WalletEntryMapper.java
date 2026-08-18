@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletLedgerItemDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
@@ -13,9 +13,9 @@ import java.util.UUID;
 @Mapper
 public interface WalletEntryMapper {
 
-    int insert(WalletEntryDataObject entry);
+    int insert(WalletEntry entry);
 
-    List<WalletEntryDataObject> selectByTxnId(@Param("txnId") UUID txnId);
+    List<WalletEntry> selectByTxnId(@Param("txnId") UUID txnId);
 
     List<WalletLedgerItemDataObject> selectRecentItemsByAccountId(@Param("accountId") UUID accountId, @Param("limit") int limit);
 }

@@ -45,11 +45,6 @@ public class OutboxProperties {
     private Duration maxBackoff = Duration.ofMinutes(10);
 
     /**
-     * Worker fixed delay (millis).
-     */
-    private long workerFixedDelayMs = 1000L;
-
-    /**
      * Max events moved by lease reaper per poll.
      */
     private int recoverLimit = DEFAULT_RECOVER_LIMIT;
@@ -108,14 +103,6 @@ public class OutboxProperties {
 
     public void setMaxBackoff(Duration maxBackoff) {
         this.maxBackoff = maxBackoff == null ? Duration.ofMinutes(10) : maxBackoff;
-    }
-
-    public long getWorkerFixedDelayMs() {
-        return workerFixedDelayMs;
-    }
-
-    public void setWorkerFixedDelayMs(long workerFixedDelayMs) {
-        this.workerFixedDelayMs = Math.max(100L, workerFixedDelayMs);
     }
 
     public int getRecoverLimit() {

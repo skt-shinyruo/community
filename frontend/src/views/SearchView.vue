@@ -144,7 +144,7 @@
           <div class="search-result-kicker">讨论线程</div>
           <div class="search-result-title" v-html="titleHtml(it)"></div>
           <div class="search-result-snippet" v-if="contentHtml(it)" v-html="contentHtml(it)"></div>
-          <div v-if="searchActivity(it)" class="search-result-activity" :title="searchActivity(it)?.copy || ''">
+          <div v-if="describeSearchActivity(it)" class="search-result-activity" :title="describeSearchActivity(it)?.copy || ''">
             <div class="search-result-activity-head">
               <UiAvatar
                 :src="it.lastReplyUser?.headerUrl || ''"
@@ -152,10 +152,10 @@
                 :size="18"
               />
               <span class="search-result-activity-label">
-                {{ searchActivity(it)?.label }}
+                {{ describeSearchActivity(it)?.label }}
               </span>
             </div>
-            <div class="search-result-activity-copy">{{ searchActivity(it)?.copy }}</div>
+            <div class="search-result-activity-copy">{{ describeSearchActivity(it)?.copy }}</div>
           </div>
           <div class="search-result-context">
             <div class="search-result-author">
@@ -205,7 +205,6 @@ import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useTagSuggestions } from '../composables/useTagSuggestions'
 
-const emit = defineEmits(['trace'])
 const route = useRoute()
 const router = useRouter()
 const postMetaCache = usePostMetaCacheStore()
@@ -333,7 +332,7 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	  error.value = ''
 	  loading.value = true
 	  try {
-	    const { data, traceId } = await searchPosts({
+	    const { data } = await searchPosts({
 	      keyword: keyword.value,
 	      categoryId: normalizeCategoryId(categoryId.value),
 	      tag: normalizeTag(tagDraft.value),
@@ -346,12 +345,10 @@ const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(n
 	    if (!searchRequestTracker.isCurrent(token)) return
 	    hasNext.value = rawItems.length >= Number(size.value)
 	    if (requestedPage > page.value && rawItems.length === 0) {
-	      emit('trace', traceId || '')
 	      return
 	    }
 	    page.value = requestedPage
 	    items.value = nextItems
-	    emit('trace', traceId || '')
 	  } catch (e) {
 	    if (!searchRequestTracker.isCurrent(token)) return
 	    error.value = e?.message || '搜索失败'
@@ -400,11 +397,7 @@ async function nextPage() {
 	  if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
 	}
 
-function searchActivity(item) {
-  return describeSearchActivity(item)
-}
-
-	function syncFromRoute() {
+		function syncFromRoute() {
 	  const q = typeof route.query?.q === 'string' ? route.query.q : ''
 	  const cid = normalizeCategoryId(route.query?.categoryId)
 	  const t = normalizeTag(route.query?.tag)

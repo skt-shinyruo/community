@@ -135,8 +135,7 @@ describe('api/services/userService', () => {
 
     expect(profile).toMatchObject({
       id: userId,
-      username: 'alice',
-      _traceId: 'trace-user'
+      username: 'alice'
     })
     expect(profile.showUserLevel).toBe(false)
     expect(profile.userLevelEnabled).toBe(false)

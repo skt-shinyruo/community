@@ -1,9 +1,8 @@
-// socialPrefs：拉黑列表 + 订阅列表（前端读侧过滤 & UI 状态用）。
+// socialPrefs：拉黑列表（前端读侧过滤与 UI 状态用）。
 
 import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
 import { listBlockedUsers } from '../api/services/blockService'
-import { listSubscribedCategories } from '../api/services/subscriptionService'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
 function identityScope(auth) {
@@ -15,17 +14,11 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
     blockedUserIds: /** @type {unknown[]} */ ([]),
     blockedLoaded: false,
     blockedScope: '',
-    blockedRequestId: 0,
-    subscribedCategoryIds: /** @type {unknown[]} */ ([]),
-    subscribedLoaded: false,
-    subscribedScope: '',
-    subscribedRequestId: 0
+    blockedRequestId: 0
   }),
   getters: {
     blockedSet: (s) =>
-      new Set((Array.isArray(s.blockedUserIds) ? s.blockedUserIds : []).map((x) => normalizeOpaqueId(x)).filter(Boolean)),
-    subscribedCategorySet: (s) =>
-      new Set((Array.isArray(s.subscribedCategoryIds) ? s.subscribedCategoryIds : []).map((x) => normalizeOpaqueId(x)).filter(Boolean))
+      new Set((Array.isArray(s.blockedUserIds) ? s.blockedUserIds : []).map((x) => normalizeOpaqueId(x)).filter(Boolean))
   },
   actions: {
     clear() {
@@ -33,10 +26,6 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
       this.blockedLoaded = false
       this.blockedScope = ''
       this.blockedRequestId += 1
-      this.subscribedCategoryIds = []
-      this.subscribedLoaded = false
-      this.subscribedScope = ''
-      this.subscribedRequestId += 1
     },
 
     async ensureBlocked(force = false) {
@@ -63,32 +52,6 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
       if (requestId !== this.blockedRequestId) return
       this.blockedUserIds = Array.isArray(resp?.data) ? resp.data : []
       this.blockedLoaded = true
-    },
-
-    async ensureSubscribedCategories(force = false) {
-      const auth = useAuthStore()
-      const requestScope = identityScope(auth)
-      if (this.subscribedScope !== requestScope) {
-        this.subscribedCategoryIds = []
-        this.subscribedLoaded = false
-        this.subscribedScope = requestScope
-      }
-      if (!auth.authed) {
-        this.subscribedCategoryIds = []
-        this.subscribedLoaded = false
-        return
-      }
-      if (this.subscribedLoaded && !force) return
-
-      const requestId = ++this.subscribedRequestId
-      const resp = await listSubscribedCategories()
-      const currentScope = identityScope(useAuthStore())
-      if (currentScope !== requestScope) {
-        return this.ensureSubscribedCategories(false)
-      }
-      if (requestId !== this.subscribedRequestId) return
-      this.subscribedCategoryIds = Array.isArray(resp?.data) ? resp.data : []
-      this.subscribedLoaded = true
     }
   }
 })

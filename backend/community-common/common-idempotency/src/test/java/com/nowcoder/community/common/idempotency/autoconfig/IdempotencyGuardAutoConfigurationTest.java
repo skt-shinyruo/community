@@ -55,15 +55,11 @@ class IdempotencyGuardAutoConfigurationTest {
                 .withConfiguration(AutoConfigurations.of(
                         IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
-                        RedisIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class
                 ))
                 .withUserConfiguration(DataSourceAndJsonCodecConfiguration.class)
-                .withPropertyValues(
-                        "http.idempotency.enabled=true",
-                        "http.idempotency.store=DB"
-                )
+                .withPropertyValues("http.idempotency.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(IdempotencyStore.class);
@@ -77,15 +73,11 @@ class IdempotencyGuardAutoConfigurationTest {
                 .withConfiguration(AutoConfigurations.of(
                         IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
-                        RedisIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class
                 ))
                 .withUserConfiguration(DataSourceAndJsonCodecConfiguration.class, CustomStoreConfiguration.class)
-                .withPropertyValues(
-                        "http.idempotency.enabled=true",
-                        "http.idempotency.store=DB"
-                )
+                .withPropertyValues("http.idempotency.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(IdempotencyStore.class);
@@ -100,7 +92,6 @@ class IdempotencyGuardAutoConfigurationTest {
                 .withConfiguration(AutoConfigurations.of(
                         IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
-                        RedisIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class,
                         Jackson2AutoConfiguration.class,
@@ -108,10 +99,7 @@ class IdempotencyGuardAutoConfigurationTest {
                         ServletWebInfraAutoConfiguration.class
                 ))
                 .withUserConfiguration(DataSourceConfiguration.class)
-                .withPropertyValues(
-                        "http.idempotency.enabled=true",
-                        "http.idempotency.store=DB"
-                )
+                .withPropertyValues("http.idempotency.enabled=true")
                 .run(context -> {
                     assertThat(context).hasNotFailed();
                     assertThat(context).hasSingleBean(JsonCodec.class);
@@ -199,12 +187,5 @@ class IdempotencyGuardAutoConfigurationTest {
             return true;
         }
 
-        @Override
-        public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
-        }
-
-        @Override
-        public void delete(String operation, UUID userId, String key) {
-        }
     }
 }

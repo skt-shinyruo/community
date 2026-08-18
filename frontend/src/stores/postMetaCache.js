@@ -10,16 +10,8 @@ import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 const USER_TTL_MS = 60 * 1000
 const LIKE_TTL_MS = 30 * 1000
 
-function nowMs() {
-  return Date.now()
-}
-
-function normalizeIds(ids, { max = 200 } = {}) {
-  return normalizeOpaqueIds(ids, { max })
-}
-
 function isFresh(entry) {
-  return entry && typeof entry.expiresAt === 'number' && entry.expiresAt > nowMs()
+  return entry && typeof entry.expiresAt === 'number' && entry.expiresAt > Date.now()
 }
 
 function likeKey(entityType, entityId) {
@@ -46,20 +38,6 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     clearLikeStatuses() {
       this.likeStatuses = {}
     },
-    clearAll() {
-      this.users = {}
-      this.likeCounts = {}
-      this.likeStatuses = {}
-      this.likeStatusScope = ''
-    },
-
-    getUser(id) {
-      const uid = normalizeOpaqueId(id)
-      if (!uid) return null
-      const entry = this.users[uid]
-      if (isFresh(entry)) return entry.value
-      return null
-    },
     getLikeCount(entityType, entityId) {
       const k = likeKey(entityType, entityId)
       const entry = this.likeCounts[k]
@@ -75,16 +53,16 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     },
     setLikeCount(entityType, entityId, value) {
       const k = likeKey(entityType, entityId)
-      this.likeCounts[k] = { value: Number(value || 0), expiresAt: nowMs() + LIKE_TTL_MS }
+      this.likeCounts[k] = { value: Number(value || 0), expiresAt: Date.now() + LIKE_TTL_MS }
     },
     setLikeStatus(entityType, entityId, value) {
       this.syncLikeStatusScope()
       const k = likeKey(entityType, entityId)
-      this.likeStatuses[k] = { value: !!value, expiresAt: nowMs() + LIKE_TTL_MS }
+      this.likeStatuses[k] = { value: !!value, expiresAt: Date.now() + LIKE_TTL_MS }
     },
 
     async ensureUserSummaries(userIds) {
-      const ids = normalizeIds(userIds)
+      const ids = normalizeOpaqueIds(userIds, { max: 200 })
       if (ids.length === 0) return {}
 
       const missing = []
@@ -94,7 +72,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
 
       if (missing.length > 0) {
         const { data } = await batchUserSummary(missing)
-        const t = nowMs()
+        const t = Date.now()
         if (Array.isArray(data)) {
           for (const u of data) {
             const id = normalizeOpaqueId(u?.id)
@@ -113,7 +91,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     },
 
     async ensureLikeCounts(entityType, entityIds) {
-      const ids = normalizeIds(entityIds)
+      const ids = normalizeOpaqueIds(entityIds, { max: 200 })
       if (ids.length === 0) return {}
 
       const missing = []
@@ -124,7 +102,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
 
       if (missing.length > 0) {
         const { data } = await getLikeCounts(entityType, missing)
-        const t = nowMs()
+        const t = Date.now()
         for (const id of missing) {
           if (!Object.prototype.hasOwnProperty.call(data || {}, String(id))) {
             throw new Error(`点赞数缺少实体 ${id}`)
@@ -146,7 +124,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
     },
 
     async ensureLikeStatuses(entityType, entityIds) {
-      const ids = normalizeIds(entityIds)
+      const ids = normalizeOpaqueIds(entityIds, { max: 200 })
       if (ids.length === 0) return {}
       const requestScope = this.syncLikeStatusScope()
 
@@ -161,7 +139,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
         if (this.syncLikeStatusScope() !== requestScope) {
           return this.ensureLikeStatuses(entityType, ids)
         }
-        const t = nowMs()
+        const t = Date.now()
         for (const id of missing) {
           if (!Object.prototype.hasOwnProperty.call(data || {}, String(id))) {
             throw new Error(`点赞状态缺少实体 ${id}`)

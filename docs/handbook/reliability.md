@@ -159,7 +159,6 @@ validate userId / operation / key / supplier
 http:
   idempotency:
     enabled: true
-    store: DB
 ```
 
 可选：
@@ -168,7 +167,6 @@ http:
 http:
   idempotency:
     enabled: true
-    store: DB # DB 或 REDIS
     processing-ttl: 30s
     success-ttl: 24h
 ```
@@ -181,15 +179,7 @@ DB 方案：
 - `saveSuccess(...)` upsert `S` 状态、响应 JSON、成功过期时间。
 - `get(...)` 读到过期记录会删除并返回空状态。
 
-Redis 方案：
-
-- key：`idem:<operation>:<userId>:<Idempotency-Key>`。
-- `SETNX + TTL` 抢占 `PROCESSING`，值固定为 `P\n<requestHash>`。
-- 成功后普通 `SET` 保存 `S\n<requestHash>\n<responseJson>`。
-- `requestHash` 必填；不读取无 fingerprint 的旧 Redis 编码。
-- `extendProcessing(...)` 使用 Lua，只在当前值仍为 `P` 时延长 TTL。
-
-当前仓库默认 DB。Redis 更轻，但 Redis 抖动会直接影响关键写链路的幂等判断。
+幂等写和业务写使用同一数据库事务，避免业务成功而幂等状态未落库。
 
 指标：
 
@@ -230,7 +220,6 @@ http_idempotency_total{op="<operation>", outcome="<outcome>"}
 - `IdempotencyGuard`
 - `IdempotencyStore`
 - `JdbcIdempotencyStore`
-- `RedisIdempotencyStore`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/idempotency/IdempotencyKeyResolver.java`
 - `backend/community-app/src/main/java/com/nowcoder/community/infra/idempotency/RequestFingerprint.java`
 
@@ -589,7 +578,6 @@ Hot-feed 缓存治理入口位于 `/api/ops/hot-cache/**`，由 ops 应用层调
 - `IdempotencyGuardFingerprintTest`
 - `IdempotencyGuardStoreFailureTest`
 - `JdbcIdempotencyStoreTest`
-- `RedisIdempotencyStoreTest`
 
 应用侧：
 

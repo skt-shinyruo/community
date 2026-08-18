@@ -321,13 +321,6 @@
 | `im.infrastructure.event.ImPolicyBackboneKafkaListener` | user/social Kafka event 到 IM policy projection application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.infrastructure.event.ImPolicyEventKafkaSenderAdapter` | IM policy delta 发布到 IM Kafka topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |
 
-## Runtime Config
-
-| Core class | Role | Handbook section | Coverage |
-| --- | --- | --- | --- |
-| `runtime.controller.RuntimeConfigController` | public `/api/runtime-config` HTTP binding | [Runtime Configuration](core-logic/runtime-configuration.md) | IndexOnly |
-| `runtime.application.RuntimeConfigApplicationService` | frontend runtime config snapshot assembly | [Runtime Configuration](core-logic/runtime-configuration.md) | Covered |
-
 ## Gateway And IM Gateway
 
 | Core class | Role | Handbook section | Coverage |
@@ -388,11 +381,10 @@
 | `im.core.application.PrivateMessageApplicationService` | private message persist, owner policy, idempotency, outbox events | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.application.RoomApplicationService` | room creation, join, leave and membership events | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.application.RoomMessageApplicationService` | room message persist, membership authority, idempotency, outbox events | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
-| `im.core.application.UnreadApplicationService` | private / room unread summary and watermarks | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
+| `im.core.application.UnreadApplicationService` | private / room unread summary, limit normalization and watermarks | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.domain.service.PrivateMessageDomainService` | private message draft, conversation id and seq rules | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.domain.service.RoomMessageDomainService` | room message draft, membership and seq rules | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.domain.service.RoomMembershipDomainService` | room membership rule model | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
-| `im.core.domain.service.UnreadDomainService` | unread query limit normalization | [IM Core Runtime](core-logic/im-core-runtime.md) | IndexOnly |
 | `im.core.policy.PrivateMessagePolicyVerifier` | owner policy decision 端口与 fail-closed rejection 映射 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.policy.OwnerApiPrivateMessagePolicyVerifier` | internal JWT owner API 调用与仅拒绝结果短 TTL 缓存 | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.core.application.AccessTokenFreshnessApplicationService` | im-core access token freshness 的同域应用入口与 fail-closed 策略 | [Token Freshness 与 API 请求安全](core-logic/security-token-freshness.md) | Covered |
@@ -463,7 +455,6 @@
 | `frontend.api.services.reportService` | report endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
 | `frontend.api.services.blockService` | block endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
 | `frontend.api.services.taxonomyService` | category / tag endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
-| `frontend.api.services.subscriptionService` | subscription endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
 | `frontend.api.services.bookmarkService` | bookmark endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
 | `frontend.api.services.searchService` | search endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |
 | `frontend.api.services.analyticsService` | analytics endpoint mapping | [前端业务状态与 API 编排](core-logic/frontend-business-state.md) | IndexOnly |

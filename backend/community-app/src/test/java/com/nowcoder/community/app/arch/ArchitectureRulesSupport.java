@@ -35,10 +35,6 @@ final class ArchitectureRulesSupport {
             "im"
     );
 
-    static final Set<String> PLATFORM_MODULES = Set.of(
-            "runtime"
-    );
-
     static final Set<String> TECHNICAL_ROOTS = Set.of(
             "app",
             "infra"
@@ -51,8 +47,7 @@ final class ArchitectureRulesSupport {
 
     static final Set<String> TACTICAL_ROOTS = Stream.of(
                     CORE_DOMAINS,
-                    ADAPTER_DOMAINS,
-                    PLATFORM_MODULES
+                    ADAPTER_DOMAINS
             )
             .flatMap(Set::stream)
             .collect(Collectors.toUnmodifiableSet());

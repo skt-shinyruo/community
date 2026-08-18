@@ -94,12 +94,6 @@ export function putJson(path, body, params = {}, expected = 200) {
   return response
 }
 
-export function deletePath(path, params = {}, expected = 200) {
-  const response = http.del(url(path), null, requestOptions(path, params))
-  expectStatus(response, expected, `DELETE ${path} returned ${Array.isArray(expected) ? expected.join('/') : expected}`)
-  return response
-}
-
 export function randomThinkTime(minMs = config.thinkMinMs, maxMs = config.thinkMaxMs) {
   const min = Math.max(0, minMs)
   const max = Math.max(min, maxMs)

@@ -5,7 +5,7 @@
 
 <mapper namespace="com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper">
 
-    <resultMap id="MarketAddressResultMap" type="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject">
+    <resultMap id="MarketAddressResultMap" type="com.nowcoder.community.market.domain.model.MarketAddress">
         <id property="addressId" column="address_id" jdbcType="BINARY"/>
         <result property="userId" column="user_id" jdbcType="BINARY"/>
         <result property="receiverName" column="receiver_name"/>
@@ -21,7 +21,7 @@
         <result property="updateTime" column="update_time"/>
     </resultMap>
 
-    <insert id="insert" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject">
+    <insert id="insert" parameterType="com.nowcoder.community.market.domain.model.MarketAddress">
         insert into market_address(
             address_id, user_id, receiver_name, receiver_phone, province, city, district, detail_address, postal_code, is_default, status
         )
@@ -46,7 +46,7 @@
         order by is_default desc, create_time desc, address_id desc
     </select>
 
-    <update id="update" parameterType="com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject">
+    <update id="update" parameterType="com.nowcoder.community.market.domain.model.MarketAddress">
         update market_address
         set receiver_name = #{receiverName},
             receiver_phone = #{receiverPhone},

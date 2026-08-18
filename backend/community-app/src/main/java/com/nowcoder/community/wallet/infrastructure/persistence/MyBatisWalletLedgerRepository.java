@@ -5,9 +5,9 @@ import com.nowcoder.community.wallet.domain.model.WalletLedgerItem;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletEntryDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletLedgerItemDataObject;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletTxnDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletEntryMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -36,7 +36,7 @@ public class MyBatisWalletLedgerRepository implements WalletLedgerRepository {
     @Override
     public CreationOutcome<WalletTxn> create(WalletTxn txn) {
         try {
-            return txnMapper.insert(WalletTxnDataObject.from(txn)) == 1
+            return txnMapper.insert(txn) == 1
                     ? CreationOutcome.created(txn)
                     : CreationOutcome.conflict();
         } catch (DuplicateKeyException exception) {
@@ -54,7 +54,7 @@ public class MyBatisWalletLedgerRepository implements WalletLedgerRepository {
 
     @Override
     public int insertEntry(WalletEntry entry) {
-        return entryMapper.insert(WalletEntryDataObject.from(entry));
+        return entryMapper.insert(entry);
     }
 
     @Override

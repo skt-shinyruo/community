@@ -89,7 +89,7 @@ export async function getFollowStatus(entityType, entityId, { force = false } = 
 }
 
 export async function getFollowStatuses(entityType, entityIds, { force = false } = {}) {
-  const ids = normalizeEntityIds(entityIds)
+  const ids = normalizeOpaqueIds(entityIds, { max: 200 })
   if (ids.length === 0) return { data: {}, traceId: '' }
   const cacheScope = syncFollowCacheScope()
 
@@ -145,12 +145,8 @@ function normalizeFollowRelationPage(data) {
   }
 }
 
-function normalizeEntityIds(entityIds, { max = 200 } = {}) {
-  return normalizeOpaqueIds(entityIds, { max })
-}
-
 export async function getLikeCounts(entityType, entityIds) {
-  const ids = normalizeEntityIds(entityIds)
+  const ids = normalizeOpaqueIds(entityIds, { max: 200 })
   if (ids.length === 0) return { data: {}, traceId: '' }
   const resp = await http.get('/api/likes/counts', { params: { entityType, entityIds: ids.join(',') } })
   const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞数')
@@ -161,7 +157,7 @@ export async function getLikeCounts(entityType, entityIds) {
 }
 
 export async function getLikeStatuses(entityType, entityIds) {
-  const ids = normalizeEntityIds(entityIds)
+  const ids = normalizeOpaqueIds(entityIds, { max: 200 })
   if (ids.length === 0) return { data: {}, traceId: '' }
   const resp = await http.get('/api/likes/statuses', { params: { entityType, entityIds: ids.join(',') } })
   const { data, traceId } = unwrapResultBody(resp.data, '批量查询点赞状态')

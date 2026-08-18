@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
+import com.nowcoder.community.market.domain.model.MarketAddress;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -12,13 +12,13 @@ import java.util.UUID;
 @Mapper
 public interface MarketAddressMapper {
 
-    int insert(MarketAddressDataObject address);
+    int insert(MarketAddress address);
 
-    MarketAddressDataObject selectById(@Param("addressId") UUID addressId);
+    MarketAddress selectById(@Param("addressId") UUID addressId);
 
-    List<MarketAddressDataObject> selectByUserId(@Param("userId") UUID userId);
+    List<MarketAddress> selectByUserId(@Param("userId") UUID userId);
 
-    int update(MarketAddressDataObject address);
+    int update(MarketAddress address);
 
     int clearDefaultByUserId(@Param("userId") UUID userId);
 

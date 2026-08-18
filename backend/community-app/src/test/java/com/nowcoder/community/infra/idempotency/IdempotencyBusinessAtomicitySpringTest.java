@@ -266,14 +266,5 @@ class IdempotencyBusinessAtomicitySpringTest {
             return false;
         }
 
-        @Override
-        public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
-            delegate.extendProcessing(operation, userId, key, ttl);
-        }
-
-        @Override
-        public void delete(String operation, UUID userId, String key) {
-            delegate.delete(operation, userId, key);
-        }
     }
 }

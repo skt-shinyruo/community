@@ -32,7 +32,7 @@ function buildComposerCategoryOptions(categories) {
   ]
 }
 
-export function usePostsFeed(emit) {
+export function usePostsFeed() {
   const auth = useAuthStore()
   const route = useRoute()
   const router = useRouter()
@@ -377,10 +377,6 @@ export function usePostsFeed(emit) {
     }, 0)
   }
 
-  function applyFilter(list) {
-    return list
-  }
-
   async function load(append = false) {
     if (append && loading.value) return false
 
@@ -402,8 +398,6 @@ export function usePostsFeed(emit) {
       const resp = boardId.value
         ? await listBoardFeed(boardId.value, { cursor, size: size.value })
         : await listGlobalFeed({ cursor, size: size.value })
-      emit('trace', resp?.traceId || '')
-
       if (token !== lastLoadToken) return
 
       const pageData = resp?.data && typeof resp.data === 'object' ? resp.data : {}
@@ -416,7 +410,7 @@ export function usePostsFeed(emit) {
 
       const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
       blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
-      const newItems = applyFilter(afterBlocked)
+      const newItems = afterBlocked
 
       const nextCursor = String(pageData.nextCursor || '')
       hasNext.value = !!nextCursor
@@ -461,7 +455,6 @@ export function usePostsFeed(emit) {
         liked: null
       })
        if (auth.tokenGeneration !== authGeneration) return
-       emit('trace', resp?.traceId || '')
        if (typeof resp?.data?.likeCount === 'number') {
          p.likeCount = resp.data.likeCount
          postMetaCache.setLikeCount(1, p.id, p.likeCount)
@@ -499,8 +492,6 @@ export function usePostsFeed(emit) {
     try {
       const resp = await apiCreatePost(command, { writeAttempt: createAttempt })
       if (auth.tokenGeneration !== authGeneration || requestedIntent !== createIntent()) return
-      emit('trace', resp?.traceId || '')
-
       const createdPostId = normalizeOpaqueId(resp?.data?.postId)
       createAttempt.succeed()
       const hasPostId = !!createdPostId

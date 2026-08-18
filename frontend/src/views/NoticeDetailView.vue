@@ -132,7 +132,6 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiPagination from '../components/ui/UiPagination.vue'
 import UiState from '../components/ui/UiState.vue'
 
-const emit = defineEmits(['trace'])
 const props = defineProps({ topic: String })
 const auth = useAuthStore()
 
@@ -206,17 +205,15 @@ async function load(targetPage = page.value) {
   error.value = ''
   loading.value = true
   try {
-    const { data, traceId } = await listNotices(requestedTopic, { page: targetPage, size: size.value })
+    const { data } = await listNotices(requestedTopic, { page: targetPage, size: size.value })
     if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
     const nextItems = Array.isArray(data) ? data : []
     hasNext.value = nextItems.length >= Number(size.value || 10)
     if (targetPage > page.value && nextItems.length === 0) {
-      emit('trace', traceId || '')
       return
     }
     page.value = targetPage
     items.value = nextItems
-    emit('trace', traceId || '')
   } catch (e) {
     if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
     error.value = e?.message || '加载失败'
@@ -236,9 +233,8 @@ async function markAllRead() {
   loading.value = true
   try {
     const ids = normalizeOpaqueIds(items.value.map((x) => x?.id))
-    const { traceId } = await markRead(ids)
+    await markRead(ids)
     if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
-    emit('trace', traceId || '')
     await load(requestedPage)
   } catch (e) {
     if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return

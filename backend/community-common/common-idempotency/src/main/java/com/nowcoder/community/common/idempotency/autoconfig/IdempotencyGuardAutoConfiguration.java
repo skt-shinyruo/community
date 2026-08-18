@@ -15,10 +15,7 @@ import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Bean;
 
 @AutoConfiguration(
-        after = {
-                JdbcIdempotencyAutoConfiguration.class,
-                RedisIdempotencyAutoConfiguration.class
-        },
+        after = JdbcIdempotencyAutoConfiguration.class,
         afterName = {
                 "com.nowcoder.community.common.web.autoconfig.ServletWebInfraAutoConfiguration",
                 "com.nowcoder.community.common.webflux.autoconfig.WebFluxInfraAutoConfiguration"
@@ -38,7 +35,6 @@ public class IdempotencyGuardAutoConfiguration {
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties
     ) {
-        // Keep Redis configuration bootable; the guard rejects non-transactional stores before executing a write.
         return new IdempotencyGuard(jsonCodec, store, meterRegistryProvider, properties);
     }
 }

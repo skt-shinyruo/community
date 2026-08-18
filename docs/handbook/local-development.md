@@ -151,7 +151,6 @@ mvn -pl :community-app spring-boot:run
 ```bash
 curl -fsS http://127.0.0.1:18080/actuator/health
 curl -fsS http://127.0.0.1:12880/actuator/health
-curl -fsS http://127.0.0.1:12880/api/runtime-config
 ```
 
 停止基础设施时必须保留同一组选项：

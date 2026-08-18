@@ -27,7 +27,6 @@ function positiveInteger(value, fallback, name) {
 
 export function loadConfig(env = process.env) {
   return {
-    serviceName: 'mock-data-studio',
     communityBaseUrl: optional(
       env.MOCK_DATA_STUDIO_COMMUNITY_APP_BASE_URL,
       DEFAULT_COMMUNITY_APP_BASE_URL

@@ -203,14 +203,12 @@ import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
 import { useUserProfilePage } from './useUserProfilePage'
 
-const emit = defineEmits(['trace'])
 const props = defineProps({
   userId: { type: String, default: '' }
 })
 
 const { model, actions, lifecycle } = useUserProfilePage({
-  userId: toRef(props, 'userId'),
-  onTrace: (traceId) => emit('trace', traceId)
+  userId: toRef(props, 'userId')
 })
 
 function shortUserId(value) {

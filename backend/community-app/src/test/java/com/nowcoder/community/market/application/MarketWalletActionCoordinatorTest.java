@@ -5,7 +5,7 @@ import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.exception.MarketErrorCode;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketWalletActionRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
+import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -29,7 +29,7 @@ class MarketWalletActionCoordinatorTest {
         MarketWalletActionMapper mapper = mock(MarketWalletActionMapper.class);
         UuidV7Generator idGenerator = new UuidV7Generator();
         UUID orderId = uuid(2);
-        when(mapper.insert(any(MarketWalletActionDataObject.class))).thenReturn(1);
+        when(mapper.insert(any(MarketWalletAction.class))).thenReturn(1);
 
         MarketWalletActionCoordinator service = new MarketWalletActionCoordinator(
                 new MyBatisMarketWalletActionRepository(mapper),
@@ -37,7 +37,7 @@ class MarketWalletActionCoordinatorTest {
         );
         service.enqueueEscrow(orderId, uuid(9), uuid(7), 12_900L);
 
-        ArgumentCaptor<MarketWalletActionDataObject> captor = ArgumentCaptor.forClass(MarketWalletActionDataObject.class);
+        ArgumentCaptor<MarketWalletAction> captor = ArgumentCaptor.forClass(MarketWalletAction.class);
         verify(mapper).insert(captor.capture());
         assertThat(captor.getValue().getActionId()).isNotNull();
         assertThat(captor.getValue().getActionId().version()).isEqualTo(7);
@@ -56,8 +56,8 @@ class MarketWalletActionCoordinatorTest {
         UUID sellerUserId = uuid(7);
         String requestId = "market-order:" + orderId + ":escrow";
         MarketWalletAction conflicting = action(orderId, requestId, buyerUserId, sellerUserId, 99_999L);
-        when(mapper.selectByRequestId(requestId)).thenReturn(null, MarketWalletActionDataObject.from(conflicting));
-        when(mapper.insert(any(MarketWalletActionDataObject.class)))
+        when(mapper.selectByRequestId(requestId)).thenReturn(null, conflicting);
+        when(mapper.insert(any(MarketWalletAction.class)))
                 .thenThrow(new DuplicateKeyException("duplicate market wallet action"));
         MarketWalletActionCoordinator service = new MarketWalletActionCoordinator(
                 new MyBatisMarketWalletActionRepository(mapper),
@@ -77,7 +77,7 @@ class MarketWalletActionCoordinatorTest {
         String requestId = "market-order:" + orderId + ":escrow";
         DataIntegrityViolationException unknown = new DataIntegrityViolationException("unknown wallet action constraint");
         when(mapper.selectByRequestId(requestId)).thenReturn(null);
-        when(mapper.insert(any(MarketWalletActionDataObject.class))).thenThrow(unknown);
+        when(mapper.insert(any(MarketWalletAction.class))).thenThrow(unknown);
         MarketWalletActionCoordinator service = new MarketWalletActionCoordinator(
                 new MyBatisMarketWalletActionRepository(mapper),
                 new UuidV7Generator()

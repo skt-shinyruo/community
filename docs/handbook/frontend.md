@@ -198,11 +198,10 @@ connect(accessToken)
 | Store | 文件 | 语义 |
 | --- | --- | --- |
 | Auth | `frontend/src/stores/auth.js` | access token、`me`、authorities、session hint 写入 / 清理。 |
-| App | `frontend/src/stores/app.js` | 当前 trace id 等应用级状态。 |
 | UI | `frontend/src/stores/ui.js` | theme、density、桌面 sidebar collapsed 偏好、移动 sidebar drawer 临时状态。 |
 | Taxonomy | `frontend/src/stores/taxonomy.js` | 分类和热门标签轻缓存。 |
 | Post Meta Cache | `frontend/src/stores/postMetaCache.js` | 用户摘要、点赞数、点赞状态 TTL 缓存。 |
-| Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑和订阅分类读侧状态。 |
+| Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑读侧状态。 |
 
 `postMetaCache` 的 TTL 约定：
 
@@ -214,7 +213,7 @@ connect(accessToken)
 
 ## 产品 UI 基础件
 
-`frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影；需要对象卡片强调时显式使用 `.object-card`。
+`frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影。
 
 `frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块；页面空态、错误态和开发态都直接使用它。
 

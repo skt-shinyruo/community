@@ -156,7 +156,6 @@ describe('UserManagementView', () => {
 
     expect(wrapper.text()).toContain('bob')
     expect(wrapper.text()).not.toContain('alice@example.com')
-    expect(wrapper.emitted('trace').flat()).toEqual(['trace-bob'])
   })
 
   it('does not commit a role update response after the current admin loses permission', async () => {

@@ -13,13 +13,13 @@ import com.nowcoder.community.market.domain.repository.MarketListingRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
 import com.nowcoder.community.market.infrastructure.persistence.MyBatisMarketWalletActionRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketWalletActionDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketWalletActionMapper;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
+import org.springframework.beans.BeanUtils;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -179,14 +179,14 @@ class MarketWalletActionProcessorApplicationServiceTest {
             MarketWalletActionLease lease = invocation.getArgument(0);
             return MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
                     && lease.equals(processingLease.get())
-                    ? MarketWalletActionDataObject.from(action)
+                    ? copyOf(action)
                     : null;
         });
         when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
             MarketWalletActionLease lease = invocation.getArgument(0);
             return MarketWalletActionStatus.PROCESSING.equals(walletActionStatus.get())
                     && lease.equals(processingLease.get())
-                    ? MarketWalletActionDataObject.from(action)
+                    ? copyOf(action)
                     : null;
         });
         when(mapper.selectExpiredProcessing(any(), anyInt())).thenAnswer(invocation -> {
@@ -197,7 +197,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
                     || leaseUntil.after(asOf)) {
                 return java.util.List.of();
             }
-            MarketWalletActionDataObject candidate = MarketWalletActionDataObject.from(action);
+            MarketWalletAction candidate = copyOf(action);
             candidate.setStatus(MarketWalletActionStatus.PROCESSING);
             candidate.setProcessingLeaseUntil(leaseUntil);
             candidate.setLeaseToken(processingLease.get().token());
@@ -932,14 +932,14 @@ class MarketWalletActionProcessorApplicationServiceTest {
             MarketWalletActionLease lease = invocation.getArgument(0);
             return MarketWalletActionStatus.PROCESSING.equals(status.get())
                     && lease.equals(currentLease.get())
-                    ? MarketWalletActionDataObject.from(action)
+                    ? copyOf(action)
                     : null;
         });
         when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenAnswer(invocation -> {
             MarketWalletActionLease lease = invocation.getArgument(0);
             return MarketWalletActionStatus.PROCESSING.equals(status.get())
                     && lease.equals(currentLease.get())
-                    ? MarketWalletActionDataObject.from(action)
+                    ? copyOf(action)
                     : null;
         });
         when(mapper.recordWalletTxn(any(MarketWalletActionLease.class), eq(walletTxn.txnId()), any()))
@@ -957,7 +957,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
             if (activeLease == null) {
                 return java.util.List.of();
             }
-            MarketWalletActionDataObject candidate = MarketWalletActionDataObject.from(action);
+            MarketWalletAction candidate = copyOf(action);
             candidate.setStatus(MarketWalletActionStatus.PROCESSING);
             candidate.setLeaseToken(activeLease.token());
             candidate.setProcessingLeaseUntil(Date.from(asOf.toInstant().minusSeconds(1)));
@@ -1053,7 +1053,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction staleCandidate = releaseAction();
-        MarketWalletActionDataObject current = MarketWalletActionDataObject.from(staleCandidate);
+        MarketWalletAction current = copyOf(staleCandidate);
         current.setAmount(staleCandidate.getAmount() + 500L);
         var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
                 uuid(106),
@@ -1187,10 +1187,16 @@ class MarketWalletActionProcessorApplicationServiceTest {
     private void claimSucceeds(MarketWalletActionMapper mapper, MarketWalletAction action) {
         when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(1);
         when(mapper.selectClaimed(any(MarketWalletActionLease.class)))
-                .thenReturn(MarketWalletActionDataObject.from(action));
+                .thenAnswer(ignored -> copyOf(action));
         when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any()))
-                .thenReturn(MarketWalletActionDataObject.from(action));
+                .thenAnswer(ignored -> copyOf(action));
         when(mapper.recordWalletTxn(any(MarketWalletActionLease.class), any(), any())).thenReturn(1);
+    }
+
+    private static MarketWalletAction copyOf(MarketWalletAction source) {
+        MarketWalletAction copy = new MarketWalletAction();
+        BeanUtils.copyProperties(source, copy);
+        return copy;
     }
 
     private MarketWalletActionLease claimedLease(MarketWalletActionMapper mapper) {

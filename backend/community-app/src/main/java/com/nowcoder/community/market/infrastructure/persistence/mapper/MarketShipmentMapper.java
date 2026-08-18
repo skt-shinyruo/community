@@ -1,6 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketShipmentDataObject;
+import com.nowcoder.community.market.domain.model.MarketShipment;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -11,7 +11,7 @@ import java.util.UUID;
 @Mapper
 public interface MarketShipmentMapper {
 
-    int insert(MarketShipmentDataObject shipment);
+    int insert(MarketShipment shipment);
 
-    MarketShipmentDataObject selectByOrderId(@Param("orderId") UUID orderId);
+    MarketShipment selectByOrderId(@Param("orderId") UUID orderId);
 }

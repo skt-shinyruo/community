@@ -164,7 +164,6 @@ describe('follow relation pagination', () => {
     await flushPromises()
     expect(wrapper.vm.items[0].targetId).toBe(relation(20).targetId)
     expect(batchUserSummary).toHaveBeenCalledTimes(1)
-    expect(wrapper.emitted('trace').flat()).not.toContain('trace-previous-profile')
   })
 
   it.each([
@@ -197,7 +196,6 @@ describe('follow relation pagination', () => {
     await flushPromises()
     expect(wrapper.vm.page).toBe(0)
     expect(wrapper.vm.items[0].targetId).toBe(relation(30).targetId)
-    expect(wrapper.emitted('trace').flat()).not.toContain('trace-page')
   })
 
   it.each([
@@ -244,7 +242,6 @@ describe('follow relation pagination', () => {
     await flushPromises()
 
     expect(wrapper.vm.items[0].hasFollowed).toBe(false)
-    expect(wrapper.emitted('trace').flat()).not.toContain('trace-stale-follow')
   })
 
   it.each([

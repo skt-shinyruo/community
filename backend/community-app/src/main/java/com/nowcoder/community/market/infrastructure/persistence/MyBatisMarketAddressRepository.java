@@ -2,7 +2,7 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.repository.MarketAddressRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
+import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -22,7 +22,7 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
     @Override
     public WriteResult save(MarketAddress address) {
         try {
-            return writeResult(mapper.insert(MarketAddressDataObject.from(address)));
+            return writeResult(mapper.insert(address));
         } catch (DuplicateKeyException exception) {
             return WriteResult.DEFAULT_CONFLICT;
         }
@@ -35,13 +35,13 @@ public class MyBatisMarketAddressRepository implements MarketAddressRepository {
 
     @Override
     public List<MarketAddress> findByUserId(UUID userId) {
-        return DomainRowAdapter.asDomainList(mapper.selectByUserId(userId));
+        return mapper.selectByUserId(userId);
     }
 
     @Override
     public WriteResult saveChanges(MarketAddress address) {
         try {
-            return writeResult(mapper.update(MarketAddressDataObject.from(address)));
+            return writeResult(mapper.update(address));
         } catch (DuplicateKeyException exception) {
             return WriteResult.DEFAULT_CONFLICT;
         }

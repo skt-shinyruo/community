@@ -63,11 +63,10 @@
 | `im.core.application.PrivateMessageApplicationService` | 私信持久化、owner policy 回源、幂等命中回执和 outbox 事件。 |
 | `im.core.application.RoomApplicationService` | 房间创建、加入、离开和成员事件。 |
 | `im.core.application.RoomMessageApplicationService` | 群聊消息持久化、成员权威校验、幂等命中回执和 outbox 事件。 |
-| `im.core.application.UnreadApplicationService` | 私聊 / 群聊未读汇总和 watermark 用例。 |
+| `im.core.application.UnreadApplicationService` | 私聊 / 群聊未读汇总、limit 规范化和 watermark 用例。 |
 | `im.core.domain.service.PrivateMessageDomainService` | 私信草稿校验、conversationId 规范化、既有消息查找和 seq 分配规则。 |
 | `im.core.domain.service.RoomMessageDomainService` | 群聊消息草稿校验、成员检查、既有消息查找和 seq 分配规则。 |
 | `im.core.domain.service.RoomMembershipDomainService` | 房间成员关系和成员变更规则。 |
-| `im.core.domain.service.UnreadDomainService` | 未读查询 limit 归一化。 |
 | `im.core.kafka.CommandConsumers` | 消费 IM command 并发布 persisted / committed / rejected event。 |
 | `im.core.kafka.KafkaRoomMemberChangePublisher` | 通过 outbox 发布成员变化。 |
 | `im.core.domain.event.RoomMemberChangePublisher` | 房间成员事件发布端口。 |

@@ -105,8 +105,6 @@ describe('ConversationsView', () => {
     expect(wrapper.text()).not.toContain('成员 #11111111-1111-7111-8111-111111111111')
     expect(wrapper.findAll('a')[0].attributes('href')).toBe('/messages/conv-a')
     expect(wrapper.findAll('a')[1].attributes('href')).toBe('/messages/conv-b')
-    expect(wrapper.emitted('trace')).toEqual([['']])
-
     const loadMore = wrapper.find('[data-testid="load-more-conversations"]')
     expect(loadMore.exists()).toBe(true)
     await loadMore.trigger('click')

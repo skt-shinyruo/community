@@ -8,10 +8,10 @@ import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketShipment;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketAddressDataObject;
+import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderDataObject;
 import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketOrderTransitionDataObject;
-import com.nowcoder.community.market.infrastructure.persistence.dataobject.MarketShipmentDataObject;
+import com.nowcoder.community.market.domain.model.MarketShipment;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketAddressMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketListingMapper;
 import com.nowcoder.community.market.infrastructure.persistence.mapper.MarketOrderMapper;
@@ -99,7 +99,7 @@ class MarketPersistenceTest {
         address.setPostalCode("200120");
         address.setDefault(true);
         address.setStatus("ACTIVE");
-        marketAddressMapper.insert(MarketAddressDataObject.from(address));
+        marketAddressMapper.insert(address);
 
         MarketOrder order = order(ID_GENERATOR.next())
                 .requestId("physical:req-1")
@@ -133,7 +133,7 @@ class MarketPersistenceTest {
         shipment.setCarrierName("顺丰");
         shipment.setTrackingNo("SF1234567890");
         shipment.setShippingRemark("工作日派送");
-        marketShipmentMapper.insert(MarketShipmentDataObject.from(shipment));
+        marketShipmentMapper.insert(shipment);
 
         assertThat(marketListingMapper.selectById(listing.getListingId()).getGoodsType()).isEqualTo("PHYSICAL");
         assertThat(marketOrderMapper.selectById(order.getOrderId()).getReceiverNameSnapshot()).isEqualTo("张三");

@@ -3,7 +3,7 @@ package com.nowcoder.community.wallet.infrastructure.persistence;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.domain.repository.CreationOutcome;
 import com.nowcoder.community.wallet.domain.repository.WithdrawOrderRepository;
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WithdrawOrderDataObject;
+import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WithdrawOrderMapper;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
@@ -32,7 +32,7 @@ public class MyBatisWithdrawOrderRepository implements WithdrawOrderRepository {
     @Override
     public CreationOutcome<WithdrawOrder> create(WithdrawOrder order) {
         try {
-            return mapper.insert(WithdrawOrderDataObject.from(order)) == 1
+            return mapper.insert(order) == 1
                     ? CreationOutcome.created(order)
                     : CreationOutcome.conflict();
         } catch (DuplicateKeyException exception) {

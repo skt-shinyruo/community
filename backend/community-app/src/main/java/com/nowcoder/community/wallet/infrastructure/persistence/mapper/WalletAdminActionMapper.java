@@ -1,6 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.persistence.mapper;
 
-import com.nowcoder.community.wallet.infrastructure.persistence.dataobject.WalletAdminActionDataObject;
+import com.nowcoder.community.wallet.domain.model.WalletAdminAction;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 import org.springframework.stereotype.Repository;
@@ -12,10 +12,10 @@ import java.util.UUID;
 @Mapper
 public interface WalletAdminActionMapper {
 
-    int insert(WalletAdminActionDataObject action);
+    int insert(WalletAdminAction action);
 
-    WalletAdminActionDataObject selectByRequestId(@Param("requestId") String requestId);
+    WalletAdminAction selectByRequestId(@Param("requestId") String requestId);
 
-    List<WalletAdminActionDataObject> selectRecentByTargetAccountId(@Param("targetAccountId") UUID targetAccountId,
+    List<WalletAdminAction> selectRecentByTargetAccountId(@Param("targetAccountId") UUID targetAccountId,
                                                           @Param("limit") int limit);
 }

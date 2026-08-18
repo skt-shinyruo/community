@@ -276,7 +276,7 @@ describe('DriveView', () => {
     const wrapper = mountDrive(pinia)
     await vi.waitFor(() => expect(listDriveEntries).toHaveBeenCalledTimes(1))
 
-    auth.setAccessToken('access-rotated')
+    auth.installSession({ accessToken: 'access-rotated' })
     await flushPromises()
 
     expect(wrapper.text()).toContain('current-generation.txt')

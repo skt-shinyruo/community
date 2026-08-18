@@ -36,8 +36,6 @@ class IdempotencyGuardSerializationFailureTest {
                 .hasCause(failure);
 
         verify(store, never()).saveSuccess(anyString(), any(), anyString(), anyString(), anyString(), any(Duration.class));
-        verify(store, never()).extendProcessing(anyString(), any(), anyString(), any(Duration.class));
-        verify(store, never()).delete(anyString(), any(), anyString());
     }
 
     @Test

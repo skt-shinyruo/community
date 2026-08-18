@@ -870,15 +870,6 @@ class CommentApplicationServiceTest {
             return true;
         }
 
-        @Override
-        public void extendProcessing(String operation, UUID userId, String key, Duration ttl) {
-        }
-
-        @Override
-        public void delete(String operation, UUID userId, String key) {
-            entries.remove(storageKey(operation, userId, key));
-        }
-
         private String storageKey(String operation, UUID userId, String key) {
             return operation + "|" + userId + "|" + key;
         }

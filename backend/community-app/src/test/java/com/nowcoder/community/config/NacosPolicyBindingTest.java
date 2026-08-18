@@ -9,7 +9,6 @@ import com.nowcoder.community.common.web.net.TrustedProxyProperties;
 import com.nowcoder.community.infra.oss.OssClientProperties;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.notice.application.NoticePolicyProperties;
-import com.nowcoder.community.runtime.config.RuntimeConfigProperties;
 import com.nowcoder.community.search.application.SearchPolicyProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
@@ -76,7 +75,6 @@ class NacosPolicyBindingTest {
                 .isEqualTo(10_000);
         assertThat(environment.getProperty("security.jwt.refresh-cookie-same-site")).isEqualTo("Lax");
         assertThat(environment.getProperty("auth.captcha.max-issue-requests-per-ip", Integer.class)).isEqualTo(10);
-        assertThat(environment.getProperty("http.idempotency.store")).isEqualTo("DB");
         assertThat(environment.getProperty("growth.business-zone-id")).isEqualTo("Asia/Shanghai");
         assertThat(environment.getProperty(
                 "content.comment-thread-cleanup.enabled", Boolean.class)).isTrue();
@@ -204,10 +202,11 @@ class NacosPolicyBindingTest {
         assertThat(upload.getAllowedMimeTypes()).contains("image/png", "text/plain", "application/octet-stream");
         assertThat(upload.getAllowedExtensions()).contains("jpg", "pdf", "txt", "bin");
 
-        SearchPolicyProperties search = Binder.get(environmentFrom("community-search-policy.yaml"))
+        StandardEnvironment searchEnvironment = environmentFrom("community-search-policy.yaml");
+        SearchPolicyProperties search = Binder.get(searchEnvironment)
                 .bind("search", SearchPolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
-        assertThat(search.getIndex().isInitialize()).isTrue();
+        assertThat(searchEnvironment.getProperty("search.index.initialize", Boolean.class)).isTrue();
         assertThat(search.getQuery().getMaxPageSize()).isEqualTo(50);
         assertThat(search.getDegradation().isEnabled()).isFalse();
 
@@ -215,7 +214,6 @@ class NacosPolicyBindingTest {
                 .bind("notice", NoticePolicyProperties.class)
                 .orElseThrow(IllegalStateException::new);
         assertThat(notice.getChannels().isInAppEnabled()).isTrue();
-        assertThat(notice.getDigest().getWindow()).isEqualTo(Duration.ofHours(1));
 
         StandardEnvironment kafkaEnvironment = environmentFrom("community-kafka-policy.yaml");
         KafkaPolicyProperties kafka = Binder.get(kafkaEnvironment)
@@ -265,25 +263,6 @@ class NacosPolicyBindingTest {
                 .isEqualTo("growth-task-progress");
         assertThat(kafkaEnvironment.getProperty("growth.task.kafka.consumer.concurrency", Integer.class))
                 .isEqualTo(3);
-    }
-
-    @Test
-    void bindsFrontendRuntimeSeedDataId() throws Exception {
-        StandardEnvironment environment = environmentFrom("community-frontend-runtime.yaml");
-        RuntimeConfigProperties runtime = Binder.get(environment)
-                .bind("frontend.runtime", RuntimeConfigProperties.class)
-                .orElseThrow(IllegalStateException::new);
-
-        assertThat(runtime.getApiBasePath()).isEqualTo("/api");
-        assertThat(runtime.getFeatures()).containsEntry("file-upload", true);
-        assertThat(environment.getProperty("frontend.runtime.upload.max-file-size")).isEqualTo("10GB");
-        assertThat(environment.getProperty("frontend.runtime.upload.max-request-size")).isEqualTo("10GB");
-        assertThat(environment.getProperty("frontend.runtime.upload.allowed-mime-types[0]")).isEqualTo("image/jpeg");
-        assertThat(environment.getProperty("frontend.runtime.upload.allowed-extensions[0]")).isEqualTo("jpg");
-        assertThat(environment.getProperty("frontend.runtime.upload.avatar-upload-enabled", Boolean.class)).isTrue();
-        assertThat(environment.getProperty("frontend.runtime.upload.media-upload-enabled", Boolean.class)).isTrue();
-        assertThat(environment.getProperty("frontend.runtime.public-gateway-origin")).isEqualTo("http://localhost:12880");
-        assertThat(environment.getProperty("frontend.runtime.websocket-url")).isEqualTo("ws://localhost:12880/ws/im");
     }
 
     @Test

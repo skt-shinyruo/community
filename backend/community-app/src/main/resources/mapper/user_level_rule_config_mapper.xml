@@ -5,7 +5,7 @@
 
 <mapper namespace="com.nowcoder.community.growth.infrastructure.persistence.mapper.UserLevelRuleConfigMapper">
 
-    <resultMap id="UserLevelRuleConfigResultMap" type="com.nowcoder.community.growth.infrastructure.persistence.dataobject.UserLevelRuleConfigDataObject">
+    <resultMap id="UserLevelRuleConfigResultMap" type="com.nowcoder.community.growth.domain.model.UserLevelRuleConfig">
         <id property="id" column="id" jdbcType="BINARY" typeHandler="com.nowcoder.community.infra.persistence.mybatis.UuidBinaryTypeHandler"/>
         <result property="windowDays" column="window_days"/>
         <result property="lv2SignInDays" column="lv2_sign_in_days"/>

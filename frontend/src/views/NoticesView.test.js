@@ -101,6 +101,5 @@ describe('NoticesView', () => {
     expect(wrapper.text()).toContain('关注')
     expect(wrapper.findAll('a')).toHaveLength(1)
     expect(wrapper.find('a').attributes('href')).toBe('/notices/follow')
-    expect(wrapper.emitted('trace')).toEqual([['trace-user-b']])
   })
 })

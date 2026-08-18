@@ -494,7 +494,7 @@ describe('ConversationDetailView', () => {
     expect(wrapper.findAll('.message-row')).toHaveLength(4)
   })
 
-  it('keeps the backfill checkpoint before an internal sequence gap', async () => {
+  it('only marks the contiguous backfill waterline read and advances after the gap is filled', async () => {
     imRealtimeClient.state.connected = true
     imRealtimeClient.state.authed = false
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
@@ -554,6 +554,8 @@ describe('ConversationDetailView', () => {
 
     expect(listImConversationMessages).toHaveBeenNthCalledWith(1, conversationId, { afterSeq: 8, limit: 100 })
     expect(listImConversationMessages).toHaveBeenNthCalledWith(2, conversationId, { afterSeq: 9, limit: 100 })
+    expect(markImConversationRead).toHaveBeenNthCalledWith(2, conversationId, 9)
+    expect(markImConversationRead).toHaveBeenNthCalledWith(3, conversationId, 11)
   })
 
   it('queues one more backfill pass when reconnect happens during an in-flight pass', async () => {

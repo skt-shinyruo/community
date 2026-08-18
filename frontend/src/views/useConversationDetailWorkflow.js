@@ -267,6 +267,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       if (!await awaitInitialHistoryBaseline(run) || !isCurrentBackfill(run)) return
       const { context } = run
       const previousMaxSeq = findLatestConversationSeq(items.value)
+      const previousWaterline = Number(backfillWaterline)
       let afterSeq = Number(backfillWaterline)
       let receivedCount = 0
 
@@ -294,8 +295,10 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       }
 
       const nextMaxSeq = findLatestConversationSeq(items.value)
+      if (backfillWaterline > previousWaterline) {
+        try { await markImConversationRead(context.conversationId, backfillWaterline) } catch {}
+      }
       if (receivedCount > 0 && nextMaxSeq > previousMaxSeq) {
-        try { await markImConversationRead(context.conversationId, nextMaxSeq) } catch {}
         if (isCurrentBackfill(run)) scrollToBottom(context.scope)
       }
     } catch (cause) {

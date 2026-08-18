@@ -211,7 +211,7 @@
                 <div class="discussion-card-meta">
                   <div
                     class="discussion-card-author"
-                    @click.stop="router.push({ name: 'userProfile', params: { userId: String(p.userId) } })"
+                    @click.stop="openUserProfile(p.userId)"
                   >
                     <UiAvatar :src="p.author?.headerUrl || ''" :name="p.author?.username || ''" :size="18" />
                     <span class="discussion-card-author-name">
@@ -245,7 +245,7 @@
                         variant="ghost"
                         class="discussion-activity-user"
                         :aria-label="`查看用户 ${activityUser(p)?.username || `成员 ${activityUserId(p)}`}`"
-                        @click.stop="router.push({ name: 'userProfile', params: { userId: String(activityUserId(p)) } })"
+                        @click.stop="openUserProfile(activityUserId(p))"
                       >
                         <UiAvatar
                           :src="activityUser(p)?.headerUrl || ''"
@@ -300,43 +300,46 @@ import UiBadge from '../components/ui/UiBadge.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
+import { formatTime, formatTimeAgo } from '../utils/time'
 import { usePostsFeed } from './posts/usePostsFeed'
 
 const emit = defineEmits(['trace'])
 const {
+  session,
+  scope,
+  feed,
+  unread,
+  composer
+} = usePostsFeed(emit)
+const {
   authed,
   me,
-  router,
+  goLogin
+} = session
+const {
   boardId,
   categories,
-  composerCategoryOptions,
   categoryLabel,
   showClear,
-  blockedHiddenCount,
-  goLogin,
   setBoardId,
-  clearQuery,
+  clearQuery
+} = scope
+const {
   items,
   hasNext,
   loading,
   error,
-  isPublishFocused,
-  newTitle,
-  newBlocks,
-  newCategoryId,
-  newTagDraft,
-  newTags,
-  newTagError,
-  composerTagSuggestNames,
-  creating,
-  createError,
-  closeComposer,
+  blockedHiddenCount,
   activityTime,
   activityUserId,
   activityUser,
-  commitNewTags,
-  onTagDraftKeydown,
-  removeNewTag,
+  openUserProfile,
+  openPost,
+  loadMore,
+  reload,
+  togglePostLike
+} = feed
+const {
   lastSeenDividerRef,
   newHintDismissed,
   newSinceLastSeenCount,
@@ -345,15 +348,26 @@ const {
   shouldShowNewHint,
   canJumpToLastSeen,
   scrollToLastSeenDivider,
-  isUnread,
-  openPost,
-  loadMore,
-  reload,
-  togglePostLike,
-  createPost,
-  formatTime,
-  formatTimeAgo
-} = usePostsFeed(emit)
+  isUnread
+} = unread
+const {
+  isPublishFocused,
+  newTitle,
+  newBlocks,
+  newCategoryId,
+  composerCategoryOptions,
+  newTagDraft,
+  newTags,
+  newTagError,
+  composerTagSuggestNames,
+  creating,
+  createError,
+  closeComposer,
+  commitNewTags,
+  onTagDraftKeydown,
+  removeNewTag,
+  createPost
+} = composer
 </script>
 
 <style src="./posts/PostsView.css"></style>

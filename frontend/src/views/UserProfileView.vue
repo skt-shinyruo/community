@@ -2,18 +2,18 @@
   <div class="page profile-page">
     <UiBreadcrumb />
 
-    <UiCard v-if="error">
-      <UiState variant="error">{{ error }}</UiState>
+    <UiCard v-if="model.error">
+      <UiState variant="error">{{ model.error }}</UiState>
     </UiCard>
 
-    <UiCard v-else-if="loading">
+    <UiCard v-else-if="model.loading">
       <div class="muted">加载中…</div>
     </UiCard>
 
     <UiCard v-else class="profile-card">
       <div class="profile-header">
         <div class="profile-avatar-wrapper">
-          <UiAvatar :src="profile?.headerUrl || ''" :name="profileName" :title="profileName" :size="88" />
+          <UiAvatar :src="model.profile?.headerUrl || ''" :name="model.profileName" :title="model.profileName" :size="88" />
         </div>
 
         <div class="profile-info">
@@ -21,61 +21,61 @@
             <span class="profile-info-kicker-label">公开身份</span>
             <span class="profile-info-kicker-meta">
               用户 ID
-              <span class="profile-id-value profile-text-wrap" :title="String(profile?.id || userId)">
-                {{ shortUserId(profile?.id || userId) }}
+              <span class="profile-id-value profile-text-wrap" :title="String(model.profile?.id || model.userId)">
+                {{ shortUserId(model.profile?.id || model.userId) }}
               </span>
             </span>
           </div>
           <div class="profile-name-row">
-            <h1 class="profile-name profile-text-wrap" :title="profileName">{{ profileName }}</h1>
-            <UiRoleBadge :user="profile" size="md" />
-            <span v-if="showUserLevel" class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(profile?.userLevel ?? 0) }}</span>
-            <span v-if="showUserLevel" class="profile-chip" title="最近签到天数">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天</span>
-            <span class="profile-chip" title="钱包资产">{{ walletAsset.chipText }}</span>
+            <h1 class="profile-name profile-text-wrap" :title="model.profileName">{{ model.profileName }}</h1>
+            <UiRoleBadge :user="model.profile" size="md" />
+            <span v-if="model.showUserLevel" class="profile-chip" title="用户等级（基于签到）">用户等级 LV {{ Number(model.profile?.userLevel ?? 0) }}</span>
+            <span v-if="model.showUserLevel" class="profile-chip" title="最近签到天数">最近签到 {{ Number(model.profile?.signInDaysInWindow ?? 0) }} 天</span>
+            <span class="profile-chip" title="钱包资产">{{ model.walletAsset.chipText }}</span>
           </div>
-          <div class="profile-meta muted">加入 {{ joinedYear || '—' }} · {{ followStatusText }}</div>
+          <div class="profile-meta muted">加入 {{ model.joinedYear || '—' }} · {{ model.followStatusText }}</div>
           <div class="profile-cta-row">
             <RouterLink class="btn secondary" :to="{ name: 'wallet' }">查看钱包</RouterLink>
-            <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId } }">查看关注</RouterLink>
-            <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId } }">查看粉丝</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followees', params: { userId: model.userId } }">查看关注</RouterLink>
+            <RouterLink class="btn ghost" :to="{ name: 'followers', params: { userId: model.userId } }">查看粉丝</RouterLink>
           </div>
         </div>
 
         <div class="profile-actions">
-          <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
-          <template v-if="authed && meUserId && !isSelfProfile">
+          <UiButton variant="secondary" :disabled="model.loading" @click="actions.reload">刷新</UiButton>
+          <template v-if="model.authed && model.meUserId && !model.isSelfProfile">
             <UiButton
-              v-if="followStatus === false && followStatusState === 'ready'"
-              @click="doFollow(true)"
-              :disabled="actionLoading"
+              v-if="model.followStatus === false && model.followStatusState === 'ready'"
+              @click="actions.follow"
+              :disabled="model.actionLoading"
               class="primary"
             >
               关注
             </UiButton>
             <UiButton
               variant="secondary"
-              v-else-if="followStatus === true && followStatusState === 'ready'"
-              @click="doFollow(false)"
-              :disabled="actionLoading"
+              v-else-if="model.followStatus === true && model.followStatusState === 'ready'"
+              @click="actions.unfollow"
+              :disabled="model.actionLoading"
             >
               取消关注
             </UiButton>
-            <UiButton variant="secondary" v-else-if="followStatusState === 'error'" disabled>暂不可用</UiButton>
+            <UiButton variant="secondary" v-else-if="model.followStatusState === 'error'" disabled>暂不可用</UiButton>
             <UiButton variant="secondary" v-else disabled>查询中…</UiButton>
             <UiButton
-              :variant="isBlocked ? 'dangerSecondary' : 'secondary'"
-              :disabled="actionLoading"
-              @click="toggleBlock"
+              :variant="model.isBlocked ? 'dangerSecondary' : 'secondary'"
+              :disabled="model.actionLoading"
+              @click="actions.toggleBlocked"
               class="profile-action-btn"
             >
-              {{ isBlocked ? '已屏蔽' : '屏蔽' }}
+              {{ model.isBlocked ? '已屏蔽' : '屏蔽' }}
             </UiButton>
-            <UiButton variant="secondary" :disabled="actionLoading" @click="reportOpen = true">举报</UiButton>
-            <RouterLink class="btn-icon profile-message-link" :to="privateMessageTo" title="发私信" aria-label="发私信">
+            <UiButton variant="secondary" :disabled="model.actionLoading" @click="actions.openReport">举报</UiButton>
+            <RouterLink class="btn-icon profile-message-link" :to="model.privateMessageTo" title="发私信" aria-label="发私信">
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
             </RouterLink>
           </template>
-          <template v-if="authed && isSelfProfile">
+          <template v-if="model.authed && model.isSelfProfile">
             <RouterLink class="btn secondary" to="/settings">编辑资料</RouterLink>
           </template>
         </div>
@@ -84,15 +84,15 @@
       <div class="profile-body">
         <div class="profile-stats-bar">
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.likeCount || 0 }}</span>
+            <span class="profile-stat-val">{{ model.profile?.likeCount || 0 }}</span>
             <span class="profile-stat-label">获赞</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.followeeCount || 0 }}</span>
+            <span class="profile-stat-val">{{ model.profile?.followeeCount || 0 }}</span>
             <span class="profile-stat-label">关注</span>
           </div>
           <div class="profile-stat">
-            <span class="profile-stat-val">{{ profile?.followerCount || 0 }}</span>
+            <span class="profile-stat-val">{{ model.profile?.followerCount || 0 }}</span>
             <span class="profile-stat-label">粉丝</span>
           </div>
         </div>
@@ -108,22 +108,22 @@
             <div class="profile-summary-grid">
               <div class="profile-summary-card">
                 <div class="profile-summary-label">加入时间</div>
-                <div class="profile-summary-value">{{ joinedYear || '—' }}</div>
+                <div class="profile-summary-value">{{ model.joinedYear || '—' }}</div>
                 <div class="profile-summary-text">公开资料只展示可确认的成员年份和基础关系状态。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">钱包资产</div>
-                <div class="profile-summary-value">{{ walletAsset.valueText }}</div>
-                <div class="profile-summary-text">{{ walletAsset.description }}</div>
+                <div class="profile-summary-value">{{ model.walletAsset.valueText }}</div>
+                <div class="profile-summary-text">{{ model.walletAsset.description }}</div>
               </div>
-              <div v-if="showUserLevel" class="profile-summary-card">
+              <div v-if="model.showUserLevel" class="profile-summary-card">
                 <div class="profile-summary-label">签到用户等级</div>
-                <div class="profile-summary-value">LV {{ Number(profile?.userLevel ?? 0) }}</div>
-                <div class="profile-summary-text">最近签到 {{ Number(profile?.signInDaysInWindow ?? 0) }} 天，由成长任务规则实时计算。</div>
+                <div class="profile-summary-value">LV {{ Number(model.profile?.userLevel ?? 0) }}</div>
+                <div class="profile-summary-text">最近签到 {{ Number(model.profile?.signInDaysInWindow ?? 0) }} 天，由成长任务规则实时计算。</div>
               </div>
               <div class="profile-summary-card">
                 <div class="profile-summary-label">社交状态</div>
-                <div class="profile-summary-value">{{ followStatusText }}</div>
+                <div class="profile-summary-value">{{ model.followStatusText }}</div>
                 <div class="profile-summary-text">如果你已登录，这里反映你与该用户当前的关注关系。</div>
               </div>
             </div>
@@ -137,9 +137,9 @@
               </div>
               <div class="profile-section-note">基于当前可用的公开关系与统计</div>
             </div>
-            <div v-if="profileTimeline.length > 0" class="profile-post-feed">
+            <div v-if="model.profileTimeline.length > 0" class="profile-post-feed">
               <RouterLink
-                v-for="item in profileTimeline"
+                v-for="item in model.profileTimeline"
                 :key="item.key"
                 class="profile-post-card"
                 :to="item.route"
@@ -167,7 +167,7 @@
             </div>
             <div class="profile-next-steps">
               <RouterLink
-                v-for="step in communityNextSteps"
+                v-for="step in model.communityNextSteps"
                 :key="step.key"
                 class="btn"
                 :class="step.variant"
@@ -182,25 +182,17 @@
     </UiCard>
 
     <ReportModal
-      v-if="reportOpen"
+      v-if="model.reportOpen"
       target-type="user"
-      :target-id="userId"
-      @close="reportOpen = false"
-      @submitted="reportOpen = false"
+      :target-id="model.userId"
+      @close="actions.closeReport"
+      @submitted="actions.closeReport"
     />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useAuthStore } from '../stores/auth'
-import { usePostMetaCacheStore } from '../stores/postMetaCache'
-import { useSocialPrefsStore } from '../stores/socialPrefs'
-import { useTaxonomyStore } from '../stores/taxonomy'
-import { getUserProfile, listUserRecentComments, listUserRecentPosts } from '../api/services/userService'
-import { followUser, unfollowUser, getFollowStatus } from '../api/services/socialService'
-import { blockUser, unblockUser } from '../api/services/blockService'
-import { showToast } from '../ui/toastService'
+import { onBeforeUnmount, onMounted, toRef } from 'vue'
 import { formatTime, formatTimeAgo } from '../utils/time'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -209,84 +201,17 @@ import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiRoleBadge from '../components/ui/UiRoleBadge.vue'
 import ReportModal from '../components/modals/ReportModal.vue'
-import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
-import { buildCommunityNextSteps, buildProfileWalletAsset, describeFollowStatusText } from './userProfileSurface'
-import { buildCanonicalConversationId } from './conversationDetailState'
-import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
+import { useUserProfilePage } from './useUserProfilePage'
 
 const emit = defineEmits(['trace'])
 const props = defineProps({
   userId: { type: String, default: '' }
 })
 
-const auth = useAuthStore()
-const authed = computed(() => !!auth.accessToken)
-const taxonomy = useTaxonomyStore()
-const postMetaCache = usePostMetaCacheStore()
-
-const userId = computed(() => normalizeOpaqueId(props.userId))
-
-const profile = ref(null)
-const recentPosts = ref([])
-const recentComments = ref([])
-const timelineUsers = ref({})
-const loading = ref(false)
-const error = ref('')
-
-const meUserId = computed(() => normalizeOpaqueId(auth.userId))
-const actionLoading = ref(false)
-const followStatus = ref(null)
-const followStatusState = ref('idle')
-const reportOpen = ref(false)
-let reloadGeneration = 0
-let actionGeneration = 0
-
-const prefs = useSocialPrefsStore()
-const isBlocked = computed(() => prefs.blockedSet.has(userId.value))
-const authScope = computed(() => [
-  auth.tokenGeneration,
-  meUserId.value,
-  authed.value ? 'authenticated' : 'anonymous'
-].join(':'))
-const viewScope = computed(() => `${userId.value}:${authScope.value}`)
-
-const joinedYear = computed(() => {
-  const ts = profile.value?.createTime
-  if (!ts) return ''
-  const d = new Date(ts)
-  const y = d.getFullYear()
-  return Number.isFinite(y) ? String(y) : ''
+const { model, actions, lifecycle } = useUserProfilePage({
+  userId: toRef(props, 'userId'),
+  onTrace: (traceId) => emit('trace', traceId)
 })
-const profileName = computed(() => profile.value?.username || `成员 ${profile.value?.id || userId.value || ''}`)
-const isSelfProfile = computed(() => sameOpaqueId(meUserId.value, userId.value))
-const privateMessageTo = computed(() => {
-  const conversationId = buildCanonicalConversationId(meUserId.value, userId.value)
-  return conversationId ? `/messages/${conversationId}` : '/messages'
-})
-const showUserLevel = computed(() => profile.value?.showUserLevel === true)
-const walletAsset = computed(() =>
-  buildProfileWalletAsset({
-    profile: profile.value,
-    authed: authed.value,
-    isSelf: isSelfProfile.value
-  })
-)
-const followStatusText = computed(() =>
-  describeFollowStatusText({
-    followStatus: followStatus.value,
-    followStatusState: followStatusState.value,
-    authed: authed.value,
-    isSelf: isSelfProfile.value
-  })
-)
-
-const communityNextSteps = computed(() =>
-  buildCommunityNextSteps({
-    authed: authed.value,
-    isSelf: isSelfProfile.value,
-    userId: userId.value
-  })
-)
 
 function shortUserId(value) {
   const raw = String(value || '')
@@ -294,217 +219,8 @@ function shortUserId(value) {
   return `${raw.slice(0, 8)}...${raw.slice(-4)}`
 }
 
-const profileTimeline = computed(() =>
-  buildProfileTimeline({
-    posts: recentPosts.value,
-    comments: recentComments.value,
-    usersById: timelineUsers.value,
-    limit: 6
-  })
-)
-
-function settle(promise) {
-  return Promise.resolve(promise).then(
-    (value) => ({ value, error: null }),
-    (requestError) => ({ value: null, error: requestError })
-  )
-}
-
-function reloadIsCurrent(generation, scope) {
-  return generation === reloadGeneration && scope === viewScope.value
-}
-
-function clearViewState() {
-  profile.value = null
-  recentPosts.value = []
-  recentComments.value = []
-  timelineUsers.value = {}
-  followStatus.value = null
-  followStatusState.value = 'idle'
-  loading.value = false
-  error.value = ''
-  reportOpen.value = false
-}
-
-async function reload() {
-  const targetId = userId.value
-  if (!targetId) {
-    reloadGeneration += 1
-    clearViewState()
-    return
-  }
-
-  const scope = viewScope.value
-  const generation = ++reloadGeneration
-  const shouldLoadFollowStatus = authed.value
-    && Boolean(meUserId.value)
-    && !sameOpaqueId(meUserId.value, targetId)
-
-  error.value = ''
-  loading.value = true
-  followStatus.value = null
-  followStatusState.value = shouldLoadFollowStatus ? 'loading' : 'idle'
-
-  const profileRequest = settle(getUserProfile(targetId, { force: true }))
-  const recentPostsRequest = settle(listUserRecentPosts(targetId, { page: 0, size: 3 }))
-  const recentCommentsRequest = settle(listUserRecentComments(targetId, { page: 0, size: 3 }))
-  const followStatusRequest = shouldLoadFollowStatus
-    ? settle(getFollowStatus(3, targetId, { force: true }))
-    : Promise.resolve({ value: null, error: null })
-
-  try {
-    const [profileResult, postsResult, commentsResult, nextFollowResult] = await Promise.all([
-      profileRequest,
-      recentPostsRequest,
-      recentCommentsRequest,
-      followStatusRequest
-    ])
-    if (!reloadIsCurrent(generation, scope)) return
-    if (profileResult.error) throw profileResult.error
-
-    const nextPosts = postsResult.error || !Array.isArray(postsResult.value?.data)
-      ? []
-      : postsResult.value.data
-    const nextComments = commentsResult.error || !Array.isArray(commentsResult.value?.data)
-      ? []
-      : commentsResult.value.data
-    const timelineUserIds = collectTimelineUserIds({ posts: nextPosts, comments: nextComments })
-    let nextTimelineUsers = {}
-    if (timelineUserIds.length > 0) {
-      try {
-        nextTimelineUsers = await postMetaCache.ensureUserSummaries(timelineUserIds)
-      } catch {
-        nextTimelineUsers = {}
-      }
-    }
-    if (!reloadIsCurrent(generation, scope)) return
-
-    profile.value = profileResult.value
-    recentPosts.value = nextPosts
-    recentComments.value = nextComments
-    timelineUsers.value = nextTimelineUsers
-    if (shouldLoadFollowStatus) {
-      const nextFollowStatus = nextFollowResult.error ? null : nextFollowResult.value?.data
-      followStatus.value = typeof nextFollowStatus === 'boolean' ? nextFollowStatus : null
-      followStatusState.value = typeof nextFollowStatus === 'boolean' ? 'ready' : 'error'
-    } else {
-      followStatus.value = null
-      followStatusState.value = 'idle'
-    }
-
-    emit('trace', profileResult.value?._traceId || '')
-    if (!postsResult.error) emit('trace', postsResult.value?.traceId || '')
-    if (!commentsResult.error) emit('trace', commentsResult.value?.traceId || '')
-    if (shouldLoadFollowStatus && !nextFollowResult.error) {
-      emit('trace', nextFollowResult.value?.traceId || '')
-    }
-  } catch (e) {
-    if (!reloadIsCurrent(generation, scope)) return
-    error.value = e?.message || '加载失败'
-  } finally {
-    if (reloadIsCurrent(generation, scope)) loading.value = false
-  }
-}
-
-function beginAction() {
-  const targetId = userId.value
-  if (
-    actionLoading.value
-    || !targetId
-    || !authed.value
-    || !meUserId.value
-    || sameOpaqueId(meUserId.value, targetId)
-  ) {
-    return null
-  }
-
-  const action = {
-    generation: ++actionGeneration,
-    targetId,
-    authScope: authScope.value,
-    viewScope: viewScope.value
-  }
-  actionLoading.value = true
-  return action
-}
-
-function actionIsCurrent(action) {
-  return action.generation === actionGeneration && action.viewScope === viewScope.value
-}
-
-function finishAction(action) {
-  if (action.generation === actionGeneration) actionLoading.value = false
-}
-
-async function doFollow(follow) {
-  const action = beginAction()
-  if (!action) return
-  try {
-    const resp = follow
-      ? await followUser(3, action.targetId)
-      : await unfollowUser(3, action.targetId)
-    if (!actionIsCurrent(action)) return
-    emit('trace', resp?.traceId || '')
-    await reload()
-  } catch (e) {
-    if (!actionIsCurrent(action)) return
-    error.value = e?.message || '关注操作失败'
-  } finally {
-    finishAction(action)
-  }
-}
-
-onMounted(reload)
-watch(viewScope, () => {
-  reloadGeneration += 1
-  actionGeneration += 1
-  actionLoading.value = false
-  clearViewState()
-  if (userId.value) reload()
-})
-onMounted(() => {
-  taxonomy.ensureCategories()
-})
-
-watch(
-  authScope,
-  () => {
-    if (authed.value) {
-      Promise.resolve(prefs.ensureBlocked(true)).catch(() => {})
-    } else {
-      prefs.clear()
-    }
-  },
-  { immediate: true }
-)
-
-async function toggleBlock() {
-  const action = beginAction()
-  if (!action) return
-  const wasBlocked = prefs.blockedSet.has(action.targetId)
-  try {
-    if (wasBlocked) {
-      await unblockUser(action.targetId)
-    } else {
-      await blockUser(action.targetId)
-    }
-    if (action.authScope === authScope.value) {
-      await prefs.ensureBlocked(true)
-    }
-    if (!actionIsCurrent(action)) return
-    showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
-  } catch (e) {
-    if (!actionIsCurrent(action)) return
-    error.value = e?.message || '操作失败'
-  } finally {
-    finishAction(action)
-  }
-}
-
-onBeforeUnmount(() => {
-  reloadGeneration += 1
-  actionGeneration += 1
-})
+onMounted(lifecycle.mount)
+onBeforeUnmount(lifecycle.unmount)
 </script>
 
 <style scoped>

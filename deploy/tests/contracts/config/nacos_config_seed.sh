@@ -12,6 +12,32 @@ mkdir -p "${fake_bin}"
 printf '0\n' >"${readiness_count_file}"
 trap 'rm -rf "${tmp_dir}"' EXIT
 
+runtime_environment_key_exists() {
+  local rendered_config="$1"
+  local service="$2"
+  local variable="$3"
+
+  awk -v service="${service}" -v variable="${variable}" '
+    $0 == "  " service ":" { in_service = 1; next }
+    in_service && /^  [^ ]/ { exit 1 }
+    in_service && $0 == "    environment:" { in_environment = 1; next }
+    in_environment && /^    [^ ]/ { in_environment = 0 }
+    in_environment && $1 == variable ":" { found = 1; exit }
+    END { exit found ? 0 : 1 }
+  ' "${rendered_config}"
+}
+
+assert_runtime_environment_key() {
+  local rendered_config="$1"
+  local service="$2"
+  local variable="$3"
+
+  runtime_environment_key_exists "${rendered_config}" "${service}" "${variable}" || {
+    echo "rendered ${service} must receive ${variable}" >&2
+    return 1
+  }
+}
+
 required_data_ids=(
   community-shared.yaml
   community-feature-flags.yaml
@@ -315,18 +341,27 @@ grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'max-file-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'max-request-size: 10GB' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'ticket-secret: ${DRIVE_SHARE_TICKET_SECRET:}' "${CONFIG_DIR}/community-app.yaml"
+single_runtime_rendered="${tmp_dir}/single-runtime.yml"
+cluster_runtime_rendered="${tmp_dir}/cluster-runtime.yml"
+"${REPO_ROOT}/deploy/deployment.sh" config --stack single \
+  --env-file deploy/stacks/single/.env.example --no-observability >"${single_runtime_rendered}"
+"${REPO_ROOT}/deploy/deployment.sh" config --stack cluster \
+  --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_runtime_rendered}"
 grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/stacks/single/.env.example"
 grep -F 'DRIVE_SHARE_TICKET_SECRET=' "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
-grep -F 'DRIVE_SHARE_TICKET_SECRET: "${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}"' \
-  "${REPO_ROOT}/deploy/compose/runtime/services/single.yml"
-test "$(grep -Fc -- 'DRIVE_SHARE_TICKET_SECRET: "${DRIVE_SHARE_TICKET_SECRET:?DRIVE_SHARE_TICKET_SECRET is required}"' \
-  "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
+assert_runtime_environment_key "${single_runtime_rendered}" community-app DRIVE_SHARE_TICKET_SECRET
+for app_number in 1 2 3; do
+  assert_runtime_environment_key \
+    "${cluster_runtime_rendered}" "community-app-${app_number}" DRIVE_SHARE_TICKET_SECRET
+done
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/stacks/single/.env.example"
 grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET=' "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
-grep -F 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET: "${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}"' \
-  "${REPO_ROOT}/deploy/compose/runtime/services/single.yml"
-test "$(grep -Fc -- 'AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET: "${AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET:?AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET is required}"' \
-  "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
+assert_runtime_environment_key \
+  "${single_runtime_rendered}" community-app AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET
+for app_number in 1 2 3; do
+  assert_runtime_environment_key \
+    "${cluster_runtime_rendered}" "community-app-${app_number}" AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET
+done
 grep -F 'allowed-mime-types:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'image/jpeg' "${CONFIG_DIR}/community-frontend-runtime.yaml"
 grep -F 'allowed-extensions:' "${CONFIG_DIR}/community-frontend-runtime.yaml"
@@ -428,11 +463,12 @@ smtp_runtime_env_vars=(
   SPRING_MAIL_READ_TIMEOUT_MS
   SPRING_MAIL_WRITE_TIMEOUT_MS
 )
-test "$(grep -Fc -- '<<: *community-app-environment' \
-  "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 3
 for env_var in "${smtp_runtime_env_vars[@]}"; do
-  test "$(grep -Ec -- "^      ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
-  test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
+  assert_runtime_environment_key "${single_runtime_rendered}" community-app "${env_var}"
+  for app_number in 1 2 3; do
+    assert_runtime_environment_key \
+      "${cluster_runtime_rendered}" "community-app-${app_number}" "${env_var}"
+  done
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/single/.env.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
 done
@@ -454,8 +490,11 @@ community_auth_runtime_env_vars=(
   AUTH_REGISTRATION_RESEND_MAX_REQUESTS_PER_IP
 )
 for env_var in "${community_auth_runtime_env_vars[@]}"; do
-  test "$(grep -Ec -- "^      ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/single.yml")" -eq 1
-  test "$(grep -Ec -- "^  ${env_var}:" "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml")" -eq 1
+  assert_runtime_environment_key "${single_runtime_rendered}" community-app "${env_var}"
+  for app_number in 1 2 3; do
+    assert_runtime_environment_key \
+      "${cluster_runtime_rendered}" "community-app-${app_number}" "${env_var}"
+  done
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/single/.env.example"
   grep -F "${env_var}=" "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
 done
@@ -498,15 +537,22 @@ nacos_owned_env_vars=(
   IM_REALTIME_CONSUMER_GROUP
 )
 
-for compose_yml in \
-  "${REPO_ROOT}/deploy/compose/runtime/services/single.yml" \
-  "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml"
-do
-  for env_var in "${nacos_owned_env_vars[@]}"; do
-    if grep -F -- "- ${env_var}=" "${compose_yml}"; then
-      echo "${env_var} must be supplied through Nacos Config, not runtime compose env: ${compose_yml}" >&2
+for env_var in "${nacos_owned_env_vars[@]}"; do
+  for service_family in \
+    community-app community-oss community-gateway community-im-gateway im-core im-realtime
+  do
+    if runtime_environment_key_exists "${single_runtime_rendered}" "${service_family}" "${env_var}"; then
+      echo "${env_var} must be supplied through Nacos Config, not runtime compose env" >&2
       exit 1
     fi
+    for replica in 1 2 3; do
+      if runtime_environment_key_exists \
+        "${cluster_runtime_rendered}" "${service_family}-${replica}" "${env_var}"
+      then
+        echo "${env_var} must be supplied through Nacos Config, not runtime compose env" >&2
+        exit 1
+      fi
+    done
   done
 done
 

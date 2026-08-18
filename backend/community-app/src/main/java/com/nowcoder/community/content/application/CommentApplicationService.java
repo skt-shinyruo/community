@@ -43,7 +43,7 @@ public class CommentApplicationService {
     private final CommentDomainService domainService;
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentPort;
-    private final CommentCacheAfterCommit commentCacheAfterCommit;
+    private final ContentReadModelsAfterCommit readModelsAfterCommit;
     private final SocialInteractionActionApi interactionActionApi;
     private final ContentEventPublisher eventPublisher;
     private final CommentDeletionTransactionOperations deletionOperations;
@@ -57,7 +57,7 @@ public class CommentApplicationService {
             CommentDomainService domainService,
             CommentRepository commentRepository,
             PostContentRepository postContentPort,
-            CommentCacheAfterCommit commentCacheAfterCommit,
+            ContentReadModelsAfterCommit readModelsAfterCommit,
             SocialInteractionActionApi interactionActionApi,
             ContentEventPublisher eventPublisher,
             CommentDeletionTransactionOperations deletionOperations,
@@ -70,7 +70,7 @@ public class CommentApplicationService {
         this.domainService = Objects.requireNonNull(domainService, "domainService");
         this.commentRepository = Objects.requireNonNull(commentRepository, "commentRepository");
         this.postContentPort = Objects.requireNonNull(postContentPort, "postContentPort");
-        this.commentCacheAfterCommit = Objects.requireNonNull(commentCacheAfterCommit, "commentCacheAfterCommit");
+        this.readModelsAfterCommit = Objects.requireNonNull(readModelsAfterCommit, "readModelsAfterCommit");
         this.interactionActionApi = Objects.requireNonNull(interactionActionApi, "interactionActionApi");
         this.eventPublisher = Objects.requireNonNull(eventPublisher, "eventPublisher");
         this.deletionOperations = Objects.requireNonNull(deletionOperations, "deletionOperations");
@@ -104,9 +104,7 @@ public class CommentApplicationService {
                 UUID.class,
                 () -> {
                     CommentMutationResult created = createInsideTransaction(command);
-                    commentCacheAfterCommit.incrementCommentCount(postId, 1L);
-                    commentCacheAfterCommit.evictCommentPages(postId);
-                    commentCacheAfterCommit.evictPostReadModels(postId, created.postAggregateVersion());
+                    readModelsAfterCommit.commentCreated(postId, created.postAggregateVersion());
                     return created.commentId();
                 }
         );
@@ -128,8 +126,7 @@ public class CommentApplicationService {
         switch (status) {
             case APPLIED -> {
                 long postAggregateVersion = mutateActivePost(postId, 0);
-                commentCacheAfterCommit.evictCommentPages(postId);
-                commentCacheAfterCommit.evictPostSummaryAndDetail(postId, postAggregateVersion);
+                readModelsAfterCommit.commentEdited(postId, postAggregateVersion);
             }
             case NO_OP, NOT_FOUND -> throw new BusinessException(ContentErrorCode.COMMENT_NOT_FOUND);
             case STALE -> throw staleTransition();

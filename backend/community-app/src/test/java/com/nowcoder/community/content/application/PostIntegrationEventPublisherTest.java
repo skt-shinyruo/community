@@ -31,9 +31,9 @@ class PostIntegrationEventPublisherTest {
     void publishPostPublishedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
+        ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(11));
         when(assembler.assemble(uuid(11))).thenReturn(payload);
@@ -43,16 +43,16 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(11));
         inOrder.verify(eventPublisher).publishPostPublished(payload);
-        verifyNoInteractions(cacheAfterCommit);
+        verifyNoInteractions(readModelsAfterCommit);
     }
 
     @Test
     void publishPostUpdatedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
+        ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(12));
         payload.setAggregateVersion(7L);
@@ -63,16 +63,16 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(12));
         inOrder.verify(eventPublisher).publishPostUpdated(payload);
-        verify(cacheAfterCommit).evict(uuid(12), 7L);
+        verify(readModelsAfterCommit).postUpdated(uuid(12), 7L);
     }
 
     @Test
     void publishPostDeletedShouldAssembleAndPublishPayload() {
         ContentPostPayloadAssembler assembler = mock(ContentPostPayloadAssembler.class);
         ContentEventPublisher eventPublisher = mock(ContentEventPublisher.class);
-        PostCacheAfterCommit cacheAfterCommit = mock(PostCacheAfterCommit.class);
+        ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
-                new PostIntegrationEventPublisher(assembler, eventPublisher, cacheAfterCommit);
+                new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
         PostPayload payload = new PostPayload();
         payload.setPostId(uuid(13));
         payload.setCategoryId(uuid(14));
@@ -84,7 +84,7 @@ class PostIntegrationEventPublisherTest {
         var inOrder = inOrder(assembler, eventPublisher);
         inOrder.verify(assembler).assemble(uuid(13));
         inOrder.verify(eventPublisher).publishPostDeleted(payload);
-        verify(cacheAfterCommit).terminalEvict(uuid(13), uuid(14), 8L);
+        verify(readModelsAfterCommit).postDeleted(uuid(13), uuid(14), 8L);
     }
 
     private Method requiredMethod(String name) {

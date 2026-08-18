@@ -14,7 +14,6 @@ import {
   collectPostsHydrationIds,
   commitComposerTagDraft
 } from '../postsViewState'
-import { formatTime, formatTimeAgo } from '../../utils/time'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../../utils/readTracker'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { useTaxonomyStore } from '../../stores/taxonomy'
@@ -319,6 +318,10 @@ export function usePostsFeed(emit) {
     router.push({ name: 'postDetail', params: { postId: String(p.id) } })
   }
 
+  function openUserProfile(userId) {
+    router.push({ name: 'userProfile', params: { userId: String(userId) } })
+  }
+
   async function hydrateBatch(list, token) {
     if (!Array.isArray(list) || list.length === 0) return
 
@@ -575,66 +578,59 @@ export function usePostsFeed(emit) {
     }
   })
 
-  return {
-    auth,
-    authed,
-    me,
-    router,
+  const session = { authed, me, goLogin }
+  const scope = {
     boardId,
-    taxonomy,
     categories,
-    composerCategoryOptions,
     categoryLabel,
     showClear,
-    blockedSet,
-    blockedHiddenCount,
-    goLogin,
     setBoardId,
-    clearQuery,
-    page,
-    size,
+    clearQuery
+  }
+  const feed = {
     items,
     hasNext,
     loading,
     error,
-    isPublishFocused,
-    newTitle,
-    newBlocks,
-    newCategoryId,
-    newTagDraft,
-    newTags,
-    newTagError,
-    composerTagSuggest,
-    composerTagSuggestNames,
-    creating,
-    createError,
-    closeComposer,
-    seenBaselineAt,
-    toMs,
+    blockedHiddenCount,
     activityTime,
     activityUserId,
     activityUser,
-    commitNewTags,
-    onTagDraftKeydown,
-    removeNewTag,
+    openUserProfile,
+    openPost,
+    loadMore,
+    reload,
+    togglePostLike
+  }
+  const unread = {
     lastSeenDividerRef,
     newHintDismissed,
-    isDefaultLatestFeed,
     newSinceLastSeenCount,
     newDividerIndex,
     shouldShowLastSeenDivider,
     shouldShowNewHint,
     canJumpToLastSeen,
-    getLastSeenDividerEl,
     scrollToLastSeenDivider,
-    isUnread,
-    openPost,
-    load,
-    loadMore,
-    reload,
-    togglePostLike,
-    createPost,
-    formatTime,
-    formatTimeAgo
+    isUnread
   }
+  const composer = {
+    isPublishFocused,
+    newTitle,
+    newBlocks,
+    newCategoryId,
+    composerCategoryOptions,
+    newTagDraft,
+    newTags,
+    newTagError,
+    composerTagSuggestNames,
+    creating,
+    createError,
+    closeComposer,
+    commitNewTags,
+    onTagDraftKeydown,
+    removeNewTag,
+    createPost
+  }
+
+  return { session, scope, feed, unread, composer }
 }

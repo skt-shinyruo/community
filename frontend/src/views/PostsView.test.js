@@ -1,6 +1,6 @@
 // @vitest-environment jsdom
 
-import { nextTick } from 'vue'
+import { defineComponent, h, nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
@@ -47,6 +47,7 @@ import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { createPost, listBoardFeed, listGlobalFeed } from '../api/services/postService'
+import { usePostsFeed } from './posts/usePostsFeed'
 
 describe('PostsView', () => {
   function deferred() {
@@ -59,7 +60,7 @@ describe('PostsView', () => {
     return { promise, resolve, reject }
   }
 
-  function mountView() {
+  function createPostsPinia() {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -82,6 +83,12 @@ describe('PostsView', () => {
     postMetaCache.ensureLikeCounts = vi.fn().mockResolvedValue({})
     postMetaCache.ensureLikeStatuses = vi.fn().mockResolvedValue({})
     postMetaCache.clearLikeStatuses = vi.fn()
+
+    return pinia
+  }
+
+  function mountView() {
+    const pinia = createPostsPinia()
 
     return mount(PostsView, {
       global: {
@@ -119,6 +126,32 @@ describe('PostsView', () => {
 
     expect(listGlobalFeed).toHaveBeenCalledWith({ cursor: '', size: 10 })
     expect(listBoardFeed).not.toHaveBeenCalled()
+  })
+
+  it('exposes page intent groups without feed implementation details', async () => {
+    const pinia = createPostsPinia()
+    let postsFeed
+    const Harness = defineComponent({
+      setup() {
+        postsFeed = usePostsFeed(vi.fn())
+        return () => h('div')
+      }
+    })
+    const wrapper = mount(Harness, { global: { plugins: [pinia] } })
+    await flushPromises()
+
+    expect(Object.keys(postsFeed)).toEqual(['session', 'scope', 'feed', 'unread', 'composer'])
+    expect(postsFeed.feed).toMatchObject({
+      reload: expect.any(Function),
+      loadMore: expect.any(Function),
+      openUserProfile: expect.any(Function)
+    })
+    expect(postsFeed.feed).not.toHaveProperty('load')
+    expect(postsFeed.feed).not.toHaveProperty('page')
+    expect(postsFeed.scope).not.toHaveProperty('taxonomy')
+    expect(postsFeed.session).not.toHaveProperty('auth')
+
+    wrapper.unmount()
   })
 
   it('keeps the current feed cursor when refresh fails and retries load-more from it', async () => {

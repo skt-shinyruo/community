@@ -174,6 +174,7 @@ connect(accessToken)
 | 文件 | 责任 |
 | --- | --- |
 | `postsFeedState.js` | 最新流默认视图判断、上次阅读分隔线、新内容跳转提示、分页推进。 |
+| `posts/usePostsFeed.js` | 帖子页的会话、范围、列表、未读和发帖五组页面语义；隐藏游标、补水、请求竞态和发帖幂等尝试。 |
 | `postsViewState.js` | 发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合、评论回复状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
@@ -182,10 +183,11 @@ connect(accessToken)
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
-| `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要、时间线展示状态。 |
+| `useUserProfilePage.js` | 用户主页的 route/session scope、并发加载、部分成功、关注/拉黑动作和生命周期隔离。 |
+| `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要和时间线的纯展示投影。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
 
-新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。组件只保留加载、提交、toast 和 UI 绑定。
+新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
 
 跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的游标、hydration、账号 / 路由隔离和逐项 mutation；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 

@@ -20,7 +20,6 @@ public class HotPathPrewarmApplicationService {
     private final PostContentRepository postRepository;
     private final CategoryContentRepository categoryRepository;
     private final PostFeedCache feedCache;
-    private final PostSummaryCache summaryCache;
     private final PostFeedSummaryLoader summaryLoader;
     private final PostReadApplicationService postReadApplicationService;
     private final ContentFeedPolicyProperties feedProperties;
@@ -31,7 +30,6 @@ public class HotPathPrewarmApplicationService {
             PostContentRepository postRepository,
             CategoryContentRepository categoryRepository,
             PostFeedCache feedCache,
-            PostSummaryCache summaryCache,
             PostFeedSummaryLoader summaryLoader,
             PostReadApplicationService postReadApplicationService,
             ContentFeedPolicyProperties feedProperties,
@@ -41,7 +39,6 @@ public class HotPathPrewarmApplicationService {
         this.postRepository = postRepository;
         this.categoryRepository = categoryRepository;
         this.feedCache = feedCache;
-        this.summaryCache = summaryCache;
         this.summaryLoader = summaryLoader;
         this.postReadApplicationService = postReadApplicationService;
         this.feedProperties = feedProperties == null ? new ContentFeedPolicyProperties() : feedProperties;
@@ -124,8 +121,7 @@ public class HotPathPrewarmApplicationService {
             }
         }
 
-        List<PostSummaryResult> summaryResults = safeSummaries(summaryLoader.assembleSummaries(validPosts));
-        summaryLoader.cacheSummaries(validPosts, summaryResults);
+        List<PostSummaryResult> summaryResults = safeSummaries(summaryLoader.prewarmCurrentPosts(validPosts));
 
         int details = 0;
         for (DiscussPost post : validPosts) {

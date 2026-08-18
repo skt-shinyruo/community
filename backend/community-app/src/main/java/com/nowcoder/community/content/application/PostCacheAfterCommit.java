@@ -9,7 +9,7 @@ import java.util.List;
 import java.util.UUID;
 
 @Component
-public class PostCacheAfterCommit {
+class PostCacheAfterCommit {
 
     private static final Logger log = LoggerFactory.getLogger(PostCacheAfterCommit.class);
 
@@ -17,7 +17,7 @@ public class PostCacheAfterCommit {
     private final PostSummaryCache postSummaryCache;
     private final PostDetailCache postDetailCache;
 
-    public PostCacheAfterCommit(
+    PostCacheAfterCommit(
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache
@@ -27,17 +27,17 @@ public class PostCacheAfterCommit {
         this.postDetailCache = postDetailCache;
     }
 
-    public void evict(UUID postId, long aggregateVersion) {
+    void evict(UUID postId, long aggregateVersion) {
         runAfterCommit("feed-remove", postId, () -> postFeedCache.remove(postId, null, aggregateVersion));
         evictSummaryAndDetail(postId, aggregateVersion);
     }
 
-    public void evictSummaryAndDetail(UUID postId, long aggregateVersion) {
+    void evictSummaryAndDetail(UUID postId, long aggregateVersion) {
         runAfterCommit("summary-evict", postId, () -> postSummaryCache.evictAll(List.of(postId), aggregateVersion));
         runAfterCommit("detail-evict", postId, () -> postDetailCache.evict(postId, aggregateVersion));
     }
 
-    public void terminalEvict(UUID postId, UUID boardId, long aggregateVersion) {
+    void terminalEvict(UUID postId, UUID boardId, long aggregateVersion) {
         runAfterCommit(
                 "feed-terminal-remove",
                 postId,

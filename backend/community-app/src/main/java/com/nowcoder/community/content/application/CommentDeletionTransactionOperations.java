@@ -28,20 +28,20 @@ public class CommentDeletionTransactionOperations {
 
     private final CommentRepository commentRepository;
     private final PostContentRepository postContentRepository;
-    private final CommentCacheAfterCommit commentCacheAfterCommit;
+    private final ContentReadModelsAfterCommit readModelsAfterCommit;
     private final ContentEventPublisher eventPublisher;
     private final Clock clock;
 
     public CommentDeletionTransactionOperations(
             CommentRepository commentRepository,
             PostContentRepository postContentRepository,
-            CommentCacheAfterCommit commentCacheAfterCommit,
+            ContentReadModelsAfterCommit readModelsAfterCommit,
             ContentEventPublisher eventPublisher,
             Clock clock
     ) {
         this.commentRepository = commentRepository;
         this.postContentRepository = postContentRepository;
-        this.commentCacheAfterCommit = commentCacheAfterCommit;
+        this.readModelsAfterCommit = readModelsAfterCommit;
         this.eventPublisher = eventPublisher;
         this.clock = Objects.requireNonNull(clock, "clock");
     }
@@ -102,9 +102,7 @@ public class CommentDeletionTransactionOperations {
             payload.setPostAggregateVersion(postAggregateVersion);
             eventPublisher.publishCommentDeleted(payload);
         }
-        commentCacheAfterCommit.incrementCommentCount(postId, -result.deletedCount());
-        commentCacheAfterCommit.evictCommentPages(postId);
-        commentCacheAfterCommit.evictPostReadModels(postId, postAggregateVersion);
+        readModelsAfterCommit.commentDeleted(postId, postAggregateVersion);
         return result;
     }
 

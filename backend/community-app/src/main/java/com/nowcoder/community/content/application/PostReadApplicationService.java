@@ -49,7 +49,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
     private final PostDetailCache postDetailCache;
     private final PostContentBlockTextProjector postContentBlockTextProjector;
     private final ContentTextCodec textCodec;
-    private final PostSummaryAssembler postSummaryAssembler;
+    private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final PostDetailAssembler postDetailAssembler;
     private final RecentUserCommentAssembler recentUserCommentAssembler;
     private final ContentHotPathProperties hotPathProperties;
@@ -69,7 +69,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
             PostDetailCache postDetailCache,
             PostContentBlockTextProjector postContentBlockTextProjector,
             ContentTextCodec textCodec,
-            PostSummaryAssembler postSummaryAssembler,
+            PostFeedSummaryLoader postFeedSummaryLoader,
             PostDetailAssembler postDetailAssembler,
             RecentUserCommentAssembler recentUserCommentAssembler,
             PostReadTransactionOperations readTransactionOperations,
@@ -92,7 +92,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
         this.postContentBlockTextProjector = Objects.requireNonNull(
                 postContentBlockTextProjector, "postContentBlockTextProjector");
         this.textCodec = Objects.requireNonNull(textCodec, "textCodec");
-        this.postSummaryAssembler = Objects.requireNonNull(postSummaryAssembler, "postSummaryAssembler");
+        this.postFeedSummaryLoader = Objects.requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader");
         this.postDetailAssembler = Objects.requireNonNull(postDetailAssembler, "postDetailAssembler");
         this.recentUserCommentAssembler = Objects.requireNonNull(
                 recentUserCommentAssembler, "recentUserCommentAssembler");
@@ -126,20 +126,20 @@ public class PostReadApplicationService implements PostScanQueryApi {
             snapshot = readTransactionOperations.listPosts(p, s, orderMode, categoryId, tag);
         }
 
-        return assembleSummaries(snapshot);
+        return postFeedSummaryLoader.readSnapshot(snapshot);
     }
 
     public List<PostSummaryResult> listPostsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
-        return assembleSummaries(readTransactionOperations.listPostsByUser(userId, p, s));
+        return postFeedSummaryLoader.readSnapshot(readTransactionOperations.listPostsByUser(userId, p, s));
     }
 
     public List<PostSummaryResult> listPostsByIds(List<UUID> postIds) {
         if (postIds != null && postIds.size() > MAX_BATCH_POST_IDS) {
             throw new BusinessException(INVALID_ARGUMENT, "postIds cannot exceed " + MAX_BATCH_POST_IDS);
         }
-        return assembleSummaries(readTransactionOperations.listPostsByIds(postIds));
+        return postFeedSummaryLoader.readSnapshot(readTransactionOperations.listPostsByIds(postIds));
     }
 
     public PostDetailResult getPostDetail(UUID currentUserId, UUID postId) {
@@ -290,21 +290,6 @@ public class PostReadApplicationService implements PostScanQueryApi {
             return null;
         }
         return toPostProjectionResult(readTransactionOperations.getProjectionAllowDeleted(postId));
-    }
-
-    private List<PostSummaryResult> assembleSummaries(SummarySnapshot snapshot) {
-        List<DiscussPost> posts = snapshot.posts();
-        if (posts == null || posts.isEmpty()) {
-            return List.of();
-        }
-        return posts.stream()
-                .map(post -> postSummaryAssembler.assemble(
-                        post,
-                        snapshot.lastActivities().get(post.getId()),
-                        snapshot.tagsByPostId().get(post.getId()),
-                        postContentBlockTextProjector.preview(snapshot.blocksByPostId().get(post.getId()), 240)
-                ))
-                .toList();
     }
 
     private List<PostScanView.PostProjectionView> toPostProjectionResults(ProjectionBatchSnapshot snapshot) {

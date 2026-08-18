@@ -177,6 +177,45 @@ describe('UserProfileView route contract', () => {
     expect(UserProfileView.props.userId).toBeTruthy()
   })
 
+  it('publishes only the page model, intent actions and lifecycle', () => {
+    const wrapper = mountProfile(userId)
+
+    expect(Object.keys(wrapper.vm.actions).sort()).toEqual([
+      'closeReport',
+      'follow',
+      'openReport',
+      'reload',
+      'toggleBlocked',
+      'unfollow'
+    ])
+    expect(Object.keys(wrapper.vm.lifecycle).sort()).toEqual(['mount', 'unmount'])
+    expect(wrapper.vm.model).toMatchObject({ userId, loading: true })
+  })
+
+  it('keeps the profile usable when optional activity and relationship requests fail', async () => {
+    authState.accessToken = 'viewer-token'
+    authState.userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    authState.authed = true
+    authState.tokenGeneration = 1
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${userId}`) {
+        return Promise.resolve(okResult({ id: userId, username: 'alice' }))
+      }
+      if (url === `/api/users/${userId}/recent-posts`) return Promise.reject(new Error('posts unavailable'))
+      if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+    getFollowStatus.mockRejectedValue(new Error('relationship unavailable'))
+
+    const wrapper = mountProfile(userId)
+    await flushPromises()
+
+    expect(wrapper.vm.model.profile).toMatchObject({ id: userId, username: 'alice' })
+    expect(wrapper.vm.model.recentPosts).toEqual([])
+    expect(wrapper.vm.model.followStatusState).toBe('error')
+    expect(wrapper.vm.model.error).toBe('')
+  })
+
   it('hides sign-in user-level ui and falls back to wallet-oriented public profile copy when new fields are absent', async () => {
     const wrapper = mount(UserProfileView, {
       props: {
@@ -341,17 +380,17 @@ describe('UserProfileView route contract', () => {
 
     await wrapper.setProps({ userId: currentUserId })
     await flushPromises()
-    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
-    expect(wrapper.vm.recentPosts.map((post) => post.title)).toEqual(['current post'])
-    expect(wrapper.vm.followStatus).toBe(true)
+    expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.model.recentPosts.map((post) => post.title)).toEqual(['current post'])
+    expect(wrapper.vm.model.followStatus).toBe(true)
 
     previousProfileRequest.resolve(okResult({ id: previousUserId, username: 'previous profile' }, 'trace-previous-profile'))
     previousFollowRequest.resolve({ data: false, traceId: 'trace-previous-follow' })
     await flushPromises()
 
-    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
-    expect(wrapper.vm.recentPosts.map((post) => post.title)).toEqual(['current post'])
-    expect(wrapper.vm.followStatus).toBe(true)
+    expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.model.recentPosts.map((post) => post.title)).toEqual(['current post'])
+    expect(wrapper.vm.model.followStatus).toBe(true)
     const traces = (wrapper.emitted('trace') || []).flat()
     expect(traces).not.toContain('trace-previous-profile')
     expect(traces).not.toContain('trace-previous-follow')
@@ -386,11 +425,11 @@ describe('UserProfileView route contract', () => {
     authState.authed = true
     authState.tokenGeneration = 2
     await flushPromises()
-    expect(wrapper.vm.followStatus).toBe(true)
+    expect(wrapper.vm.model.followStatus).toBe(true)
 
     previousFollowRequest.resolve({ data: false, traceId: 'trace-previous-viewer-follow' })
     await flushPromises()
-    expect(wrapper.vm.followStatus).toBe(true)
+    expect(wrapper.vm.model.followStatus).toBe(true)
     expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-previous-viewer-follow')
   })
 
@@ -421,8 +460,8 @@ describe('UserProfileView route contract', () => {
 
     const wrapper = mountProfile(previousUserId)
     await flushPromises()
-    const pendingFollow = wrapper.vm.doFollow(true)
-    await wrapper.vm.doFollow(true)
+    const pendingFollow = wrapper.vm.actions.follow()
+    await wrapper.vm.actions.follow()
     expect(followUser).toHaveBeenCalledTimes(1)
     expect(followUser).toHaveBeenCalledWith(3, previousUserId)
 
@@ -432,9 +471,9 @@ describe('UserProfileView route contract', () => {
     await pendingFollow
     await flushPromises()
 
-    expect(wrapper.vm.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
-    expect(wrapper.vm.followStatus).toBe(true)
-    expect(wrapper.vm.actionLoading).toBe(false)
+    expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
+    expect(wrapper.vm.model.followStatus).toBe(true)
+    expect(wrapper.vm.model.actionLoading).toBe(false)
     expect((wrapper.emitted('trace') || []).flat()).not.toContain('trace-stale-follow-mutation')
     const profileRequests = http.get.mock.calls
       .map(([url]) => url)
@@ -463,7 +502,7 @@ describe('UserProfileView route contract', () => {
     const wrapper = mountProfile(profileUserId)
     await flushPromises()
     const blockedLoadsBeforeSwitch = socialPrefsState.ensureBlocked.mock.calls.length
-    const pendingBlock = wrapper.vm.toggleBlock()
+    const pendingBlock = wrapper.vm.actions.toggleBlocked()
     expect(blockUser).toHaveBeenCalledWith(profileUserId)
 
     authState.accessToken = 'current-token'
@@ -478,7 +517,7 @@ describe('UserProfileView route contract', () => {
     await flushPromises()
     expect(socialPrefsState.ensureBlocked).toHaveBeenCalledTimes(blockedLoadsBeforeSwitch + 1)
     expect(showToast).not.toHaveBeenCalled()
-    expect(wrapper.vm.actionLoading).toBe(false)
-    expect(wrapper.vm.error).toBe('')
+    expect(wrapper.vm.model.actionLoading).toBe(false)
+    expect(wrapper.vm.model.error).toBe('')
   })
 })

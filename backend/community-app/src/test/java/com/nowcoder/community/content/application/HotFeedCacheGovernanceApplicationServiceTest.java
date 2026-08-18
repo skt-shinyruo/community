@@ -27,7 +27,6 @@ class HotFeedCacheGovernanceApplicationServiceTest {
 
     private PostFeedCache postFeedCache;
     private PostContentRepository postContentRepository;
-    private PostSummaryCache postSummaryCache;
     private PostFeedSummaryLoader postFeedSummaryLoader;
     private ContentFeedPolicyProperties policyProperties;
     private HotFeedCacheGovernanceApplicationService service;
@@ -36,13 +35,11 @@ class HotFeedCacheGovernanceApplicationServiceTest {
     void setUp() {
         postFeedCache = mock(PostFeedCache.class);
         postContentRepository = mock(PostContentRepository.class);
-        postSummaryCache = mock(PostSummaryCache.class);
         postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
         policyProperties = new ContentFeedPolicyProperties();
         service = new HotFeedCacheGovernanceApplicationService(
                 postFeedCache,
                 postContentRepository,
-                postSummaryCache,
                 postFeedSummaryLoader,
                 policyProperties,
                 Clock.systemUTC()
@@ -84,7 +81,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         List<DiscussPost> posts = List.of(first, second);
         List<PostSummaryResult> summaries = List.of(summary(firstPostId), summary(secondPostId));
         when(postContentRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(posts);
-        when(postFeedSummaryLoader.assembleSummaries(posts)).thenReturn(summaries);
+        when(postFeedSummaryLoader.prewarmCurrentPosts(posts)).thenReturn(summaries);
 
         var result = service.prewarm(new HotFeedCachePrewarmRequest("global", null, 2, "warm cold cache"));
 
@@ -96,7 +93,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         verify(postFeedCache).writeRankVersion("hot-v2");
         verify(postFeedCache).upsertGlobalHot(projectionOf(first), "hot-v2", 7L, 3L);
         verify(postFeedCache).upsertGlobalHot(projectionOf(second), "hot-v2", 7L, 3L);
-        verify(postFeedSummaryLoader).cacheSummaries(posts, summaries);
+        verify(postFeedSummaryLoader).prewarmCurrentPosts(posts);
         verify(postFeedCache).writeLastPrewarmAt(org.mockito.ArgumentMatchers.eq("global"), org.mockito.ArgumentMatchers.isNull(), any(Instant.class));
     }
 
@@ -108,7 +105,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         List<DiscussPost> posts = List.of(post);
         List<PostSummaryResult> summaries = List.of(summary(postId));
         when(postContentRepository.listPosts(0, 10, PostContentRepository.ORDER_HOT, boardId, null)).thenReturn(posts);
-        when(postFeedSummaryLoader.assembleSummaries(posts)).thenReturn(summaries);
+        when(postFeedSummaryLoader.prewarmCurrentPosts(posts)).thenReturn(summaries);
 
         var result = service.prewarm(new HotFeedCachePrewarmRequest("board", boardId, 10, "warm board"));
 
@@ -116,7 +113,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         assertThat(result.boardId()).isEqualTo(boardId);
         assertThat(result.loadedCount()).isEqualTo(1);
         verify(postFeedCache).upsertBoardHot(boardId, projectionOf(post), "hot-v2", 7L, 3L);
-        verify(postFeedSummaryLoader).cacheSummaries(posts, summaries);
+        verify(postFeedSummaryLoader).prewarmCurrentPosts(posts);
     }
 
     @Test

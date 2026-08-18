@@ -308,6 +308,7 @@ cidr_config_files=(
   "${community_runtime_configs[@]}"
   "${REPO_ROOT}/deploy/stacks/single/.env.example"
   "${REPO_ROOT}/deploy/stacks/cluster/.env.example"
+  "${REPO_ROOT}/deploy/compose/runtime/services/common.yml"
   "${REPO_ROOT}/deploy/compose/runtime/services/single.yml"
   "${REPO_ROOT}/deploy/compose/runtime/services/cluster.yml"
 )
@@ -332,15 +333,6 @@ assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_STATIC_IP:?COMMUNITY_GATEWAY_
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_1_STATIC_IP:?COMMUNITY_GATEWAY_1_STATIC_IP is required}' "${cluster_compose}"
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_2_STATIC_IP:?COMMUNITY_GATEWAY_2_STATIC_IP is required}' "${cluster_compose}"
 assert_contains 'ipv4_address: ${COMMUNITY_GATEWAY_3_STATIC_IP:?COMMUNITY_GATEWAY_3_STATIC_IP is required}' "${cluster_compose}"
-
-assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED: "true"' "${single_compose}"
-assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS: "${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}"' "${single_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED: "true"' "${single_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS: "${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}"' "${single_compose}"
-assert_count 1 'GATEWAY_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"
-assert_count 1 'GATEWAY_TRUSTED_PROXY_CIDRS: "${GATEWAY_TRUSTED_PROXY_CIDRS:?GATEWAY_TRUSTED_PROXY_CIDRS is required}"' "${cluster_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_ENABLED: "true"' "${cluster_compose}"
-assert_count 1 'COMMUNITY_APP_TRUSTED_PROXY_CIDRS: "${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:?COMMUNITY_APP_TRUSTED_PROXY_CIDRS is required}"' "${cluster_compose}"
 
 assert_env_value COMMUNITY_NETWORK_SUBNET 172.30.0.0/24 "${single_env}"
 assert_env_value COMMUNITY_NETWORK_DYNAMIC_RANGE 172.30.0.128/25 "${single_env}"

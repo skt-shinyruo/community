@@ -16,6 +16,8 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
 
+import static com.nowcoder.community.content.application.PostReadTransactionOperations.SummarySnapshot;
+
 @Component
 public class PostFeedSummaryLoader {
 
@@ -56,8 +58,8 @@ public class PostFeedSummaryLoader {
                 .toList();
         if (!missingIds.isEmpty()) {
             List<DiscussPost> loadedPosts = postContentRepository.listPostsByIds(missingIds);
-            List<PostSummaryResult> loaded = assembleSummaries(loadedPosts);
-            cacheSummaries(loadedPosts, loaded);
+            List<PostSummaryResult> loaded = assemble(loadedPosts);
+            cache(loadedPosts, loaded);
             loaded.forEach(item -> cached.put(item.id(), item));
         }
         return postIds.stream()
@@ -66,7 +68,35 @@ public class PostFeedSummaryLoader {
                 .toList();
     }
 
-    public List<PostSummaryResult> assembleSummaries(List<DiscussPost> posts) {
+    public List<PostSummaryResult> serveCurrentPosts(List<DiscussPost> posts) {
+        List<PostSummaryResult> summaries = assemble(posts);
+        try {
+            cache(posts, summaries);
+        } catch (RuntimeException ignored) {
+            // Cache backfill is best-effort on the request-serving fallback path.
+        }
+        return summaries;
+    }
+
+    public List<PostSummaryResult> prewarmCurrentPosts(List<DiscussPost> posts) {
+        List<PostSummaryResult> summaries = assemble(posts);
+        cache(posts, summaries);
+        return summaries;
+    }
+
+    public List<PostSummaryResult> readSnapshot(SummarySnapshot snapshot) {
+        if (snapshot == null) {
+            return List.of();
+        }
+        return assemble(
+                snapshot.posts(),
+                snapshot.lastActivities(),
+                snapshot.tagsByPostId(),
+                snapshot.blocksByPostId()
+        );
+    }
+
+    private List<PostSummaryResult> assemble(List<DiscussPost> posts) {
         if (posts == null || posts.isEmpty()) {
             return List.of();
         }
@@ -74,17 +104,32 @@ public class PostFeedSummaryLoader {
         Map<UUID, Comment> lastActivities = commentContentRepository.getLatestPostActivitiesByPostIds(postIds);
         Map<UUID, List<String>> tagsByPostId = tagContentRepository.getTagsByPostIds(postIds);
         Map<UUID, List<PostContentBlock>> blocksByPostId = postContentBlockRepository.listByPostIds(postIds);
+        return assemble(posts, lastActivities, tagsByPostId, blocksByPostId);
+    }
+
+    private List<PostSummaryResult> assemble(
+            List<DiscussPost> posts,
+            Map<UUID, Comment> lastActivities,
+            Map<UUID, List<String>> tagsByPostId,
+            Map<UUID, List<PostContentBlock>> blocksByPostId
+    ) {
+        if (posts == null || posts.isEmpty()) {
+            return List.of();
+        }
+        Map<UUID, Comment> safeActivities = lastActivities == null ? Map.of() : lastActivities;
+        Map<UUID, List<String>> safeTags = tagsByPostId == null ? Map.of() : tagsByPostId;
+        Map<UUID, List<PostContentBlock>> safeBlocks = blocksByPostId == null ? Map.of() : blocksByPostId;
         return posts.stream()
                 .map(post -> postSummaryAssembler.assemble(
                         post,
-                        lastActivities.get(post.getId()),
-                        tagsByPostId.get(post.getId()),
-                        postContentBlockTextProjector.preview(blocksByPostId.get(post.getId()), 240)
+                        safeActivities.get(post.getId()),
+                        safeTags.get(post.getId()),
+                        postContentBlockTextProjector.preview(safeBlocks.get(post.getId()), 240)
                 ))
                 .toList();
     }
 
-    public void cacheSummaries(List<DiscussPost> posts, List<PostSummaryResult> summaries) {
+    private void cache(List<DiscussPost> posts, List<PostSummaryResult> summaries) {
         if (posts == null || posts.isEmpty() || summaries == null || summaries.isEmpty()) {
             return;
         }

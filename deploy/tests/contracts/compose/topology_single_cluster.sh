@@ -646,10 +646,8 @@ for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BA
   grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F "${variable}:"
 done
 grep -E '^  community-gateway-1:$' "${cluster_full}"
-grep -F 'x-community-app-environment: &community-app-environment' \
-  deploy/compose/runtime/services/cluster.yml
-grep -F '<<: *community-app-environment' deploy/compose/runtime/services/cluster.yml
-test "$(wc -l < deploy/compose/runtime/services/cluster.yml)" -lt 900
+test "$(service_environment_value "${cluster_full}" community-app-1 MODULE)" = "community-app"
+test "$(service_environment_value "${cluster_full}" community-app-1 mem_limit)" = "805306368"
 grep -A4 -E '^      nacos-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'
 grep -A6 -E '^      nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'condition: service_completed_successfully'
 grep -A4 -E '^      community-gateway-1:$' "${cluster_full}" | grep -F 'condition: service_healthy'

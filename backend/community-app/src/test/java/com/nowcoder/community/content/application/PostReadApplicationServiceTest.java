@@ -862,7 +862,15 @@ class PostReadApplicationServiceTest {
                 postDetailCache,
                 new PostContentBlockTextProjector(),
                 textCodec(),
-                new PostSummaryAssembler(textCodec()),
+                new PostFeedSummaryLoader(
+                        postService,
+                        commentService,
+                        tagService,
+                        blockRepository,
+                        mock(PostSummaryCache.class),
+                        new PostContentBlockTextProjector(),
+                        new PostSummaryAssembler(textCodec())
+                ),
                 new PostDetailAssembler(textCodec()),
                 new RecentUserCommentAssembler(textCodec()),
                 new PostReadTransactionOperations(

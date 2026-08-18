@@ -31,7 +31,7 @@ public class MarketWalletActionProcessorTransactionOperations {
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
     private final MarketOrderSagaApplicationService sagaService;
-    private final MarketWalletActionCoordinator actionCoordinator;
+    private final MarketWalletTxnSagaApplier walletTxnSagaApplier;
 
     @Autowired
     public MarketWalletActionProcessorTransactionOperations(
@@ -43,7 +43,10 @@ public class MarketWalletActionProcessorTransactionOperations {
         this.walletActionRepository = Objects.requireNonNull(walletActionRepository, "walletActionRepository must not be null");
         this.orderRepository = Objects.requireNonNull(orderRepository, "orderRepository must not be null");
         this.sagaService = Objects.requireNonNull(sagaService, "sagaService must not be null");
-        this.actionCoordinator = Objects.requireNonNull(actionCoordinator, "actionCoordinator must not be null");
+        this.walletTxnSagaApplier = new MarketWalletTxnSagaApplier(
+                this.sagaService,
+                Objects.requireNonNull(actionCoordinator, "actionCoordinator must not be null")
+        );
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -107,7 +110,8 @@ public class MarketWalletActionProcessorTransactionOperations {
             return false;
         }
 
-        boolean sagaAdvanced = applyWalletTxnToSaga(action, walletTxnId);
+        requireSupportedActionType(action);
+        boolean sagaAdvanced = walletTxnSagaApplier.apply(action, walletTxnId);
         if (!sagaAdvanced) {
             return walletActionRepository.markRecoveryPending(
                     lease,
@@ -130,29 +134,13 @@ public class MarketWalletActionProcessorTransactionOperations {
         return true;
     }
 
-    private boolean applyWalletTxnToSaga(MarketWalletAction action, UUID walletTxnId) {
-        if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            if (sagaService.markEscrowSucceeded(action.getOrderId(), walletTxnId)) {
-                return true;
-            }
-            if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), walletTxnId)) {
-                actionCoordinator.enqueueRefund(
-                        action.getOrderId(),
-                        action.getActorUserId(),
-                        action.getCounterpartyUserId(),
-                        action.getAmount()
-                );
-                return true;
-            }
-            return false;
+    private void requireSupportedActionType(MarketWalletAction action) {
+        String actionType = action.getActionType();
+        if (!MarketWalletActionType.ESCROW.equals(actionType)
+                && !MarketWalletActionType.RELEASE.equals(actionType)
+                && !MarketWalletActionType.REFUND.equals(actionType)) {
+            throw new IllegalArgumentException("unsupported market wallet action type: " + actionType);
         }
-        if (MarketWalletActionType.RELEASE.equals(action.getActionType())) {
-            return sagaService.markReleaseSucceeded(action.getOrderId(), walletTxnId);
-        }
-        if (MarketWalletActionType.REFUND.equals(action.getActionType())) {
-            return sagaService.markRefundSucceeded(action.getOrderId(), walletTxnId);
-        }
-        throw new IllegalArgumentException("unsupported market wallet action type: " + action.getActionType());
     }
 
     private void lockOrderFirst(MarketWalletAction action) {

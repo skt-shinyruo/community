@@ -30,6 +30,7 @@ public class MarketWalletActionRecoveryTransactionOperations {
     private final MarketOrderRepository orderRepository;
     private final MarketOrderSagaApplicationService sagaService;
     private final MarketWalletActionCoordinator actionCoordinator;
+    private final MarketWalletTxnSagaApplier walletTxnSagaApplier;
 
     public MarketWalletActionRecoveryTransactionOperations(
             MarketWalletActionRepository walletActionRepository,
@@ -41,6 +42,7 @@ public class MarketWalletActionRecoveryTransactionOperations {
         this.orderRepository = Objects.requireNonNull(orderRepository, "orderRepository must not be null");
         this.sagaService = Objects.requireNonNull(sagaService, "sagaService must not be null");
         this.actionCoordinator = Objects.requireNonNull(actionCoordinator, "actionCoordinator must not be null");
+        this.walletTxnSagaApplier = new MarketWalletTxnSagaApplier(this.sagaService, this.actionCoordinator);
     }
 
     @Transactional(propagation = Propagation.REQUIRES_NEW)
@@ -78,7 +80,7 @@ public class MarketWalletActionRecoveryTransactionOperations {
                 || MarketWalletActionStatus.PROCESSING.equals(action.getStatus())) {
             return false;
         }
-        if (applyWalletTxnToSaga(action) || sagaAlreadyHasTxn(action)) {
+        if (walletTxnSagaApplier.apply(action, action.getWalletTxnId()) || sagaAlreadyHasTxn(action)) {
             int updated = walletActionRepository.markRecoveredSucceeded(
                     action.getActionId(),
                     action.getStatus(),
@@ -142,7 +144,7 @@ public class MarketWalletActionRecoveryTransactionOperations {
         if (MarketWalletActionStatus.PROCESSING.equals(action.getStatus())) {
             return false;
         }
-        if (applyWalletTxnToSaga(action) || sagaAlreadyHasTxn(action)) {
+        if (walletTxnSagaApplier.apply(action, action.getWalletTxnId()) || sagaAlreadyHasTxn(action)) {
             int updated = walletActionRepository.markRecoveredSucceeded(
                     action.getActionId(),
                     action.getStatus(),
@@ -164,31 +166,6 @@ public class MarketWalletActionRecoveryTransactionOperations {
                 && expectedActionType.equals(action.getActionType())
                 && (MarketWalletActionType.RELEASE.equals(action.getActionType())
                 || MarketWalletActionType.REFUND.equals(action.getActionType()));
-    }
-
-    private boolean applyWalletTxnToSaga(MarketWalletAction action) {
-        if (MarketWalletActionType.ESCROW.equals(action.getActionType())) {
-            if (sagaService.markEscrowSucceeded(action.getOrderId(), action.getWalletTxnId())) {
-                return true;
-            }
-            if (sagaService.markEscrowCancelRefundPending(action.getOrderId(), action.getWalletTxnId())) {
-                actionCoordinator.enqueueRefund(
-                        action.getOrderId(),
-                        action.getActorUserId(),
-                        action.getCounterpartyUserId(),
-                        action.getAmount()
-                );
-                return true;
-            }
-            return false;
-        }
-        if (MarketWalletActionType.RELEASE.equals(action.getActionType())) {
-            return sagaService.markReleaseSucceeded(action.getOrderId(), action.getWalletTxnId());
-        }
-        if (MarketWalletActionType.REFUND.equals(action.getActionType())) {
-            return sagaService.markRefundSucceeded(action.getOrderId(), action.getWalletTxnId());
-        }
-        return false;
     }
 
     private boolean sagaAlreadyHasTxn(MarketWalletAction action) {

@@ -68,8 +68,8 @@ class CommentDeletionCardinalityContractTest {
         postCacheAfterCommit = mock(PostCacheAfterCommit.class);
         eventPublisher = mock(ContentEventPublisher.class);
         when(postRepository.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
-        CommentCacheAfterCommit cacheAfterCommit =
-                new CommentCacheAfterCommit(counterCache, pageCache, postCacheAfterCommit);
+        ContentReadModelsAfterCommit cacheAfterCommit =
+                new ContentReadModelsAfterCommit(counterCache, pageCache, postCacheAfterCommit);
         service = new CommentApplicationService(
                 mock(ContentSanitizer.class),
                 mock(IdempotencyGuard.class),

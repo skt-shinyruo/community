@@ -92,7 +92,7 @@ class FeedReadApplicationServiceReliabilityTest {
         when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
         FeedReadApplicationService service = service(
@@ -120,7 +120,7 @@ class FeedReadApplicationServiceReliabilityTest {
         fallbackPost.setScore(90.0);
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
         FeedReadApplicationService service = service(
@@ -183,7 +183,7 @@ class FeedReadApplicationServiceReliabilityTest {
         when(postContentRepository.listHotPostsAfter(
                 previous.type(), previous.score(), previous.createTime(), previous.postId(), 3, null
         )).thenReturn(List.of(first, second, lookahead));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(first, second))).thenReturn(List.of(
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(first, second))).thenReturn(List.of(
                 summary(first.getId(), first.getTitle()),
                 summary(second.getId(), second.getTitle())
         ));
@@ -243,7 +243,7 @@ class FeedReadApplicationServiceReliabilityTest {
         when(postFeedSummaryLoader.readSummaries(List.of(cachedPostId))).thenThrow(new IllegalStateException("summary load failed"));
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
         FeedReadApplicationService service = service(
@@ -331,7 +331,7 @@ class FeedReadApplicationServiceReliabilityTest {
         when(postFeedCache.readGlobalHotProjection("", 2)).thenThrow(new IllegalStateException("redis down"));
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
 
         FeedReadApplicationService service = service(
@@ -366,43 +366,8 @@ class FeedReadApplicationServiceReliabilityTest {
                 .when(postFeedCache).writeRankVersion("hot-v2");
         when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
                 .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost)))
+        when(postFeedSummaryLoader.serveCurrentPosts(List.of(fallbackPost)))
                 .thenReturn(List.of(summary(fallbackPost.getId(), fallbackPost.getTitle())));
-
-        FeedReadApplicationService service = service(
-                postFeedCache,
-                postContentRepository,
-                postFeedSummaryLoader,
-                registry,
-                policyProperties
-        );
-
-        FeedPageResult result = service.listGlobalHotFeed(null, "", 2);
-
-        assertThat(result.items()).extracting(PostSummaryResult::id).containsExactly(fallbackPost.getId());
-        assertThat(result.rankVersion()).isEqualTo("hot-v2");
-        assertThat(countMetric(registry, "fallback", "global")).isEqualTo(1.0);
-        assertThat(totalMetricCount(registry)).isEqualTo(1.0);
-    }
-
-    @Test
-    void listGlobalHotFeedShouldReturnFallbackWhenSummaryCacheBackfillFails() {
-        SimpleMeterRegistry registry = new SimpleMeterRegistry();
-        PostFeedCache postFeedCache = mock(PostFeedCache.class);
-        PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        PostFeedSummaryLoader postFeedSummaryLoader = mock(PostFeedSummaryLoader.class);
-        ContentFeedPolicyProperties policyProperties = new ContentFeedPolicyProperties();
-        policyProperties.setHotRankVersion("hot-v2");
-        DiscussPost fallbackPost = post(uuid(27), "<fallback>");
-        fallbackPost.setScore(80.0);
-        List<PostSummaryResult> summaries = List.of(summary(fallbackPost.getId(), fallbackPost.getTitle()));
-
-        when(postFeedCache.readGlobalHotProjection("", 2)).thenReturn(cacheMiss());
-        when(postContentRepository.listPosts(0, 2, 3, PostContentRepository.ORDER_HOT, null, null))
-                .thenReturn(List.of(fallbackPost));
-        when(postFeedSummaryLoader.assembleSummaries(List.of(fallbackPost))).thenReturn(summaries);
-        org.mockito.Mockito.doThrow(new IllegalStateException("summary cache backfill failed"))
-                .when(postFeedSummaryLoader).cacheSummaries(List.of(fallbackPost), summaries);
 
         FeedReadApplicationService service = service(
                 postFeedCache,

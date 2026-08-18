@@ -26,7 +26,6 @@ class HotPathPrewarmApplicationServiceTest {
         PostContentRepository postRepository = mock(PostContentRepository.class);
         CategoryContentRepository categoryRepository = mock(CategoryContentRepository.class);
         PostFeedCache feedCache = mock(PostFeedCache.class);
-        PostSummaryCache summaryCache = mock(PostSummaryCache.class);
         PostFeedSummaryLoader summaryLoader = mock(PostFeedSummaryLoader.class);
         PostReadApplicationService postReadApplicationService = mock(PostReadApplicationService.class);
         ContentFeedPolicyProperties feedProperties = new ContentFeedPolicyProperties();
@@ -43,15 +42,14 @@ class HotPathPrewarmApplicationServiceTest {
         when(postRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT)).thenReturn(List.of(globalPost));
         when(categoryRepository.listCategories()).thenReturn(List.of(category(boardId)));
         when(postRepository.listPosts(0, 2, PostContentRepository.ORDER_HOT, boardId, null)).thenReturn(List.of(boardPost));
-        when(summaryLoader.assembleSummaries(List.of(globalPost))).thenReturn(List.of(globalSummary));
-        when(summaryLoader.assembleSummaries(List.of(boardPost))).thenReturn(List.of(boardSummary));
+        when(summaryLoader.prewarmCurrentPosts(List.of(globalPost))).thenReturn(List.of(globalSummary));
+        when(summaryLoader.prewarmCurrentPosts(List.of(boardPost))).thenReturn(List.of(boardSummary));
         when(postReadApplicationService.getPostDetail(null, globalPost.getId())).thenReturn(detail(globalPost.getId()));
         when(postReadApplicationService.getPostDetail(null, boardPost.getId())).thenReturn(detail(boardPost.getId()));
         HotPathPrewarmApplicationService service = new HotPathPrewarmApplicationService(
                 postRepository,
                 categoryRepository,
                 feedCache,
-                summaryCache,
                 summaryLoader,
                 postReadApplicationService,
                 feedProperties,
@@ -67,8 +65,8 @@ class HotPathPrewarmApplicationServiceTest {
         verify(feedCache).writeRankVersion("hot-v2");
         verify(feedCache).upsertGlobalHot(projectionOf(globalPost), "hot-v2", 7L, 3L);
         verify(feedCache).upsertBoardHot(boardId, projectionOf(boardPost), "hot-v2", 7L, 3L);
-        verify(summaryLoader).cacheSummaries(List.of(globalPost), List.of(globalSummary));
-        verify(summaryLoader).cacheSummaries(List.of(boardPost), List.of(boardSummary));
+        verify(summaryLoader).prewarmCurrentPosts(List.of(globalPost));
+        verify(summaryLoader).prewarmCurrentPosts(List.of(boardPost));
         verify(postReadApplicationService).getPostDetail(null, globalPost.getId());
         verify(postReadApplicationService).getPostDetail(null, boardPost.getId());
     }

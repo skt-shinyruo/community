@@ -29,7 +29,6 @@ public class HotFeedCacheGovernanceApplicationService
 
     private final PostFeedCache postFeedCache;
     private final PostContentRepository postContentRepository;
-    private final PostSummaryCache postSummaryCache;
     private final PostFeedSummaryLoader postFeedSummaryLoader;
     private final ContentFeedPolicyProperties policyProperties;
     private final Clock clock;
@@ -37,14 +36,12 @@ public class HotFeedCacheGovernanceApplicationService
     public HotFeedCacheGovernanceApplicationService(
             PostFeedCache postFeedCache,
             PostContentRepository postContentRepository,
-            PostSummaryCache postSummaryCache,
             PostFeedSummaryLoader postFeedSummaryLoader,
             ContentFeedPolicyProperties policyProperties,
             Clock clock
     ) {
         this.postFeedCache = Objects.requireNonNull(postFeedCache, "postFeedCache must not be null");
         this.postContentRepository = Objects.requireNonNull(postContentRepository, "postContentRepository must not be null");
-        this.postSummaryCache = Objects.requireNonNull(postSummaryCache, "postSummaryCache must not be null");
         this.postFeedSummaryLoader = Objects.requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader must not be null");
         this.policyProperties = Objects.requireNonNull(policyProperties, "policyProperties must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
@@ -102,8 +99,7 @@ public class HotFeedCacheGovernanceApplicationService
             }
             warmed++;
         }
-        var summaries = postFeedSummaryLoader.assembleSummaries(posts);
-        postFeedSummaryLoader.cacheSummaries(posts, summaries);
+        postFeedSummaryLoader.prewarmCurrentPosts(posts);
         Instant prewarmAt = clock.instant();
         postFeedCache.writeLastPrewarmAt(c.scope(), c.boardId(), prewarmAt);
         HotFeedDegradationSignalResult signal = safeSignal();

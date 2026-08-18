@@ -322,7 +322,8 @@ schema 校验与 Compose 契约：
 - `deploy/compose/base.yml`：共享顶层元数据与 volume。
 - `deploy/compose/infra/<capability>/single.yml`：single 基础设施。
 - `deploy/compose/infra/<capability>/cluster.yml`：cluster 基础设施。
-- `deploy/compose/runtime/services/single.yml` / `deploy/compose/runtime/services/cluster.yml`：业务 runtime。
+- `deploy/compose/runtime/services/common.yml`：业务 runtime 的共享构建、资源与环境不变量。
+- `deploy/compose/runtime/services/single.yml` / `deploy/compose/runtime/services/cluster.yml`：通过 Compose `extends` 补充 endpoint、依赖、实例和网络等 topology 差异。
 - `deploy/compose/runtime/edge/single.yml` / `deploy/compose/runtime/edge/cluster.yml`：前端与入口。
 - `deploy/compose/runtime/mock-data-studio/single.yml` / `deploy/compose/runtime/mock-data-studio/cluster.yml`：按需 Mock Data Studio CLI runner。
 - `deploy/compose/overlays/observability.yml`：由 Stack 默认值或显式 CLI 参数选择的观测层。

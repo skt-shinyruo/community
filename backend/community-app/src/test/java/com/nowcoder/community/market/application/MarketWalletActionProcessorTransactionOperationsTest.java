@@ -115,6 +115,23 @@ class MarketWalletActionProcessorTransactionOperationsTest {
         assertThat(orderMapper.selectById(orderId).getReleaseTxnId()).isNull();
     }
 
+    @Test
+    void unsupportedActionShouldFailBeforeRecordingACompletionState() {
+        MarketWalletAction action = releaseAction(uuid(963));
+        action.setActionType("UNKNOWN");
+        MarketWalletActionLease lease = new MarketWalletActionLease(action.getActionId(), uuid(964));
+        UUID walletTxnId = uuid(965);
+        when(walletActionRepository.lockClaimed(eq(lease), any())).thenReturn(action);
+
+        assertThatThrownBy(() -> transactionOperations.completeWalletSuccess(
+                action,
+                lease,
+                walletTxnId,
+                Date.from(Instant.parse("2026-08-05T10:00:00Z"))
+        )).isInstanceOf(IllegalArgumentException.class)
+                .hasMessage("unsupported market wallet action type: UNKNOWN");
+    }
+
     private MarketWalletAction releaseAction(UUID orderId) {
         MarketWalletAction action = new MarketWalletAction();
         action.setActionId(uuid(957));

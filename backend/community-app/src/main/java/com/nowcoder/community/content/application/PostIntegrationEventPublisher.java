@@ -11,16 +11,16 @@ public class PostIntegrationEventPublisher {
 
     private final ContentPostPayloadAssembler postPayloadAssembler;
     private final ContentEventPublisher eventPublisher;
-    private final PostCacheAfterCommit postCacheAfterCommit;
+    private final ContentReadModelsAfterCommit readModelsAfterCommit;
 
     public PostIntegrationEventPublisher(
             ContentPostPayloadAssembler postPayloadAssembler,
             ContentEventPublisher eventPublisher,
-            PostCacheAfterCommit postCacheAfterCommit
+            ContentReadModelsAfterCommit readModelsAfterCommit
     ) {
         this.postPayloadAssembler = postPayloadAssembler;
         this.eventPublisher = eventPublisher;
-        this.postCacheAfterCommit = postCacheAfterCommit;
+        this.readModelsAfterCommit = readModelsAfterCommit;
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
@@ -32,13 +32,13 @@ public class PostIntegrationEventPublisher {
     public void postUpdated(UUID postId) {
         var payload = postPayloadAssembler.assemble(postId);
         eventPublisher.publishPostUpdated(payload);
-        postCacheAfterCommit.evict(postId, payload.getAggregateVersion());
+        readModelsAfterCommit.postUpdated(postId, payload.getAggregateVersion());
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void postDeleted(UUID postId) {
         var payload = postPayloadAssembler.assemble(postId);
         eventPublisher.publishPostDeleted(payload);
-        postCacheAfterCommit.terminalEvict(postId, payload.getCategoryId(), payload.getAggregateVersion());
+        readModelsAfterCommit.postDeleted(postId, payload.getCategoryId(), payload.getAggregateVersion());
     }
 }

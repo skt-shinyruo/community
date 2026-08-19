@@ -32,7 +32,7 @@
           :key="comment.id"
           class="comment-thread"
         >
-          <div v-if="comment._repliesExpanded && comment._replies.length > 0" class="thread-line"></div>
+          <div v-if="comment.ui.replyList.expanded && comment.ui.replyList.items.length > 0" class="thread-line"></div>
 
           <div class="comment-thread-head">
             <div class="comment-author">
@@ -67,11 +67,12 @@
               <UiButton
                 class="comment-action"
                 variant="ghost"
-                :aria-label="comment.liked ? '取消点赞评论' : '点赞评论'"
+                :aria-label="comment.ui.like.liked ? '取消点赞评论' : '点赞评论'"
+                :disabled="comment.ui.like.loading"
                 @click="discussion.toggleCommentLike(comment)"
               >
-                <span aria-hidden="true" :class="{ 'red-text': comment.liked }">❤️</span>
-                <span>{{ comment.likeCount || 0 }}</span>
+                <span aria-hidden="true" :class="{ 'red-text': comment.ui.like.liked }">❤️</span>
+                <span>{{ comment.ui.like.count || 0 }}</span>
               </UiButton>
               <UiButton class="comment-action" variant="ghost" aria-label="回复评论" @click="discussion.startReply(comment)">回复</UiButton>
               <UiButton
@@ -84,46 +85,47 @@
                 编辑
               </UiButton>
               <UiButton
-                v-if="(comment.replyCount || 0) > 0 || comment._repliesExpanded"
+                v-if="(comment.replyCount || 0) > 0 || comment.ui.replyList.expanded"
                 class="comment-action"
                 variant="ghost"
-                :aria-label="comment._repliesExpanded ? '收起回复' : `展开 ${comment.replyCount || 0} 条回复`"
+                :aria-label="comment.ui.replyList.expanded ? '收起回复' : `展开 ${comment.replyCount || 0} 条回复`"
                 @click="discussion.toggleReplies(comment)"
               >
-                {{ comment._repliesExpanded ? '收起回复' : `展开 ${comment.replyCount || 0} 条回复` }}
+                {{ comment.ui.replyList.expanded ? '收起回复' : `展开 ${comment.replyCount || 0} 条回复` }}
               </UiButton>
             </div>
+            <div v-if="comment.ui.like.error" class="error">{{ comment.ui.like.error }}</div>
 
-            <div v-if="!discussion.isBlockedUser(comment.userId) && comment._replying" class="card flat reply-editor">
-              <div v-if="comment._replyQuote" class="reply-quote">
+            <div v-if="!discussion.isBlockedUser(comment.userId) && comment.ui.replyEditor.open" class="card flat reply-editor">
+              <div v-if="comment.ui.replyEditor.quote" class="reply-quote">
                 <div class="reply-quote-head">
                   <div class="muted reply-quote-label">
-                    引用 {{ comment._replyQuote?.username || `成员 ${comment._replyQuote?.userId || ''}` }}
+                    引用 {{ comment.ui.replyEditor.quote?.username || `成员 ${comment.ui.replyEditor.quote?.userId || ''}` }}
                   </div>
                   <UiIconButton size="sm" aria-label="取消引用" title="取消引用" @click="discussion.clearReplyQuote(comment)">×</UiIconButton>
                 </div>
-                <div class="reply-quote-content">{{ comment._replyQuote?.preview || '' }}</div>
+                <div class="reply-quote-content">{{ comment.ui.replyEditor.quote?.preview || '' }}</div>
               </div>
 
               <textarea
-                :value="comment._replyDraft"
+                :value="comment.ui.replyEditor.draft"
                 :rows="3"
                 placeholder="回复…（支持 Markdown）"
                 class="input multiline"
                 @input="discussion.setReplyDraft(comment, $event.target.value.trim())"
               />
-              <div v-if="comment._replyError" class="error reply-editor-error">{{ comment._replyError }}</div>
+              <div v-if="comment.ui.replyEditor.error" class="error reply-editor-error">{{ comment.ui.replyEditor.error }}</div>
               <div class="reply-editor-actions">
-                <UiButton variant="secondary" :disabled="comment._replySubmitting" @click="discussion.cancelReply(comment)">收起</UiButton>
-                <UiButton :disabled="comment._replySubmitting" @click="discussion.submitReply(comment)">提交</UiButton>
+                <UiButton variant="secondary" :disabled="comment.ui.replyEditor.submitting" @click="discussion.cancelReply(comment)">收起</UiButton>
+                <UiButton :disabled="comment.ui.replyEditor.submitting" @click="discussion.submitReply(comment)">提交</UiButton>
               </div>
             </div>
 
-            <div v-if="!discussion.isBlockedUser(comment.userId) && comment._repliesExpanded" class="reply-list">
-              <div v-if="comment._repliesLoading" class="muted">加载中…</div>
-              <div v-else-if="comment._replies.length === 0" class="muted">暂无回复</div>
+            <div v-if="!discussion.isBlockedUser(comment.userId) && comment.ui.replyList.expanded" class="reply-list">
+              <div v-if="comment.ui.replyList.loading" class="muted">加载中…</div>
+              <div v-else-if="comment.ui.replyList.items.length === 0" class="muted">暂无回复</div>
               <div
-                v-for="reply in comment._replies"
+                v-for="reply in comment.ui.replyList.items"
                 v-else
                 :id="discussion.replyAnchorId(reply.id)"
                 :key="reply.id"
@@ -152,11 +154,12 @@
                   <UiButton
                     class="comment-action"
                     variant="ghost"
-                    :aria-label="reply.liked ? '取消点赞回复' : '点赞回复'"
+                    :aria-label="reply.ui.like.liked ? '取消点赞回复' : '点赞回复'"
+                    :disabled="reply.ui.like.loading"
                     @click="discussion.toggleReplyLike(comment, reply)"
                   >
-                    <span aria-hidden="true" :class="{ 'red-text': reply.liked }">❤️</span>
-                    <span>{{ reply.likeCount || 0 }}</span>
+                    <span aria-hidden="true" :class="{ 'red-text': reply.ui.like.liked }">❤️</span>
+                    <span>{{ reply.ui.like.count || 0 }}</span>
                   </UiButton>
                   <UiButton class="comment-action" variant="ghost" aria-label="回复该回复" @click="discussion.startReply(comment, reply)">回复</UiButton>
                   <UiButton
@@ -169,14 +172,16 @@
                     编辑
                   </UiButton>
                 </div>
+                <div v-if="reply.ui.like.error" class="error">{{ reply.ui.like.error }}</div>
               </div>
 
+              <div v-if="comment.ui.replyList.error" class="error">{{ comment.ui.replyList.error }}</div>
               <UiPagination
-                v-if="discussion.repliesHasNext(comment) || comment._repliesPage > 0"
+                v-if="discussion.repliesHasNext(comment) || comment.ui.replyList.page > 0"
                 class="reply-pagination"
-                :page="comment._repliesPage"
+                :page="comment.ui.replyList.page"
                 :has-next="discussion.repliesHasNext(comment)"
-                :disabled="comment._repliesLoading"
+                :disabled="comment.ui.replyList.loading"
                 @prev="discussion.prevRepliesPage(comment)"
                 @next="discussion.nextRepliesPage(comment)"
               />

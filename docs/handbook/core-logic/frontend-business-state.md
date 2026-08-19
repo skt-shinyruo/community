@@ -33,7 +33,7 @@
 | `walletState.js` | 将 summary 投影为余额和钱包状态提示，将 txns 投影为流水 feed。金额正负决定转账进出标签，状态缺省为 `SUCCEEDED`，余额展示下限为 0。 |
 | `postsViewState.js` | 负责发帖标签规则和列表 hydration id 收集。标签去掉前导 `#`，空白转 `-`，最多 5 个，单个最长 20，只允许中英文、数字、`_`、`-`，重复标签按大小写不敏感忽略。hydration 最多收集 200 个 userId 和 200 个 postId。 |
 | `postsFeedState.js` | 无 `boardId` 筛选时是默认最新流，opaque cursor 只控制续页，不改变流身份；last-seen 分隔线取首个 `activityAt <= baselineAt` 的条目，首项或越界位置不显示。只有存在新内容、提示未关闭且分隔线有效时允许跳转；追加页只在加载成功后推进 cursor，失败保留原 cursor。 |
-| `postDetailState.js` | 收集评论 / 回复 hydration id，回复会额外收集 `targetId`。评论 hydration 组装 user、like count、liked 和回复 UI 状态；回复 hydration 组装 user、targetUser、like count、liked。引用内容会压缩空白并生成最多 6 行 quote markdown。 |
+| `postDetailState.js` | 收集评论 / 回复 hydration id，回复会额外收集 `replyToUserId`。评论 hydration 统一组装 user 与 `ui.replyEditor`、`ui.replyList`、`ui.like`；回复 hydration 组装 user、targetUser 与 `ui.like`。引用内容会压缩空白并生成最多 6 行 quote markdown。 |
 
 ## 路由到页面能力
 

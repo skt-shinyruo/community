@@ -92,33 +92,41 @@ describe('PostDetailComments', () => {
       user: { username: 'author' },
       targetUser: { username: 'reader' },
       content: 'Nested reply',
-      liked: true,
-      likeCount: 3,
       editCount: 1,
       createTime: '2026-01-02T00:00:00Z',
-      updateTime: '2026-01-02T00:01:00Z'
+      updateTime: '2026-01-02T00:01:00Z',
+      ui: { like: { liked: true, count: 3, loading: false, error: '' } }
     }
     const comment = {
       id: 'comment-1',
       userId: 'reader-1',
       user: { username: 'reader' },
       content: 'Root comment',
-      liked: false,
-      likeCount: 2,
       replyCount: 1,
       editCount: 1,
       createTime: '2026-01-01T00:00:00Z',
       updateTime: '2026-01-01T00:01:00Z',
-      _replying: true,
-      _replyDraft: 'draft reply',
-      _replyError: 'reply validation failed',
-      _replySubmitting: false,
-      _replyQuote: { username: 'quoted-user', userId: 'quoted-1', preview: 'quoted text' },
-      _repliesExpanded: true,
-      _repliesLoading: false,
-      _repliesError: '',
-      _repliesPage: 1,
-      _replies: [reply]
+      ui: {
+        replyEditor: {
+          open: true,
+          draft: 'draft reply',
+          error: 'reply validation failed',
+          submitting: false,
+          parentCommentId: 'comment-1',
+          quote: { username: 'quoted-user', userId: 'quoted-1', preview: 'quoted text' }
+        },
+        replyList: {
+          expanded: true,
+          items: [reply],
+          page: 1,
+          size: 5,
+          nextCursor: 'next',
+          cursorHistory: ['', 'next'],
+          loading: false,
+          error: ''
+        },
+        like: { liked: false, count: 2, loading: false, error: '' }
+      }
     }
     const discussion = createDiscussion({ comments: [comment] })
     const commentEditing = { canEdit: vi.fn(() => true), open: vi.fn() }
@@ -167,9 +175,11 @@ describe('PostDetailComments', () => {
       user: { username: 'blocked' },
       content: 'Hidden root content',
       replyCount: 0,
-      _replying: false,
-      _repliesExpanded: false,
-      _replies: []
+      ui: {
+        replyEditor: { open: false },
+        replyList: { expanded: false, items: [] },
+        like: { liked: false, count: 0, loading: false, error: '' }
+      }
     }
     const discussion = createDiscussion({
       comments: [comment],

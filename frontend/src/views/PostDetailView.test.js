@@ -71,7 +71,7 @@ vi.mock('../utils/scrollToAnchor', () => ({
 }))
 
 import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
-import { getFollowStatus } from '../api/services/socialService'
+import { getFollowStatus, setLike } from '../api/services/socialService'
 import { markPostRead } from '../utils/readTracker'
 import PostDetailView from './PostDetailView.vue'
 
@@ -188,6 +188,7 @@ describe('PostDetailView', () => {
       data: { commentId: 'ffffffff-ffff-7fff-8fff-ffffffffffff' },
       traceId: 'trace-add-comment'
     })
+    setLike.mockResolvedValue({ data: { liked: true, likeCount: 1 } })
     getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
   })
 
@@ -317,11 +318,18 @@ describe('PostDetailView', () => {
 
     await wrapper.vm.discussion.toggleReplies({
       id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
-      _repliesPage: 0,
-      _repliesSize: 5,
-      _replies: [],
-      _repliesLoading: false,
-      _repliesError: ''
+      ui: {
+        replyList: {
+          expanded: false,
+          page: 0,
+          size: 5,
+          items: [],
+          nextCursor: '',
+          cursorHistory: [''],
+          loading: false,
+          error: ''
+        }
+      }
     })
 
     expect(listReplies).toHaveBeenCalledWith(
@@ -430,14 +438,14 @@ describe('PostDetailView', () => {
     await wrapper.vm.discussion.nextRepliesPage(root)
 
     wrapper.vm.discussion.startReply(root)
-    root._replyDraft = 'new reply'
+    root.ui.replyEditor.draft = 'new reply'
     await wrapper.vm.discussion.submitReply(root)
-    expect(root._repliesPage).toBe(1)
-    expect(root._replies[0].content).toBe('second page reply')
-    expect(root._repliesError).toBe('temporary reply refresh failure')
+    expect(root.ui.replyList.page).toBe(1)
+    expect(root.ui.replyList.items[0].content).toBe('second page reply')
+    expect(root.ui.replyList.error).toBe('temporary reply refresh failure')
 
     wrapper.vm.discussion.startReply(root)
-    root._replyDraft = 'another reply'
+    root.ui.replyEditor.draft = 'another reply'
     await wrapper.vm.discussion.submitReply(root)
     expect(listReplies.mock.calls.map(([, , request]) => request.cursor)).toEqual([
       '',
@@ -445,8 +453,82 @@ describe('PostDetailView', () => {
       '',
       ''
     ])
-    expect(root._repliesPage).toBe(0)
-    expect(root._replies[0].content).toBe('first page reply')
+    expect(root.ui.replyList.page).toBe(0)
+    expect(root.ui.replyList.items[0].content).toBe('first page reply')
+  })
+
+  it('keeps the reply editor and reply page intact when submission fails', async () => {
+    addComment.mockRejectedValueOnce(new Error('reply rejected'))
+    const wrapper = mountLoader()
+    await flushPromises()
+    const root = replyableRootComment()
+    root.ui.replyList.expanded = true
+    root.ui.replyList.items = [{ id: 'existing-reply' }]
+    wrapper.vm.discussion.startReply(root)
+    root.ui.replyEditor.draft = 'retry this reply'
+
+    await wrapper.vm.discussion.submitReply(root)
+
+    expect(root.ui.replyEditor).toMatchObject({
+      open: true,
+      draft: 'retry this reply',
+      error: 'reply rejected',
+      submitting: false,
+      parentCommentId: root.id
+    })
+    expect(root.ui.replyList.items).toEqual([{ id: 'existing-reply' }])
+  })
+
+  it('rolls comment and reply likes back inside their own state groups', async () => {
+    listComments.mockResolvedValueOnce({
+      data: {
+        items: [{
+          id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+          userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          content: 'root content'
+        }],
+        nextCursor: ''
+      }
+    })
+    listReplies.mockResolvedValueOnce({
+      data: {
+        items: [{
+          id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+          userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+          content: 'nested content'
+        }],
+        nextCursor: ''
+      }
+    })
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    const root = wrapper.vm.discussion.comments[0]
+    await wrapper.vm.discussion.toggleReplies(root)
+    const reply = root.ui.replyList.items[0]
+    const editor = root.ui.replyEditor
+    const replyList = root.ui.replyList
+
+    const failedCommentLike = deferred()
+    setLike.mockReturnValueOnce(failedCommentLike.promise)
+    const commentAction = wrapper.vm.discussion.toggleCommentLike(root)
+    expect(root.ui.like).toMatchObject({ liked: true, count: 1, loading: true, error: '' })
+    failedCommentLike.reject(new Error('comment like failed'))
+    await commentAction
+    expect(root.ui.like).toEqual({ liked: false, count: 0, loading: false, error: 'comment like failed' })
+    expect(root.ui.replyEditor).toBe(editor)
+    expect(root.ui.replyList).toBe(replyList)
+
+    reply.ui.like.liked = true
+    reply.ui.like.count = 3
+    const failedReplyUnlike = deferred()
+    setLike.mockReturnValueOnce(failedReplyUnlike.promise)
+    const replyAction = wrapper.vm.discussion.toggleReplyLike(root, reply)
+    expect(reply.ui.like).toMatchObject({ liked: false, count: 2, loading: true, error: '' })
+    failedReplyUnlike.reject(new Error('reply unlike failed'))
+    await replyAction
+    expect(reply.ui.like).toEqual({ liked: true, count: 3, loading: false, error: 'reply unlike failed' })
+    expect(root.ui.like).toEqual({ liked: false, count: 0, loading: false, error: 'comment like failed' })
   })
 
   it('submits the selected root or nested reply as the direct parent only', async () => {
@@ -462,24 +544,24 @@ describe('PostDetailView', () => {
     }
 
     wrapper.vm.discussion.startReply(root)
-    root._replyDraft = 'root reply'
+    root.ui.replyEditor.draft = 'root reply'
     await wrapper.vm.discussion.submitReply(root)
 
     expect(addComment).toHaveBeenNthCalledWith(1, routeState.params.postId, {
       content: expect.any(String),
       parentCommentId: root.id
     }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
-    expect(root._replyParentCommentId).toBe('')
+    expect(root.ui.replyEditor.parentCommentId).toBe('')
 
     wrapper.vm.discussion.startReply(root, nested)
-    root._replyDraft = 'nested reply'
+    root.ui.replyEditor.draft = 'nested reply'
     await wrapper.vm.discussion.submitReply(root)
 
     expect(addComment).toHaveBeenNthCalledWith(2, routeState.params.postId, {
       content: expect.any(String),
       parentCommentId: nested.id
     }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
-    expect(root._replyParentCommentId).toBe('')
+    expect(root.ui.replyEditor.parentCommentId).toBe('')
   })
 
   it('clears the selected direct parent when reply editing is cancelled', async () => {
@@ -494,11 +576,11 @@ describe('PostDetailView', () => {
     }
 
     wrapper.vm.discussion.startReply(root, nested)
-    expect(root._replyParentCommentId).toBe(nested.id)
+    expect(root.ui.replyEditor.parentCommentId).toBe(nested.id)
 
     wrapper.vm.discussion.cancelReply(root)
 
-    expect(root._replyParentCommentId).toBe('')
+    expect(root.ui.replyEditor.parentCommentId).toBe('')
     expect(addComment).not.toHaveBeenCalled()
   })
 
@@ -532,7 +614,7 @@ describe('PostDetailView', () => {
     const reloadedRoot = wrapper.vm.discussion.comments[0]
     expect(reloadedRoot).not.toBe(firstRoot)
     wrapper.vm.discussion.startReply(reloadedRoot)
-    expect(reloadedRoot._replyDraft).toBe('same reply draft')
+    expect(reloadedRoot.ui.replyEditor.draft).toBe('same reply draft')
     await wrapper.vm.discussion.submitReply(reloadedRoot)
 
     expect(keys).toHaveLength(2)
@@ -545,20 +627,27 @@ describe('PostDetailView', () => {
       userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
       user: { username: 'root-author' },
       content: 'root content',
-      _replying: false,
-      _replyDraft: '',
-      _replyError: '',
-      _replySubmitting: false,
-      _replyParentCommentId: '',
-      _replyQuote: null,
-      _repliesExpanded: false,
-      _replies: [],
-      _repliesPage: 0,
-      _repliesSize: 5,
-      _repliesNextCursor: '',
-      _repliesCursorHistory: [''],
-      _repliesLoading: false,
-      _repliesError: ''
+      ui: {
+        replyEditor: {
+          open: false,
+          draft: '',
+          error: '',
+          submitting: false,
+          parentCommentId: '',
+          quote: null
+        },
+        replyList: {
+          expanded: false,
+          items: [],
+          page: 0,
+          size: 5,
+          nextCursor: '',
+          cursorHistory: [''],
+          loading: false,
+          error: ''
+        },
+        like: { liked: false, count: 0, loading: false, error: '' }
+      }
     }
   }
 })

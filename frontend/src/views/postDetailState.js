@@ -1,5 +1,92 @@
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
+export function collectThreadHydrationIds(items, { includeReplyToUserId = false } = {}) {
+  const userIds = []
+  const entityIds = []
+  const seenUsers = new Set()
+  const seenEntities = new Set()
+
+  for (const item of Array.isArray(items) ? items : []) {
+    const userId = normalizeOpaqueId(item?.userId)
+    const entityId = normalizeOpaqueId(item?.id)
+    const replyToUserId = includeReplyToUserId ? normalizeOpaqueId(item?.replyToUserId) : ''
+
+    if (userId && !seenUsers.has(userId)) {
+      seenUsers.add(userId)
+      userIds.push(userId)
+    }
+    if (replyToUserId && !seenUsers.has(replyToUserId)) {
+      seenUsers.add(replyToUserId)
+      userIds.push(replyToUserId)
+    }
+    if (entityId && !seenEntities.has(entityId)) {
+      seenEntities.add(entityId)
+      entityIds.push(entityId)
+    }
+    if (userIds.length >= 200 && entityIds.length >= 200) break
+  }
+
+  return { userIds, entityIds }
+}
+
+function createLikeState(entityId, counts, statuses) {
+  const count = counts?.[entityId]
+  return {
+    liked: !!statuses?.[entityId],
+    count: typeof count === 'number' ? count : 0,
+    loading: false,
+    error: ''
+  }
+}
+
+export function hydrateCommentItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
+  const commentId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
+
+  return {
+    ...raw,
+    user: users?.[userId] || null,
+    ui: {
+      replyEditor: {
+        open: false,
+        draft: '',
+        error: '',
+        submitting: false,
+        parentCommentId: '',
+        quote: null
+      },
+      replyList: {
+        expanded: false,
+        items: [],
+        page: 0,
+        size: 5,
+        nextCursor: '',
+        cursorHistory: [''],
+        loading: false,
+        error: ''
+      },
+      like: createLikeState(commentId, counts, statuses)
+    }
+  }
+}
+
+export function hydrateReplyItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
+  const replyId = normalizeOpaqueId(raw?.id)
+  const userId = normalizeOpaqueId(raw?.userId)
+  const replyToUserId = normalizeOpaqueId(raw?.replyToUserId)
+
+  return {
+    ...raw,
+    user: users?.[userId] || null,
+    replyToUserId,
+    targetUserId: replyToUserId,
+    targetUser: replyToUserId ? (users?.[replyToUserId] || null) : null,
+    ui: {
+      like: createLikeState(replyId, counts, statuses)
+    }
+  }
+}
+
 export function buildQuotePreview(text) {
   const normalized = String(text || '').replace(/\s+/g, ' ').trim()
   if (!normalized) return ''

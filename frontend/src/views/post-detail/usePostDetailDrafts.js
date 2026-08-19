@@ -36,8 +36,8 @@ export function usePostDetailDrafts(postId, newComment, identityId) {
 
   function setReplyDraft(comment, value) {
     if (!comment) return
-    comment._replyDraft = String(value || '')
-    safeStorageSet(replyDraftKey(comment.id), comment._replyDraft)
+    comment.ui.replyEditor.draft = String(value || '')
+    safeStorageSet(replyDraftKey(comment.id), comment.ui.replyEditor.draft)
   }
 
   return {

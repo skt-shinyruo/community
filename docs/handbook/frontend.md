@@ -176,7 +176,7 @@ connect(accessToken)
 | `postsFeedState.js` | 最新流默认视图判断、上次阅读分隔线、新内容跳转提示、分页推进。 |
 | `posts/usePostsFeed.js` | 帖子页的会话、范围、列表、未读和发帖五组页面语义；隐藏游标、补水、请求竞态和发帖幂等尝试。 |
 | `postsViewState.js` | 发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
-| `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合、评论回复状态初始化。 |
+| `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
 | `marketState.js` | 商品、订单、争议、地址的状态标签和展示文本。 |

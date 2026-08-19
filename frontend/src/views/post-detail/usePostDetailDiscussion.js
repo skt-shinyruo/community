@@ -13,7 +13,13 @@ import {
   listComments as apiListComments,
   listReplies as apiListReplies
 } from '../../api/services/postService'
-import { buildQuotePreview, composeReplyContent } from '../postDetailState'
+import {
+  buildQuotePreview,
+  collectThreadHydrationIds,
+  composeReplyContent,
+  hydrateCommentItem,
+  hydrateReplyItem
+} from '../postDetailState'
 import { usePostDetailDrafts } from './usePostDetailDrafts'
 
 function normalizeCommentCursorPage(raw) {
@@ -21,83 +27,6 @@ function normalizeCommentCursorPage(raw) {
   return {
     items: Array.isArray(page.items) ? page.items : [],
     nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
-  }
-}
-
-function collectThreadHydrationIds(items, { includeReplyToUserId = false } = {}) {
-  const userIds = []
-  const entityIds = []
-  const seenUsers = new Set()
-  const seenEntities = new Set()
-
-  for (const item of Array.isArray(items) ? items : []) {
-    const userId = normalizeOpaqueId(item?.userId)
-    const entityId = normalizeOpaqueId(item?.id)
-    const replyToUserId = includeReplyToUserId ? normalizeOpaqueId(item?.replyToUserId) : ''
-
-    if (userId && !seenUsers.has(userId)) {
-      seenUsers.add(userId)
-      userIds.push(userId)
-    }
-    if (replyToUserId && !seenUsers.has(replyToUserId)) {
-      seenUsers.add(replyToUserId)
-      userIds.push(replyToUserId)
-    }
-    if (entityId && !seenEntities.has(entityId)) {
-      seenEntities.add(entityId)
-      entityIds.push(entityId)
-    }
-    if (userIds.length >= 200 && entityIds.length >= 200) break
-  }
-
-  return { userIds, entityIds }
-}
-
-function hydrateCommentItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const commentId = normalizeOpaqueId(raw?.id)
-  const userId = normalizeOpaqueId(raw?.userId)
-  const likeCount = counts?.[commentId]
-  const liked = statuses?.[commentId]
-
-  return {
-    ...raw,
-    user: users?.[userId] || null,
-    likeCount: typeof likeCount === 'number' ? likeCount : 0,
-    liked: !!liked,
-    _likeLoading: false,
-    _replying: false,
-    _replyDraft: '',
-    _replyError: '',
-    _replySubmitting: false,
-    _replyParentCommentId: '',
-    _replyQuote: null,
-    _repliesExpanded: false,
-    _replies: [],
-    _repliesPage: 0,
-    _repliesSize: 5,
-    _repliesNextCursor: '',
-    _repliesCursorHistory: [''],
-    _repliesLoading: false,
-    _repliesError: ''
-  }
-}
-
-function hydrateReplyItem(raw, { users = {}, counts = {}, statuses = {} } = {}) {
-  const replyId = normalizeOpaqueId(raw?.id)
-  const userId = normalizeOpaqueId(raw?.userId)
-  const replyToUserId = normalizeOpaqueId(raw?.replyToUserId)
-  const likeCount = counts?.[replyId]
-  const liked = statuses?.[replyId]
-
-  return {
-    ...raw,
-    user: users?.[userId] || null,
-    replyToUserId,
-    targetUserId: replyToUserId,
-    targetUser: replyToUserId ? (users?.[replyToUserId] || null) : null,
-    likeCount: typeof likeCount === 'number' ? likeCount : 0,
-    liked: !!liked,
-    _likeLoading: false
   }
 }
 
@@ -186,7 +115,7 @@ export function usePostDetailDiscussion({
   }
 
   function clearReplyQuote(comment) {
-    if (comment) comment._replyQuote = null
+    if (comment) comment.ui.replyEditor.quote = null
   }
 
   function isBlockedUser(userId) {
@@ -203,9 +132,9 @@ export function usePostDetailDiscussion({
     return String(commentsCursorHistory.value[targetPage] || '')
   }
 
-  function currentRepliesCursor(comment, targetPage = comment?._repliesPage) {
-    if (!Array.isArray(comment?._repliesCursorHistory)) return ''
-    return String(comment._repliesCursorHistory[targetPage] || '')
+  function currentRepliesCursor(comment, targetPage = comment?.ui.replyList.page) {
+    if (!Array.isArray(comment?.ui.replyList.cursorHistory)) return ''
+    return String(comment.ui.replyList.cursorHistory[targetPage] || '')
   }
 
   async function maybeScrollFromRoute() {
@@ -227,8 +156,8 @@ export function usePostDetailDiscussion({
     const comment = comments.value.find((item) => sameOpaqueId(item?.id, commentId))
     if (!comment) return
 
-    if (!comment._repliesExpanded) comment._repliesExpanded = true
-    if (Array.isArray(comment._replies) && comment._replies.length === 0) {
+    if (!comment.ui.replyList.expanded) comment.ui.replyList.expanded = true
+    if (comment.ui.replyList.items.length === 0) {
       await loadReplies(comment, 0, { reset: true })
     }
 
@@ -280,24 +209,25 @@ export function usePostDetailDiscussion({
   }
 
   function repliesHasNext(comment) {
-    return !!String(comment?._repliesNextCursor || '')
+    return !!String(comment?.ui.replyList.nextCursor || '')
   }
 
-  async function loadReplies(comment, targetPage = comment?._repliesPage, { reset = false } = {}) {
+  async function loadReplies(comment, targetPage = comment?.ui.replyList.page, { reset = false } = {}) {
     if (!comment) return
+    const replyList = comment.ui.replyList
     const scope = captureViewScope()
     const requestedPage = Math.max(0, Number(targetPage || 0))
-    comment._repliesError = ''
-    comment._repliesLoading = true
+    replyList.error = ''
+    replyList.loading = true
     try {
       const cursor = reset ? '' : currentRepliesCursor(comment, requestedPage)
-      const resp = await apiListReplies(postId.value, comment.id, { cursor, size: comment._repliesSize })
+      const resp = await apiListReplies(postId.value, comment.id, { cursor, size: replyList.size })
       if (!isCurrentViewScope(scope)) return
       const page = normalizeCommentCursorPage(resp?.data)
       const raw = page.items
-      if (requestedPage > comment._repliesPage && raw.length === 0) {
-        comment._repliesCursorHistory = comment._repliesCursorHistory.slice(0, comment._repliesPage + 1)
-        comment._repliesNextCursor = ''
+      if (requestedPage > replyList.page && raw.length === 0) {
+        replyList.cursorHistory = replyList.cursorHistory.slice(0, replyList.page + 1)
+        replyList.nextCursor = ''
         return
       }
       const { userIds, entityIds: replyIds } = collectThreadHydrationIds(raw, { includeReplyToUserId: true })
@@ -312,48 +242,50 @@ export function usePostDetailDiscussion({
       const users = usersResult?.status === 'fulfilled' ? (usersResult.value || {}) : {}
       const counts = countsResult?.status === 'fulfilled' ? (countsResult.value || {}) : {}
       const statuses = statusesResult?.status === 'fulfilled' ? (statusesResult.value || {}) : {}
-      const history = (reset || !Array.isArray(comment._repliesCursorHistory)
+      const history = (reset || !Array.isArray(replyList.cursorHistory)
         ? ['']
-        : comment._repliesCursorHistory).slice(0, requestedPage + 1)
+        : replyList.cursorHistory).slice(0, requestedPage + 1)
       if (page.nextCursor) history[requestedPage + 1] = page.nextCursor
-      comment._repliesCursorHistory = history
-      comment._repliesNextCursor = page.nextCursor
-      comment._repliesPage = requestedPage
-      comment._replies = raw.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
+      replyList.cursorHistory = history
+      replyList.nextCursor = page.nextCursor
+      replyList.page = requestedPage
+      replyList.items = raw.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
     } catch (error) {
-      if (isCurrentViewScope(scope)) comment._repliesError = error?.message || '加载回复失败'
+      if (isCurrentViewScope(scope)) replyList.error = error?.message || '加载回复失败'
     } finally {
-      if (isCurrentViewScope(scope)) comment._repliesLoading = false
+      if (isCurrentViewScope(scope)) replyList.loading = false
     }
   }
 
   async function toggleReplies(comment) {
     if (!comment) return
-    comment._repliesExpanded = !comment._repliesExpanded
-    if (comment._repliesExpanded && comment._replies.length === 0) {
+    const replyList = comment.ui.replyList
+    replyList.expanded = !replyList.expanded
+    if (replyList.expanded && replyList.items.length === 0) {
       await loadReplies(comment, 0, { reset: true })
     }
   }
 
   async function nextRepliesPage(comment) {
-    if (!comment || comment._repliesLoading || !repliesHasNext(comment)) return
-    await loadReplies(comment, comment._repliesPage + 1)
+    if (!comment || comment.ui.replyList.loading || !repliesHasNext(comment)) return
+    await loadReplies(comment, comment.ui.replyList.page + 1)
   }
 
   async function prevRepliesPage(comment) {
-    if (!comment || comment._repliesLoading) return
-    await loadReplies(comment, Math.max(0, comment._repliesPage - 1))
+    if (!comment || comment.ui.replyList.loading) return
+    await loadReplies(comment, Math.max(0, comment.ui.replyList.page - 1))
   }
 
   function startReply(comment, reply) {
     if (!authed.value || !comment) return
-    comment._replying = true
-    comment._replyError = ''
-    comment._replyDraft = safeStorageGet(replyDraftKey(comment.id))
-    comment._replyParentCommentId = normalizeOpaqueId(reply?.id || comment.id)
+    const editor = comment.ui.replyEditor
+    editor.open = true
+    editor.error = ''
+    editor.draft = safeStorageGet(replyDraftKey(comment.id))
+    editor.parentCommentId = normalizeOpaqueId(reply?.id || comment.id)
 
     const source = reply?.userId ? reply : comment
-    comment._replyQuote = {
+    editor.quote = {
       sourceType: reply?.userId ? 'reply' : 'comment',
       sourceId: normalizeOpaqueId(source.id),
       userId: normalizeOpaqueId(source.userId),
@@ -368,52 +300,61 @@ export function usePostDetailDiscussion({
     const record = replyAttemptRecord(comment)
     record.attempt.cancel()
     record.signature = ''
-    comment._replying = false
-    comment._replyError = ''
-    comment._replySubmitting = false
-    comment._replyParentCommentId = ''
-    comment._replyQuote = null
+    Object.assign(comment.ui.replyEditor, {
+      open: false,
+      error: '',
+      submitting: false,
+      parentCommentId: '',
+      quote: null
+    })
   }
 
   async function submitReply(comment) {
     if (!authed.value || !comment) return
-    comment._replyError = ''
-    if (!String(comment._replyDraft || '').trim()) {
-      comment._replyError = '回复内容不能为空'
+    const editor = comment.ui.replyEditor
+    editor.error = ''
+    if (!String(editor.draft || '').trim()) {
+      editor.error = '回复内容不能为空'
       return
     }
     const scope = captureViewScope()
-    const content = composeReplyContent(comment._replyDraft, comment._replyQuote)
-    const parentCommentId = normalizeOpaqueId(comment._replyParentCommentId)
-    comment._replySubmitting = true
+    const content = composeReplyContent(editor.draft, editor.quote)
+    const parentCommentId = normalizeOpaqueId(editor.parentCommentId)
+    editor.submitting = true
     try {
       const record = replyAttemptRecord(comment)
       const attempt = bindReplyAttempt(comment, content, parentCommentId)
       await apiAddComment(scope.postId, { content, parentCommentId }, { writeAttempt: attempt })
       if (!isCurrentViewScope(scope)) return
-      comment._replyDraft = ''
+      editor.draft = ''
       attempt.succeed()
       record.signature = ''
       safeStorageSet(replyDraftKey(comment.id), '')
-      comment._replying = false
-      comment._replyParentCommentId = ''
-      comment._replyQuote = null
+      editor.open = false
+      editor.parentCommentId = ''
+      editor.quote = null
       if (post.value) post.value.commentCount = Number(post.value.commentCount || 0) + 1
-      if (!comment._repliesExpanded) comment._repliesExpanded = true
+      if (!comment.ui.replyList.expanded) comment.ui.replyList.expanded = true
       await loadReplies(comment, 0, { reset: true })
     } catch (error) {
       if (!isCurrentViewScope(scope)) return
-      comment._replyError = error?.message || '回复失败'
+      editor.error = error?.message || '回复失败'
     } finally {
-      if (isCurrentViewScope(scope)) comment._replySubmitting = false
+      if (isCurrentViewScope(scope)) editor.submitting = false
     }
   }
 
   async function toggleCommentLike(comment) {
     if (!authed.value || !comment) return
+    const like = comment.ui.like
+    if (like.loading) return
     const scope = captureViewScope()
     const targetCommentId = normalizeOpaqueId(comment.id)
-    comment._likeLoading = true
+    const previous = { liked: like.liked, count: like.count }
+    like.loading = true
+    like.error = ''
+    like.liked = !previous.liked
+    like.count = Math.max(0, previous.count + (like.liked ? 1 : -1))
     try {
       const resp = await setLike({ entityType: 2, entityId: targetCommentId, liked: null })
       if (!isCurrentViewScope(scope) || !comments.value.includes(comment)) return
@@ -421,46 +362,56 @@ export function usePostDetailDiscussion({
         ? /** @type {Record<string, any>} */ (resp.data)
         : {}
       if (typeof likeData.likeCount === 'number') {
-        comment.likeCount = likeData.likeCount
-        postMetaCache.setLikeCount(2, targetCommentId, comment.likeCount)
+        like.count = likeData.likeCount
+        postMetaCache.setLikeCount(2, targetCommentId, like.count)
       }
       if (typeof likeData.liked === 'boolean') {
-        comment.liked = likeData.liked
-        postMetaCache.setLikeStatus(2, targetCommentId, comment.liked)
+        like.liked = likeData.liked
+        postMetaCache.setLikeStatus(2, targetCommentId, like.liked)
       }
     } catch (error) {
       if (!isCurrentViewScope(scope) || !comments.value.includes(comment)) return
-      commentsError.value = error?.message || '点赞失败'
+      like.liked = previous.liked
+      like.count = previous.count
+      like.error = error?.message || '点赞失败'
     } finally {
-      if (isCurrentViewScope(scope) && comments.value.includes(comment)) comment._likeLoading = false
+      if (isCurrentViewScope(scope) && comments.value.includes(comment)) like.loading = false
     }
   }
 
   async function toggleReplyLike(comment, reply) {
     if (!authed.value || !comment || !reply) return
+    const like = reply.ui.like
+    if (like.loading) return
     const scope = captureViewScope()
     const targetReplyId = normalizeOpaqueId(reply.id)
-    reply._likeLoading = true
+    const previous = { liked: like.liked, count: like.count }
+    like.loading = true
+    like.error = ''
+    like.liked = !previous.liked
+    like.count = Math.max(0, previous.count + (like.liked ? 1 : -1))
     try {
       const resp = await setLike({ entityType: 2, entityId: targetReplyId, liked: null })
-      if (!isCurrentViewScope(scope) || !comments.value.includes(comment) || !comment._replies.includes(reply)) return
+      if (!isCurrentViewScope(scope) || !comments.value.includes(comment) || !comment.ui.replyList.items.includes(reply)) return
       const likeData = resp?.data && typeof resp.data === 'object'
         ? /** @type {Record<string, any>} */ (resp.data)
         : {}
       if (typeof likeData.likeCount === 'number') {
-        reply.likeCount = likeData.likeCount
-        postMetaCache.setLikeCount(2, targetReplyId, reply.likeCount)
+        like.count = likeData.likeCount
+        postMetaCache.setLikeCount(2, targetReplyId, like.count)
       }
       if (typeof likeData.liked === 'boolean') {
-        reply.liked = likeData.liked
-        postMetaCache.setLikeStatus(2, targetReplyId, reply.liked)
+        like.liked = likeData.liked
+        postMetaCache.setLikeStatus(2, targetReplyId, like.liked)
       }
     } catch (error) {
-      if (!isCurrentViewScope(scope) || !comments.value.includes(comment) || !comment._replies.includes(reply)) return
-      comment._repliesError = error?.message || '点赞失败'
+      if (!isCurrentViewScope(scope) || !comments.value.includes(comment) || !comment.ui.replyList.items.includes(reply)) return
+      like.liked = previous.liked
+      like.count = previous.count
+      like.error = error?.message || '点赞失败'
     } finally {
-      if (isCurrentViewScope(scope) && comments.value.includes(comment) && comment._replies.includes(reply)) {
-        reply._likeLoading = false
+      if (isCurrentViewScope(scope) && comments.value.includes(comment) && comment.ui.replyList.items.includes(reply)) {
+        like.loading = false
       }
     }
   }
@@ -513,15 +464,19 @@ export function usePostDetailDiscussion({
     commentsRequestTracker.invalidate()
     commenting.value = false
     for (const comment of comments.value) {
-      comment.liked = false
-      comment._replying = false
-      comment._replyDraft = ''
-      comment._replyQuote = null
-      comment._replySubmitting = false
-      comment._likeLoading = false
-      for (const reply of Array.isArray(comment?._replies) ? comment._replies : []) {
-        reply.liked = false
-        reply._likeLoading = false
+      comment.ui.like.liked = false
+      Object.assign(comment.ui.replyEditor, {
+        open: false,
+        draft: '',
+        error: '',
+        submitting: false,
+        parentCommentId: '',
+        quote: null
+      })
+      comment.ui.like.loading = false
+      for (const reply of comment.ui.replyList.items) {
+        reply.ui.like.liked = false
+        reply.ui.like.loading = false
       }
     }
     restoreDraft()

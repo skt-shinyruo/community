@@ -50,7 +50,7 @@ function createPlan({
   }
 }
 
-test('generateImPhaseDataset keeps room members unique inside each room when users are scarce', () => {
+test('generateImPhaseDataset applies room member minimums and keeps members unique', () => {
   const dataset = generateImPhaseDataset({
     plan: createPlan({
       imDeficits: {
@@ -81,6 +81,77 @@ test('generateImPhaseDataset keeps room members unique inside each room when use
 
   for (const message of dataset.roomMessages) {
     assert.ok((membersByRoom.get(message.roomId) ?? new Set()).has(message.fromUserId))
+  }
+
+  const minimumDataset = generateImPhaseDataset({
+    plan: createPlan({
+      imDeficits: {
+        im_rooms: 3,
+        im_room_members: 3
+      }
+    }),
+    existing: {
+      users: [{ id: 1 }, { id: 2 }, { id: 3 }]
+    },
+    seed: 'minimum-room-members'
+  })
+  for (const room of minimumDataset.rooms) {
+    assert.equal(minimumDataset.roomMembers.filter((member) => member.roomId === room.roomId).length, 1)
+  }
+})
+
+test('generateImPhaseDataset keeps deterministic message ids and participant relationships', () => {
+  const input = {
+    plan: createPlan({
+      imDeficits: {
+        im_rooms: 3,
+        im_room_members: 7,
+        im_room_messages: 8,
+        im_conversations: 3,
+        im_private_messages: 7
+      }
+    }),
+    existing: {
+      users: [{ id: 1 }, { id: 2 }, { id: 3 }, { id: 4 }, { id: 5 }]
+    },
+    seed: 'deterministic-im'
+  }
+
+  const dataset = generateImPhaseDataset(input)
+  assert.deepEqual(generateImPhaseDataset(input), dataset)
+  assert.deepEqual(
+    {
+      rooms: dataset.rooms.length,
+      roomMembers: dataset.roomMembers.length,
+      roomMessages: dataset.roomMessages.length,
+      conversations: dataset.conversations.length,
+      privateMessages: dataset.privateMessages.length
+    },
+    {
+      rooms: 3,
+      roomMembers: 7,
+      roomMessages: 8,
+      conversations: 3,
+      privateMessages: 7
+    }
+  )
+  assert.deepEqual(dataset.roomMessages.map((message) => message.messageId), [
+    420000001, 420000002, 420000003, 420000004, 420000005, 420000006, 420000007, 420000008
+  ])
+  assert.deepEqual(dataset.privateMessages.map((message) => message.messageId), [
+    840000001, 840000002, 840000003, 840000004, 840000005, 840000006, 840000007
+  ])
+
+  for (const message of dataset.roomMessages) {
+    assert.ok(dataset.roomMembers.some(
+      (member) => member.roomId === message.roomId && member.userId === message.fromUserId
+    ))
+  }
+  for (const message of dataset.privateMessages) {
+    const conversation = dataset.conversations.find(
+      (candidate) => candidate.conversationId === message.conversationId
+    )
+    assert.deepEqual(new Set([message.fromUserId, message.toUserId]), new Set([conversation.userA, conversation.userB]))
   }
 })
 

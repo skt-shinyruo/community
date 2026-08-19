@@ -10,6 +10,8 @@ const TASK_CODES = ['DAILY_CHECK_IN', 'DAILY_POST', 'WEEKLY_COMMENTER', 'LIFETIM
 const TASK_STATUS_SEQUENCE = ['IN_PROGRESS', 'CLAIMABLE', 'CLAIMED']
 const DAILY_PERIOD_KEYS = Array.from({ length: 28 }, (_unused, index) => `2026-03-${String(index + 1).padStart(2, '0')}`)
 const WEEKLY_PERIOD_KEYS = Array.from({ length: 4 }, (_unused, index) => `2026-W${String(index + 10).padStart(2, '0')}`)
+const MINIMUM_ROOM_MEMBER_COUNT = 1
+const PREFERRED_ROOM_MEMBER_COUNT = 2
 
 function normalizeCount(value) {
   return Math.max(0, Number.parseInt(value, 10) || 0)
@@ -336,6 +338,16 @@ function distributeCounts(totalCount, bucketCount, minimumPerBucket = 0) {
   return counts
 }
 
+function minimumRoomMemberCount(roomCount, requestedMemberCount) {
+  if (roomCount === 0) {
+    return 0
+  }
+
+  return requestedMemberCount >= roomCount * PREFERRED_ROOM_MEMBER_COUNT
+    ? PREFERRED_ROOM_MEMBER_COUNT
+    : MINIMUM_ROOM_MEMBER_COUNT
+}
+
 export function generateImPhaseDataset({ plan, existing = {}, seed } = {}) {
   const deficits = buildImDeficits(plan)
   const normalizedExisting = normalizeImExisting(existing)
@@ -360,49 +372,53 @@ export function generateImPhaseDataset({ plan, existing = {}, seed } = {}) {
     throw new Error('IM generation requires at least two available users')
   }
 
-  const roomIds = Array.from({ length: deficits.imRooms }, (_, index) => (plan?.batchId ?? 1) * 1000000 + index + 1)
+  const batchId = plan?.batchId ?? 1
   const roomMemberCounts = distributeCounts(
     deficits.imRoomMembers,
-    roomIds.length,
-    roomIds.length > 0 ? Math.min(2, deficits.imRoomMembers >= roomIds.length * 2 ? 2 : 1) : 0
+    deficits.imRooms,
+    minimumRoomMemberCount(deficits.imRooms, deficits.imRoomMembers)
   )
-  const roomMessageCounts = distributeCounts(deficits.imRoomMessages, roomIds.length, 0)
+  const roomMessageCounts = distributeCounts(deficits.imRoomMessages, deficits.imRooms, 0)
 
+  const rooms = []
   const roomMembers = []
   const roomMessages = []
-  const rooms = roomIds.map((roomId, roomIndex) => {
+  let nextRoomMessageId = batchId * 10000000 + 1
+  for (let roomIndex = 0; roomIndex < deficits.imRooms; roomIndex += 1) {
+    const roomId = batchId * 1000000 + roomIndex + 1
     const memberCount = Math.min(roomMemberCounts[roomIndex] ?? 0, shuffledUsers.length)
-    const members = selectDistinctUsers(random, shuffledUsers, memberCount).map((user, memberIndex) => {
-      return {
+    const selectedUsers = selectDistinctUsers(random, shuffledUsers, memberCount)
+    const members = []
+    for (let memberIndex = 0; memberIndex < selectedUsers.length; memberIndex += 1) {
+      const member = {
         roomId,
-        userId: user.id,
+        userId: selectedUsers[memberIndex].id,
         role: memberIndex === 0 ? 1 : 0
       }
-    })
-
-    roomMembers.push(...members)
+      members.push(member)
+      roomMembers.push(member)
+    }
 
     const messageCount = members.length === 0 ? 0 : roomMessageCounts[roomIndex] ?? 0
-    const roomMessageRows = Array.from({ length: messageCount }, (_unused, messageIndex) => {
+    for (let messageIndex = 0; messageIndex < messageCount; messageIndex += 1) {
       const author = rotate(members, messageIndex)
-      return {
+      roomMessages.push({
         roomId,
         seq: messageIndex + 1,
-        messageId: (plan?.batchId ?? 1) * 10000000 + roomMessages.length + messageIndex + 1,
+        messageId: nextRoomMessageId,
         fromUserId: author.userId,
         content: `房间 ${roomId} 的第 ${messageIndex + 1} 条消息样例。`,
         clientMsgId: `room-${roomId}-client-${messageIndex + 1}`
-      }
-    })
+      })
+      nextRoomMessageId += 1
+    }
 
-    roomMessages.push(...roomMessageRows)
-
-    return {
+    rooms.push({
       roomId,
       name: `Demo Room ${roomIndex + 1}`,
-      lastSeq: roomMessageRows.length
-    }
-  })
+      lastSeq: messageCount
+    })
+  }
 
   const conversationPairs = pickConversationPairs(
     random,
@@ -411,34 +427,35 @@ export function generateImPhaseDataset({ plan, existing = {}, seed } = {}) {
     normalizedExisting.conversations.map((conversation) => conversation.conversationId)
   )
   const privateMessageCounts = distributeCounts(deficits.imPrivateMessages, conversationPairs.length, 0)
+  const conversations = []
   const privateMessages = []
-
-  const conversations = conversationPairs.map((conversation, conversationIndex) => {
+  let nextPrivateMessageId = batchId * 20000000 + 1
+  for (let conversationIndex = 0; conversationIndex < conversationPairs.length; conversationIndex += 1) {
+    const conversation = conversationPairs[conversationIndex]
     const messageCount = privateMessageCounts[conversationIndex] ?? 0
-    const conversationMessages = Array.from({ length: messageCount }, (_unused, messageIndex) => {
+    for (let messageIndex = 0; messageIndex < messageCount; messageIndex += 1) {
       const fromUserId = messageIndex % 2 === 0 ? conversation.userA : conversation.userB
       const toUserId = fromUserId === conversation.userA ? conversation.userB : conversation.userA
 
-      return {
+      privateMessages.push({
         conversationId: conversation.conversationId,
         seq: messageIndex + 1,
-        messageId: (plan?.batchId ?? 1) * 20000000 + privateMessages.length + messageIndex + 1,
+        messageId: nextPrivateMessageId,
         fromUserId,
         toUserId,
         content: `会话 ${conversation.conversationId} 的第 ${messageIndex + 1} 条私信样例。`,
         clientMsgId: `conversation-${conversation.conversationId}-client-${messageIndex + 1}`
-      }
-    })
+      })
+      nextPrivateMessageId += 1
+    }
 
-    privateMessages.push(...conversationMessages)
-
-    return {
+    conversations.push({
       conversationId: conversation.conversationId,
       userA: conversation.userA,
       userB: conversation.userB,
-      lastSeq: conversationMessages.length
-    }
-  })
+      lastSeq: messageCount
+    })
+  }
 
   return {
     seed: resolvedSeed,

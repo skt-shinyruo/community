@@ -185,6 +185,7 @@ connect(accessToken)
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
 | `useUserProfilePage.js` | 用户主页的 route/session scope、并发加载、部分成功、关注/拉黑动作和生命周期隔离。 |
 | `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要和时间线的纯展示投影。 |
+| `search/useSearchPageState.js` | 搜索条件、路由解析与序列化、分页、请求竞态和结果 hydration 生命周期。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。

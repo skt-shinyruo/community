@@ -15,9 +15,9 @@
               placeholder="输入关键词…"
               autocomplete="off"
               class="input"
-              @keydown.enter="onSearch"
+              @keydown.enter="submitSearch"
             />
-            <UiButton @click="onSearch" :disabled="loading" class="search-submit-btn">
+            <UiButton @click="submitSearch" :disabled="loading" class="search-submit-btn">
               {{ loading ? '搜索中…' : '搜索' }}
             </UiButton>
           </div>
@@ -30,7 +30,7 @@
             :disabled="loading"
             :value="String(categoryId || '')"
             aria-label="分类筛选"
-            @change="replaceQuery({ categoryId: $event.target.value || '' })"
+            @change="changeCategory($event.target.value || '')"
           >
             <option
               v-for="option in categoryOptions"
@@ -52,7 +52,7 @@
               :suggestions="tagSuggestNames"
               :commit-on-enter="false"
               :commit-on-blur="true"
-              @keydown.enter="onSearch"
+              @keydown.enter="submitSearch"
               @commit="commitTag"
             />
           </div>
@@ -119,7 +119,7 @@
                 class="search-taxonomy-btn"
                 variant="ghost"
                 :aria-label="`筛选分类 ${categoryLabel(it.categoryId)}`"
-                @click.stop="replaceQuery({ categoryId: it.categoryId })"
+                @click.stop="changeCategory(it.categoryId)"
               >
                 <span class="tag topic-category">{{ categoryLabel(it.categoryId) }}</span>
               </UiButton>
@@ -130,7 +130,7 @@
                 class="search-taxonomy-btn"
                 variant="ghost"
                 :aria-label="`筛选标签 ${t}`"
-                @click.stop="replaceQuery({ tag: t })"
+                @click.stop="commitTag(t)"
               >
                 <span class="tag">#{{ t }}</span>
               </UiButton>
@@ -178,275 +178,60 @@
     
     <!-- Pagination (Simple) -->
     <div class="search-pagination" v-if="items.length > 0 || page > 0">
-       <UiButton variant="secondary" @click="prevPage" :disabled="page <= 0 || loading">上一页</UiButton>
-       <UiButton variant="secondary" @click="nextPage" :disabled="!hasNext || loading">下一页</UiButton>
+       <UiButton variant="secondary" @click="loadPreviousPage" :disabled="page <= 0 || loading">上一页</UiButton>
+       <UiButton variant="secondary" @click="loadNextPage" :disabled="!hasNext || loading">下一页</UiButton>
     </div>
 
   </div>
 </template>
 
-	<script setup>
-	import { computed, onMounted, ref, watch } from 'vue'
-	import { useRoute, useRouter } from 'vue-router'
-	import { searchPosts } from '../api/services/searchService'
-	import { batchPostSummaries } from '../api/services/postService'
-	import { suggestTags as apiSuggestTags } from '../api/services/taxonomyService'
-	import { usePostMetaCacheStore } from '../stores/postMetaCache'
-	import { formatTimeAgo } from '../utils/time'
-	import { normalizeOpaqueId } from '../utils/opaqueId'
-	import UiAvatar from '../components/ui/UiAvatar.vue'
+<script setup>
+import { useRouter } from 'vue-router'
+import { formatTimeAgo } from '../utils/time'
+import UiAvatar from '../components/ui/UiAvatar.vue'
 import { emOnlyHtml } from '../utils/highlight'
-import { useTaxonomyStore } from '../stores/taxonomy'
-import { applySearchHydration, applySearchSummaries, collectSearchHydrationIds, describeSearchActivity } from './searchResultSurface'
-import { createLatestRequestTracker } from '../utils/latestRequest'
+import { describeSearchActivity } from './searchResultSurface'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import { useTagSuggestions } from '../composables/useTagSuggestions'
+import { normalizeSearchTag, useSearchPageState } from './search/useSearchPageState'
 
-const route = useRoute()
 const router = useRouter()
-const postMetaCache = usePostMetaCacheStore()
 
 const isMac = typeof navigator !== 'undefined' && /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '')
+const {
+  keyword,
+  categoryId,
+  tagDraft,
+  tagSuggestNames,
+  categoryOptions,
+  categoryLabel,
+  page,
+  loading,
+  error,
+  items,
+  hasNext,
+  submitSearch,
+  changeCategory,
+  commitTag,
+  clearFilters,
+  clearSearch,
+  loadNextPage,
+  loadPreviousPage
+} = useSearchPageState()
+const normalizeTag = normalizeSearchTag
 
-	const keyword = ref('')
-	const categoryId = ref('')
-	const tagDraft = ref('')
-	const taxonomy = useTaxonomyStore()
-	const { suggestions: suggestedTags } = useTagSuggestions({
-	  query: tagDraft,
-	  hotTags: computed(() => taxonomy.hotTags),
-	  suggest: apiSuggestTags,
-	  limit: 10
-	})
-	const tagSuggestNames = computed(() => suggestedTags.value.map((tag) => tag?.name).filter(Boolean))
-	const page = ref(0)
-	const size = ref(10)
-	const loading = ref(false)
-	const error = ref('')
-	const items = ref([])
-	const hasNext = ref(false)
-	const searchRequestTracker = createLatestRequestTracker()
-
-	const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
-	const categoryOptions = computed(() => [
-	  { label: '全部分类', value: '' },
-	  ...categories.value.map((category) => ({
-	    label: category.name,
-	    value: String(category.id)
-	  }))
-	])
-
-		function categoryLabel(id) {
-		  const cid = normalizeOpaqueId(id)
-		  if (!cid) return ''
-		  const c = taxonomy.categoriesById.get(cid)
-		  return c?.name || `分类#${cid}`
-		}
-
-	function titleHtml(it) {
-	  return emOnlyHtml(it?.highlightedTitle || it?.title || '')
-	}
-	function contentHtml(it) {
-	  const c = it?.highlightedContent || ''
-	  return c ? emOnlyHtml(c) : ''
-	}
-
-		function normalizeCategoryId(value) {
-		  return normalizeOpaqueId(value)
-		}
-
-	function normalizeTag(value) {
-	  let s = String(value || '').trim()
-	  if (s.startsWith('#')) s = s.slice(1).trim()
-	  return s
-	}
-
-	function replaceQuery(partial) {
-	  const next = { ...(route.query || {}) }
-	
-	  if (Object.prototype.hasOwnProperty.call(partial, 'q')) {
-	    const q = String(partial.q || '').trim()
-	    if (!q) delete next.q
-	    else next.q = q
-	  }
-	
-	  if (Object.prototype.hasOwnProperty.call(partial, 'categoryId')) {
-	    const cid = normalizeCategoryId(partial.categoryId)
-	    if (!cid) delete next.categoryId
-	    else next.categoryId = String(cid)
-	  }
-	
-	  if (Object.prototype.hasOwnProperty.call(partial, 'tag')) {
-	    const t = normalizeTag(partial.tag)
-	    if (!t) delete next.tag
-	    else next.tag = t
-	  }
-	
-	  router.replace({ name: 'search', query: next })
-	}
-
-	function commitTag() {
-	  const next = normalizeTag(tagDraft.value)
-	  tagDraft.value = next
-	  replaceQuery({ tag: next })
-	  run(0)
-	}
-
-	async function resolveSearchItems(data) {
-	  const baseItems = Array.isArray(data) ? data : []
-	  let summaries = []
-	  let users = {}
-	  let likeCounts = {}
-
-	  const [summaryResult] = await Promise.allSettled([
-	    batchPostSummaries(baseItems.map((item) => item?.postId))
-	  ])
-
-	  if (summaryResult.status === 'fulfilled') {
-	    summaries = Array.isArray(summaryResult.value?.data) ? summaryResult.value.data : []
-	  }
-
-	  const merged = applySearchSummaries(baseItems, summaries)
-	  const { userIds, postIds } = collectSearchHydrationIds(merged)
-	  const [userResult, likeCountResult] = await Promise.allSettled([
-	    postMetaCache.ensureUserSummaries(userIds),
-	    postMetaCache.ensureLikeCounts(1, postIds)
-	  ])
-
-	  if (userResult.status === 'fulfilled') {
-	    users = userResult.value || {}
-	  }
-	  if (likeCountResult.status === 'fulfilled') {
-	    likeCounts = likeCountResult.value || {}
-	  }
-
-	  return applySearchHydration(merged, { users, likeCounts })
-	}
-
-	async function run(targetPage = page.value) {
-	  const token = searchRequestTracker.begin()
-	  const requestedPage = Math.max(0, Number(targetPage || 0))
-	  error.value = ''
-	  loading.value = true
-	  try {
-	    const { data } = await searchPosts({
-	      keyword: keyword.value,
-	      categoryId: normalizeCategoryId(categoryId.value),
-	      tag: normalizeTag(tagDraft.value),
-	      page: requestedPage,
-	      size: size.value
-	    })
-	    if (!searchRequestTracker.isCurrent(token)) return
-	    const rawItems = Array.isArray(data) ? data : []
-	    const nextItems = await resolveSearchItems(rawItems)
-	    if (!searchRequestTracker.isCurrent(token)) return
-	    hasNext.value = rawItems.length >= Number(size.value)
-	    if (requestedPage > page.value && rawItems.length === 0) {
-	      return
-	    }
-	    page.value = requestedPage
-	    items.value = nextItems
-	  } catch (e) {
-	    if (!searchRequestTracker.isCurrent(token)) return
-	    error.value = e?.message || '搜索失败'
-	  } finally {
-	    if (searchRequestTracker.isCurrent(token)) {
-	      loading.value = false
-	    }
-	  }
-	}
-
-	async function onSearch() {
-	  replaceQuery({ q: keyword.value, categoryId: categoryId.value, tag: tagDraft.value })
-	  await run(0)
-	}
-
-	function clearFilters() {
-	  categoryId.value = ''
-	  tagDraft.value = ''
-	  replaceQuery({ categoryId: '', tag: '' })
-	  run(0)
-	}
-
-	function clearSearch() {
-	  searchRequestTracker.invalidate()
-	  keyword.value = ''
-	  page.value = 0
-	  items.value = []
-	  hasNext.value = false
-	  error.value = ''
-	  loading.value = false
-	  categoryId.value = ''
-	  tagDraft.value = ''
-	  router.replace({ name: 'search', query: {} })
-	}
-
-async function nextPage() {
-  if (!hasNext.value) return
-  const previousPage = page.value
-  await run(previousPage + 1)
-  if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
+function titleHtml(item) {
+  return emOnlyHtml(item?.highlightedTitle || item?.title || '')
 }
 
-	async function prevPage() {
-	  const previousPage = page.value
-	  await run(Math.max(0, previousPage - 1))
-	  if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
-	}
+function contentHtml(item) {
+  const content = item?.highlightedContent || ''
+  return content ? emOnlyHtml(content) : ''
+}
 
-		function syncFromRoute() {
-	  const q = typeof route.query?.q === 'string' ? route.query.q : ''
-	  const cid = normalizeCategoryId(route.query?.categoryId)
-	  const t = normalizeTag(route.query?.tag)
-	
-	  const hasAny = !!q || !!cid || !!t
-	  if (!hasAny) {
-	    searchRequestTracker.invalidate()
-	    keyword.value = ''
-	    categoryId.value = ''
-	    tagDraft.value = ''
-	    items.value = []
-	    hasNext.value = false
-	    error.value = ''
-	    loading.value = false
-	    page.value = 0
-	    return
-	  }
-	
-	  let changed = false
-	  if (q !== keyword.value) {
-	    keyword.value = q
-	    changed = true
-	  }
-		  const cidStr = cid ? String(cid) : ''
-	  if (cidStr !== String(categoryId.value || '')) {
-	    categoryId.value = cidStr
-	    changed = true
-	  }
-	  if (t !== tagDraft.value) {
-	    tagDraft.value = t
-	    changed = true
-	  }
-	
-	  if (changed) {
-	    run(0)
-	  }
-	}
-
-	onMounted(() => {
-	  taxonomy.ensureCategories()
-	  taxonomy.ensureHotTags(10)
-	  syncFromRoute()
-	})
-
-	watch(
-	  () => `${route.query?.q || ''}__${route.query?.categoryId || ''}__${route.query?.tag || ''}`,
-	  syncFromRoute
-	)
-	</script>
+</script>
 
 <style scoped>
 .search-page {

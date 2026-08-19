@@ -171,10 +171,10 @@ describe('SearchView', () => {
     const keywordInput = wrapper.get('input[name="search-keyword"]')
 
     await keywordInput.setValue('first')
-    const firstRun = wrapper.vm.onSearch()
+    const firstRun = wrapper.vm.submitSearch()
 
     await keywordInput.setValue('second')
-    const secondRun = wrapper.vm.onSearch()
+    const secondRun = wrapper.vm.submitSearch()
 
     second.resolve({
       data: [

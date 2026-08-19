@@ -84,10 +84,9 @@ export function usePostsFeed() {
     replaceQuery({ boardId: '' })
   }
 
-  const page = ref(0)
-  const size = ref(10)
+  const nextCursor = ref('')
+  const pageSize = 10
   const items = ref([])
-  // We assume hasNext if last fetch returned full size
   const hasNext = ref(true)
   const loading = ref(false)
   const error = ref('')
@@ -377,7 +376,8 @@ export function usePostsFeed() {
     }, 0)
   }
 
-  async function load(append = false) {
+  async function loadFromCursor(cursor = '') {
+    const append = !!cursor
     if (append && loading.value) return false
 
     const token = ++lastLoadToken
@@ -394,10 +394,9 @@ export function usePostsFeed() {
         socialPrefs.clear()
       }
 
-      const cursor = append ? String(page.value || '') : ''
       const resp = boardId.value
-        ? await listBoardFeed(boardId.value, { cursor, size: size.value })
-        : await listGlobalFeed({ cursor, size: size.value })
+        ? await listBoardFeed(boardId.value, { cursor, size: pageSize })
+        : await listGlobalFeed({ cursor, size: pageSize })
       if (token !== lastLoadToken) return
 
       const pageData = resp?.data && typeof resp.data === 'object' ? resp.data : {}
@@ -412,8 +411,8 @@ export function usePostsFeed() {
       blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
       const newItems = afterBlocked
 
-      const nextCursor = String(pageData.nextCursor || '')
-      hasNext.value = !!nextCursor
+      const responseNextCursor = String(pageData.nextCursor || '')
+      hasNext.value = !!responseNextCursor
 
       if (append) {
         items.value = [...items.value, ...newItems]
@@ -421,7 +420,7 @@ export function usePostsFeed() {
         items.value = newItems
       }
 
-      page.value = nextCursor
+      nextCursor.value = responseNextCursor
 
       scheduleHydrate(newItems, token)
       return true
@@ -438,11 +437,12 @@ export function usePostsFeed() {
   }
 
   async function loadMore() {
-    await load(true)
+    if (!nextCursor.value || loading.value) return
+    await loadFromCursor(nextCursor.value)
   }
 
   async function reload() {
-    await load(false)
+    await loadFromCursor('')
   }
 
   async function togglePostLike(p) {

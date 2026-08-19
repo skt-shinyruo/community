@@ -128,6 +128,37 @@ describe('PostsView', () => {
     expect(listBoardFeed).not.toHaveBeenCalled()
   })
 
+  it('advances through consecutive cursors and stops at the final page', async () => {
+    listGlobalFeed
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2' }
+      })
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-2', title: 'second batch' }], nextCursor: 'cursor-3' }
+      })
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-3', title: 'final batch' }], nextCursor: '' }
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.vm.loadMore()
+    await wrapper.vm.loadMore()
+
+    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual([
+      '',
+      'cursor-2',
+      'cursor-3'
+    ])
+    expect(wrapper.text()).toContain('first batch')
+    expect(wrapper.text()).toContain('second batch')
+    expect(wrapper.text()).toContain('final batch')
+    expect(wrapper.find('.posts-load-more-btn').exists()).toBe(false)
+
+    await wrapper.vm.loadMore()
+    expect(listGlobalFeed).toHaveBeenCalledTimes(3)
+  })
+
   it('exposes page intent groups without feed implementation details', async () => {
     const pinia = createPostsPinia()
     let postsFeed

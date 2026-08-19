@@ -159,7 +159,10 @@ class MyBatisDriveRepositoryTest {
         );
 
         uploadRepository.save(prepared);
-        DriveUpload completed = prepared.complete(FILE_ID, NOW.plusSeconds(20));
+        DriveUpload completed = prepared
+                .startCompleting(FILE_ID, NOW.plusSeconds(18))
+                .markObjectCompleted(NOW.plusSeconds(19))
+                .complete(NOW.plusSeconds(20));
         uploadRepository.save(completed);
 
         DriveUpload persisted = uploadRepository.findById(UPLOAD_ID).orElseThrow();

@@ -205,7 +205,7 @@ public record DriveUpload(
         return withCompletionDeadline(DriveUploadStatus.OBJECT_COMPLETED, completedEntryId, now);
     }
 
-    public DriveUpload completeFinalization(Instant now) {
+    public DriveUpload complete(Instant now) {
         requireNow(now);
         if (status == DriveUploadStatus.COMPLETED) {
             return this;
@@ -215,6 +215,20 @@ public record DriveUpload(
         }
         requireId(completedEntryId, "completedEntryId");
         return withState(DriveUploadStatus.COMPLETED, completedEntryId, now, now);
+    }
+
+    public DriveUpload expire(Instant now) {
+        requireNow(now);
+        if (status == DriveUploadStatus.EXPIRED) {
+            return this;
+        }
+        if (status != DriveUploadStatus.PREPARED) {
+            throw new IllegalStateException("upload cannot expire from: " + status);
+        }
+        if (!expiredAt(now)) {
+            throw new IllegalStateException("upload has not expired");
+        }
+        return withState(DriveUploadStatus.EXPIRED, completedEntryId, now, completedAt);
     }
 
     public DriveUpload startCleanup(Instant now) {
@@ -237,22 +251,6 @@ public record DriveUpload(
             throw new IllegalStateException("upload cleanup cannot complete from: " + status);
         }
         return withState(DriveUploadStatus.FAILED, completedEntryId, now, completedAt);
-    }
-
-    public DriveUpload complete(UUID entryId, Instant now) {
-        requireId(entryId, "entryId");
-        requireNow(now);
-        if (status == DriveUploadStatus.PREPARING) {
-            throw new IllegalStateException("upload is still preparing");
-        }
-        if (expiredAt(now)) {
-            return expire(now);
-        }
-        return withState(DriveUploadStatus.COMPLETED, entryId, now, now);
-    }
-
-    private DriveUpload expire(Instant now) {
-        return withState(DriveUploadStatus.EXPIRED, completedEntryId, now, completedAt);
     }
 
     private DriveUpload preparingTerminalState(DriveUploadStatus nextStatus, Instant now) {

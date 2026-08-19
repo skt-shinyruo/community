@@ -102,6 +102,38 @@ class DriveUploadApplicationServiceTest {
     }
 
     @Test
+    void recoverStaleUploadsShouldContinueAfterOneUploadFails() {
+        InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
+        InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
+        InMemoryDriveUploadRepository uploads = new InMemoryDriveUploadRepository();
+        FakeStoragePort storage = new FakeStoragePort();
+        DriveUploadApplicationService service = service(spaces, entries, uploads, storage);
+        UUID userId = uuid(7);
+        DriveSpace space = DriveSpace.createDefault(uuid(8), userId, NOW);
+        spaces.save(space);
+        DriveUpload failed = DriveUpload.preparing(
+                uuid(9), space.spaceId(), null, "failed.bin", 8L, "application/octet-stream", "",
+                userId, NOW.minusSeconds(20), NOW.plusSeconds(900));
+        DriveUpload recovered = DriveUpload.preparing(
+                uuid(10), space.spaceId(), null, "recovered.bin", 8L, "application/octet-stream", "",
+                userId, NOW.minusSeconds(10), NOW.plusSeconds(900));
+        uploads.save(failed);
+        uploads.save(recovered);
+        uploads.failRecoveryAttempt(failed.uploadId());
+
+        RecoveryResult result = service.recoverStaleUploads(NOW, 10);
+
+        assertThat(result).isEqualTo(new RecoveryResult(1, 0, 0, 0, 1));
+        assertThat(uploads.findById(failed.uploadId()).orElseThrow().status())
+                .isEqualTo(DriveUploadStatus.PREPARING);
+        assertThat(uploads.findById(recovered.uploadId()).orElseThrow().status())
+                .isEqualTo(DriveUploadStatus.PREPARED);
+        assertThat(storage.prepared).singleElement()
+                .extracting(DriveObjectStoragePort.PrepareObject::requestId)
+                .isEqualTo(recovered.uploadId());
+    }
+
+    @Test
     void completeUploadShouldRejectNullCommand() {
         InMemoryDriveSpaceRepository spaces = new InMemoryDriveSpaceRepository();
         InMemoryDriveEntryRepository entries = new InMemoryDriveEntryRepository();
@@ -1098,6 +1130,7 @@ class DriveUploadApplicationServiceTest {
 
     private static final class InMemoryDriveUploadRepository implements DriveUploadRepository {
         private final Map<UUID, DriveUpload> rows = new LinkedHashMap<>();
+        private UUID failedRecoveryAttemptId;
 
         @Override
         public Optional<DriveUpload> findById(UUID uploadId) {
@@ -1116,6 +1149,10 @@ class DriveUploadApplicationServiceTest {
 
         @Override
         public boolean recordRecoveryAttempt(UUID uploadId, DriveUploadStatus expectedStatus, Instant attemptedAt) {
+            if (uploadId.equals(failedRecoveryAttemptId)) {
+                failedRecoveryAttemptId = null;
+                throw new RuntimeException("recovery attempt failed");
+            }
             DriveUpload current = rows.get(uploadId);
             if (current == null || current.status() != expectedStatus) {
                 return false;
@@ -1147,7 +1184,11 @@ class DriveUploadApplicationServiceTest {
 
         void forceExpire(UUID uploadId, Instant now) {
             DriveUpload upload = rows.get(uploadId);
-            rows.put(uploadId, upload.complete(UUID.randomUUID(), now));
+            rows.put(uploadId, upload.expire(now));
+        }
+
+        void failRecoveryAttempt(UUID uploadId) {
+            failedRecoveryAttemptId = uploadId;
         }
 
         void forceStatus(UUID uploadId, DriveUploadStatus status, Instant updatedAt) {

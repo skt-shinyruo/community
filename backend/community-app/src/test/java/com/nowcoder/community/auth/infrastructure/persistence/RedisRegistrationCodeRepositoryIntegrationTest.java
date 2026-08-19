@@ -38,6 +38,46 @@ class RedisRegistrationCodeRepositoryIntegrationTest {
             .withExposedPorts(REDIS_PORT);
 
     @Test
+    void verificationScriptShouldPreserveMismatchPendingConsumedAndExpiredResults() {
+        LettuceConnectionFactory connectionFactory = connectionFactory();
+        StringRedisTemplate redis = redisTemplate(connectionFactory);
+        RedisRegistrationCodeRepository repository = repository(redis);
+        UUID userId = uuid(89);
+        try {
+            assertThat(issue(repository, userId, "111111", Duration.ofMinutes(5), Duration.ZERO))
+                    .isEqualTo(RegistrationCodeRepository.IssueResult.ISSUED);
+            assertThat(repository.verifyForConsumption(
+                    userId, "000000", Instant.now().plusSeconds(30), uuid(891)))
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.MISMATCH);
+
+            UUID verificationLease = uuid(892);
+            assertThat(repository.verifyForConsumption(
+                    userId, "111111", Instant.now().plusSeconds(30), verificationLease))
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.PENDING);
+            assertThat(repository.consumePending(userId, verificationLease)).isTrue();
+            assertThat(repository.verifyForConsumption(
+                    userId, "111111", Instant.now().plusSeconds(30), uuid(893)))
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.NOT_FOUND);
+
+            UUID expiredUserId = uuid(894);
+            redis.opsForHash().putAll(key(expiredUserId), Map.of(
+                    "active_code", "222222",
+                    "active_expires_at_ms", "1",
+                    "failures", "0",
+                    "issued_at_ms", "1",
+                    "state", "ACTIVE"
+            ));
+            redis.expire(key(expiredUserId), Duration.ofMinutes(1));
+            assertThat(repository.verifyForConsumption(
+                    expiredUserId, "222222", Instant.now().plusSeconds(30), uuid(895)))
+                    .isEqualTo(RedisRegistrationCodeRepository.VerifyResult.EXPIRED);
+            assertThat(redis.hasKey(key(expiredUserId))).isFalse();
+        } finally {
+            connectionFactory.destroy();
+        }
+    }
+
+    @Test
     void typedCapabilitiesShouldOwnTheReplacementDeliveryAndVerificationLifecycle() {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);

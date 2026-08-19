@@ -188,9 +188,10 @@ class RedisRegistrationCodeRepositoryTest {
         assertThat(claim.consume()).isTrue();
         assertThat(claim.restore()).isFalse();
 
+        ArgumentCaptor<RedisScript<String>> scriptCaptor = ArgumentCaptor.forClass(RedisScript.class);
         ArgumentCaptor<String> verificationLeaseCaptor = ArgumentCaptor.forClass(String.class);
         verify(redisTemplate).execute(
-                any(RedisScript.class),
+                scriptCaptor.capture(),
                 eq(keys(userId)),
                 eq("222222"),
                 eq("3"),
@@ -201,6 +202,15 @@ class RedisRegistrationCodeRepositoryTest {
                 any(RedisScript.class),
                 eq(keys(userId)),
                 eq(verificationLeaseCaptor.getValue()));
+        String script = ((DefaultRedisScript<?>) scriptCaptor.getValue()).getScriptAsString();
+        assertThat(script).contains(
+                "local registrationCodeKey = KEYS[1]",
+                "local submittedCode = ARGV[1]",
+                "local verificationLeaseId = ARGV[4]",
+                "local storedCode = storedValues[1]",
+                "local initialDeliveryLeaseExpiresAtMs = tonumber(storedValues[10])",
+                "if storedCode == submittedCode then"
+        );
     }
 
     @Test

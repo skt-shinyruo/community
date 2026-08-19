@@ -282,110 +282,117 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
 
     private static final RedisScript<String> VERIFY_PENDING_SCRIPT = new DefaultRedisScript<>(
             REDIS_TIME_LUA + """
-                    local nowMs = redisNowMs()
+                    local registrationCodeKey = KEYS[1]
+                    local submittedCode = ARGV[1]
                     local maxFailures = tonumber(ARGV[2])
-                    local leaseTtlMs = tonumber(ARGV[3])
-                    local cooldownMs = tonumber(ARGV[5])
+                    local verificationLeaseTtlMs = tonumber(ARGV[3])
+                    local verificationLeaseId = ARGV[4]
+                    local resendCooldownMs = tonumber(ARGV[5])
+                    local nowMs = redisNowMs()
                     if not maxFailures or maxFailures <= 0
-                        or not leaseTtlMs or leaseTtlMs <= 0 or ARGV[4] == ''
-                        or not cooldownMs or cooldownMs < 0 then
+                        or not verificationLeaseTtlMs or verificationLeaseTtlMs <= 0
+                        or verificationLeaseId == ''
+                        or not resendCooldownMs or resendCooldownMs < 0 then
                       return 'NOT_FOUND'
                     end
-                    local leaseExpiresAtMs = nowMs + leaseTtlMs
+                    local verificationLeaseExpiresAtMs = nowMs + verificationLeaseTtlMs
 
-                    local typeReply = redis.call('TYPE', KEYS[1])
+                    local typeReply = redis.call('TYPE', registrationCodeKey)
                     local keyType = type(typeReply) == 'table' and typeReply.ok or typeReply
                     if keyType == 'none' then
                       return 'NOT_FOUND'
                     end
                     if keyType ~= 'hash' then
-                      redis.call('DEL', KEYS[1])
+                      redis.call('DEL', registrationCodeKey)
                       return 'NOT_FOUND'
                     end
 
-                    local values = redis.call('HMGET', KEYS[1],
+                    local storedValues = redis.call('HMGET', registrationCodeKey,
                       'active_code', 'active_expires_at_ms', 'failures', 'issued_at_ms', 'state',
                       'replacement_lease_expires_at_ms',
                       'verification_lease_id', 'verification_lease_expires_at_ms',
                       'initial_delivery_id', 'initial_delivery_lease_expires_at_ms')
-                    local storedCode = values[1]
-                    local expiresAtMs = tonumber(values[2])
-                    local failureCount = tonumber(values[3])
-                    local issuedAtMs = tonumber(values[4])
-                    local state = values[5]
+                    local storedCode = storedValues[1]
+                    local expiresAtMs = tonumber(storedValues[2])
+                    local failureCount = tonumber(storedValues[3])
+                    local issuedAtMs = tonumber(storedValues[4])
+                    local state = storedValues[5]
+                    local replacementLeaseExpiresAtMs = tonumber(storedValues[6])
+                    local storedVerificationLeaseId = storedValues[7]
+                    local storedVerificationLeaseExpiresAtMs = tonumber(storedValues[8])
+                    local initialDeliveryId = storedValues[9]
+                    local initialDeliveryLeaseExpiresAtMs = tonumber(storedValues[10])
 
                     if state == 'EXHAUSTED' then
                       return 'TOO_MANY_ATTEMPTS'
                     end
 
                     if state == 'PENDING_INITIAL_DELIVERY' then
-                      local initialDeliveryLeaseExpiresAtMs = tonumber(values[10])
                       if initialDeliveryLeaseExpiresAtMs and initialDeliveryLeaseExpiresAtMs > nowMs then
                         return 'PENDING_CONFLICT'
                       end
-                      redis.call('HSET', KEYS[1], 'state', 'ACTIVE')
-                      redis.call('HDEL', KEYS[1],
+                      redis.call('HSET', registrationCodeKey, 'state', 'ACTIVE')
+                      redis.call('HDEL', registrationCodeKey,
                         'initial_delivery_id', 'initial_delivery_lease_expires_at_ms')
                       state = 'ACTIVE'
                     elseif state == 'PENDING_REPLACEMENT' then
-                      local replacementLeaseExpiresAtMs = tonumber(values[6])
                       if replacementLeaseExpiresAtMs and replacementLeaseExpiresAtMs > nowMs then
                         return 'PENDING_CONFLICT'
                       end
-                      redis.call('HSET', KEYS[1], 'state', 'ACTIVE')
-                      redis.call('HDEL', KEYS[1],
+                      redis.call('HSET', registrationCodeKey, 'state', 'ACTIVE')
+                      redis.call('HDEL', registrationCodeKey,
                         'replacement_code', 'replacement_expires_at_ms', 'replacement_issued_at_ms',
                         'replacement_lease_id', 'replacement_lease_expires_at_ms')
                       state = 'ACTIVE'
                     elseif state == 'PENDING_VERIFICATION' then
-                      local verificationLeaseExpiresAtMs = tonumber(values[8])
-                      if verificationLeaseExpiresAtMs and verificationLeaseExpiresAtMs > nowMs then
+                      if storedVerificationLeaseExpiresAtMs and storedVerificationLeaseExpiresAtMs > nowMs then
                         return 'PENDING_CONFLICT'
                       end
-                      redis.call('HSET', KEYS[1], 'state', 'ACTIVE')
-                      redis.call('HDEL', KEYS[1],
+                      redis.call('HSET', registrationCodeKey, 'state', 'ACTIVE')
+                      redis.call('HDEL', registrationCodeKey,
                         'verification_lease_id', 'verification_lease_expires_at_ms')
                       state = 'ACTIVE'
                     end
 
                     if state ~= 'ACTIVE' or not storedCode or storedCode == ''
                         or not expiresAtMs or not failureCount or not issuedAtMs then
-                      redis.call('DEL', KEYS[1])
+                      redis.call('DEL', registrationCodeKey)
                       return 'NOT_FOUND'
                     end
                     if expiresAtMs <= nowMs then
-                      redis.call('DEL', KEYS[1])
+                      redis.call('DEL', registrationCodeKey)
                       return 'EXPIRED'
                     end
 
-                    if storedCode == ARGV[1] then
-                      redis.call('HSET', KEYS[1],
+                    if storedCode == submittedCode then
+                      redis.call('HSET', registrationCodeKey,
                         'state', 'PENDING_VERIFICATION',
-                        'verification_lease_id', ARGV[4],
-                        'verification_lease_expires_at_ms', tostring(leaseExpiresAtMs))
-                      redis.call('PEXPIREAT', KEYS[1], math.max(expiresAtMs, leaseExpiresAtMs))
+                        'verification_lease_id', verificationLeaseId,
+                        'verification_lease_expires_at_ms', tostring(verificationLeaseExpiresAtMs))
+                      redis.call('PEXPIREAT', registrationCodeKey,
+                        math.max(expiresAtMs, verificationLeaseExpiresAtMs))
                       return 'PENDING'
                     end
 
                     local nextFailures = failureCount + 1
                     if nextFailures >= maxFailures then
-                      local tombstoneExpiresAtMs = math.max(expiresAtMs, nowMs + cooldownMs)
-                      redis.call('HSET', KEYS[1],
+                      local tombstoneExpiresAtMs = math.max(expiresAtMs, nowMs + resendCooldownMs)
+                      redis.call('HSET', registrationCodeKey,
                         'state', 'EXHAUSTED',
                         'failures', tostring(maxFailures),
                         'issued_at_ms', tostring(nowMs),
                         'active_expires_at_ms', tostring(tombstoneExpiresAtMs))
-                      redis.call('HDEL', KEYS[1],
+                      redis.call('HDEL', registrationCodeKey,
                         'active_code', 'active_delivery_id',
                         'replacement_code', 'replacement_expires_at_ms', 'replacement_issued_at_ms',
                         'replacement_lease_id', 'replacement_lease_expires_at_ms',
                         'verification_lease_id', 'verification_lease_expires_at_ms',
                         'initial_delivery_id', 'initial_delivery_lease_expires_at_ms')
-                      redis.call('PEXPIREAT', KEYS[1], tombstoneExpiresAtMs)
+                      redis.call('PEXPIREAT', registrationCodeKey, tombstoneExpiresAtMs)
                       return 'TOO_MANY_ATTEMPTS'
                     end
-                    redis.call('HSET', KEYS[1], 'failures', tostring(nextFailures))
-                    redis.call('PEXPIREAT', KEYS[1], expiresAtMs)
+                    redis.call('HSET', registrationCodeKey, 'failures', tostring(nextFailures))
+                    redis.call('PEXPIREAT', registrationCodeKey, expiresAtMs)
                     return 'MISMATCH'
                     """,
             String.class
@@ -785,15 +792,19 @@ public class RedisRegistrationCodeRepository implements RegistrationCodeReposito
             return VerifyResult.NOT_FOUND;
         }
 
-        String result = redisTemplate.execute(
-                VERIFY_PENDING_SCRIPT,
-                keys(userId),
-                code.trim(),
-                Integer.toString(maxFailures),
-                Long.toString(leaseTtlMs),
-                leaseId.toString(),
-                Long.toString(resendCooldownMillis)
-        );
+        String submittedCode = code.trim();
+        String maximumFailures = Integer.toString(maxFailures);
+        String verificationLeaseTtlMs = Long.toString(leaseTtlMs);
+        String verificationLeaseId = leaseId.toString();
+        String resendCooldownMs = Long.toString(resendCooldownMillis);
+        Object[] scriptArguments = {
+                submittedCode,
+                maximumFailures,
+                verificationLeaseTtlMs,
+                verificationLeaseId,
+                resendCooldownMs
+        };
+        String result = redisTemplate.execute(VERIFY_PENDING_SCRIPT, keys(userId), scriptArguments);
         if (!StringUtils.hasText(result)) {
             return VerifyResult.NOT_FOUND;
         }

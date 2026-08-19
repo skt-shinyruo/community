@@ -13,6 +13,9 @@ import org.mockito.ArgumentCaptor;
 
 import java.util.UUID;
 import java.util.List;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
@@ -381,6 +384,55 @@ class LoginRateLimitApplicationServiceTest {
 
         renewingService.releasePasswordCheck(permit);
         verify(renewal).cancel(false);
+
+        heartbeat.getValue().run();
+        renewingService.releasePasswordCheck(permit);
+        verify(loginRateLimitRepository, times(2)).renew(leaseKey, permit.token(), 120_000);
+        verify(loginRateLimitRepository, times(1)).release(leaseKey, permit.token());
+        verify(renewal, times(1)).cancel(false);
+    }
+
+    @Test
+    void closeShouldWaitForInFlightRenewalAndPreventLaterCallbacks() throws Exception {
+        ScheduledExecutorService scheduler = mock(ScheduledExecutorService.class);
+        @SuppressWarnings("unchecked")
+        ScheduledFuture<Object> renewal = mock(ScheduledFuture.class);
+        ArgumentCaptor<Runnable> heartbeat = ArgumentCaptor.forClass(Runnable.class);
+        doReturn(renewal).when(scheduler).scheduleWithFixedDelay(
+                heartbeat.capture(), eq(30_000L), eq(30_000L), eq(TimeUnit.MILLISECONDS));
+        LoginRateLimitApplicationService renewingService = new LoginRateLimitApplicationService(
+                new LoginRateLimitProperties(), loginRateLimitRepository, identifierDeriver(),
+                meterRegistryProvider, scheduler);
+        String failureKey = inputFailureKey;
+        String leaseKey = "auth:login:inflight:{" + failureKey + "}:" + failureKey;
+        when(loginRateLimitRepository.tryAcquire(eq(failureKey), eq(leaseKey),
+                any(UUID.class), eq(5), eq(120_000))).thenReturn(true);
+        CountDownLatch renewalEntered = new CountDownLatch(1);
+        CountDownLatch allowRenewal = new CountDownLatch(1);
+        when(loginRateLimitRepository.renew(eq(leaseKey), any(UUID.class), eq(120_000)))
+                .thenAnswer(invocation -> {
+                    renewalEntered.countDown();
+                    return allowRenewal.await(5, TimeUnit.SECONDS);
+                });
+        LoginRateLimitApplicationService.PasswordCheckPermit permit =
+                renewingService.acquirePasswordCheck("alice", null, "remote");
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            var renewing = executor.submit(heartbeat.getValue());
+            assertThat(renewalEntered.await(5, TimeUnit.SECONDS)).isTrue();
+            var closing = executor.submit(() -> renewingService.releasePasswordCheck(permit));
+            allowRenewal.countDown();
+            renewing.get(5, TimeUnit.SECONDS);
+            closing.get(5, TimeUnit.SECONDS);
+
+            heartbeat.getValue().run();
+            renewingService.releasePasswordCheck(permit);
+            verify(loginRateLimitRepository, times(1)).renew(leaseKey, permit.token(), 120_000);
+            verify(loginRateLimitRepository, times(1)).release(leaseKey, permit.token());
+            verify(renewal, times(1)).cancel(false);
+        } finally {
+            executor.shutdownNow();
+        }
     }
 
     private PasswordResetTokenDeriver identifierDeriver() {

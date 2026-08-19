@@ -23,8 +23,6 @@ import java.util.UUID;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
-import java.util.concurrent.atomic.AtomicBoolean;
-import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class LoginRateLimitApplicationService {
@@ -121,7 +119,7 @@ public class LoginRateLimitApplicationService {
                     Math.max(1, properties.getMaxFailuresPerUser())));
         }
         if (slots.isEmpty()) {
-            return PasswordCheckPermit.none();
+            return new PasswordCheckPermit(this, null, List.of(), 0);
         }
 
         UUID token = UUID.randomUUID();
@@ -140,7 +138,7 @@ public class LoginRateLimitApplicationService {
                 }
                 acquired.add(slot.leaseKey());
             }
-            PasswordCheckPermit permit = new PasswordCheckPermit(token, acquired, leaseMillis);
+            PasswordCheckPermit permit = new PasswordCheckPermit(this, token, acquired, leaseMillis);
             scheduleRenewal(permit);
             record("allowed", ipSource);
             return permit;
@@ -175,48 +173,7 @@ public class LoginRateLimitApplicationService {
                 throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
                         "登录风控身份无效，请稍后重试");
             }
-            synchronized (permit) {
-                if (!permit.isOpen() || permit.token() == null) {
-                    throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
-                            "登录风控租约已失效，请稍后重试");
-                }
-                if (!renewOwnedSlots(permit)) {
-                    throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
-                            "登录风控租约已失效，请稍后重试");
-                }
-
-                String provisionalLeaseKey = inFlightKey(inputKey(input.subject()));
-                List<String> ownedKeys = permit.keys();
-                if (!ownedKeys.contains(provisionalLeaseKey)) {
-                    permit.invalidate();
-                    throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
-                            "登录风控租约状态异常，请稍后重试");
-                }
-
-                String subjectFailureKey = subjectKey(subject.subject());
-                String subjectLeaseKey = inFlightKey(subjectFailureKey);
-                if (!loginRateLimitRepository.tryAcquire(
-                        subjectFailureKey,
-                        subjectLeaseKey,
-                        permit.token(),
-                        Math.max(1, properties.getMaxFailuresPerUser()),
-                        permit.leaseMillis()
-                )) {
-                    record("blocked", ipSource);
-                    throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS,
-                            "并发登录尝试过多，请稍后再试");
-                }
-
-                List<String> authoritativeKeys = new ArrayList<>(ownedKeys.size());
-                for (String key : ownedKeys) {
-                    if (!key.equals(provisionalLeaseKey)) {
-                        authoritativeKeys.add(key);
-                    }
-                }
-                authoritativeKeys.add(subjectLeaseKey);
-                permit.replaceKeys(authoritativeKeys);
-                releaseKeys(List.of(provisionalLeaseKey), permit.token());
-            }
+            permit.attachAuthenticationSubject(input.subject(), subject.subject(), ipSource);
         } catch (BusinessException e) {
             throw e;
         } catch (RuntimeException e) {
@@ -228,28 +185,11 @@ public class LoginRateLimitApplicationService {
     }
 
     public void releasePasswordCheck(PasswordCheckPermit permit) {
-        if (permit == null) {
-            return;
-        }
-        List<String> keys;
-        synchronized (permit) {
-            if (permit.keys().isEmpty()) {
-                return;
-            }
-            permit.close();
-            keys = permit.keys();
-        }
-        releaseKeys(keys, permit.token());
+        if (permit != null) permit.close();
     }
 
     public void assertPasswordCheckOwned(PasswordCheckPermit permit) {
-        if (permit == null || permit.keys().isEmpty()) {
-            return;
-        }
-        if (!permit.isOpen() || !renewOwnedSlots(permit)) {
-            throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
-                    "登录风控租约已失效，请稍后重试");
-        }
+        if (permit != null) permit.assertOwned();
     }
 
     public boolean isCaptchaRequired(
@@ -300,11 +240,9 @@ public class LoginRateLimitApplicationService {
     }
 
     private int getBudgetCount(String failureKey, PasswordCheckPermit permit) {
-        String leaseKey = inFlightKey(failureKey);
-        if (permit == null || !permit.isOpen() || !permit.keys().contains(leaseKey)) {
-            return loginRateLimitRepository.count(failureKey);
-        }
-        return loginRateLimitRepository.countBudget(failureKey, leaseKey);
+        return permit == null
+                ? loginRateLimitRepository.count(failureKey)
+                : permit.getBudgetCount(failureKey);
     }
 
     private int increment(String key) {
@@ -315,39 +253,12 @@ public class LoginRateLimitApplicationService {
     private void scheduleRenewal(PasswordCheckPermit permit) {
         long intervalMillis = Math.max(1L, permit.leaseMillis() / 4L);
         ScheduledFuture<?> future = leaseRenewer.scheduleWithFixedDelay(
-                () -> {
-                    if (permit.isOpen()) {
-                        renewOwnedSlots(permit);
-                    }
-                },
+                permit::renewOwnedSlots,
                 intervalMillis,
                 intervalMillis,
                 TimeUnit.MILLISECONDS
         );
-        permit.attach(future);
-    }
-
-    private boolean renewOwnedSlots(PasswordCheckPermit permit) {
-        synchronized (permit) {
-            if (!permit.isOpen()) {
-                return false;
-            }
-            for (String key : permit.keys()) {
-                try {
-                    if (!loginRateLimitRepository.renew(key, permit.token(), permit.leaseMillis())) {
-                        permit.invalidate();
-                        record("lease_lost", null);
-                        return false;
-                    }
-                } catch (RuntimeException e) {
-                    permit.invalidate();
-                    record("dependency_error", null);
-                    log.warn("[auth][login-rate-limit] password-check renewal failed: {}", e.toString());
-                    return false;
-                }
-            }
-            return true;
-        }
+        permit.attachRenewal(future);
     }
 
     private void releaseKeys(List<String> keys, UUID token) {
@@ -390,16 +301,24 @@ public class LoginRateLimitApplicationService {
 
     public static final class PasswordCheckPermit {
 
+        private final LoginRateLimitApplicationService owner;
         private final UUID token;
-        private final AtomicReference<List<String>> keys;
         private final int leaseMillis;
-        private final AtomicBoolean valid = new AtomicBoolean(true);
-        private final AtomicBoolean closed = new AtomicBoolean(false);
-        private final AtomicReference<ScheduledFuture<?>> renewal = new AtomicReference<>();
+        private List<String> keys;
+        private ScheduledFuture<?> renewal;
+        private boolean valid = true;
+        private boolean closed;
+        private boolean released;
 
-        private PasswordCheckPermit(UUID token, List<String> keys, int leaseMillis) {
+        private PasswordCheckPermit(
+                LoginRateLimitApplicationService owner,
+                UUID token,
+                List<String> keys,
+                int leaseMillis
+        ) {
+            this.owner = owner;
             this.token = token;
-            this.keys = new AtomicReference<>(keys == null ? List.of() : List.copyOf(keys));
+            this.keys = keys == null ? List.of() : List.copyOf(keys);
             this.leaseMillis = leaseMillis;
         }
 
@@ -407,51 +326,127 @@ public class LoginRateLimitApplicationService {
             return token;
         }
 
-        public List<String> keys() {
-            return keys.get();
+        public synchronized List<String> keys() {
+            return keys;
         }
 
-        void replaceKeys(List<String> replacement) {
-            keys.set(replacement == null ? List.of() : List.copyOf(replacement));
+        private synchronized void attachAuthenticationSubject(
+                String provisionalInput,
+                String authoritativeSubject,
+                String ipSource
+        ) {
+            if (!isOpen() || token == null || !renewOwnedSlots()) {
+                throw unavailableLease();
+            }
+
+            String provisionalLeaseKey = owner.inFlightKey(owner.inputKey(provisionalInput));
+            if (!keys.contains(provisionalLeaseKey)) {
+                invalidate();
+                throw new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
+                        "登录风控租约状态异常，请稍后重试");
+            }
+
+            String subjectFailureKey = owner.subjectKey(authoritativeSubject);
+            String subjectLeaseKey = owner.inFlightKey(subjectFailureKey);
+            if (!owner.loginRateLimitRepository.tryAcquire(
+                    subjectFailureKey,
+                    subjectLeaseKey,
+                    token,
+                    Math.max(1, owner.properties.getMaxFailuresPerUser()),
+                    leaseMillis
+            )) {
+                owner.record("blocked", ipSource);
+                throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS,
+                        "并发登录尝试过多，请稍后再试");
+            }
+
+            List<String> authoritativeKeys = new ArrayList<>(keys.size());
+            for (String key : keys) {
+                if (!key.equals(provisionalLeaseKey)) authoritativeKeys.add(key);
+            }
+            authoritativeKeys.add(subjectLeaseKey);
+            keys = List.copyOf(authoritativeKeys);
+            owner.releaseKeys(List.of(provisionalLeaseKey), token);
         }
 
         int leaseMillis() {
             return leaseMillis;
         }
 
-        boolean isOpen() {
-            return valid.get() && !closed.get();
+        private synchronized int getBudgetCount(String failureKey) {
+            String leaseKey = owner.inFlightKey(failureKey);
+            return isOpen() && keys.contains(leaseKey)
+                    ? owner.loginRateLimitRepository.countBudget(failureKey, leaseKey)
+                    : owner.loginRateLimitRepository.count(failureKey);
         }
 
-        void attach(ScheduledFuture<?> future) {
-            if (!renewal.compareAndSet(null, future) && future != null) {
-                future.cancel(false);
-            }
-            if (closed.get() && future != null) {
-                future.cancel(false);
-            }
+        private synchronized boolean isOpen() {
+            return valid && !closed;
         }
 
-        void invalidate() {
-            valid.set(false);
-            ScheduledFuture<?> future = renewal.get();
-            if (future != null) {
-                future.cancel(false);
-            }
-        }
-
-        void close() {
-            if (!closed.compareAndSet(false, true)) {
+        private synchronized void attachRenewal(ScheduledFuture<?> future) {
+            if (renewal != null || !valid || closed) {
+                if (future != null) future.cancel(false);
                 return;
             }
-            ScheduledFuture<?> future = renewal.get();
-            if (future != null) {
-                future.cancel(false);
+            renewal = future;
+        }
+
+        private synchronized boolean renewOwnedSlots() {
+            if (!isOpen()) return false;
+            for (String key : keys) {
+                try {
+                    if (!owner.loginRateLimitRepository.renew(key, token, leaseMillis)) {
+                        invalidate();
+                        owner.record("lease_lost", null);
+                        return false;
+                    }
+                } catch (RuntimeException e) {
+                    invalidate();
+                    owner.record("dependency_error", null);
+                    log.warn("[auth][login-rate-limit] password-check renewal failed: {}", e.toString());
+                    return false;
+                }
             }
+            return true;
+        }
+
+        private synchronized void assertOwned() {
+            if (keys.isEmpty()) return;
+            if (!renewOwnedSlots()) throw unavailableLease();
+        }
+
+        private synchronized void invalidate() {
+            valid = false;
+            cancelRenewal();
+        }
+
+        private void close() {
+            List<String> keysToRelease;
+            synchronized (this) {
+                if (closed) return;
+                closed = true;
+                cancelRenewal();
+                if (released || keys.isEmpty()) return;
+                released = true;
+                keysToRelease = keys;
+            }
+            owner.releaseKeys(keysToRelease, token);
+        }
+
+        private void cancelRenewal() {
+            ScheduledFuture<?> future = renewal;
+            renewal = null;
+            if (future != null) future.cancel(false);
+        }
+
+        private BusinessException unavailableLease() {
+            return new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE,
+                    "登录风控租约已失效，请稍后重试");
         }
 
         static PasswordCheckPermit none() {
-            return new PasswordCheckPermit(null, List.of(), 0);
+            return new PasswordCheckPermit(null, null, List.of(), 0);
         }
     }
 

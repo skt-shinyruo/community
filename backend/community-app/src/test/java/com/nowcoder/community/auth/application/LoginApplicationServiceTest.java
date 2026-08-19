@@ -313,6 +313,32 @@ class LoginApplicationServiceTest {
     }
 
     @Test
+    void loginShouldReleaseThePermitWhenPasswordVerificationThrows() {
+        LoginRateLimitApplicationService.PasswordCheckPermit permit =
+                LoginRateLimitApplicationService.PasswordCheckPermit.none();
+        when(loginRateLimitService.acquirePasswordCheck(
+                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+        when(userCredentialQueryApi.prepareAuthentication("alice"))
+                .thenReturn(new UserCredentialQueryApi.AuthenticationChallenge() {
+                    @Override
+                    public UUID userId() {
+                        return null;
+                    }
+
+                    @Override
+                    public UserAuthenticationResultView authenticate(String password) {
+                        throw new RuntimeException("password verifier unavailable");
+                    }
+                });
+
+        assertThatThrownBy(() -> authService.login(loginCommand("alice", "secret", null, null)))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessage("password verifier unavailable");
+
+        verify(loginRateLimitService).releasePasswordCheck(permit);
+    }
+
+    @Test
     void loginShouldRejectUnsafeUsernameBeforeIdentityLookupOrPasswordCheck(CapturedOutput output) {
         Throwable thrown = catchThrowable(() -> authService.login(
                 loginCommand("a\u200Dlice", "secret", null, null)));

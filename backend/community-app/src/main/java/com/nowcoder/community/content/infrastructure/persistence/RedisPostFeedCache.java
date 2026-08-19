@@ -41,6 +41,21 @@ public class RedisPostFeedCache implements PostFeedCache {
     private static final String HOT_DEGRADATION_REASON_KEY = "post:feed:hot:degradation:reason";
     private static final String HOT_DEGRADATION_UPDATED_AT_KEY = "post:feed:hot:degradation:updated-at";
     private static final String LAST_PREWARM_KEY_PREFIX = "post:feed:hot:prewarm:last:";
+    private static final int TYPE_WIDTH = 8;
+    private static final int SCORE_WIDTH = 16;
+    private static final int CREATE_TIME_WIDTH = 16;
+    private static final int UUID_PART_WIDTH = 16;
+    private static final int POST_ID_WIDTH = UUID_PART_WIDTH * 2;
+    private static final int TYPE_START = 0;
+    private static final int TYPE_END = TYPE_START + TYPE_WIDTH;
+    private static final int SCORE_START = TYPE_END;
+    private static final int SCORE_END = SCORE_START + SCORE_WIDTH;
+    private static final int CREATE_TIME_START = SCORE_END;
+    private static final int CREATE_TIME_END = CREATE_TIME_START + CREATE_TIME_WIDTH;
+    private static final int POST_ID_START = CREATE_TIME_END;
+    private static final int POST_ID_MSB_END = POST_ID_START + UUID_PART_WIDTH;
+    private static final int POST_ID_END = POST_ID_START + POST_ID_WIDTH;
+    private static final int MEMBER_LENGTH = POST_ID_END;
     private static final DefaultRedisScript<Long> UPSERT_PROJECTION_SCRIPT = new DefaultRedisScript<>("""
             if redis.call('EXISTS', KEYS[2]) == 1 then
               redis.call('ZREM', KEYS[1], ARGV[1])
@@ -458,19 +473,19 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     static HotProjectionEntry parseProjectionMember(String member) {
-        if (member == null || member.length() != 72) {
+        if (member == null || member.length() != MEMBER_LENGTH) {
             return null;
         }
         try {
-            int type = Integer.parseUnsignedInt(member.substring(0, 8), 16) ^ Integer.MIN_VALUE;
-            long sortableScore = Long.parseUnsignedLong(member.substring(8, 24), 16);
-            long scoreBits = (sortableScore & Long.MIN_VALUE) != 0L
-                    ? sortableScore ^ Long.MIN_VALUE
-                    : ~sortableScore;
-            double score = Double.longBitsToDouble(scoreBits);
-            long createTime = Long.parseUnsignedLong(member.substring(24, 40), 16) ^ Long.MIN_VALUE;
-            long mostSignificantBits = Long.parseUnsignedLong(member.substring(40, 56), 16);
-            long leastSignificantBits = Long.parseUnsignedLong(member.substring(56, 72), 16);
+            int type = flipSignBit(Integer.parseUnsignedInt(member.substring(TYPE_START, TYPE_END), 16));
+            long sortableScore = Long.parseUnsignedLong(member.substring(SCORE_START, SCORE_END), 16);
+            double score = fromSortableDoubleBits(sortableScore);
+            long createTime = flipSignBit(Long.parseUnsignedLong(
+                    member.substring(CREATE_TIME_START, CREATE_TIME_END), 16));
+            long mostSignificantBits = Long.parseUnsignedLong(
+                    member.substring(POST_ID_START, POST_ID_MSB_END), 16);
+            long leastSignificantBits = Long.parseUnsignedLong(
+                    member.substring(POST_ID_MSB_END, POST_ID_END), 16);
             if (!Double.isFinite(score)) {
                 return null;
             }
@@ -486,27 +501,45 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     private static String sortableInt(int value) {
-        return String.format(Locale.ROOT, "%08x", value ^ Integer.MIN_VALUE);
+        return String.format(Locale.ROOT, "%0" + TYPE_WIDTH + "x", flipSignBit(value));
     }
 
     private static String sortableDouble(double value) {
         double normalized = value == 0.0d ? 0.0d : value;
-        long bits = Double.doubleToRawLongBits(normalized);
-        long sortable = bits < 0L ? ~bits : bits ^ Long.MIN_VALUE;
-        return String.format(Locale.ROOT, "%016x", sortable);
+        return String.format(Locale.ROOT, "%0" + SCORE_WIDTH + "x", toSortableDoubleBits(normalized));
     }
 
     private static String sortableLong(long value) {
-        return String.format(Locale.ROOT, "%016x", value ^ Long.MIN_VALUE);
+        return String.format(Locale.ROOT, "%0" + CREATE_TIME_WIDTH + "x", flipSignBit(value));
     }
 
     private static String uuidHex(UUID value) {
         return String.format(
                 Locale.ROOT,
-                "%016x%016x",
+                "%0" + UUID_PART_WIDTH + "x%0" + UUID_PART_WIDTH + "x",
                 value.getMostSignificantBits(),
                 value.getLeastSignificantBits()
         );
+    }
+
+    private static int flipSignBit(int value) {
+        return value ^ Integer.MIN_VALUE;
+    }
+
+    private static long flipSignBit(long value) {
+        return value ^ Long.MIN_VALUE;
+    }
+
+    private static long toSortableDoubleBits(double value) {
+        long bits = Double.doubleToRawLongBits(value);
+        return bits < 0L ? ~bits : bits ^ Long.MIN_VALUE;
+    }
+
+    private static double fromSortableDoubleBits(long sortable) {
+        long bits = (sortable & Long.MIN_VALUE) != 0L
+                ? sortable ^ Long.MIN_VALUE
+                : ~sortable;
+        return Double.longBitsToDouble(bits);
     }
 
     private int limit(String cursor, int size) {

@@ -162,6 +162,48 @@ class RedisPostFeedCacheTest {
     }
 
     @Test
+    void projectionMemberShouldPreserveTheExistingLayoutAtNumericBoundaries() {
+        PostFeedCache.HotProjectionEntry zero = projection(new UUID(0L, 0L), 0, 0.0d, 0L);
+        assertThat(RedisPostFeedCache.projectionMember(zero)).isEqualTo(
+                "800000008000000000000000800000000000000000000000000000000000000000000000"
+        );
+
+        List<PostFeedCache.HotProjectionEntry> boundaries = List.of(
+                projection(new UUID(Long.MIN_VALUE, Long.MIN_VALUE),
+                        Integer.MIN_VALUE, -Double.MAX_VALUE, Long.MIN_VALUE),
+                projection(new UUID(Long.MAX_VALUE, Long.MAX_VALUE),
+                        Integer.MAX_VALUE, Double.MAX_VALUE, Long.MAX_VALUE),
+                projection(new UUID(-1L, 1L), -7, -0.5d, -1L)
+        );
+
+        assertThat(boundaries).allSatisfy(entry -> {
+            String encoded = RedisPostFeedCache.projectionMember(entry);
+            assertThat(encoded).hasSize(72);
+            assertThat(RedisPostFeedCache.parseProjectionMember(encoded)).isEqualTo(entry);
+        });
+    }
+
+    @Test
+    void parseProjectionMemberShouldRejectMalformedAndNonFiniteValues() {
+        String zero = RedisPostFeedCache.projectionMember(
+                projection(new UUID(0L, 0L), 0, 0.0d, 0L));
+        String infiniteScore = zero.substring(0, 8) + "fff0000000000000" + zero.substring(24);
+        String nanScore = zero.substring(0, 8) + "fff8000000000000" + zero.substring(24);
+
+        assertThat(List.of(
+                "0".repeat(71),
+                "0".repeat(73),
+                "g" + "0".repeat(71),
+                infiniteScore,
+                nanScore
+        )).allSatisfy(member -> assertThat(RedisPostFeedCache.parseProjectionMember(member)).isNull());
+        assertThat(RedisPostFeedCache.parseProjectionMember(null)).isNull();
+        assertThatThrownBy(() -> RedisPostFeedCache.projectionMember(
+                projection(uuid(1), 0, Double.POSITIVE_INFINITY, 0L)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
     void readProjectionShouldUseStableEpochAndOneRowLookahead() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")

@@ -2,6 +2,7 @@ package com.nowcoder.community.user.domain.service;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.domain.model.UserAccount;
+import com.nowcoder.community.user.domain.model.UserRole;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -15,6 +16,8 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 public class UserRegistrationDomainService {
 
     private static final Pattern BCRYPT_PASSWORD_PATTERN = Pattern.compile("^\\$2[aby]\\$\\d{2}\\$[./A-Za-z0-9]{53}$");
+    private static final int PREPARED_ACCOUNT_STATUS = 0;
+    private static final int ACTIVE_ACCOUNT_STATUS = 1;
 
     private final Clock clock;
     private final PasswordPolicyDomainService passwordPolicyDomainService;
@@ -62,7 +65,14 @@ public class UserRegistrationDomainService {
             String encodedPassword,
             String headerUrl
     ) {
-        return new UserAccount(userId, input.username(), encodedPassword, "", input.email(), 0, 0, headerUrl, Date.from(Instant.now(clock)), null, null, 0L, 0L);
+        return registrationUser(
+                userId,
+                input.username(),
+                encodedPassword,
+                input.email(),
+                PREPARED_ACCOUNT_STATUS,
+                headerUrl
+        );
     }
 
     public UserAccount verifiedUser(
@@ -72,7 +82,46 @@ public class UserRegistrationDomainService {
             String email,
             String headerUrl
     ) {
-        return new UserAccount(userId, usernamePolicyDomainService.requireValid(username), safeTrim(encodedPassword), "", canonicalEmail(email), 0, 1, safeTrim(headerUrl), Date.from(Instant.now(clock)), null, null, 0L, 0L);
+        return registrationUser(
+                userId,
+                usernamePolicyDomainService.requireValid(username),
+                safeTrim(encodedPassword),
+                canonicalEmail(email),
+                ACTIVE_ACCOUNT_STATUS,
+                safeTrim(headerUrl)
+        );
+    }
+
+    private UserAccount registrationUser(
+            java.util.UUID userId,
+            String username,
+            String encodedPassword,
+            String email,
+            int status,
+            String headerUrl
+    ) {
+        String legacySalt = "";
+        int initialRole = UserRole.USER.type();
+        Date createdAt = Date.from(Instant.now(clock));
+        Instant muteUntil = null;
+        Instant banUntil = null;
+        long initialPolicyVersion = 0L;
+        long initialSecurityVersion = 0L;
+        return new UserAccount(
+                userId,
+                username,
+                encodedPassword,
+                legacySalt,
+                email,
+                initialRole,
+                status,
+                headerUrl,
+                createdAt,
+                muteUntil,
+                banUntil,
+                initialPolicyVersion,
+                initialSecurityVersion
+        );
     }
 
     public boolean credentialIssuanceAllowed(UserAccount user) {

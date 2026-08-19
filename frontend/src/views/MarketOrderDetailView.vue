@@ -213,27 +213,29 @@ const detail = computed(() => {
 })
 const deliveryContents = computed(() => (Array.isArray(order.value?.deliveryContents) ? order.value.deliveryContents : []))
 const shipment = computed(() => order.value?.shipment || null)
-const normalizedStatus = computed(() => String(order.value?.status || '').trim().toUpperCase())
 const normalizedGoodsType = computed(() => String(order.value?.goodsType || '').trim().toUpperCase())
 const normalizedDeliveryMode = computed(() => String(order.value?.deliveryModeSnapshot || '').trim().toUpperCase())
 const isBuyer = computed(() => sameOpaqueId(auth.userId, order.value?.buyerUserId))
 const isSeller = computed(() => sameOpaqueId(auth.userId, order.value?.sellerUserId))
+function allowsOrderAction(action) {
+  return Array.isArray(detail.value.allowedActions) && detail.value.allowedActions.includes(action)
+}
 const canDeliver = computed(() => {
   return isSeller.value
-    && normalizedStatus.value === 'ESCROWED'
+    && allowsOrderAction('fulfill')
     && normalizedGoodsType.value === 'VIRTUAL'
     && normalizedDeliveryMode.value === 'MANUAL'
 })
 const canShip = computed(() => {
   return isSeller.value
-    && normalizedStatus.value === 'ESCROWED'
+    && allowsOrderAction('fulfill')
     && normalizedGoodsType.value === 'PHYSICAL'
 })
-const canConfirm = computed(() => isBuyer.value && ['DELIVERED', 'SHIPPED'].includes(normalizedStatus.value))
-const canCancel = computed(() => isBuyer.value && ['ESCROW_PENDING', 'ESCROWED'].includes(normalizedStatus.value))
-const canDispute = computed(() => isBuyer.value && ['DELIVERED', 'SHIPPED'].includes(normalizedStatus.value))
+const canConfirm = computed(() => isBuyer.value && allowsOrderAction('confirm'))
+const canCancel = computed(() => isBuyer.value && allowsOrderAction('cancel'))
+const canDispute = computed(() => isBuyer.value && allowsOrderAction('dispute'))
 const hasAvailableActions = computed(() => canDeliver.value || canShip.value || canConfirm.value || canCancel.value || canDispute.value)
-const confirmButtonText = computed(() => (normalizedStatus.value === 'SHIPPED' ? '确认收货' : '确认完成'))
+const confirmButtonText = computed(() => detail.value.confirmButtonText || '确认完成')
 const viewScope = computed(() => [
   normalizeOpaqueId(route.params.orderId),
   auth.tokenGeneration,

@@ -179,7 +179,7 @@ connect(accessToken)
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
-| `marketState.js` | 商品、订单、争议、地址的状态标签和展示文本。 |
+| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |

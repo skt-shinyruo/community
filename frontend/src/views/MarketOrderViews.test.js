@@ -489,6 +489,35 @@ describe('Unified market order views', () => {
     expect(cancelMarketOrder).toHaveBeenCalledWith('34')
   })
 
+  it('shows conservative facts and no controls for an unknown order status', async () => {
+    getMarketOrderDetail.mockResolvedValue({
+      data: {
+        orderId: 31,
+        requestId: 'future:req-1',
+        goodsType: 'VIRTUAL',
+        deliveryModeSnapshot: 'MANUAL',
+        sellerUserId: '11111111-1111-7111-8111-111111111111',
+        buyerUserId: '11111111-1111-7111-8111-111111111111',
+        listingTitleSnapshot: '未来状态订单',
+        status: 'FUTURE_STATUS',
+        totalAmount: 500
+      }
+    })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('状态待确认')
+    expect(wrapper.text()).toContain('资金状态待确认')
+    expect(wrapper.text()).toContain('查看订单详情')
+    expect(wrapper.text()).not.toContain('订单操作')
+    expect(deliverMarketOrder).not.toHaveBeenCalled()
+    expect(shipMarketOrder).not.toHaveBeenCalled()
+    expect(confirmMarketOrder).not.toHaveBeenCalled()
+    expect(cancelMarketOrder).not.toHaveBeenCalled()
+    expect(openMarketOrderDispute).not.toHaveBeenCalled()
+  })
+
   it('lets a buyer open a dispute for a delivered order and reloads detail', async () => {
     routeState.route.params.orderId = '35'
     routeState.route.path = '/market/orders/35'

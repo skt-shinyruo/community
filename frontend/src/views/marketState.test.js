@@ -84,18 +84,26 @@ describe('views/marketState', () => {
     ])
   })
 
-  it('preserves every canonical pending order state in operational labels', () => {
+  it('derives every backend order status and an unknown status from one fact set', () => {
     const cases = [
-      ['ESCROW_PENDING', '托管处理中', '托管处理中', '等待资金托管'],
-      ['RELEASE_PENDING', '放款处理中', '放款处理中', '等待放款完成'],
-      ['REFUND_PENDING', '退款处理中', '退款处理中', '等待退款完成'],
-      ['ESCROW_CANCEL_PENDING', '取消处理中', '取消托管处理中', '等待取消订单'],
-      ['ESCROW_FAILED', '托管失败', '托管失败', '资金托管失败'],
-      ['DISPUTE_REFUND_PENDING', '争议退款处理中', '退款处理中', '等待争议退款完成'],
-      ['DISPUTE_RELEASE_PENDING', '争议放款处理中', '放款处理中', '等待争议放款完成']
+      ['ESCROW_PENDING', '托管处理中', '托管处理中', '等待履约', '等待资金托管', ['cancel']],
+      ['ESCROWED', '已托管', '托管中', '等待履约', '等待卖家履约', ['fulfill', 'cancel']],
+      ['DELIVERED', '待确认', '托管中', '已交付', '等待买家确认完成', ['confirm', 'dispute']],
+      ['SHIPPED', '已发货', '托管中', '已发货', '等待买家确认收货', ['confirm', 'dispute']],
+      ['RELEASE_PENDING', '放款处理中', '放款处理中', '已发货', '等待放款完成', []],
+      ['COMPLETED', '已完成', '已放款', '已完成', '订单已完成', []],
+      ['REFUND_PENDING', '退款处理中', '退款处理中', '等待履约', '等待退款完成', []],
+      ['CANCELLED', '已取消', '已取消', '等待履约', '订单已取消', []],
+      ['ESCROW_CANCEL_PENDING', '取消处理中', '取消托管处理中', '等待履约', '等待取消订单', []],
+      ['ESCROW_FAILED', '托管失败', '托管失败', '等待履约', '资金托管失败', []],
+      ['DISPUTED', '申诉中', '托管中', '争议处理中', '等待争议处理', []],
+      ['DISPUTE_REFUND_PENDING', '争议退款处理中', '退款处理中', '争议处理中', '等待争议退款完成', []],
+      ['DISPUTE_RELEASE_PENDING', '争议放款处理中', '放款处理中', '争议处理中', '等待争议放款完成', []],
+      ['REFUNDED', '已退款', '已退款', '等待履约', '退款已完成', []],
+      ['FUTURE_STATUS', '状态待确认', '资金状态待确认', '等待履约', '查看订单详情', []]
     ]
 
-    for (const [status, statusLabel, fundsLabel, nextActionLabel] of cases) {
+    for (const [status, statusLabel, fundsLabel, fulfillmentLabel, nextActionLabel, allowedActions] of cases) {
       const state = buildMarketState({
         orders: [{
           orderId: `order-${status}`,
@@ -105,7 +113,13 @@ describe('views/marketState', () => {
           totalAmount: 88
         }]
       })
-      expect(state.orders[0]).toMatchObject({ statusLabel, fundsLabel, nextActionLabel })
+      expect(state.orders[0]).toMatchObject({
+        statusLabel,
+        fundsLabel,
+        fulfillmentLabel,
+        nextActionLabel,
+        allowedActions
+      })
     }
 
     const escrowPending = buildMarketState({ orders: [{ status: 'ESCROW_PENDING', goodsType: 'PHYSICAL' }] }).orders[0]
@@ -119,6 +133,15 @@ describe('views/marketState', () => {
     const disputePending = buildMarketState({ orders: [{ status: 'DISPUTE_REFUND_PENDING', goodsType: 'VIRTUAL' }] }).orders[0]
     expect(disputePending.lifecycleSteps[2]).toMatchObject({ label: '争议处理中', state: 'complete' })
     expect(disputePending.lifecycleSteps[4]).toMatchObject({ label: '争议处理中', state: 'active' })
+
+    const unknown = buildMarketState({ orders: [{ status: 'FUTURE_STATUS', goodsType: 'PHYSICAL' }] }).orders[0]
+    expect(unknown.lifecycleSteps).toEqual([
+      { key: 'created', label: '已创建', state: 'complete' },
+      { key: 'funds', label: '等待托管', state: 'pending' },
+      { key: 'fulfillment', label: '等待履约', state: 'pending' },
+      { key: 'confirmation', label: '待确认', state: 'pending' },
+      { key: 'dispute', label: '无争议', state: 'pending' }
+    ])
   })
 
   it('labels address, inventory, and dispute operational states', () => {

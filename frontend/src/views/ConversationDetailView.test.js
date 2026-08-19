@@ -585,6 +585,8 @@ describe('ConversationDetailView', () => {
 
     listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
     listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-3', userId: '' })
     await flushPromises()
     expect(listImConversationMessages).toHaveBeenCalledTimes(1)
 
@@ -594,6 +596,24 @@ describe('ConversationDetailView', () => {
     expect(listImConversationMessages).toHaveBeenCalledTimes(2)
     expect(listImConversationMessages).toHaveBeenNthCalledWith(2, conversationId, { afterSeq: 8, limit: 100 })
     expect(wrapper.text()).toContain('第二次恢复补回的消息')
+  })
+
+  it('completes empty reconnect rounds and retries from the same waterline on the next reconnect', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    mountView(conversationId)
+    await flushPromises()
+
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-1', userId: '' })
+    await flushPromises()
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+
+    expect(listImConversationMessages).toHaveBeenCalledTimes(2)
+    expect(listImConversationMessages).toHaveBeenNthCalledWith(1, conversationId, { afterSeq: 8, limit: 100 })
+    expect(listImConversationMessages).toHaveBeenNthCalledWith(2, conversationId, { afterSeq: 8, limit: 100 })
   })
 
   it('waits for the initial latest-history baseline before reconnect backfill', async () => {
@@ -693,6 +713,75 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).not.toContain('会话 A 的迟到消息')
     expect(markImConversationRead).toHaveBeenCalledTimes(1)
     expect(markImConversationRead).toHaveBeenCalledWith(conversationB, 4)
+  })
+
+  it('ignores a stale backfill run after the route switches conversations', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = false
+    const conversationA = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const conversationB = '11111111-1111-7111-8111-111111111111_33333333-3333-7333-8333-333333333333'
+    listImConversationHistory
+      .mockResolvedValueOnce({
+        items: [{
+          messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+          seq: 8,
+          fromUserId: '22222222-2222-7222-8222-222222222222',
+          toUserId: '11111111-1111-7111-8111-111111111111',
+          content: '会话 A 基线',
+          clientMsgId: 'client-a-baseline',
+          createdAtEpochMs: 1774060183920
+        }],
+        nextBeforeSeq: null,
+        hasMore: false
+      })
+      .mockResolvedValueOnce({
+        items: [{
+          messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+          seq: 4,
+          fromUserId: '33333333-3333-7333-8333-333333333333',
+          toUserId: '11111111-1111-7111-8111-111111111111',
+          content: '会话 B 基线',
+          clientMsgId: 'client-b-baseline',
+          createdAtEpochMs: 1774060184920
+        }],
+        nextBeforeSeq: null,
+        hasMore: false
+      })
+    let resolveConversationABackfill
+    listImConversationMessages.mockImplementationOnce(
+      () => new Promise((resolve) => { resolveConversationABackfill = resolve })
+    )
+
+    const wrapper = mountView(conversationA)
+    await flushPromises()
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-1', userId: '' })
+    await flushPromises()
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationA, { afterSeq: 8, limit: 100 })
+
+    const chatArea = wrapper.get('.chat-area').element
+    Object.defineProperty(chatArea, 'scrollHeight', { configurable: true, value: 700 })
+    await wrapper.setProps({ conversationId: conversationB })
+    await flushPromises()
+    expect(wrapper.text()).toContain('会话 B 基线')
+    const readCallCount = markImConversationRead.mock.calls.length
+    const scrollTop = chatArea.scrollTop
+
+    resolveConversationABackfill({
+      items: [{
+        messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+        seq: 9,
+        fromUserId: '22222222-2222-7222-8222-222222222222',
+        toUserId: '11111111-1111-7111-8111-111111111111',
+        content: '会话 A 的迟到补拉',
+        clientMsgId: 'client-a-stale-backfill',
+        createdAtEpochMs: 1774060185920
+      }]
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('会话 A 的迟到补拉')
+    expect(markImConversationRead).toHaveBeenCalledTimes(readCallCount)
+    expect(chatArea.scrollTop).toBe(scrollTop)
   })
 
   it('clears messages and ignores stale HTTP and realtime data after account switching', async () => {

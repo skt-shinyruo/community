@@ -20,8 +20,9 @@ import {
 /** @typedef {number | { token: number, scope: unknown }} RequestToken */
 /** @typedef {{ scope: string, conversationId: string, meId: string, targetId: string }} ConversationViewContext */
 /** @typedef {{ token: RequestToken, context: ConversationViewContext, messages: ConversationMessage[] }} LatestLoadBuffer */
-/** @typedef {{ scope: string, promise: Promise<void> }} InitialHistoryBaselineRun */
-/** @typedef {{ token: RequestToken, context: ConversationViewContext, rerunRequested: boolean, promise: Promise<void> | null }} BackfillRun */
+/** @typedef {'idle' | 'loading-baseline' | 'awaiting-baseline' | 'backfilling'} HistoryFlowPhase */
+/** @typedef {{ generation: number, scope: string, round: number, promise: Promise<void> }} HistoryBaselineRun */
+/** @typedef {{ generation: number, context: ConversationViewContext, promise: Promise<void> | null }} HistoryBackfillRun */
 
 /**
  * @param {{ conversationId: import('vue').MaybeRef<unknown>, chatArea: import('vue').Ref<HTMLElement | null> }} options
@@ -39,18 +40,11 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   const realtimeState = ref({ ...imRealtimeClient.state })
   const pendingClientMsgIds = new Set(/** @type {string[]} */ ([]))
   const loadRequestTracker = createLatestRequestTracker()
-  const backfillRequestTracker = createLatestRequestTracker()
   const unsubscribers = /** @type {Array<() => void>} */ ([])
   /** @type {(() => void) | null} */
   let stopScopeWatch = null
   /** @type {LatestLoadBuffer | null} */
   let latestLoadBuffer = null
-  /** @type {InitialHistoryBaselineRun | null} */
-  let initialHistoryBaselineRun = null
-  /** @type {BackfillRun | null} */
-  let backfillRun = null
-  /** @type {number | null} */
-  let backfillWaterline = null
   let mounted = false
 
   const conversationId = computed(() => String(unref(conversationIdSource) || '').trim())
@@ -71,6 +65,22 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     timeLabel: new Date(message.createTime).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
   })))
   const canSend = computed(() => auth.authed && Boolean(targetId.value))
+  const historyFlow = {
+    generation: 0,
+    scope: '',
+    phase: /** @type {HistoryFlowPhase} */ ('idle'),
+    waterline: /** @type {number | null} */ (null),
+    baseline: {
+      round: 0,
+      run: /** @type {HistoryBaselineRun | null} */ (null)
+    },
+    reconnect: {
+      requestedRound: 0,
+      completedRound: 0
+    },
+    backfillRound: 0,
+    activeRun: /** @type {HistoryBackfillRun | null} */ (null)
+  }
 
   function currentViewScope() {
     return `${auth.tokenGeneration}:${meId.value}:${conversationId.value}`
@@ -83,6 +93,19 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       meId: meId.value,
       targetId: targetId.value
     }
+  }
+
+  function resetHistoryFlow() {
+    historyFlow.generation += 1
+    historyFlow.scope = currentViewScope()
+    historyFlow.phase = 'idle'
+    historyFlow.waterline = null
+    historyFlow.baseline.round = 0
+    historyFlow.baseline.run = null
+    historyFlow.reconnect.requestedRound = 0
+    historyFlow.reconnect.completedRound = 0
+    historyFlow.backfillRound = 0
+    historyFlow.activeRun = null
   }
 
   /**
@@ -105,11 +128,20 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     const context = captureViewContext()
     const running = loadLatestHistory(context)
     const canEstablishBaseline = auth.authed && context.conversationId && context.meId && context.targetId
-    if (backfillWaterline == null && canEstablishBaseline) {
-      const baselineRun = { scope: context.scope, promise: running }
-      initialHistoryBaselineRun = baselineRun
+    if (historyFlow.waterline == null && canEstablishBaseline) {
+      const baselineRun = {
+        generation: historyFlow.generation,
+        scope: context.scope,
+        round: historyFlow.baseline.round + 1,
+        promise: running
+      }
+      historyFlow.baseline.round = baselineRun.round
+      historyFlow.baseline.run = baselineRun
+      historyFlow.phase = 'loading-baseline'
       void running.finally(() => {
-        if (initialHistoryBaselineRun === baselineRun) initialHistoryBaselineRun = null
+        if (historyFlow.baseline.run !== baselineRun) return
+        historyFlow.baseline.run = null
+        if (historyFlow.activeRun == null) historyFlow.phase = 'idle'
       })
     }
     return running
@@ -131,9 +163,9 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       const response = await listImConversationHistory(context.conversationId, { limit: 50 })
       if (!isCurrentRequest(token, context)) return
       const historyMessages = (Array.isArray(response?.items) ? response.items : []).map(mapConversationMessage)
-      backfillWaterline = backfillWaterline == null
+      historyFlow.waterline = historyFlow.waterline == null
         ? findLatestConversationSeq(historyMessages)
-        : advanceConversationSeqWaterline(backfillWaterline, historyMessages)
+        : advanceConversationSeqWaterline(historyFlow.waterline, historyMessages)
       const localDeliveryMessages = items.value.filter((message) =>
         message?.deliveryState === 'pending' || message?.deliveryState === 'failed'
       )
@@ -222,10 +254,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
 
   function resetForViewScope() {
     loadRequestTracker.invalidate()
-    backfillRequestTracker.invalidate()
-    initialHistoryBaselineRun = null
-    backfillRun = null
-    backfillWaterline = null
+    resetHistoryFlow()
     latestLoadBuffer = null
     loading.value = false
     loadingHistory.value = false
@@ -239,45 +268,54 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     if (auth.authed && conversationId.value && meId.value && targetId.value) refresh()
   }
 
-  /** @param {BackfillRun} run */
-  function isCurrentBackfill(run) {
-    return backfillRequestTracker.isCurrent(run.token) && currentViewScope() === run.context.scope
+  /** @param {HistoryBackfillRun} run */
+  function isCurrentHistoryRun(run) {
+    return historyFlow.activeRun === run &&
+      historyFlow.generation === run.generation &&
+      historyFlow.scope === run.context.scope &&
+      currentViewScope() === run.context.scope
   }
 
-  /** @param {BackfillRun} run */
+  /** @param {HistoryBackfillRun} run */
   async function awaitInitialHistoryBaseline(run) {
-    if (backfillWaterline != null) return true
+    if (historyFlow.waterline != null) return true
 
-    let baselineRun = initialHistoryBaselineRun
+    let baselineRun = historyFlow.baseline.run
     if (!baselineRun) {
       void refresh()
-      baselineRun = initialHistoryBaselineRun
+      baselineRun = historyFlow.baseline.run
     }
-    while (baselineRun && baselineRun.scope === run.context.scope && isCurrentBackfill(run)) {
+    while (baselineRun &&
+      baselineRun.generation === run.generation &&
+      baselineRun.scope === run.context.scope &&
+      isCurrentHistoryRun(run)) {
+      historyFlow.phase = 'awaiting-baseline'
       await baselineRun.promise
-      if (!isCurrentBackfill(run)) return false
-      if (backfillWaterline != null) return true
+      if (!isCurrentHistoryRun(run)) return false
+      if (historyFlow.waterline != null) return true
 
-      const replacementRun = initialHistoryBaselineRun
+      const replacementRun = historyFlow.baseline.run
       if (!replacementRun || replacementRun === baselineRun) return false
       baselineRun = replacementRun
     }
     return false
   }
 
-  /** @param {BackfillRun} run */
+  /** @param {HistoryBackfillRun} run */
   async function runBackfillPass(run) {
     try {
-      if (!await awaitInitialHistoryBaseline(run) || !isCurrentBackfill(run)) return
+      if (!await awaitInitialHistoryBaseline(run) || !isCurrentHistoryRun(run)) return
+      historyFlow.phase = 'backfilling'
+      historyFlow.backfillRound += 1
       const { context } = run
       const previousMaxSeq = findLatestConversationSeq(items.value)
-      const previousWaterline = Number(backfillWaterline)
-      let afterSeq = Number(backfillWaterline)
+      const previousWaterline = Number(historyFlow.waterline)
+      let afterSeq = Number(historyFlow.waterline)
       let receivedCount = 0
 
       while (true) {
         const response = await listImConversationMessages(context.conversationId, { afterSeq, limit: 100 })
-        if (!isCurrentBackfill(run)) return
+        if (!isCurrentHistoryRun(run)) return
         const messages = (Array.isArray(response?.items) ? response.items : []).map(mapConversationMessage)
         receivedCount += messages.length
         if (latestLoadBuffer && isCurrentRequest(latestLoadBuffer.token, latestLoadBuffer.context)) {
@@ -292,51 +330,59 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
 
         const pageMaxSeq = findLatestConversationSeq(messages)
         const nextAfterSeq = advanceConversationSeqWaterline(afterSeq, messages)
-        backfillWaterline = Math.max(Number(backfillWaterline ?? 0), nextAfterSeq)
+        historyFlow.waterline = Math.max(Number(historyFlow.waterline ?? 0), nextAfterSeq)
         const hasInternalGap = pageMaxSeq > nextAfterSeq
         if (messages.length < 100 || nextAfterSeq <= afterSeq || hasInternalGap) break
-        afterSeq = Math.max(nextAfterSeq, backfillWaterline)
+        afterSeq = Math.max(nextAfterSeq, historyFlow.waterline)
       }
 
       const nextMaxSeq = findLatestConversationSeq(items.value)
-      if (backfillWaterline > previousWaterline) {
-        try { await markImConversationRead(context.conversationId, backfillWaterline) } catch {}
+      if (historyFlow.waterline > previousWaterline) {
+        try { await markImConversationRead(context.conversationId, historyFlow.waterline) } catch {}
       }
       if (receivedCount > 0 && nextMaxSeq > previousMaxSeq) {
-        if (isCurrentBackfill(run)) scrollToBottom(context.scope)
+        if (isCurrentHistoryRun(run)) scrollToBottom(context.scope)
       }
     } catch (cause) {
-      if (isCurrentBackfill(run)) error.value = cause?.message || '消息补同步失败，请手动刷新'
+      if (isCurrentHistoryRun(run)) error.value = cause?.message || '消息补同步失败，请手动刷新'
     }
   }
 
   function backfillAfterReconnect() {
     const context = captureViewContext()
     if (!auth.authed || !context.conversationId || !context.meId || !context.targetId) return
-    if (backfillRun && backfillRun.context.scope === context.scope) {
-      backfillRun.rerunRequested = true
-      return backfillRun.promise
+    if (historyFlow.scope !== context.scope) return
+
+    historyFlow.reconnect.requestedRound += 1
+    const activeRun = historyFlow.activeRun
+    if (activeRun && isCurrentHistoryRun(activeRun)) {
+      return activeRun.promise
     }
 
-    /** @type {BackfillRun} */
+    /** @type {HistoryBackfillRun} */
     const run = {
-      token: backfillRequestTracker.begin(),
+      generation: historyFlow.generation,
       context,
-      rerunRequested: true,
       promise: null
     }
+    historyFlow.activeRun = run
     const running = (async () => {
       try {
-        while (run.rerunRequested && isCurrentBackfill(run)) {
-          run.rerunRequested = false
+        while (isCurrentHistoryRun(run) &&
+          historyFlow.reconnect.completedRound < historyFlow.reconnect.requestedRound) {
+          const coveredReconnectRound = historyFlow.reconnect.requestedRound
           await runBackfillPass(run)
+          if (!isCurrentHistoryRun(run)) return
+          historyFlow.reconnect.completedRound = coveredReconnectRound
         }
       } finally {
-        if (backfillRun === run) backfillRun = null
+        if (historyFlow.activeRun === run) {
+          historyFlow.activeRun = null
+          historyFlow.phase = 'idle'
+        }
       }
     })()
     run.promise = running
-    backfillRun = run
     return running
   }
 
@@ -410,6 +456,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   function mount() {
     if (mounted) return
     mounted = true
+    resetHistoryFlow()
     realtimeState.value = { ...imRealtimeClient.state }
     stopScopeWatch = watch(currentViewScope, resetForViewScope)
     subscribe('privateMessage', handlePrivateMessage)
@@ -430,10 +477,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     stopScopeWatch?.()
     stopScopeWatch = null
     loadRequestTracker.invalidate()
-    backfillRequestTracker.invalidate()
-    initialHistoryBaselineRun = null
-    backfillRun = null
-    backfillWaterline = null
+    resetHistoryFlow()
     latestLoadBuffer = null
     pendingClientMsgIds.clear()
     for (const unsubscribe of unsubscribers.splice(0)) {

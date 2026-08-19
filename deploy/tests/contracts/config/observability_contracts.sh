@@ -11,6 +11,7 @@ fail() {
 
 contract_dir="deploy/observability/contracts"
 handbook="docs/handbook/observability.md"
+scanner_source="deploy/tests/contracts/config/MetricTagScanner.java"
 metric_scan="$(mktemp)"
 trap 'rm -f "${metric_scan}"' EXIT
 
@@ -25,6 +26,7 @@ required_files=(
   "${contract_dir}/README.md"
   "${contract_dir}/required-resource-fields.txt"
   "${contract_dir}/forbidden-observability-fields.txt"
+  "${scanner_source}"
 )
 
 for file in "${required_files[@]}"; do
@@ -86,83 +88,7 @@ done < <(rg -l 'io\.micrometer\.core\.instrument|Counter\.builder|Timer\.builder
 if [ "${#metric_sources[@]}" -gt 0 ]; then
   scanner_dir="$(mktemp -d)"
   trap 'rm -f "${metric_scan}"; rm -rf "${scanner_dir}"' EXIT
-  cat >"${scanner_dir}/MetricTagScanner.java" <<'JAVA'
-import com.sun.source.tree.CompilationUnitTree;
-import com.sun.source.tree.ExpressionTree;
-import com.sun.source.tree.LiteralTree;
-import com.sun.source.tree.MemberSelectTree;
-import com.sun.source.tree.MethodInvocationTree;
-import com.sun.source.tree.Tree;
-import com.sun.source.util.JavacTask;
-import com.sun.source.util.SourcePositions;
-import com.sun.source.util.TreePathScanner;
-import com.sun.source.util.Trees;
-import javax.lang.model.element.Name;
-import javax.tools.JavaCompiler;
-import javax.tools.JavaFileObject;
-import javax.tools.StandardJavaFileManager;
-import javax.tools.ToolProvider;
-import java.util.List;
-
-final class MetricTagScanner {
-  private static String methodName(MethodInvocationTree call) {
-    Tree select = call.getMethodSelect();
-    return select instanceof MemberSelectTree member
-        ? member.getIdentifier().toString() : select.toString();
-  }
-
-  private static boolean metricBuilder(String method) {
-    return List.of("counter", "timer", "summary", "gauge").contains(method);
-  }
-
-  private static void scan(String file, CompilationUnitTree unit, Trees trees) {
-    SourcePositions positions = trees.getSourcePositions();
-    new TreePathScanner<Void, Void>() {
-      @Override public Void visitMethodInvocation(MethodInvocationTree call, Void unused) {
-        String select = call.getMethodSelect().toString();
-        String method = methodName(call);
-        int mode = select.endsWith("Tags.of") || method.equals("tags") ? 1
-            : select.endsWith("Tag.of") || method.equals("tag") ? 2
-            : metricBuilder(method) ? 3 : 0;
-        if (mode != 0) {
-          List<? extends ExpressionTree> arguments = call.getArguments();
-          for (int i = 0; i < arguments.size(); i++) {
-            if ((mode == 1 && i % 2 != 0) || (mode == 3 && i % 2 != 1) || (mode == 2 && i != 0)) {
-              continue;
-            }
-            ExpressionTree argument = arguments.get(i);
-            if (!(argument instanceof LiteralTree literal)
-                || literal.getKind() != Tree.Kind.STRING_LITERAL) {
-              continue;
-            }
-            long start = positions.getStartPosition(unit, argument);
-            if (start < 0) continue;
-            long line = unit.getLineMap().getLineNumber(start);
-            System.out.println(file + "\t" + line + "\t" + literal.getValue() + "\t" + select);
-          }
-        }
-        return super.visitMethodInvocation(call, unused);
-      }
-    }.scan(unit, null);
-  }
-
-  public static void main(String[] files) throws Exception {
-    JavaCompiler compiler = ToolProvider.getSystemJavaCompiler();
-    if (compiler == null) throw new IllegalStateException("JDK compiler is required");
-    try (StandardJavaFileManager manager = compiler.getStandardFileManager(null, null, null)) {
-      Iterable<? extends JavaFileObject> sources = manager.getJavaFileObjects(files);
-      JavacTask task = (JavacTask) compiler.getTask(null, manager, null,
-          List.of("-proc:none"), null, sources);
-      Trees trees = Trees.instance(task);
-      for (CompilationUnitTree unit : task.parse()) {
-        JavaFileObject source = unit.getSourceFile();
-        scan(source.getName(), unit, trees);
-      }
-    }
-  }
-}
-JAVA
-  javac --release 17 -d "${scanner_dir}" "${scanner_dir}/MetricTagScanner.java"
+  javac --release 17 -d "${scanner_dir}" "${scanner_source}"
   java -cp "${scanner_dir}" MetricTagScanner "${metric_sources[@]}" >"${metric_scan}"
 fi
 

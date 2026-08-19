@@ -202,7 +202,7 @@ class TaskProgressApplicationServiceTest {
     }
 
     @Test
-    void duplicateLifecycleDeliveriesShouldApplyEachTransitionOnce() {
+    void duplicateVersionedLikeDeliveriesShouldApplyEachContributionTransitionOnce() {
         upsertLikeTaskTemplate("TEST_LIKE_LIFECYCLE", "LIFETIME", 5, true);
         String relationKey = "like:" + uuid(9) + ":3:" + uuid(100);
         UUID relationInstanceId = uuid(717);
@@ -275,7 +275,7 @@ class TaskProgressApplicationServiceTest {
     }
 
     @Test
-    void firstModernLifecycleEventShouldNotDuplicateALegacyRelationKeyContribution() {
+    void firstVersionedLikeShouldMigrateLegacyRelationKeyContribution() {
         String relationKey = "like:" + uuid(9) + ":3:" + uuid(100);
         UUID relationInstanceId = uuid(715);
 

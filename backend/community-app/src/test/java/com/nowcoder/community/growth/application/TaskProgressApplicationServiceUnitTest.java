@@ -3,6 +3,7 @@ package com.nowcoder.community.growth.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeRemovedCommand;
+import com.nowcoder.community.growth.domain.model.LikeTaskLifecycleState;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import com.nowcoder.community.growth.domain.repository.LikeTaskLifecycleStateRepository;
@@ -138,6 +139,52 @@ class TaskProgressApplicationServiceUnitTest {
         verify(userTaskProgressRepository, never()).findByUserTaskAndPeriodForUpdate(any(UUID.class), anyString(), anyString());
         verify(userTaskProgressRepository, never()).updateProgress(any(UUID.class), anyInt(), anyString(), any(), any(), anyString(), anyString());
         verify(walletRewardService, never()).issue(anyString(), any(UUID.class), anyLong(), anyString());
+    }
+
+    @Test
+    void knownVersionedLifecycleActivationShouldNotMigrateLegacyContribution() {
+        GrowthBusinessTimeService businessTimeService = new GrowthBusinessTimeService(
+                "Asia/Shanghai",
+                Clock.fixed(Instant.parse("2026-03-22T00:00:00Z"), ZoneId.of("Asia/Shanghai"))
+        );
+        TaskProgressApplicationService service = new TaskProgressApplicationService(
+                taskTemplateRepository,
+                userTaskProgressRepository,
+                userTaskEventLogRepository,
+                likeTaskLifecycleStateRepository,
+                walletRewardService,
+                businessTimeService,
+                new UuidV7Generator()
+        );
+        UUID recipientUserId = uuid(1);
+        String relationKey = "like:" + uuid(2) + ":3:" + uuid(3);
+        LikeTaskLifecycleState previous = new LikeTaskLifecycleState(
+                recipientUserId, relationKey, uuid(701), 1L, false, "like-removed"
+        );
+        LikeTaskLifecycleState current = new LikeTaskLifecycleState(
+                recipientUserId, relationKey, uuid(702), 2L, true, "like-created"
+        );
+        when(likeTaskLifecycleStateRepository.advance(any())).thenReturn(
+                new LikeTaskLifecycleStateRepository.AdvanceResult(
+                        LikeTaskLifecycleState.Transition.ACTIVATED,
+                        previous,
+                        current
+                )
+        );
+        when(taskTemplateRepository.findActiveByTriggerEventType("LikeCreated")).thenReturn(List.of());
+
+        service.triggerLikeCreated(new TriggerLikeCreatedCommand(
+                "like-created",
+                2L,
+                relationKey,
+                current.relationInstanceId(),
+                uuid(2),
+                recipientUserId,
+                Instant.parse("2026-03-22T10:30:00Z")
+        ));
+
+        verify(userTaskEventLogRepository, never())
+                .findLikeContributionLogsForUpdate(recipientUserId, relationKey);
     }
 
     @Test

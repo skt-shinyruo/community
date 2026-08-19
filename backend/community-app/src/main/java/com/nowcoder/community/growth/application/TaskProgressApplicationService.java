@@ -204,14 +204,7 @@ public class TaskProgressApplicationService {
         }
         switch (result.transition()) {
             case ACTIVATED -> {
-                if (result.previous() == null
-                        && result.current() != null
-                        && result.current().relationInstanceId() != null) {
-                    rollbackLikeCreatedProgress(
-                            result.current().recipientUserId(),
-                            result.current().relationKey()
-                    );
-                }
+                migrateLegacyLikeContribution(result);
                 processLikeActivation(result.current(), activationOccurredAt);
             }
             case DEACTIVATED -> rollbackLikeState(
@@ -227,6 +220,18 @@ public class TaskProgressApplicationService {
                 // Ordering state advances without changing the net task contribution.
             }
         }
+    }
+
+    private void migrateLegacyLikeContribution(LikeTaskLifecycleStateRepository.AdvanceResult result) {
+        if (result.previous() != null
+                || result.current() == null
+                || result.current().relationInstanceId() == null) {
+            return;
+        }
+        rollbackLikeCreatedProgress(
+                result.current().recipientUserId(),
+                result.current().relationKey()
+        );
     }
 
     private LikeTaskLifecycleState likeState(TriggerLikeCreatedCommand command, boolean active) {

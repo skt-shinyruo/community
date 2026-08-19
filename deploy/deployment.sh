@@ -76,7 +76,7 @@ resolve_default_project_name() {
   esac
 }
 
-read_env_file_value() {
+read_dotenv_value() {
   local variable="$1"
   local file="$2"
 
@@ -106,6 +106,21 @@ read_env_file_value() {
       print value
     }
   ' "${file}"
+}
+
+resolve_process_env_then_dotenv_then_fallback() {
+  local variable="$1"
+  local fallback="$2"
+  local resolved
+
+  if [[ -v "${variable}" ]]; then
+    resolved="${!variable}"
+  elif resolved="$(read_dotenv_value "${variable}" "${ENV_FILE}")"; then
+    :
+  else
+    resolved="${fallback}"
+  fi
+  printf '%s' "${resolved}"
 }
 
 initialize_topology_defaults() {
@@ -211,13 +226,8 @@ resolve_topology_values() {
 
   declare -gA TOPOLOGY_VALUES=()
   for variable in "${TOPOLOGY_VARIABLES[@]}"; do
-    if [[ -v "${variable}" ]]; then
-      value="${!variable}"
-    elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
-      :
-    else
-      value="${TOPOLOGY_DEFAULTS[${variable}]}"
-    fi
+    value="$(resolve_process_env_then_dotenv_then_fallback \
+      "${variable}" "${TOPOLOGY_DEFAULTS[${variable}]}")"
 
     validate_topology_value "${variable}" "${value}"
     TOPOLOGY_VALUES["${variable}"]="${value}"
@@ -249,161 +259,110 @@ validate_project_topology() {
   fi
 }
 
-initialize_host_access_defaults() {
-  declare -gA HOST_ACCESS_DEFAULTS=()
-  declare -ga HOST_ACCESS_VARIABLES=(
-    MYSQL_HOST_PORT
-    REDIS_HOST_PORT
-    KAFKA_HOST_PORT
-    ELASTICSEARCH_HOST_ACCESS_PORT
-    NACOS_HOST_PORT
-    NACOS_GRPC_HOST_PORT
-    GARAGE_S3_HOST_PORT
-    GARAGE_ADMIN_HOST_PORT
-    MAILHOG_UI_HOST_PORT
-    MAILHOG_SMTP_HOST_PORT
-  )
+declare -a PORT_SPECS=()
+declare -A RESOLVED_PORTS=()
 
-  HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=13306
-  HOST_ACCESS_DEFAULTS[REDIS_HOST_PORT]=16379
-  HOST_ACCESS_DEFAULTS[KAFKA_HOST_PORT]=29092
-  HOST_ACCESS_DEFAULTS[ELASTICSEARCH_HOST_ACCESS_PORT]=19200
-  HOST_ACCESS_DEFAULTS[NACOS_HOST_PORT]=18848
-  HOST_ACCESS_DEFAULTS[NACOS_GRPC_HOST_PORT]=19848
-  HOST_ACCESS_DEFAULTS[GARAGE_S3_HOST_PORT]=13900
-  HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=13903
-  HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
-  HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=11025
-
-  if [ "${STACK:-}" = "infra" ]; then
-    HOST_ACCESS_DEFAULTS[MYSQL_HOST_PORT]=23306
-    HOST_ACCESS_DEFAULTS[REDIS_HOST_PORT]=26379
-    HOST_ACCESS_DEFAULTS[KAFKA_HOST_PORT]=39092
-    HOST_ACCESS_DEFAULTS[ELASTICSEARCH_HOST_ACCESS_PORT]=29200
-    HOST_ACCESS_DEFAULTS[NACOS_HOST_PORT]=28848
-    HOST_ACCESS_DEFAULTS[NACOS_GRPC_HOST_PORT]=29848
-    HOST_ACCESS_DEFAULTS[GARAGE_S3_HOST_PORT]=23900
-    HOST_ACCESS_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=23903
-    HOST_ACCESS_DEFAULTS[MAILHOG_UI_HOST_PORT]=28025
-    HOST_ACCESS_DEFAULTS[MAILHOG_SMTP_HOST_PORT]=21025
-  fi
+initialize_port_specs() {
+  PORT_SPECS=()
+  case "${STACK}" in
+    infra)
+      PORT_SPECS=(
+        MYSQL_HOST_PORT=23306
+        REDIS_HOST_PORT=26379
+        KAFKA_HOST_PORT=39092
+        ELASTICSEARCH_HOST_ACCESS_PORT=29200
+        NACOS_HOST_PORT=28848
+        NACOS_GRPC_HOST_PORT=29848
+        GARAGE_S3_HOST_PORT=23900
+        GARAGE_ADMIN_HOST_PORT=23903
+        MAILHOG_UI_HOST_PORT=28025
+        MAILHOG_SMTP_HOST_PORT=21025
+      )
+      ;;
+    single)
+      PORT_SPECS=(
+        NACOS_HOST_PORT=18848
+        MAILHOG_UI_HOST_PORT=8025
+        FRONTEND_HOST_PORT=12881
+        NGINX_API_PORT=12880
+        ELASTICSEARCH_PORT=12888
+        KIBANA_PORT=12889
+      )
+      ;;
+    cluster)
+      PORT_SPECS=(
+        NACOS_HOST_PORT=38848
+        MAILHOG_UI_HOST_PORT=38025
+        FRONTEND_HOST_PORT=13881
+        NGINX_API_PORT=13880
+        GARAGE_S3_HOST_PORT=33900
+        GARAGE_ADMIN_HOST_PORT=33903
+        ELASTICSEARCH_PORT=13888
+        KIBANA_PORT=13889
+      )
+      ;;
+  esac
 }
 
-resolve_port_values() {
-  local variables_name="$1"
-  local defaults_name="$2"
-  local values_name="$3"
+resolve_ports() {
+  local spec
   local variable
+  local fallback
   local value
-  local existing_variable
-  declare -gA "${values_name}=()"
-  local -n variables_ref="${variables_name}"
-  local -n defaults_ref="${defaults_name}"
-  local -n values_ref="${values_name}"
-  declare -A used_ports=()
-  values_ref=()
+  local occupied_by
+  declare -A occupied_port_owners=()
+  RESOLVED_PORTS=()
 
-  for variable in "${variables_ref[@]}"; do
-    if [[ -v "${variable}" ]]; then
-      value="${!variable}"
-    elif value="$(read_env_file_value "${variable}" "${ENV_FILE}")"; then
-      :
-    else
-      value="${defaults_ref[${variable}]}"
-    fi
+  for spec in "${PORT_SPECS[@]}"; do
+    variable="${spec%%=*}"
+    fallback="${spec#*=}"
+    value="$(resolve_process_env_then_dotenv_then_fallback "${variable}" "${fallback}")"
 
     if [[ ! "${value}" =~ ^[0-9]+$ ]] || (( 10#${value} < 1 || 10#${value} > 65535 )); then
       echo "[deployment.sh] ${variable} must be a port between 1 and 65535" >&2
       exit 1
     fi
-    existing_variable="${used_ports[${value}]:-}"
-    if [ -n "${existing_variable}" ]; then
-      echo "[deployment.sh] ${variable} and ${existing_variable} must not use the same host port ${value}" >&2
+    occupied_by="${occupied_port_owners[${value}]:-}"
+    if [ -n "${occupied_by}" ]; then
+      echo "[deployment.sh] project '${PROJECT_NAME}': ${variable} and ${occupied_by} must not use the same host port ${value}" >&2
       exit 1
     fi
 
-    used_ports["${value}"]="${variable}"
-    values_ref["${variable}"]="${value}"
-    printf -v "${variable}" '%s' "${value}"
-    export "${variable}"
+    occupied_port_owners["${value}"]="${variable}"
+    RESOLVED_PORTS["${variable}"]="${value}"
+    export "${variable}=${value}"
   done
 }
 
 validate_custom_project_ports() {
-  local variables_name="$1"
-  local defaults_name="$2"
-  local values_name="$3"
-  local message="$4"
   local default_project_name
+  local spec
   local variable
-  local reused_variables=()
-  local -n variables_ref="${variables_name}"
-  local -n defaults_ref="${defaults_name}"
-  local -n values_ref="${values_name}"
+  local fallback
+  local reused_specs=()
 
   default_project_name="$(resolve_default_project_name)"
   if [ "${PROJECT_NAME}" = "${default_project_name}" ]; then
     return
   fi
 
-  for variable in "${variables_ref[@]}"; do
-    if [ "${values_ref[${variable}]}" = "${defaults_ref[${variable}]}" ]; then
-      reused_variables+=("${variable}")
+  for spec in "${PORT_SPECS[@]}"; do
+    variable="${spec%%=*}"
+    fallback="${spec#*=}"
+    if [ "${RESOLVED_PORTS[${variable}]}" = "${fallback}" ]; then
+      reused_specs+=("${spec}")
     fi
   done
 
-  if [ "${#reused_variables[@]}" -gt 0 ]; then
-    echo "[deployment.sh] ${message}" >&2
-    echo "[deployment.sh] values still using port defaults: ${reused_variables[*]}" >&2
+  if [ "${#reused_specs[@]}" -gt 0 ]; then
+    if [ "${STACK}" = "infra" ]; then
+      echo "[deployment.sh] custom infra project '${PROJECT_NAME}' requires independent localhost ports" >&2
+    else
+      echo "[deployment.sh] custom project '${PROJECT_NAME}' requires independent localhost ports" >&2
+    fi
+    echo "[deployment.sh] values still using port defaults: ${reused_specs[*]}" >&2
     exit 1
   fi
-}
-
-initialize_stack_port_defaults() {
-  declare -gA STACK_PORT_DEFAULTS=()
-  declare -ga STACK_PORT_VARIABLES=()
-
-  case "${STACK}" in
-    single)
-      STACK_PORT_VARIABLES=(
-        NACOS_HOST_PORT
-        MAILHOG_UI_HOST_PORT
-        FRONTEND_HOST_PORT
-        NGINX_API_PORT
-        ELASTICSEARCH_PORT
-        KIBANA_PORT
-      )
-      STACK_PORT_DEFAULTS[NACOS_HOST_PORT]=18848
-      STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=8025
-      STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=12881
-      STACK_PORT_DEFAULTS[NGINX_API_PORT]=12880
-      STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=12888
-      STACK_PORT_DEFAULTS[KIBANA_PORT]=12889
-      ;;
-    cluster)
-      STACK_PORT_VARIABLES=(
-        NACOS_HOST_PORT
-        MAILHOG_UI_HOST_PORT
-        FRONTEND_HOST_PORT
-        NGINX_API_PORT
-        GARAGE_S3_HOST_PORT
-        GARAGE_ADMIN_HOST_PORT
-        ELASTICSEARCH_PORT
-        KIBANA_PORT
-      )
-      STACK_PORT_DEFAULTS[NACOS_HOST_PORT]=38848
-      STACK_PORT_DEFAULTS[MAILHOG_UI_HOST_PORT]=38025
-      STACK_PORT_DEFAULTS[FRONTEND_HOST_PORT]=13881
-      STACK_PORT_DEFAULTS[NGINX_API_PORT]=13880
-      STACK_PORT_DEFAULTS[GARAGE_S3_HOST_PORT]=33900
-      STACK_PORT_DEFAULTS[GARAGE_ADMIN_HOST_PORT]=33903
-      STACK_PORT_DEFAULTS[ELASTICSEARCH_PORT]=13888
-      STACK_PORT_DEFAULTS[KIBANA_PORT]=13889
-      ;;
-    *)
-      return
-      ;;
-  esac
 }
 
 CALLER_PWD="$(pwd)"
@@ -420,7 +379,6 @@ COMMAND="$1"
 shift
 
 OBSERVABILITY_MODE="default"
-HOST_ACCESS=0
 STACK=""
 ENV_FILE=""
 PROJECT_NAME=""
@@ -539,7 +497,6 @@ fi
 case "${STACK}" in
   infra)
     TOPOLOGY="single"
-    HOST_ACCESS=1
     if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
       echo "[deployment.sh] --stack infra does not support --observability" >&2
       exit 1
@@ -548,7 +505,6 @@ case "${STACK}" in
     ;;
   single)
     TOPOLOGY="single"
-    HOST_ACCESS=0
     if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
       OBSERVABILITY=1
     else
@@ -557,7 +513,6 @@ case "${STACK}" in
     ;;
   cluster)
     TOPOLOGY="cluster"
-    HOST_ACCESS=0
     if [ "${OBSERVABILITY_MODE}" = "disabled" ]; then
       OBSERVABILITY=0
     else
@@ -610,19 +565,9 @@ initialize_topology_defaults
 resolve_topology_values
 validate_project_topology
 
-if [ "${HOST_ACCESS}" -eq 1 ]; then
-  initialize_host_access_defaults
-  resolve_port_values HOST_ACCESS_VARIABLES HOST_ACCESS_DEFAULTS HOST_ACCESS_VALUES
-  validate_custom_project_ports HOST_ACCESS_VARIABLES HOST_ACCESS_DEFAULTS HOST_ACCESS_VALUES \
-    "custom infra project '${PROJECT_NAME}' requires independent localhost ports"
-fi
-
-if [ "${STACK}" = "single" ] || [ "${STACK}" = "cluster" ]; then
-  initialize_stack_port_defaults
-  resolve_port_values STACK_PORT_VARIABLES STACK_PORT_DEFAULTS STACK_PORT_VALUES
-  validate_custom_project_ports STACK_PORT_VARIABLES STACK_PORT_DEFAULTS STACK_PORT_VALUES \
-    "custom project '${PROJECT_NAME}' requires independent localhost ports"
-fi
+initialize_port_specs
+resolve_ports
+validate_custom_project_ports
 
 COMPOSE_FILES=("${STACK_FILE}")
 

@@ -6,10 +6,11 @@ cd "${repo_root}"
 
 rendered_config="$(mktemp)"
 duplicate_port_error="$(mktemp)"
+invalid_port_error="$(mktemp)"
 custom_env="$(mktemp)"
 custom_config="$(mktemp)"
 generated_dir="$(mktemp -d)"
-trap 'rm -f "${rendered_config}" "${duplicate_port_error}" "${custom_env}" "${custom_config}"; rm -rf "${generated_dir}"' EXIT
+trap 'rm -f "${rendered_config}" "${duplicate_port_error}" "${invalid_port_error}" "${custom_env}" "${custom_config}"; rm -rf "${generated_dir}"' EXIT
 
 ./deploy/deployment.sh config --stack infra \
   --env-file deploy/stacks/infra/.env.example >"${rendered_config}"
@@ -22,8 +23,23 @@ if REDIS_HOST_PORT=23306 ./deploy/deployment.sh config --stack infra \
   echo 'infra stack unexpectedly accepted duplicate localhost ports' >&2
   exit 1
 fi
-grep -F -- 'REDIS_HOST_PORT and MYSQL_HOST_PORT must not use the same host port 23306' \
+grep -F -- "project 'community-infra': REDIS_HOST_PORT and MYSQL_HOST_PORT must not use the same host port 23306" \
   "${duplicate_port_error}" >/dev/null
+
+assert_invalid_port() {
+  local value="$1"
+
+  if MYSQL_HOST_PORT="${value}" ./deploy/deployment.sh config --stack infra \
+    --env-file deploy/stacks/infra/.env.example >/dev/null 2>"${invalid_port_error}"; then
+    echo "infra stack unexpectedly accepted invalid host port ${value}" >&2
+    exit 1
+  fi
+  grep -F -- 'MYSQL_HOST_PORT must be a port between 1 and 65535' "${invalid_port_error}" >/dev/null
+}
+
+assert_invalid_port invalid
+assert_invalid_port 0
+assert_invalid_port 65536
 
 awk '
   /^COMMUNITY_VOLUME_NAMESPACE=/ { print "COMMUNITY_VOLUME_NAMESPACE=community_host_access_test"; next }

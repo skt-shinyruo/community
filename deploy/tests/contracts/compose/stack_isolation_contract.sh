@@ -112,6 +112,8 @@ if ./deploy/deployment.sh config --stack infra -p community-infra-copy \
   exit 1
 fi
 grep -F 'requires independent localhost ports' "${custom_ports_error}" >/dev/null
+grep -F "custom infra project 'community-infra-copy'" "${custom_ports_error}" >/dev/null
+grep -F 'MYSQL_HOST_PORT=23306' "${custom_ports_error}" >/dev/null
 
 custom_single_env="${work_dir}/custom-single.env"
 awk '
@@ -132,3 +134,5 @@ if ./deploy/deployment.sh config --stack single -p community-single-copy \
   exit 1
 fi
 grep -F 'requires independent localhost ports' "${custom_single_ports_error}" >/dev/null
+grep -F "custom project 'community-single-copy'" "${custom_single_ports_error}" >/dev/null
+grep -F 'NACOS_HOST_PORT=18848' "${custom_single_ports_error}" >/dev/null

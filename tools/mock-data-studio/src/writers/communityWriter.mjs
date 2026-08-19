@@ -460,14 +460,6 @@ export function createCommunityWriter({
           ])
         }
 
-        await appendEntityRefs({
-          db,
-          entityRefRepository,
-          batchId,
-          refs: generatedRefs,
-          txDb: runDb
-        })
-
         insertedCounts.users = insertedUserIds.length
         insertedCounts.posts = insertedPostIds.length
         insertedCounts.comments = insertedCommentIds.length
@@ -594,7 +586,7 @@ export function createCommunityWriter({
           db,
           entityRefRepository,
           batchId,
-          refs: generatedRefs.slice(insertedUserIds.length + insertedPostIds.length + insertedCommentIds.length + followRows.length + likeRows.length),
+          refs: generatedRefs,
           txDb: runDb
         })
 

@@ -267,6 +267,8 @@ test('community writer records refs for each inserted row set and keeps visible 
     social_likes: result.insertedCounts.socialLikes
   })
   assert.deepEqual(recordedRefs, result.generatedRefs)
+  assert.equal(entityRefRepository.appendCalls.length, 1)
+  assert.deepEqual(entityRefRepository.appendCalls[0].refs, result.generatedRefs)
 
   const insertedUsers = db.state.users.slice(-2)
   const insertedPosts = db.state.posts.slice(-3)
@@ -518,6 +520,32 @@ test('community writer generates requested current phase 2 moderation and growth
     moderation_actions: 2,
     user_task_progress: 4
   })
+  assert.equal(entityRefRepository.appendCalls.length, 1)
+  assert.deepEqual(entityRefRepository.appendCalls[0].refs, result.generatedRefs)
+})
+
+test('community writer appends every mixed-phase entity ref exactly once', async () => {
+  const db = new FakeCommunityDb()
+  const entityRefRepository = createEntityRefRepositoryDouble()
+  const writer = createCommunityWriter({ db, entityRefRepository })
+
+  const result = await writer.writePhase({
+    batchId: 42,
+    plan: createPhase2Plan({
+      communityDeficits: {
+        users: 2,
+        posts: 2,
+        comments: 3
+      }
+    })
+  })
+
+  assert.equal(entityRefRepository.appendCalls.length, 1)
+  assert.deepEqual(entityRefRepository.appendCalls[0].refs, result.generatedRefs)
+  assert.equal(
+    new Set(result.generatedRefs.map((ref) => `${ref.entityType}:${ref.entityKey}`)).size,
+    result.generatedRefs.length
+  )
 })
 
 test('im writer generates coherent room and private message refs for requested counts', async () => {

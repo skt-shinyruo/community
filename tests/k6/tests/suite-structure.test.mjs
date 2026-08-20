@@ -64,9 +64,10 @@ describe('k6 load testing suite structure', () => {
     assert.match(optionsSource, /ws_connecting/)
     assert.match(optionsSource, /checks/)
     assert.match(optionsSource, /buildOptions/)
-    assert.match(optionsSource, /removeScenario/)
-    assert.doesNotMatch(optionsSource, /\.\.\./)
-    assert.doesNotMatch(optionsSource, /replaceAll/)
+    assert.match(optionsSource, /\.\.\.profileFor/)
+    assert.match(optionsSource, /\.\.\.scenarioOptions/)
+    assert.match(optionsSource, /replaceAll/)
+    assert.doesNotMatch(optionsSource, /function (mergeObjects|removeScenario)/)
   })
 
   it('uses gateway-first defaults and supports authenticated seeded users', async () => {

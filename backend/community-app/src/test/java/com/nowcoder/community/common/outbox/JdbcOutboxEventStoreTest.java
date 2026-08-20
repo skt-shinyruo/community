@@ -75,9 +75,6 @@ class JdbcOutboxEventStoreTest {
         List<String> eventComponents = Arrays.stream(OutboxEvent.class.getRecordComponents())
                 .map(component -> component.getName())
                 .toList();
-        List<String> viewComponents = Arrays.stream(OutboxEventView.class.getRecordComponents())
-                .map(component -> component.getName())
-                .toList();
 
         assertThat(eventComponents)
                 .doesNotContain("leaseToken", "processingLeaseUntil")
@@ -93,23 +90,6 @@ class JdbcOutboxEventStoreTest {
                         "lastError",
                         "traceId",
                         "traceparent"
-                );
-        assertThat(viewComponents)
-                .doesNotContain("leaseToken", "processingLeaseUntil")
-                .containsExactly(
-                        "id",
-                        "eventId",
-                        "topic",
-                        "eventKey",
-                        "payload",
-                        "status",
-                        "retryCount",
-                        "nextRetryAt",
-                        "lastError",
-                        "traceId",
-                        "traceparent",
-                        "createdAt",
-                        "updatedAt"
                 );
     }
 

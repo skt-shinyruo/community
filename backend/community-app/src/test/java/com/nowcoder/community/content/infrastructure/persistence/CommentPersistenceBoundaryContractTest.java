@@ -74,14 +74,10 @@ class CommentPersistenceBoundaryContractTest {
     void repositoryShouldApplyVersionedTransitionsAndExposeStableOutcomes() {
         Class<?> editType = requireClass("com.nowcoder.community.content.domain.model.CommentEdit");
         Class<?> deletionType = requireClass("com.nowcoder.community.content.domain.model.CommentDeletion");
-        Class<?> threadType = requireClass("com.nowcoder.community.content.domain.model.CommentThreadDeletion");
-
         Method editApply = requiredApply(editType);
         Method deletionApply = requiredApply(deletionType);
-        Method threadApply = requiredApply(threadType);
         assertOutcomeEnum(editApply.getReturnType());
         assertThat(deletionApply.getReturnType()).isEqualTo(CommentDeletionResult.class);
-        assertThat(threadApply.getReturnType()).isEqualTo(CommentDeletionResult.class);
 
         Method statusAccessor = Arrays.stream(CommentDeletionResult.class.getDeclaredMethods())
                 .filter(method -> method.getName().equals("status") && method.getParameterCount() == 0)

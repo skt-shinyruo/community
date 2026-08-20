@@ -63,28 +63,28 @@ public class OutboxUserPolicyEventPublisher implements UserPolicyEventPublisher 
         boolean suspended = banUntil != null && Instant.ofEpochMilli(banUntil).isAfter(occurrence);
         boolean muted = muteUntil != null && Instant.ofEpochMilli(muteUntil).isAfter(occurrence);
 
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(userId);
-        payload.setUserExists(userExists);
-        payload.setSuspended(suspended);
-        payload.setMuted(muted);
-        payload.setMuteUntil(muteUntil);
-        payload.setBanUntil(banUntil);
-        payload.setCanSendPrivate(payload.isUserExists() && !suspended && !muted);
-        payload.setOccurredAtEpochMillis(occurrence.toEpochMilli());
-        payload.setVersion(version);
-        return payload;
+        return new UserPolicyChangedPayload(
+                userId,
+                userExists,
+                suspended,
+                muted,
+                muteUntil,
+                banUntil,
+                userExists && !suspended && !muted,
+                occurrence.toEpochMilli(),
+                version
+        );
     }
 
     private void publish(UserPolicyChangedPayload payload) {
-        String eventId = "ue:p:" + dashless(payload.getUserId()) + ":" + payload.getVersion();
+        String eventId = "ue:p:" + dashless(payload.userId()) + ":" + payload.version();
         String payloadJson;
         try {
             payloadJson = contractEventCodec.serialize(new UserTypedEvent.UserPolicyChanged(eventId, payload));
         } catch (JsonCodecException e) {
             throw new IllegalStateException("user event outbox payload serialization failed", e);
         }
-        store.enqueue(eventId, topic, payload.getUserId().toString(), payloadJson);
+        store.enqueue(eventId, topic, payload.userId().toString(), payloadJson);
     }
 
     private Instant requireOccurredAt(Instant occurredAt) {

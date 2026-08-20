@@ -177,7 +177,7 @@ class AuthControllerUnitTest {
         Result<LoginResponse> resp = controller.login(req, httpRequest, httpResponse);
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
-        assertThat(resp.getData().getAccessToken()).isEqualTo("at");
+        assertThat(resp.getData().accessToken()).isEqualTo("at");
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertIssuedRefreshCookie(setCookie, "rt", true);
@@ -198,7 +198,7 @@ class AuthControllerUnitTest {
         Result<LoginResponse> resp = controller.refresh(httpRequest, httpResponse);
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
-        assertThat(resp.getData().getAccessToken()).isEqualTo("at2");
+        assertThat(resp.getData().accessToken()).isEqualTo("at2");
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertIssuedRefreshCookie(setCookie, "rt2", false);
@@ -302,9 +302,9 @@ class AuthControllerUnitTest {
         Result<MeResponse> resp = controller.me(authentication);
         assertThat(resp.getCode()).isEqualTo(0);
         assertThat(resp.getData()).isNotNull();
-        assertThat(resp.getData().getUserId()).isEqualTo(userId);
-        assertThat(resp.getData().getUsername()).isEqualTo("u42");
-        assertThat(resp.getData().getAuthorities()).contains("ROLE_USER");
+        assertThat(resp.getData().userId()).isEqualTo(userId);
+        assertThat(resp.getData().username()).isEqualTo("u42");
+        assertThat(resp.getData().authorities()).contains("ROLE_USER");
     }
 
     @Test
@@ -448,7 +448,7 @@ class AuthControllerUnitTest {
 
         assertThat(response.getCode()).isEqualTo(0);
         assertThat(response.getData()).isNotNull();
-        assertThat(response.getData().getAccessToken()).isEqualTo("at3");
+        assertThat(response.getData().accessToken()).isEqualTo("at3");
         assertIssuedRefreshCookie(httpResponse.getHeader(HttpHeaders.SET_COOKIE), "rt3", false);
     }
 

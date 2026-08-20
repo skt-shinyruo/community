@@ -1,6 +1,5 @@
 package com.nowcoder.community.oss.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
@@ -39,8 +38,7 @@ final class ObjectUploadApplicationServiceFixture {
         private Clock clock = Clock.systemUTC();
         private UploadPolicyDecisions uploadPolicyDecisions =
                 new UploadPolicyDecisions(new UploadPolicyProperties());
-        private FeatureFlagDecisions featureFlags =
-                new FeatureFlagDecisions(new FeatureFlagProperties());
+        private FeatureFlagProperties featureFlags = new FeatureFlagProperties();
 
         private Builder(
                 OssObjectRepository objectRepository,
@@ -79,7 +77,7 @@ final class ObjectUploadApplicationServiceFixture {
             return this;
         }
 
-        Builder featureFlags(FeatureFlagDecisions featureFlags) {
+        Builder featureFlags(FeatureFlagProperties featureFlags) {
             this.featureFlags = featureFlags;
             return this;
         }

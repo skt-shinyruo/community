@@ -53,7 +53,6 @@ class IdempotencyGuardAutoConfigurationTest {
     void createsDbBackedGuardAfterJdbcTemplateAutoConfiguration() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class
@@ -71,7 +70,6 @@ class IdempotencyGuardAutoConfigurationTest {
     void jdbcStoreBacksOffWhenGenericIdempotencyStoreAlreadyExists() {
         new ApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class
@@ -90,7 +88,6 @@ class IdempotencyGuardAutoConfigurationTest {
     void createsDbBackedGuardWhenJsonCodecComesFromServletWebAutoConfiguration() {
         new WebApplicationContextRunner()
                 .withConfiguration(AutoConfigurations.of(
-                        IdempotencyAutoConfiguration.class,
                         JdbcIdempotencyAutoConfiguration.class,
                         IdempotencyGuardAutoConfiguration.class,
                         JdbcTemplateAutoConfiguration.class,

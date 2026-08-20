@@ -12,6 +12,7 @@ import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
+import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.CategoryRepository;
@@ -371,6 +372,11 @@ class PostPublishingMediaDesiredStateTest {
                 256L,
                 PostMediaKind.IMAGE,
                 lifecycle,
+                lifecycle == PostMediaAssetLifecycle.DRAFT
+                        ? PostMediaUploadStatus.PREPARED
+                        : PostMediaUploadStatus.COMPLETED,
+                lifecycle == PostMediaAssetLifecycle.DRAFT ? 0L : 1L,
+                Date.from(NOW),
                 referenceStatus,
                 operationVersion,
                 Date.from(NOW),

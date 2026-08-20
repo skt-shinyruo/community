@@ -46,6 +46,7 @@ public class DriveUploadApplicationService {
     private static final long PREPARATION_TTL_SECONDS = 900L;
 
     private final DriveSpaceRepository spaceRepository;
+    private final DriveSpaceApplicationService spaceApplicationService;
     private final DriveEntryRepository entryRepository;
     private final DriveUploadRepository uploadRepository;
     private final DriveObjectStoragePort objectStoragePort;
@@ -56,6 +57,7 @@ public class DriveUploadApplicationService {
 
     public DriveUploadApplicationService(
             DriveSpaceRepository spaceRepository,
+            DriveSpaceApplicationService spaceApplicationService,
             DriveEntryRepository entryRepository,
             DriveUploadRepository uploadRepository,
             DriveObjectStoragePort objectStoragePort,
@@ -64,6 +66,10 @@ public class DriveUploadApplicationService {
             UuidV7Generator idGenerator
     ) {
         this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.spaceApplicationService = Objects.requireNonNull(
+                spaceApplicationService,
+                "spaceApplicationService must not be null"
+        );
         this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
         this.uploadRepository = Objects.requireNonNull(uploadRepository, "uploadRepository must not be null");
         this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
@@ -93,7 +99,7 @@ public class DriveUploadApplicationService {
     private DriveUpload createPreparingUpload(PrepareUploadCommand command) {
         UUID actorUserId = command.actorUserId();
         Instant now = clock.instant();
-        DriveSpace space = loadOrCreateSpace(actorUserId, now);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         validateParent(command.parentId(), space.spaceId());
         String name = normalizeName(command.fileName());
         rejectDuplicate(space.spaceId(), command.parentId(), name);
@@ -163,24 +169,6 @@ public class DriveUploadApplicationService {
             return latest;
         }
         throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
-    }
-
-    private DriveSpace loadOrCreateSpace(UUID actorUserId, Instant now) {
-        UUID userId = requireUser(actorUserId);
-        return spaceRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultSpace(userId, now));
-    }
-
-    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
-        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
-        if (result != null
-                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
-                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
-                && result.space() != null) {
-            return result.space();
-        }
-        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     public DriveEntryResult completeUpload(CompleteUploadCommand command) {
@@ -546,7 +534,7 @@ public class DriveUploadApplicationService {
                     }
                     throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
                 }
-                return toEntryResult(entry);
+                return DriveEntryApplicationService.toEntryResult(entry);
             });
         } catch (TerminalObjectCompletedException e) {
             if (beginUploadCleanup(e.upload().uploadId(), DriveUploadStatus.OBJECT_COMPLETED, e.failedAt())) {
@@ -615,7 +603,7 @@ public class DriveUploadApplicationService {
             throw new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用");
         }
         return entryRepository.findById(upload.spaceId(), entryId)
-                .map(this::toEntryResult)
+                .map(DriveEntryApplicationService::toEntryResult)
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在"));
     }
 
@@ -674,19 +662,6 @@ public class DriveUploadApplicationService {
                 ),
                 new UploadSessionResult.UploadConstraints(space.quotaBytes(), List.of()),
                 upload.expiresAt()
-        );
-    }
-
-    private DriveEntryResult toEntryResult(DriveEntry entry) {
-        return new DriveEntryResult(
-                entry.entryId(),
-                entry.parentId(),
-                entry.type().name(),
-                entry.name(),
-                entry.sizeBytes(),
-                entry.mimeType(),
-                entry.status().name(),
-                entry.updatedAt()
         );
     }
 

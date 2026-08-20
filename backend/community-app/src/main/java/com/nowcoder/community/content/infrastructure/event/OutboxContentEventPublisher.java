@@ -48,11 +48,11 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishPostPublished(PostPayload payload) {
-        UUID postId = payload == null ? null : payload.getPostId();
+        UUID postId = payload == null ? null : payload.postId();
         if (postId == null) {
             return;
         }
-        Instant occurredAt = requiredOccurredAt(ContentEventTypes.POST_PUBLISHED, payload.getCreateTime());
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.POST_PUBLISHED, payload.createTime());
         publish(new ContentTypedEvent.PostPublished(
                 "content:PostPublished:" + postId,
                 postId,
@@ -65,13 +65,13 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishPostUpdated(PostPayload payload) {
-        UUID postId = payload == null ? null : payload.getPostId();
+        UUID postId = payload == null ? null : payload.postId();
         if (postId == null) {
             return;
         }
         Instant occurredAt = requiredOccurredAt(
                 ContentEventTypes.POST_UPDATED,
-                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+                payload.updateTime() == null ? payload.createTime() : payload.updateTime()
         );
         publish(new ContentTypedEvent.PostUpdated(
                 "ce:post:updated:" + idGenerator.next(),
@@ -102,13 +102,13 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishPostDeleted(PostPayload payload) {
-        UUID postId = payload == null ? null : payload.getPostId();
+        UUID postId = payload == null ? null : payload.postId();
         if (postId == null) {
             return;
         }
         Instant occurredAt = requiredOccurredAt(
                 ContentEventTypes.POST_DELETED,
-                payload.getUpdateTime() == null ? payload.getCreateTime() : payload.getUpdateTime()
+                payload.updateTime() == null ? payload.createTime() : payload.updateTime()
         );
         publish(new ContentTypedEvent.PostDeleted(
                 "content:PostDeleted:" + postId,
@@ -122,11 +122,11 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishCommentCreated(CommentPayload payload) {
-        UUID commentId = payload == null ? null : payload.getCommentId();
+        UUID commentId = payload == null ? null : payload.commentId();
         if (commentId == null) {
             return;
         }
-        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_CREATED, payload.getCreateTime());
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_CREATED, payload.createTime());
         publish(new ContentTypedEvent.CommentCreated(
                 "content:CommentCreated:" + commentId,
                 commentId,
@@ -139,11 +139,11 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishCommentDeleted(CommentPayload payload) {
-        UUID commentId = payload == null ? null : payload.getCommentId();
+        UUID commentId = payload == null ? null : payload.commentId();
         if (commentId == null) {
             return;
         }
-        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_DELETED, payload.getCreateTime());
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.COMMENT_DELETED, payload.createTime());
         publish(new ContentTypedEvent.CommentDeleted(
                 "content:CommentDeleted:" + commentId,
                 commentId,
@@ -156,11 +156,11 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
 
     @Override
     public void publishModerationActionApplied(ModerationPayload payload) {
-        UUID toUserId = payload == null ? null : payload.getToUserId();
+        UUID toUserId = payload == null ? null : payload.toUserId();
         if (toUserId == null) {
             return;
         }
-        Instant occurredAt = requiredOccurredAt(ContentEventTypes.MODERATION_ACTION_APPLIED, payload.getCreateTime());
+        Instant occurredAt = requiredOccurredAt(ContentEventTypes.MODERATION_ACTION_APPLIED, payload.createTime());
         publish(new ContentTypedEvent.ModerationActionApplied(
                 "ce:moderation:" + idGenerator.next(),
                 toUserId,
@@ -182,17 +182,18 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
         if (toUserId == null) {
             return;
         }
-        ModerationPayload payload = new ModerationPayload();
-        payload.setReportId(report == null ? null : report.id());
-        payload.setKind(kind);
-        payload.setToUserId(toUserId);
-        payload.setActorUserId(action == null ? null : action.actorId());
-        payload.setTargetType(target == null ? null : target.targetType());
-        payload.setTargetId(target == null ? null : target.targetId());
-        payload.setAction(action == null ? null : action.action());
-        payload.setReason(action == null ? null : action.reason());
-        payload.setDurationSeconds(action == null ? null : action.durationSeconds());
-        payload.setCreateTime(clock.instant());
+        ModerationPayload payload = new ModerationPayload(
+                report == null ? null : report.id(),
+                kind,
+                toUserId,
+                action == null ? null : action.actorId(),
+                target == null ? null : target.targetType(),
+                target == null ? null : target.targetId(),
+                action == null ? null : action.action(),
+                action == null ? null : action.reason(),
+                action == null ? null : action.durationSeconds(),
+                clock.instant()
+        );
         publishModerationActionApplied(payload);
     }
 
@@ -219,7 +220,7 @@ public class OutboxContentEventPublisher implements ContentEventPublisher, Moder
     }
 
     private long requiredPostVersion(PostPayload payload) {
-        long version = payload == null ? 0L : payload.getAggregateVersion();
+        long version = payload == null ? 0L : payload.aggregateVersion();
         if (version <= 0L) {
             throw new IllegalStateException("content post aggregate version missing");
         }

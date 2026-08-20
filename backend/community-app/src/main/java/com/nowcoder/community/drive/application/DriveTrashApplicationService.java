@@ -1,7 +1,6 @@
 package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
@@ -20,7 +19,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
 
-import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_ERROR;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
@@ -29,21 +27,25 @@ public class DriveTrashApplicationService {
     private static final long TRASH_RETENTION_SECONDS = 30L * 24L * 60L * 60L;
 
     private final DriveSpaceRepository spaceRepository;
+    private final DriveSpaceApplicationService spaceApplicationService;
     private final DriveEntryRepository entryRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
-    private final UuidV7Generator idGenerator;
 
     public DriveTrashApplicationService(
             DriveSpaceRepository spaceRepository,
+            DriveSpaceApplicationService spaceApplicationService,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
-            DriveTransactionOperations transactionOperations,
-            UuidV7Generator idGenerator
+            DriveTransactionOperations transactionOperations
     ) {
         this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.spaceApplicationService = Objects.requireNonNull(
+                spaceApplicationService,
+                "spaceApplicationService must not be null"
+        );
         this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
         this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
@@ -51,13 +53,12 @@ public class DriveTrashApplicationService {
                 transactionOperations,
                 "transactionOperations must not be null"
         );
-        this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
 
     @Transactional
     public DriveEntryResult trash(UUID actorUserId, UUID entryId) {
-        DriveSpace space = loadOrCreateSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.ACTIVE) {
@@ -76,7 +77,7 @@ public class DriveTrashApplicationService {
 
     @Transactional
     public DriveEntryResult restore(UUID actorUserId, UUID entryId, UUID targetParentId) {
-        DriveSpace space = loadOrCreateSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() != DriveEntryStatus.TRASHED) {
@@ -108,7 +109,7 @@ public class DriveTrashApplicationService {
     }
 
     private PermanentDeletionWork preparePermanentDeletion(UUID actorUserId, UUID entryId) {
-        DriveSpace space = loadOrCreateSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         DriveSpace latest = lockSpace(space.spaceId());
         DriveEntry entry = loadEntry(space.spaceId(), entryId);
         if (entry.status() == DriveEntryStatus.ACTIVE) {
@@ -144,7 +145,7 @@ public class DriveTrashApplicationService {
     }
 
     public List<DriveEntryResult> listTrash(UUID actorUserId) {
-        DriveSpace space = loadOrCreateSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         return entryRepository.listTrash(space.spaceId()).stream()
                 .map(DriveEntryApplicationService::toEntryResult)
                 .toList();
@@ -157,25 +158,6 @@ public class DriveTrashApplicationService {
                 .map(descendantId -> loadEntry(spaceId, descendantId))
                 .forEach(entries::add);
         return entries;
-    }
-
-    private DriveSpace loadOrCreateSpace(UUID actorUserId) {
-        UUID userId = requireUser(actorUserId);
-        Instant now = clock.instant();
-        return spaceRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultSpace(userId, now));
-    }
-
-    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
-        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
-        if (result != null
-                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
-                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
-                && result.space() != null) {
-            return result.space();
-        }
-        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     private DriveSpace lockSpace(UUID spaceId) {

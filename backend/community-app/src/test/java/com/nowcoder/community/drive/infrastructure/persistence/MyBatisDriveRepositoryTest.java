@@ -285,7 +285,7 @@ class MyBatisDriveRepositoryTest {
     }
 
     @Test
-    void driveShareRepositoryShouldInsertUpdateAndFindByTokenAndActiveEntry() {
+    void driveShareRepositoryShouldInsertUpdateAndFindByToken() {
         DriveShare active = DriveShare.active(
                 SHARE_ID,
                 FILE_ID,
@@ -309,7 +309,6 @@ class MyBatisDriveRepositoryTest {
         ).containsExactly(SHARE_ID, FILE_ID, "share-token", DriveShareStatus.REVOKED);
         assertThat(persisted.revokedAt()).isEqualTo(NOW.plusSeconds(30));
         assertThat(shareRepository.findByToken("share-token").map(DriveShare::status)).contains(DriveShareStatus.REVOKED);
-        assertThat(shareRepository.findActiveByEntryId(FILE_ID)).isEmpty();
     }
 
     @Test

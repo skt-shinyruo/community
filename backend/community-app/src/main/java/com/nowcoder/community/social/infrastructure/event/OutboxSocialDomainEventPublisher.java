@@ -45,16 +45,17 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         }
         String type = event.liked() ? SocialEventTypes.LIKE_CREATED : SocialEventTypes.LIKE_REMOVED;
         String relationKey = requiredRelationKey(type, event.relationKey());
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(event.actorUserId());
-        payload.setEntityType(event.entityType());
-        payload.setEntityId(event.entityId());
-        payload.setEntityUserId(event.entityUserId());
-        payload.setPostId(event.postId());
-        payload.setRelationKey(relationKey);
-        payload.setRelationInstanceId(event.relationInstanceId());
         long relationVersion = requiredVersion(type, event.relationVersion());
-        payload.setRelationVersion(relationVersion);
+        LikePayload payload = new LikePayload(
+                event.actorUserId(),
+                event.entityType(),
+                event.entityId(),
+                event.entityUserId(),
+                event.postId(),
+                relationKey,
+                event.relationInstanceId(),
+                relationVersion
+        );
 
         Instant occurredAt = requiredOccurredAt(type, event.occurredAt());
         String eventId = event.liked()
@@ -73,12 +74,13 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         if (event == null || event.actorUserId() == null || event.entityId() == null) {
             return;
         }
-        FollowPayload payload = new FollowPayload();
-        payload.setActorUserId(event.actorUserId());
-        payload.setEntityType(event.entityType());
-        payload.setEntityId(event.entityId());
-        payload.setEntityUserId(event.entityUserId());
-        payload.setCreateTime(event.createTime());
+        FollowPayload payload = new FollowPayload(
+                event.actorUserId(),
+                event.entityType(),
+                event.entityId(),
+                event.entityUserId(),
+                event.createTime()
+        );
 
         Instant occurredAt = requiredOccurredAt(SocialEventTypes.FOLLOW_CREATED, event.createTime());
         publish(new SocialTypedEvent.FollowCreated(
@@ -96,14 +98,15 @@ public class OutboxSocialDomainEventPublisher implements SocialDomainEventPublis
         if (event == null || event.blockerUserId() == null || event.blockedUserId() == null) {
             return;
         }
-        BlockPayload payload = new BlockPayload();
-        payload.setBlockerUserId(event.blockerUserId());
-        payload.setBlockedUserId(event.blockedUserId());
-        payload.setBlocked(event.blocked());
         Instant occurredAt = requiredOccurredAt(SocialEventTypes.BLOCK_RELATION_CHANGED, event.occurredAt());
         long version = requiredVersion(SocialEventTypes.BLOCK_RELATION_CHANGED, event.version());
-        payload.setOccurredAt(occurredAt);
-        payload.setVersion(version);
+        BlockPayload payload = new BlockPayload(
+                event.blockerUserId(),
+                event.blockedUserId(),
+                event.blocked(),
+                occurredAt,
+                version
+        );
 
         publish(new SocialTypedEvent.BlockRelationChanged(
                 "se:block:" + idGenerator.next(),

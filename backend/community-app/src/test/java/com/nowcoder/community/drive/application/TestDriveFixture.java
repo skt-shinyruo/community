@@ -66,17 +66,17 @@ final class TestDriveFixture {
 
     DriveEntryApplicationService entryService() {
         return new DriveEntryApplicationService(
-                spaces, entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, spaceService(), entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     DriveUploadApplicationService uploadService() {
         return new DriveUploadApplicationService(
-                spaces, entries, uploads, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, spaceService(), entries, uploads, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
     }
 
     DriveTrashApplicationService trashService() {
         return new DriveTrashApplicationService(
-                spaces, entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, spaceService(), entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE);
     }
 
     DriveShareApplicationService shareService() {
@@ -380,14 +380,6 @@ final class TestDriveFixture {
         }
 
         @Override
-        public Optional<DriveShare> findActiveByEntryId(UUID entryId) {
-            return rows.values().stream()
-                    .filter(share -> share.entryId().equals(entryId))
-                    .filter(share -> share.status().name().equals("ACTIVE"))
-                    .findFirst();
-        }
-
-        @Override
         public List<DriveShare> findByCreatedBy(UUID createdBy, int offset, int limit) {
             return rows.values().stream()
                     .filter(share -> share.createdBy().equals(createdBy))
@@ -431,9 +423,8 @@ final class TestDriveFixture {
         }
 
         @Override
-        public StoredObject completeUpload(CompleteObject command) {
+        public void completeUpload(CompleteObject command) {
             completed.add(command);
-            return new StoredObject(command.objectId(), command.versionId(), "");
         }
 
         @Override
@@ -449,12 +440,7 @@ final class TestDriveFixture {
                     .map(command -> new ObjectMetadata(
                             command.objectId(),
                             command.versionId(),
-                            "ACTIVE",
-                            command.fileName(),
-                            command.contentType(),
-                            command.contentLength(),
-                            command.checksumSha256(),
-                            ""
+                            "ACTIVE"
                     ))
                     .orElse(null);
         }

@@ -64,11 +64,11 @@ public class SocialContentDeletionKafkaListener {
     }
 
     private UUID postId(PostPayload payload) {
-        return payload == null ? null : payload.getPostId();
+        return payload == null ? null : payload.postId();
     }
 
     private UUID commentId(CommentPayload payload) {
-        return payload == null ? null : payload.getCommentId();
+        return payload == null ? null : payload.commentId();
     }
 
     private void requireSourceMetadata(ContentContractEvent event) {

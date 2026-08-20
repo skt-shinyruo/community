@@ -6,7 +6,6 @@ import com.nowcoder.community.content.domain.model.CommentDeletionResult;
 import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 
 import java.util.List;
@@ -24,8 +23,6 @@ public interface CommentRepository {
     Optional<CommentSnapshot> findActiveSnapshot(UUID commentId);
 
     Optional<CommentReplyContext> lockReplyContext(UUID postId, UUID directParentCommentId);
-
-    List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId);
 
     /**
      * Find deleted roots that still own active replies. The deleted root row is
@@ -45,8 +42,6 @@ public interface CommentRepository {
     CommentTransitionStatus apply(CommentEdit edit);
 
     CommentDeletionResult apply(CommentDeletion deletion);
-
-    CommentDeletionResult apply(CommentThreadDeletion deletion);
 
     /**
      * Tombstone a bounded page of active replies after a root has been deleted.

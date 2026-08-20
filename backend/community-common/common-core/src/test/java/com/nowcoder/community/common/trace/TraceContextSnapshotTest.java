@@ -10,8 +10,6 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.slf4j.MDC;
 
-import java.util.concurrent.atomic.AtomicReference;
-
 import static org.assertj.core.api.Assertions.assertThat;
 
 class TraceContextSnapshotTest {
@@ -30,13 +28,10 @@ class TraceContextSnapshotTest {
 
         assertThat(fromTraceparent.traceId()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
         assertThat(fromTraceparent.traceparent()).startsWith("00-4bf92f3577b34da6a3ce929d0e0e4736-");
-        assertThat(fromTraceparent.recovered()).isFalse();
-
         TraceContextSnapshot generated = TraceContextSnapshot.fromInbound(null);
 
         assertThat(generated.traceId()).matches("[0-9a-f]{32}");
         assertThat(generated.traceparent()).startsWith("00-" + generated.traceId() + "-");
-        assertThat(generated.recovered()).isTrue();
     }
 
     @Test
@@ -47,15 +42,12 @@ class TraceContextSnapshotTest {
 
         assertThat(current.traceId()).isEqualTo("11111111111111111111111111111111");
         assertThat(current.traceparent()).startsWith("00-11111111111111111111111111111111-");
-        assertThat(current.recovered()).isFalse();
-
         TraceContext.clear();
 
         TraceContextSnapshot generated = TraceContextSnapshot.currentOrNew();
 
         assertThat(generated.traceId()).matches("[0-9a-f]{32}");
         assertThat(generated.traceparent()).startsWith("00-" + generated.traceId() + "-");
-        assertThat(generated.recovered()).isTrue();
     }
 
     @Test
@@ -114,10 +106,8 @@ class TraceContextSnapshotTest {
 
         assertThat(missingTraceId.traceId()).isEqualTo("44444444444444444444444444444444");
         assertThat(missingTraceId.traceparent()).isEqualTo(traceparent);
-        assertThat(missingTraceId.recovered()).isFalse();
         assertThat(invalidTraceId.traceId()).isEqualTo("44444444444444444444444444444444");
         assertThat(invalidTraceId.traceparent()).isEqualTo(traceparent);
-        assertThat(invalidTraceId.recovered()).isFalse();
     }
 
     @Test
@@ -126,7 +116,6 @@ class TraceContextSnapshotTest {
 
         assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
         assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
-        assertThat(snapshot.recovered()).isTrue();
     }
 
     @Test
@@ -137,7 +126,7 @@ class TraceContextSnapshotTest {
                 "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
         );
 
-        try (TraceContextScope ignored = snapshot.open()) {
+        try (TraceContextScope ignored = TraceContextScope.open(snapshot)) {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
@@ -158,7 +147,7 @@ class TraceContextSnapshotTest {
                 "00-22222222222222222222222222222222-00f067aa0ba902b7-01"
         );
 
-        try (TraceContextScope ignored = snapshot.open()) {
+        try (TraceContextScope ignored = TraceContextScope.open(snapshot)) {
             assertThat(TraceId.get()).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isEqualTo("22222222222222222222222222222222");
             assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("00f067aa0ba902b7");
@@ -169,19 +158,4 @@ class TraceContextSnapshotTest {
         assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isEqualTo("previous-mdc-span");
     }
 
-    @Test
-    void wrapShouldRunWithSnapshotAndClearGeneratedTraceAfterwards() {
-        TraceContextSnapshot snapshot = TraceContextSnapshot.fromStored(
-                "33333333333333333333333333333333",
-                null
-        );
-        AtomicReference<String> seen = new AtomicReference<>();
-
-        snapshot.wrap(() -> seen.set(TraceId.get())).run();
-
-        assertThat(seen.get()).isEqualTo("33333333333333333333333333333333");
-        assertThat(TraceId.get()).isNull();
-        assertThat(MDC.get(TraceContext.MDC_KEY_TRACE_ID)).isNull();
-        assertThat(MDC.get(TraceContext.MDC_KEY_SPAN_ID)).isNull();
-    }
 }

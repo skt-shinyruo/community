@@ -8,7 +8,6 @@ import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
@@ -32,7 +31,6 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyList;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.mock;
@@ -323,40 +321,6 @@ class MyBatisCommentRepositoryTest {
         assertThat(result.status()).isEqualTo(CommentTransitionStatus.APPLIED);
         assertThat(result.deletedCommentIds()).containsExactly(REPLY_ID);
         assertThat(result.deletedComments().get(0).version()).isEqualTo(9L);
-    }
-
-    @Test
-    void threadApplyShouldPreserveRootFirstOrderAndRejectAnyStaleMemberBeforeUpdating() {
-        CommentDataObject root = row(ROOT_ID, null, 0, 7L, new Date(1_000L));
-        CommentDataObject reply = row(REPLY_ID, ROOT_ID, 0, 9L, new Date(2_000L));
-        CommentThreadDeletion deletion = CommentThreadDeletion.from(
-                new CommentDeletion(ROOT_ID, 7L, AUTHOR_ID, "author_delete", new Date(3_000L)),
-                List.of(
-                        CommentPersistenceConverter.toSnapshot(root),
-                        CommentPersistenceConverter.toSnapshot(reply)
-                )
-        );
-
-        CommentMapper appliedMapper = mock(CommentMapper.class);
-        when(appliedMapper.selectThreadForUpdate(ROOT_ID)).thenReturn(List.of(root, reply));
-        when(appliedMapper.applyThreadDeletion(
-                eq(ROOT_ID), anyList(), eq(AUTHOR_ID), eq("author_delete"), any(Date.class)
-        )).thenReturn(2);
-
-        CommentDeletionResult applied = repository(appliedMapper).apply(deletion);
-
-        assertThat(applied.status()).isEqualTo(CommentTransitionStatus.APPLIED);
-        assertThat(applied.deletedCommentIds()).containsExactly(ROOT_ID, REPLY_ID);
-
-        CommentMapper staleMapper = mock(CommentMapper.class);
-        CommentDataObject staleReply = row(REPLY_ID, ROOT_ID, 0, 10L, new Date(2_000L));
-        when(staleMapper.selectThreadForUpdate(ROOT_ID)).thenReturn(List.of(root, staleReply));
-
-        CommentDeletionResult stale = repository(staleMapper).apply(deletion);
-
-        assertThat(stale.status()).isEqualTo(CommentTransitionStatus.STALE);
-        assertThat(stale.deletedCount()).isZero();
-        verify(staleMapper, never()).applyThreadDeletion(any(), anyList(), any(), any(), any());
     }
 
     private static MyBatisCommentRepository repository(CommentMapper mapper) {

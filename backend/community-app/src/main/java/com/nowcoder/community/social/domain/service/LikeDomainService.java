@@ -62,18 +62,4 @@ public class LikeDomainService {
         );
     }
 
-    public LikeChangedDomainEvent likeChangedEvent(
-            LikeRelation relation,
-            ResolvedSocialEntity resolved,
-            boolean liked,
-            Instant occurredAt
-    ) {
-        return likeChangedEvent(
-                relation,
-                resolved,
-                occurredAt == null ? 1L : Math.max(1L, occurredAt.toEpochMilli()),
-                liked,
-                occurredAt
-        );
-    }
 }

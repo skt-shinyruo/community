@@ -77,42 +77,42 @@ public class NoticeProjectionKafkaListener {
     private ProjectNoticeCommand commandForContentEvent(ContentContractEvent event, ContentTypedEvent typedEvent) {
         if (ContentEventTypes.COMMENT_CREATED.equals(event.type())) {
             CommentPayload payload = ((ContentTypedEvent.CommentCreated) typedEvent).payload();
-            if (payload == null || payload.getTargetUserId() == null) {
+            if (payload == null || payload.targetUserId() == null) {
                 return null;
             }
             return new ProjectNoticeCommand.CommentCreated(
                     event.eventId(),
                     event.version(),
                     event.type(),
-                    payload.getCommentId(),
-                    payload.getPostId(),
-                    payload.getUserId(),
-                    payload.getEntityType(),
-                    payload.getEntityId(),
-                    payload.getTargetUserId(),
-                    payload.getContent(),
-                    payload.getCreateTime()
+                    payload.commentId(),
+                    payload.postId(),
+                    payload.userId(),
+                    payload.entityType(),
+                    payload.entityId(),
+                    payload.targetUserId(),
+                    payload.content(),
+                    payload.createTime()
             );
         }
         if (ContentEventTypes.MODERATION_ACTION_APPLIED.equals(event.type())) {
             ModerationPayload payload = ((ContentTypedEvent.ModerationActionApplied) typedEvent).payload();
-            if (payload == null || payload.getToUserId() == null) {
+            if (payload == null || payload.toUserId() == null) {
                 return null;
             }
             return new ProjectNoticeCommand.ModerationApplied(
                     event.eventId(),
                     event.version(),
                     event.type(),
-                    payload.getReportId(),
-                    payload.getKind(),
-                    payload.getToUserId(),
-                    payload.getActorUserId(),
-                    payload.getTargetType(),
-                    payload.getTargetId(),
-                    payload.getAction(),
-                    payload.getReason(),
-                    payload.getDurationSeconds(),
-                    payload.getCreateTime()
+                    payload.reportId(),
+                    payload.kind(),
+                    payload.toUserId(),
+                    payload.actorUserId(),
+                    payload.targetType(),
+                    payload.targetId(),
+                    payload.action(),
+                    payload.reason(),
+                    payload.durationSeconds(),
+                    payload.createTime()
             );
         }
         return null;
@@ -132,26 +132,26 @@ public class NoticeProjectionKafkaListener {
                         event.eventId(),
                         sourceVersion,
                         event.type(),
-                        payload.getActorUserId(),
-                        payload.getEntityType(),
-                        payload.getEntityId(),
-                        payload.getEntityUserId(),
-                        payload.getPostId(),
-                        payload.getRelationKey(),
-                        payload.getRelationInstanceId()
+                        payload.actorUserId(),
+                        payload.entityType(),
+                        payload.entityId(),
+                        payload.entityUserId(),
+                        payload.postId(),
+                        payload.relationKey(),
+                        payload.relationInstanceId()
                 );
             }
             return new ProjectNoticeCommand.LikeRemoved(
                     event.eventId(),
                     sourceVersion,
                     event.type(),
-                    payload.getActorUserId(),
-                    payload.getEntityType(),
-                    payload.getEntityId(),
-                    payload.getEntityUserId(),
-                    payload.getPostId(),
-                    payload.getRelationKey(),
-                    payload.getRelationInstanceId()
+                    payload.actorUserId(),
+                    payload.entityType(),
+                    payload.entityId(),
+                    payload.entityUserId(),
+                    payload.postId(),
+                    payload.relationKey(),
+                    payload.relationInstanceId()
             );
         }
         if (SocialEventTypes.FOLLOW_CREATED.equals(event.type())) {
@@ -163,18 +163,18 @@ public class NoticeProjectionKafkaListener {
                     event.eventId(),
                     event.version(),
                     event.type(),
-                    payload.getActorUserId(),
-                    payload.getEntityType(),
-                    payload.getEntityId(),
-                    payload.getEntityUserId(),
-                    payload.getCreateTime()
+                    payload.actorUserId(),
+                    payload.entityType(),
+                    payload.entityId(),
+                    payload.entityUserId(),
+                    payload.createTime()
             );
         }
         return null;
     }
 
     private long likeSourceVersion(SocialContractEvent event, LikePayload payload) {
-        Long relationVersion = payload.getRelationVersion();
+        Long relationVersion = payload.relationVersion();
         if (relationVersion == null) {
             return event.version();
         }
@@ -186,19 +186,19 @@ public class NoticeProjectionKafkaListener {
 
     private boolean isValid(LikePayload payload) {
         return payload != null
-                && payload.getActorUserId() != null
-                && EntityTypes.isValid(payload.getEntityType())
-                && payload.getEntityId() != null
-                && payload.getEntityUserId() != null
-                && StringUtils.hasText(payload.getRelationKey());
+                && payload.actorUserId() != null
+                && EntityTypes.isValid(payload.entityType())
+                && payload.entityId() != null
+                && payload.entityUserId() != null
+                && StringUtils.hasText(payload.relationKey());
     }
 
     private boolean isValid(FollowPayload payload) {
         return payload != null
-                && payload.getActorUserId() != null
-                && EntityTypes.isValid(payload.getEntityType())
-                && payload.getEntityId() != null
-                && payload.getEntityUserId() != null;
+                && payload.actorUserId() != null
+                && EntityTypes.isValid(payload.entityType())
+                && payload.entityId() != null
+                && payload.entityUserId() != null;
     }
 
     private void requireSourceMetadata(String eventId, Instant occurredAt, long version, String eventType) {

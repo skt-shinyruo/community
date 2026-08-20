@@ -107,76 +107,34 @@ class EventPayloadContractTest {
     }
 
     private PostPayload samplePostPayload() {
-        PostPayload p = new PostPayload();
-        p.setPostId(uuid(1));
-        p.setUserId(uuid(2));
-        p.setCategoryId(uuid(3));
-        p.setTags(List.of("tag-a", "tag-b"));
-        p.setTitle("t");
-        p.setContent("c");
-        p.setType(0);
-        p.setStatus(0);
-        p.setCreateTime(Instant.now());
-        p.setScore(0.1D);
-        return p;
+        return new PostPayload(
+                uuid(1), uuid(2), uuid(3), List.of("tag-a", "tag-b"), "t", "c", 0, 0,
+                Instant.now(), null, 0.1D, 0L, 0L);
     }
 
     private CommentPayload sampleCommentPayload() {
-        CommentPayload p = new CommentPayload();
-        p.setCommentId(uuid(1));
-        p.setPostId(uuid(2));
-        p.setUserId(uuid(3));
-        p.setEntityType(1);
-        p.setEntityId(uuid(2));
-        p.setTargetUserId(uuid(4));
-        p.setContent("c");
-        p.setCreateTime(Instant.now());
-        p.setPostAggregateVersion(2L);
-        return p;
+        return new CommentPayload(
+                uuid(1), uuid(2), uuid(3), 1, uuid(2), uuid(4), "c", Instant.now(), 2L);
     }
 
     private ModerationPayload sampleModerationPayload() {
-        ModerationPayload p = new ModerationPayload();
-        p.setReportId(UUID.fromString("00000000-0000-7000-8000-00000000030b"));
-        p.setKind("report");
-        p.setToUserId(uuid(2));
-        p.setActorUserId(uuid(3));
-        p.setTargetType(1);
-        p.setTargetId(uuid(10));
-        p.setAction("mute");
-        p.setReason("r");
-        p.setDurationSeconds(60);
-        p.setCreateTime(Instant.now());
-        return p;
+        return new ModerationPayload(
+                UUID.fromString("00000000-0000-7000-8000-00000000030b"),
+                "report", uuid(2), uuid(3), 1, uuid(10), "mute", "r", 60, Instant.now());
     }
 
     private LikePayload sampleLikePayload() {
-        LikePayload p = new LikePayload();
-        p.setActorUserId(uuid(1));
-        p.setEntityType(1);
-        p.setEntityId(uuid(2));
-        p.setEntityUserId(uuid(3));
-        p.setPostId(uuid(10));
-        p.setRelationKey("like:" + uuid(1) + ":1:" + uuid(2));
-        return p;
+        return new LikePayload(
+                uuid(1), 1, uuid(2), uuid(3), uuid(10),
+                "like:" + uuid(1) + ":1:" + uuid(2), null, null);
     }
 
     private FollowPayload sampleFollowPayload() {
-        FollowPayload p = new FollowPayload();
-        p.setActorUserId(uuid(1));
-        p.setEntityType(3);
-        p.setEntityId(uuid(2));
-        p.setEntityUserId(uuid(4));
-        p.setCreateTime(Instant.now());
-        return p;
+        return new FollowPayload(uuid(1), 3, uuid(2), uuid(4), Instant.now());
     }
 
     private BlockPayload sampleBlockPayload() {
-        BlockPayload p = new BlockPayload();
-        p.setBlockerUserId(uuid(1));
-        p.setBlockedUserId(uuid(2));
-        p.setBlocked(Boolean.TRUE);
-        return p;
+        return new BlockPayload(uuid(1), uuid(2), Boolean.TRUE, null, null);
     }
 
 }

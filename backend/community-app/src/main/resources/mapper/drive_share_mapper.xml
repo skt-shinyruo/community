@@ -21,15 +21,6 @@
         where share_token = #{shareToken}
     </select>
 
-    <select id="selectActiveByEntryId" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
-        select <include refid="fields"/>
-        from drive_share
-        where entry_id = #{entryId, jdbcType=BINARY}
-          and status = 'ACTIVE'
-        order by created_at desc, share_id desc
-        limit 1
-    </select>
-
     <select id="selectByCreatedBy" resultType="com.nowcoder.community.drive.infrastructure.persistence.dataobject.DriveShareDataObject">
         select <include refid="fields"/>
         from drive_share

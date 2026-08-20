@@ -1,9 +1,3 @@
 export function compactK6Params(params = {}) {
-  const compacted = {}
-  Object.keys(params || {}).forEach((key) => {
-    if (params[key] !== undefined && params[key] !== null) {
-      compacted[key] = params[key]
-    }
-  })
-  return compacted
+  return Object.fromEntries(Object.entries(params || {}).filter(([, value]) => value != null))
 }

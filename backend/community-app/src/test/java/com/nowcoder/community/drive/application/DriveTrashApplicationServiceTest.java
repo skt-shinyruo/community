@@ -246,11 +246,15 @@ class DriveTrashApplicationServiceTest {
         DriveTransactionOperations operations = recordingTransactions(calls);
         DriveTrashApplicationService service = new DriveTrashApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(
+                        spaceRepository,
+                        Clock.fixed(now, ZoneOffset.UTC),
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                ),
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                operations,
-                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                operations
         );
 
         service.deletePermanently(userId, folderId);
@@ -292,11 +296,15 @@ class DriveTrashApplicationServiceTest {
         when(entryRepository.markDeletedIfTrashed(any(DriveEntry.class))).thenReturn(false);
         DriveTrashApplicationService service = new DriveTrashApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(
+                        spaceRepository,
+                        Clock.fixed(now, ZoneOffset.UTC),
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                ),
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE,
-                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                DirectDriveTransactionOperations.INSTANCE
         );
 
         service.deletePermanently(userId, fileId);
@@ -346,11 +354,15 @@ class DriveTrashApplicationServiceTest {
         }).when(spaceRepository).save(any(DriveSpace.class));
         DriveTrashApplicationService service = new DriveTrashApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(
+                        spaceRepository,
+                        Clock.fixed(now, ZoneOffset.UTC),
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                ),
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE,
-                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                DirectDriveTransactionOperations.INSTANCE
         );
 
         service.deletePermanently(userId, folderId);

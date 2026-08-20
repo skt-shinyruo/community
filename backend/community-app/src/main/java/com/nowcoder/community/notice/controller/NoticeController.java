@@ -65,23 +65,23 @@ public class NoticeController {
     }
 
     private NoticeItemResponse toResponse(NoticeItemResult result) {
-        NoticeItemResponse response = new NoticeItemResponse();
-        response.setId(result.id());
-        response.setSenderUserId(result.senderUserId());
-        response.setRecipientUserId(result.recipientUserId());
-        response.setTopic(result.noticeTopic());
-        response.setContent(result.content());
-        response.setStatus(result.status());
-        response.setCreateTime(result.createTime());
-        return response;
+        return new NoticeItemResponse(
+                result.id(),
+                result.senderUserId(),
+                result.recipientUserId(),
+                result.noticeTopic(),
+                result.content(),
+                result.status(),
+                result.createTime()
+        );
     }
 
     private NoticeTopicSummaryResponse toResponse(NoticeTopicSummaryResult result) {
-        NoticeTopicSummaryResponse response = new NoticeTopicSummaryResponse();
-        response.setTopic(result.noticeTopic());
-        response.setLatest(result.latest() == null ? null : toResponse(result.latest()));
-        response.setNoticeCount(result.noticeCount());
-        response.setUnreadCount(result.unreadCount());
-        return response;
+        return new NoticeTopicSummaryResponse(
+                result.noticeTopic(),
+                result.latest() == null ? null : toResponse(result.latest()),
+                result.noticeCount(),
+                result.unreadCount()
+        );
     }
 }

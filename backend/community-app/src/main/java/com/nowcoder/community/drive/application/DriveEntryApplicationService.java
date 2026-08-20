@@ -16,7 +16,6 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
-import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -31,6 +30,7 @@ public class DriveEntryApplicationService {
     private static final long DOWNLOAD_TTL_SECONDS = 600L;
 
     private final DriveSpaceRepository spaceRepository;
+    private final DriveSpaceApplicationService spaceApplicationService;
     private final DriveEntryRepository entryRepository;
     private final DriveObjectStoragePort objectStoragePort;
     private final Clock clock;
@@ -40,6 +40,7 @@ public class DriveEntryApplicationService {
 
     public DriveEntryApplicationService(
             DriveSpaceRepository spaceRepository,
+            DriveSpaceApplicationService spaceApplicationService,
             DriveEntryRepository entryRepository,
             DriveObjectStoragePort objectStoragePort,
             Clock clock,
@@ -47,6 +48,10 @@ public class DriveEntryApplicationService {
             UuidV7Generator idGenerator
     ) {
         this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
+        this.spaceApplicationService = Objects.requireNonNull(
+                spaceApplicationService,
+                "spaceApplicationService must not be null"
+        );
         this.entryRepository = Objects.requireNonNull(entryRepository, "entryRepository must not be null");
         this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
@@ -57,7 +62,7 @@ public class DriveEntryApplicationService {
     @Transactional
     public DriveEntryResult createFolder(CreateFolderCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        DriveSpace space = loadOrCreateSpace(command.actorUserId());
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(command.actorUserId());
         lockSpace(space.spaceId());
         validateParent(command.parentId(), space.spaceId());
         String name = normalizeName(command.name());
@@ -68,7 +73,7 @@ public class DriveEntryApplicationService {
 
     @Transactional
     public List<DriveEntryResult> listEntries(UUID actorUserId, UUID parentId) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         validateParent(parentId, space.spaceId());
         return entryRepository.listActiveChildren(space.spaceId(), parentId).stream()
                 .map(DriveEntryApplicationService::toEntryResult)
@@ -77,7 +82,7 @@ public class DriveEntryApplicationService {
 
     @Transactional
     public List<DriveEntryResult> search(UUID actorUserId, String keyword) {
-        DriveSpace space = loadSpace(actorUserId);
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
         String normalizedKeyword = Objects.toString(keyword, "").trim();
         if (normalizedKeyword.isBlank()) {
             return List.of();
@@ -93,7 +98,7 @@ public class DriveEntryApplicationService {
         if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "重命名参数非法");
         }
-        DriveSpace space = loadSpace(command.actorUserId());
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(command.actorUserId());
         lockSpace(space.spaceId());
         DriveEntry entry = loadActiveEntry(space.spaceId(), command.entryId());
         String newName = normalizeName(command.newName());
@@ -109,7 +114,7 @@ public class DriveEntryApplicationService {
         if (command.entryId() == null) {
             throw new BusinessException(INVALID_ARGUMENT, "移动参数非法");
         }
-        DriveSpace space = loadSpace(command.actorUserId());
+        DriveSpace space = spaceApplicationService.loadOrCreateSpace(command.actorUserId());
         lockSpace(space.spaceId());
         DriveEntry entry = loadActiveEntry(space.spaceId(), command.entryId());
         validateParent(command.targetParentId(), space.spaceId());
@@ -124,7 +129,7 @@ public class DriveEntryApplicationService {
 
     public DriveDownloadUrlResult createDownloadUrl(UUID actorUserId, UUID entryId) {
         DriveEntry entry = transactionOperations.readOnly(() -> {
-            DriveSpace space = loadSpace(actorUserId);
+            DriveSpace space = spaceApplicationService.loadOrCreateSpace(actorUserId);
             DriveEntry target = loadActiveEntry(space.spaceId(), entryId);
             if (!target.file()) {
                 throw new BusinessException(DriveErrorCode.DRIVE_ENTRY_NOT_FOUND, "网盘条目不存在");
@@ -138,33 +143,10 @@ public class DriveEntryApplicationService {
         return new DriveDownloadUrlResult(entry.entryId(), signedUrl.url(), signedUrl.expiresAt());
     }
 
-    private DriveSpace loadOrCreateSpace(UUID actorUserId) {
-        UUID userId = requireUser(actorUserId);
-        Instant now = clock.instant();
-        return spaceRepository.findByUserId(userId)
-                .orElseGet(() -> createDefaultSpace(userId, now));
-    }
-
-    private DriveSpace loadSpace(UUID actorUserId) {
-        return loadOrCreateSpace(actorUserId);
-    }
-
     private void lockSpace(UUID spaceId) {
         if (spaceRepository.lockById(spaceId) == null) {
             throw new BusinessException(DriveErrorCode.DRIVE_SPACE_NOT_FOUND, "网盘空间不存在");
         }
-    }
-
-    private DriveSpace createDefaultSpace(UUID userId, Instant now) {
-        DriveSpace space = DriveSpace.createDefault(idGenerator.next(), userId, now);
-        DriveSpaceRepository.CreateResult result = spaceRepository.create(space);
-        if (result != null
-                && (result.status() == DriveSpaceRepository.CreateStatus.CREATED
-                || result.status() == DriveSpaceRepository.CreateStatus.ALREADY_EXISTS)
-                && result.space() != null) {
-            return result.space();
-        }
-        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
     }
 
     private DriveEntry createEntry(DriveEntry entry) {
@@ -239,13 +221,6 @@ public class DriveEntryApplicationService {
                 entry.status().name(),
                 entry.updatedAt()
         );
-    }
-
-    private static UUID requireUser(UUID actorUserId) {
-        if (actorUserId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "actorUserId 非法");
-        }
-        return actorUserId;
     }
 
     public record CreateFolderCommand(UUID actorUserId, UUID parentId, String name) {

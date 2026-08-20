@@ -9,8 +9,6 @@ import com.nowcoder.community.content.application.CommentApplicationService.Crea
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
-import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -30,7 +28,6 @@ import org.springframework.transaction.PlatformTransactionManager;
 import org.springframework.transaction.support.TransactionTemplate;
 
 import java.util.Date;
-import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.ExecutorService;
@@ -185,45 +182,6 @@ class CommentCreateConcurrencySpringTest {
         assertThat(deletion.get(5, TimeUnit.SECONDS).status()).isEqualTo(CommentTransitionStatus.APPLIED);
         assertHiddenNotFound(creation.get(5, TimeUnit.SECONDS));
         assertRejectedCreateHasNoSideEffects(1);
-    }
-
-    @Test
-    void rootThreadDeletionAndNestedCreateShouldFinishWithoutReverseLockDeadlockOrSideEffects() throws Exception {
-        TransactionTemplate transaction = new TransactionTemplate(transactionManager);
-        CountDownLatch deletionApplied = new CountDownLatch(1);
-        CountDownLatch releaseDeletion = new CountDownLatch(1);
-        Future<CommentDeletionResult> deletion = executor.submit(() -> transaction.execute(status -> {
-            List<CommentSnapshot> activeThread = commentRepository.getActiveThreadSnapshots(ROOT_ID);
-            CommentDeletionResult result = commentRepository.apply(CommentThreadDeletion.from(
-                    new CommentDeletion(
-                            ROOT_ID,
-                            0L,
-                            ROOT_AUTHOR_ID,
-                            "author_delete",
-                            new Date(2_000_000L)
-                    ),
-                    activeThread
-            ));
-            deletionApplied.countDown();
-            await(releaseDeletion);
-            return result;
-        }));
-
-        assertThat(deletionApplied.await(5, TimeUnit.SECONDS)).isTrue();
-        CountDownLatch creationStarted = new CountDownLatch(1);
-        Future<Throwable> creation = submitNestedCreate("thread-delete-race", creationStarted);
-        try {
-            assertThat(creationStarted.await(5, TimeUnit.SECONDS)).isTrue();
-            assertBlocked(creation);
-        } finally {
-            releaseDeletion.countDown();
-        }
-
-        CommentDeletionResult result = deletion.get(5, TimeUnit.SECONDS);
-        assertThat(result.status()).isEqualTo(CommentTransitionStatus.APPLIED);
-        assertThat(result.deletedCommentIds()).containsExactly(ROOT_ID, DIRECT_PARENT_ID);
-        assertHiddenNotFound(creation.get(5, TimeUnit.SECONDS));
-        assertRejectedCreateHasNoSideEffects(0);
     }
 
     @Test

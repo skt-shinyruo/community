@@ -34,8 +34,8 @@ class PostIntegrationEventPublisherTest {
         ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
                 new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(11));
+        PostPayload payload = new PostPayload(
+                uuid(11), null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
         when(assembler.assemble(uuid(11))).thenReturn(payload);
 
         publisher.postPublished(uuid(11));
@@ -53,9 +53,8 @@ class PostIntegrationEventPublisherTest {
         ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
                 new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(12));
-        payload.setAggregateVersion(7L);
+        PostPayload payload = new PostPayload(
+                uuid(12), null, null, null, null, null, 0, 0, null, null, null, 0L, 7L);
         when(assembler.assemble(uuid(12))).thenReturn(payload);
 
         publisher.postUpdated(uuid(12));
@@ -73,10 +72,8 @@ class PostIntegrationEventPublisherTest {
         ContentReadModelsAfterCommit readModelsAfterCommit = mock(ContentReadModelsAfterCommit.class);
         PostIntegrationEventPublisher publisher =
                 new PostIntegrationEventPublisher(assembler, eventPublisher, readModelsAfterCommit);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(13));
-        payload.setCategoryId(uuid(14));
-        payload.setAggregateVersion(8L);
+        PostPayload payload = new PostPayload(
+                uuid(13), null, uuid(14), null, null, null, 0, 0, null, null, null, 0L, 8L);
         when(assembler.assemble(uuid(13))).thenReturn(payload);
 
         publisher.postDeleted(uuid(13));

@@ -2,7 +2,7 @@ package com.nowcoder.community.analytics.application;
 
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import org.springframework.stereotype.Service;
 import org.springframework.util.AntPathMatcher;
 import org.springframework.util.StringUtils;
@@ -14,13 +14,13 @@ import java.util.UUID;
 public class AnalyticsRequestCaptureApplicationService {
 
     private final AnalyticsIngestProperties properties;
-    private final FeatureFlagDecisions featureFlags;
+    private final FeatureFlagProperties featureFlags;
     private final AnalyticsRequestCapturePort analyticsRequestCapturePort;
     private final AntPathMatcher pathMatcher = new AntPathMatcher();
 
     public AnalyticsRequestCaptureApplicationService(
             AnalyticsIngestProperties properties,
-            FeatureFlagDecisions featureFlags,
+            FeatureFlagProperties featureFlags,
             AnalyticsRequestCapturePort analyticsRequestCapturePort
     ) {
         this.properties = Objects.requireNonNull(properties, "properties must not be null");
@@ -45,7 +45,8 @@ public class AnalyticsRequestCaptureApplicationService {
     }
 
     private boolean shouldCapture(RequestObservation observation) {
-        if (!properties.isEnabled() || !featureFlags.enabledOrDefault("analytics-ingest", true)) {
+        if (!properties.isEnabled()
+                || !Boolean.TRUE.equals(featureFlags.getFeatures().getOrDefault("analytics-ingest", true))) {
             return false;
         }
         if (!StringUtils.hasText(observation.method()) || !StringUtils.hasText(observation.path())) {

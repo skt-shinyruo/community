@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
-import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -128,39 +127,6 @@ class CommentMapperPersistenceTest {
         assertThat(persisted.getContent()).isEqualTo("deleted");
         assertThat(persisted.getStatus()).isEqualTo(2);
         assertThat(persisted.getEditCount()).isZero();
-    }
-
-    @Test
-    void activeThreadDeleteShouldSelectRootAndActiveRepliesOnly() {
-        UUID replyId = UUID.fromString("00000000-0000-7000-8000-000000000404");
-        UUID secondReplyId = UUID.fromString("00000000-0000-7000-8000-000000000405");
-        UUID inactiveReplyId = UUID.fromString("00000000-0000-7000-8000-000000000406");
-        insertRootComment(COMMENT_ID, USER_ID, POST_ID, 0, "parent", Instant.parse("2026-04-29T01:02:03Z"));
-        insertReply(replyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 0, "reply", Instant.parse("2026-04-29T01:02:04Z"));
-        insertReply(secondReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 0, "second", Instant.parse("2026-04-29T01:02:05Z"));
-        insertReply(inactiveReplyId, USER_ID, POST_ID, COMMENT_ID, USER_ID, 1, "inactive", Instant.parse("2026-04-29T01:02:06Z"));
-
-        List<CommentDataObject> thread = commentMapper.selectThreadForUpdate(COMMENT_ID);
-        List<CommentTransitionTargetDataObject> targets = thread.stream()
-                .filter(row -> row.getStatus() == 0)
-                .map(row -> new CommentTransitionTargetDataObject(row.getId(), row.getVersion()))
-                .toList();
-        int updated = commentMapper.applyThreadDeletion(
-                COMMENT_ID,
-                targets,
-                USER_ID,
-                "author_delete",
-                new Date()
-        );
-
-        assertThat(targets).extracting(CommentTransitionTargetDataObject::commentId)
-                .containsExactly(COMMENT_ID, replyId, secondReplyId);
-        assertThat(updated).isEqualTo(3);
-        assertThat(commentMapper.selectById(COMMENT_ID).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectById(COMMENT_ID).getVersion()).isEqualTo(1L);
-        assertThat(commentMapper.selectById(replyId).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectById(secondReplyId).getStatus()).isEqualTo(1);
-        assertThat(commentMapper.selectById(inactiveReplyId).getStatus()).isEqualTo(1);
     }
 
     @Test

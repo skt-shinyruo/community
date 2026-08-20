@@ -92,14 +92,17 @@ public class CommentDeletionTransactionOperations {
         }
         Instant occurredAt = deletedTime == null ? clock.instant() : deletedTime.toInstant();
         for (CommentSnapshot deleted : result.deletedComments()) {
-            CommentPayload payload = new CommentPayload();
-            payload.setCommentId(deleted.id());
-            payload.setPostId(postId);
-            payload.setUserId(deleted.userId());
-            payload.setEntityType(deleted.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT);
-            payload.setEntityId(deleted.rootComment() ? postId : deleted.parentCommentId());
-            payload.setCreateTime(occurredAt);
-            payload.setPostAggregateVersion(postAggregateVersion);
+            CommentPayload payload = new CommentPayload(
+                    deleted.id(),
+                    postId,
+                    deleted.userId(),
+                    deleted.rootComment() ? EntityTypes.POST : EntityTypes.COMMENT,
+                    deleted.rootComment() ? postId : deleted.parentCommentId(),
+                    null,
+                    null,
+                    occurredAt,
+                    postAggregateVersion
+            );
             eventPublisher.publishCommentDeleted(payload);
         }
         readModelsAfterCommit.commentDeleted(postId, postAggregateVersion);

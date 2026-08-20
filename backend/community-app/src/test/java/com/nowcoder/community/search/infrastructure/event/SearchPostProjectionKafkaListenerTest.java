@@ -34,8 +34,8 @@ class SearchPostProjectionKafkaListenerTest {
     void postUpdatedShouldDelegateToSearchProjectionApplication() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(100));
+        PostPayload payload = new PostPayload(
+                uuid(100), null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
 
         listener.onContentEvent(contentEvent("evt-post-updated", ContentEventTypes.POST_UPDATED, 42L, payload));
 
@@ -108,7 +108,8 @@ class SearchPostProjectionKafkaListenerTest {
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-comment-created", null, null, ContentEventTypes.COMMENT_CREATED,
-                java.time.Instant.EPOCH, 1L, jsonCodec.valueToTree(new CommentPayload())));
+                java.time.Instant.EPOCH, 1L,
+                jsonCodec.valueToTree(new CommentPayload(null, null, null, 0, null, null, null, null, 0L))));
 
         verifyNoInteractions(applicationService);
     }
@@ -120,7 +121,9 @@ class SearchPostProjectionKafkaListenerTest {
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
-                Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload()))))
+                Instant.EPOCH, 1L,
+                jsonCodec.valueToTree(new PostPayload(
+                        null, null, null, null, null, null, 0, 0, null, null, null, 0L, 0L)))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_UPDATED)
                 .hasMessageContaining("evt-post-missing");
@@ -132,8 +135,8 @@ class SearchPostProjectionKafkaListenerTest {
     void recognizedEventWithInvalidSourceMetadataShouldFailDelivery() {
         SearchPostProjectionApplicationService applicationService = mock(SearchPostProjectionApplicationService.class);
         SearchPostProjectionKafkaListener listener = new SearchPostProjectionKafkaListener(contractEventCodec, applicationService);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(100));
+        PostPayload payload = new PostPayload(
+                uuid(100), null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 " ", null, null, ContentEventTypes.POST_DELETED, null, 0L, jsonCodec.valueToTree(payload))))

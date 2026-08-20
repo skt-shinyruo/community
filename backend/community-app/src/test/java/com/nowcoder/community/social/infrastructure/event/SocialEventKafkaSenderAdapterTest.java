@@ -8,7 +8,6 @@ import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -27,22 +26,12 @@ class SocialEventKafkaSenderAdapterTest {
     private static final String KAFKA_TOPIC = "social.events";
 
     @Test
-    void senderShouldRemainKafkaClasspathConditional() {
-        ConditionalOnClass conditionalOnClass = SocialEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-
-        assertThat(conditionalOnClass).isNotNull();
-        assertThat(conditionalOnClass.value()).contains(KafkaTemplate.class);
-    }
-
-    @Test
     void dispatchShouldPublishContractEventWithConfiguredTopicAndKey() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
         SocialEventKafkaSenderAdapter adapter = new SocialEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(101));
-        payload.setEntityType(EntityTypes.POST);
-        payload.setEntityId(uuid(102));
+        LikePayload payload = new LikePayload(
+                uuid(101), EntityTypes.POST, uuid(102), null, null, null, null, null);
         SocialContractEvent event = new SocialContractEvent(
                 "social:LikeCreated:" + uuid(101) + ":" + EntityTypes.POST + ":" + uuid(102),
                 null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L,

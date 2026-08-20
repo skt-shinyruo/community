@@ -58,18 +58,21 @@ class ContractEventWireGoldenTest {
 
     @Test
     void contentEventWireMustRemainCompatible() throws IOException {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(101));
-        payload.setUserId(uuid(102));
-        payload.setCategoryId(uuid(103));
-        payload.setTags(List.of("java", "ddd"));
-        payload.setTitle("Architecture baseline");
-        payload.setContent("Stable event wire");
-        payload.setType(0);
-        payload.setStatus(0);
-        payload.setCreateTime(Instant.parse("2026-07-15T01:02:03Z"));
-        payload.setUpdateTime(Instant.parse("2026-07-15T01:03:04Z"));
-        payload.setScore(12.5);
+        PostPayload payload = new PostPayload(
+                uuid(101),
+                uuid(102),
+                uuid(103),
+                List.of("java", "ddd"),
+                "Architecture baseline",
+                "Stable event wire",
+                0,
+                0,
+                Instant.parse("2026-07-15T01:02:03Z"),
+                Instant.parse("2026-07-15T01:03:04Z"),
+                12.5,
+                0L,
+                0L
+        );
 
         assertGolden(
                 "contracts/golden/content-post-published-v1.json",
@@ -87,13 +90,8 @@ class ContractEventWireGoldenTest {
 
     @Test
     void socialEventWireMustRemainCompatible() throws IOException {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(201));
-        payload.setEntityType(1);
-        payload.setEntityId(uuid(202));
-        payload.setEntityUserId(uuid(203));
-        payload.setPostId(uuid(202));
-        payload.setRelationKey("post:202:user:201");
+        LikePayload payload = new LikePayload(
+                uuid(201), 1, uuid(202), uuid(203), uuid(202), "post:202:user:201", null, null);
 
         assertGolden(
                 "contracts/golden/social-like-created-v1.json",
@@ -111,16 +109,17 @@ class ContractEventWireGoldenTest {
 
     @Test
     void userEventWireMustRemainCompatible() throws IOException {
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(uuid(301));
-        payload.setUserExists(true);
-        payload.setSuspended(false);
-        payload.setMuted(true);
-        payload.setMuteUntil(1_784_078_400_000L);
-        payload.setBanUntil(null);
-        payload.setCanSendPrivate(false);
-        payload.setOccurredAtEpochMillis(1_773_800_000_000L);
-        payload.setVersion(13L);
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload(
+                uuid(301),
+                true,
+                false,
+                true,
+                1_784_078_400_000L,
+                null,
+                false,
+                1_773_800_000_000L,
+                13L
+        );
 
         assertGolden(
                 "contracts/golden/user-policy-changed-v1.json",

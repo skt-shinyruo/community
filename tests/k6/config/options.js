@@ -9,31 +9,8 @@ function numberFromEnv(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function mergeObjects(base, overrides) {
-  const result = {}
-  const baseValue = base || {}
-  const overrideValue = overrides || {}
-  Object.keys(baseValue).forEach((key) => {
-    result[key] = baseValue[key]
-  })
-  Object.keys(overrideValue).forEach((key) => {
-    result[key] = overrideValue[key]
-  })
-  return result
-}
-
-function removeScenario(profile) {
-  const result = {}
-  Object.keys(profile || {}).forEach((key) => {
-    if (key !== 'scenario') {
-      result[key] = profile[key]
-    }
-  })
-  return result
-}
-
 function execName(scenarioName) {
-  return String(scenarioName).split('-').join('')
+  return String(scenarioName).replaceAll('-', '')
 }
 
 function baseThresholds() {
@@ -59,9 +36,9 @@ function thresholdsFor(profileName) {
 }
 
 export function buildOptions(profileName, overrides = {}) {
-  const profile = mergeObjects(profileFor(profileName), overrides)
+  const profile = { ...profileFor(profileName), ...overrides }
   const scenarioName = profile.scenario || profileName
-  const scenarioOptions = removeScenario(profile)
+  const { scenario: _scenario, ...scenarioOptions } = profile
   scenarioOptions.exec = overrides.exec || execName(scenarioName)
 
   return {

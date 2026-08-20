@@ -41,7 +41,6 @@ class TraceKafkaHeadersTest {
         TraceContextSnapshot snapshot = TraceKafkaHeaders.extract(record.headers());
 
         assertThat(snapshot.traceId()).isEqualTo("4bf92f3577b34da6a3ce929d0e0e4736");
-        assertThat(snapshot.recovered()).isFalse();
     }
 
     @Test
@@ -50,7 +49,6 @@ class TraceKafkaHeadersTest {
 
         assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
         assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
-        assertThat(snapshot.recovered()).isTrue();
     }
 
     @Test
@@ -62,7 +60,6 @@ class TraceKafkaHeadersTest {
 
         assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
         assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
-        assertThat(snapshot.recovered()).isTrue();
     }
 
     @Test
@@ -77,6 +74,5 @@ class TraceKafkaHeadersTest {
 
         assertThat(snapshot.traceId()).matches("[0-9a-f]{32}");
         assertThat(snapshot.traceparent()).startsWith("00-" + snapshot.traceId() + "-");
-        assertThat(snapshot.recovered()).isTrue();
     }
 }

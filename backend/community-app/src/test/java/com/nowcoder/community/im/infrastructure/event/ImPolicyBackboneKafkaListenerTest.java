@@ -74,10 +74,7 @@ class ImPolicyBackboneKafkaListenerTest {
         ImPolicyProjectionApplicationService applicationService = mock(ImPolicyProjectionApplicationService.class);
         ImPolicyBackboneKafkaListener listener = listener(applicationService);
         Instant occurredAt = Instant.parse("2026-07-10T01:02:03Z");
-        BlockPayload payload = new BlockPayload();
-        payload.setBlockerUserId(uuid(11));
-        payload.setBlockedUserId(uuid(22));
-        payload.setBlocked(Boolean.TRUE);
+        BlockPayload payload = new BlockPayload(uuid(11), uuid(22), Boolean.TRUE, null, null);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "social-event-1", uuid(11), "user", SocialEventTypes.BLOCK_RELATION_CHANGED,
@@ -129,7 +126,7 @@ class ImPolicyBackboneKafkaListenerTest {
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "social-missing-time", uuid(11), "user", SocialEventTypes.BLOCK_RELATION_CHANGED,
-                null, 888L, jsonCodec.valueToTree(new BlockPayload()))))
+                null, 888L, jsonCodec.valueToTree(new BlockPayload(null, null, null, null, null)))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining("social-missing-time");
 
@@ -160,15 +157,8 @@ class ImPolicyBackboneKafkaListenerTest {
     }
 
     private static UserPolicyChangedPayload userPolicyPayload() {
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(uuid(7));
-        payload.setUserExists(true);
-        payload.setMuted(true);
-        payload.setMuteUntil(1712345678901L);
-        payload.setBanUntil(1712355678901L);
-        payload.setCanSendPrivate(false);
-        payload.setOccurredAtEpochMillis(1712345678901L);
-        payload.setVersion(777L);
-        return payload;
+        return new UserPolicyChangedPayload(
+                uuid(7), true, false, true, 1712345678901L, 1712355678901L,
+                false, 1712345678901L, 777L);
     }
 }

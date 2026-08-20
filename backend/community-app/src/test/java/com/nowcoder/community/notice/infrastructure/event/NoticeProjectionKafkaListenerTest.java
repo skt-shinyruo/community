@@ -97,17 +97,9 @@ class NoticeProjectionKafkaListenerTest {
     void moderationEventShouldBeConvertedToNoticeOwnedCommand() {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = listener(applicationService);
-        ModerationPayload payload = new ModerationPayload();
-        payload.setReportId(uuid(20));
-        payload.setKind("report");
-        payload.setToUserId(uuid(9));
-        payload.setActorUserId(uuid(1));
-        payload.setTargetType(EntityTypes.POST);
-        payload.setTargetId(uuid(100));
-        payload.setAction("delete");
-        payload.setReason("spam");
-        payload.setDurationSeconds(60);
-        payload.setCreateTime(Instant.parse("2026-07-06T01:00:00Z"));
+        ModerationPayload payload = new ModerationPayload(
+                uuid(20), "report", uuid(9), uuid(1), EntityTypes.POST, uuid(100),
+                "delete", "spam", 60, Instant.parse("2026-07-06T01:00:00Z"));
 
         listener.onContentEvent(contentEvent(
                 "evt-moderation-1", ContentEventTypes.MODERATION_ACTION_APPLIED, 44L, payload));
@@ -151,12 +143,9 @@ class NoticeProjectionKafkaListenerTest {
     void followCreatedShouldBeConvertedToNoticeOwnedCommand() {
         NoticeProjectionApplicationService applicationService = mock(NoticeProjectionApplicationService.class);
         NoticeProjectionKafkaListener listener = listener(applicationService);
-        FollowPayload payload = new FollowPayload();
-        payload.setActorUserId(uuid(1));
-        payload.setEntityType(EntityTypes.USER);
-        payload.setEntityId(uuid(2));
-        payload.setEntityUserId(uuid(2));
-        payload.setCreateTime(Instant.parse("2026-07-06T02:00:00Z"));
+        FollowPayload payload = new FollowPayload(
+                uuid(1), EntityTypes.USER, uuid(2), uuid(2),
+                Instant.parse("2026-07-06T02:00:00Z"));
 
         listener.onSocialEvent(socialEvent(
                 "evt-follow-1", SocialEventTypes.FOLLOW_CREATED, 46L, payload));
@@ -289,15 +278,8 @@ class NoticeProjectionKafkaListenerTest {
     }
 
     private static CommentPayload commentPayload() {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(uuid(10));
-        payload.setPostId(uuid(100));
-        payload.setUserId(uuid(1));
-        payload.setEntityType(EntityTypes.POST);
-        payload.setEntityId(uuid(100));
-        payload.setTargetUserId(uuid(9));
-        payload.setContent("hello");
-        payload.setCreateTime(Instant.parse("2026-07-06T00:00:00Z"));
-        return payload;
+        return new CommentPayload(
+                uuid(10), uuid(100), uuid(1), EntityTypes.POST, uuid(100), uuid(9),
+                "hello", Instant.parse("2026-07-06T00:00:00Z"), 0L);
     }
 }

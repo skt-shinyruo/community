@@ -16,8 +16,6 @@ public interface DriveShareMapper {
 
     DriveShareDataObject selectByToken(@Param("shareToken") String shareToken);
 
-    DriveShareDataObject selectActiveByEntryId(@Param("entryId") UUID entryId);
-
     List<DriveShareDataObject> selectByCreatedBy(@Param("createdBy") UUID createdBy,
                                                 @Param("offset") int offset,
                                                 @Param("limit") int limit);

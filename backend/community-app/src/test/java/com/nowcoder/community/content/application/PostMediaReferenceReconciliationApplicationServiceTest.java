@@ -9,6 +9,7 @@ import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
+import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
@@ -254,6 +255,9 @@ class PostMediaReferenceReconciliationApplicationServiceTest {
                 512L,
                 PostMediaKind.FILE,
                 lifecycle,
+                PostMediaUploadStatus.COMPLETED,
+                1L,
+                Date.from(NOW),
                 status,
                 version,
                 Date.from(NOW),

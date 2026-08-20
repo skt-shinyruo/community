@@ -207,12 +207,9 @@ class ContentContractEventCodecTest {
     }
 
     private static PostPayload postPayload() {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(101));
-        payload.setUserId(uuid(102));
-        payload.setCreateTime(OCCURRED_AT);
-        payload.setUpdateTime(OCCURRED_AT.plusSeconds(1));
-        return payload;
+        return new PostPayload(
+                uuid(101), uuid(102), null, null, null, null, 0, 0,
+                OCCURRED_AT, OCCURRED_AT.plusSeconds(1), null, 0L, 0L);
     }
 
     private static PostScorePayload postScorePayload() {
@@ -220,20 +217,12 @@ class ContentContractEventCodecTest {
     }
 
     private static CommentPayload commentPayload() {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(uuid(201));
-        payload.setPostId(uuid(101));
-        payload.setUserId(uuid(102));
-        payload.setCreateTime(OCCURRED_AT);
-        payload.setPostAggregateVersion(8L);
-        return payload;
+        return new CommentPayload(
+                uuid(201), uuid(101), uuid(102), 0, null, null, null, OCCURRED_AT, 8L);
     }
 
     private static ModerationPayload moderationPayload() {
-        ModerationPayload payload = new ModerationPayload();
-        payload.setReportId(uuid(301));
-        payload.setToUserId(uuid(302));
-        payload.setCreateTime(OCCURRED_AT);
-        return payload;
+        return new ModerationPayload(
+                uuid(301), null, uuid(302), null, null, null, null, null, null, OCCURRED_AT);
     }
 }

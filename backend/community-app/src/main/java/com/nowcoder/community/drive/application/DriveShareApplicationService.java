@@ -190,7 +190,7 @@ public class DriveShareApplicationService {
             return List.of();
         }
         return entryRepository.listActiveChildren(space.spaceId(), parent.entryId()).stream()
-                .map(DriveShareApplicationService::toEntryResult)
+                .map(DriveEntryApplicationService::toEntryResult)
                 .toList();
     }
 
@@ -330,19 +330,6 @@ public class DriveShareApplicationService {
                 effectiveStatus,
                 null,
                 null
-        );
-    }
-
-    private static DriveEntryResult toEntryResult(DriveEntry entry) {
-        return new DriveEntryResult(
-                entry.entryId(),
-                entry.parentId(),
-                entry.type().name(),
-                entry.name(),
-                entry.sizeBytes(),
-                entry.mimeType(),
-                entry.status().name(),
-                entry.updatedAt()
         );
     }
 

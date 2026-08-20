@@ -1,5 +1,11 @@
 package com.nowcoder.community.common.trace;
 
+import io.opentelemetry.api.trace.Span;
+import io.opentelemetry.api.trace.SpanContext;
+import io.opentelemetry.api.trace.SpanId;
+import io.opentelemetry.api.trace.TraceFlags;
+
+import java.util.Locale;
 import java.util.UUID;
 
 /**
@@ -16,7 +22,11 @@ public final class TraceIdCodec {
      * 生成 32 位小写 hex traceId（UUID 去横杠）。
      */
     public static String generateTraceId() {
-        return UUID.randomUUID().toString().replace("-", "");
+        UUID uuid = UUID.randomUUID();
+        return io.opentelemetry.api.trace.TraceId.fromLongs(
+                uuid.getMostSignificantBits(),
+                uuid.getLeastSignificantBits()
+        );
     }
 
     /**
@@ -30,22 +40,16 @@ public final class TraceIdCodec {
         if (traceId == null || traceId.isBlank()) {
             return null;
         }
-        String t = traceId.trim();
-        if (!isHex(t, 32) || isAllZeros(t)) {
-            return null;
-        }
-        return t.toLowerCase();
+        String normalized = traceId.trim().toLowerCase(Locale.ROOT);
+        return io.opentelemetry.api.trace.TraceId.isValid(normalized) ? normalized : null;
     }
 
     public static String normalizeSpanId(String spanId) {
         if (spanId == null || spanId.isBlank()) {
             return null;
         }
-        String s = spanId.trim();
-        if (!isHex(s, 16) || isAllZeros(s)) {
-            return null;
-        }
-        return s.toLowerCase();
+        String normalized = spanId.trim().toLowerCase(Locale.ROOT);
+        return SpanId.isValid(normalized) ? normalized : null;
     }
 
     /**
@@ -54,34 +58,13 @@ public final class TraceIdCodec {
      * 00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01
      */
     public static String extractTraceIdFromTraceparent(String traceparent) {
-        if (traceparent == null || traceparent.isBlank()) {
-            return null;
-        }
-        String[] parts = traceparent.trim().split("-");
-        if (parts.length != 4) {
-            return null;
-        }
-        if (!isHex(parts[0], 2) || "ff".equalsIgnoreCase(parts[0])) {
-            return null;
-        }
-        if (!isHex(parts[2], 16) || isAllZeros(parts[2])) {
-            return null;
-        }
-        if (!isHex(parts[3], 2)) {
-            return null;
-        }
-        return normalizeTraceId(parts[1]);
+        SpanContext spanContext = extractSpanContext(traceparent);
+        return spanContext.isValid() ? spanContext.getTraceId() : null;
     }
 
     public static String extractSpanIdFromTraceparent(String traceparent) {
-        if (traceparent == null || traceparent.isBlank()) {
-            return null;
-        }
-        String[] parts = traceparent.trim().split("-");
-        if (parts.length != 4 || extractTraceIdFromTraceparent(traceparent) == null) {
-            return null;
-        }
-        return normalizeSpanId(parts[2]);
+        SpanContext spanContext = extractSpanContext(traceparent);
+        return spanContext.isValid() ? spanContext.getSpanId() : null;
     }
 
     /**
@@ -108,49 +91,39 @@ public final class TraceIdCodec {
         if (s == null) {
             s = generateSpanId();
         }
-        String f = flags == null ? null : flags.trim().toLowerCase();
-        if (f == null || !isHex(f, 2)) {
-            f = "01";
-        }
+        String f = normalizeTraceFlags(flags);
         return "00-" + t + "-" + s + "-" + f;
     }
 
     private static String generateSpanId() {
-        String spanId = Long.toHexString(UUID.randomUUID().getMostSignificantBits());
-        spanId = spanId.replace("-", "");
-        if (spanId.length() < 16) {
-            spanId = "0".repeat(16 - spanId.length()) + spanId;
-        } else if (spanId.length() > 16) {
-            spanId = spanId.substring(spanId.length() - 16);
-        }
-        if (isAllZeros(spanId)) {
-            return "0000000000000001";
-        }
-        return spanId.toLowerCase();
+        String spanId;
+        do {
+            spanId = SpanId.fromLong(UUID.randomUUID().getLeastSignificantBits());
+        } while (!SpanId.isValid(spanId));
+        return spanId;
     }
 
-    private static boolean isHex(String value, int expectedLength) {
-        if (value.length() != expectedLength) {
-            return false;
+    private static SpanContext extractSpanContext(String traceparent) {
+        if (traceparent == null || traceparent.isBlank()) {
+            return SpanContext.getInvalid();
         }
-        for (int i = 0; i < value.length(); i++) {
-            char c = value.charAt(i);
-            boolean ok = (c >= '0' && c <= '9')
-                    || (c >= 'a' && c <= 'f')
-                    || (c >= 'A' && c <= 'F');
-            if (!ok) {
-                return false;
-            }
-        }
-        return true;
+        return Span.fromContext(OtelTraceContext.extract(
+                traceparent.trim().toLowerCase(Locale.ROOT)
+        )).getSpanContext();
     }
 
-    private static boolean isAllZeros(String value) {
-        for (int i = 0; i < value.length(); i++) {
-            if (value.charAt(i) != '0') {
-                return false;
-            }
+    private static String normalizeTraceFlags(String flags) {
+        if (flags == null) {
+            return TraceFlags.getSampled().asHex();
         }
-        return true;
+        String normalized = flags.trim().toLowerCase(Locale.ROOT);
+        if (normalized.length() != TraceFlags.getLength()) {
+            return TraceFlags.getSampled().asHex();
+        }
+        try {
+            return TraceFlags.fromHex(normalized, 0).asHex();
+        } catch (IllegalArgumentException ignored) {
+            return TraceFlags.getSampled().asHex();
+        }
     }
 }

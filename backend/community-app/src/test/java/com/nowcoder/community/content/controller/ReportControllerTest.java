@@ -51,7 +51,7 @@ class ReportControllerTest {
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).isNotNull();
-        assertThat(result.getData().getReportId()).isEqualTo(reportId);
+        assertThat(result.getData().reportId()).isEqualTo(reportId);
         assertThat(objectMapper.valueToTree(result.getData()).fieldNames()).toIterable()
                 .containsExactly("reportId");
         verify(reportApplicationService).create(reporterId, "post", targetId, "spam", "burst");

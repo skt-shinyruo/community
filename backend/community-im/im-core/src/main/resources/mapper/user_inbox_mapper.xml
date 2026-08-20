@@ -7,41 +7,49 @@
 
     <resultMap id="conversationInboxResultMap"
                type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.ConversationInboxDataObject">
-        <id property="conversationId" column="conversation_id"/>
-        <result property="peerUserId" column="peer_user_id" jdbcType="BINARY"/>
-        <result property="lastSeq" column="last_seq"/>
-        <result property="lastReadSeq" column="last_read_seq"/>
-        <result property="unreadCount" column="unread_count"/>
-        <result property="lastMessageId" column="last_message_id" jdbcType="BINARY"/>
-        <result property="lastFromUserId" column="last_from_user_id" jdbcType="BINARY"/>
-        <result property="lastToUserId" column="last_to_user_id" jdbcType="BINARY"/>
-        <result property="lastContent" column="last_content"/>
-        <result property="lastMessageCreatedAt" column="last_message_created_at"/>
-        <result property="sortAt" column="sort_at"/>
+        <constructor>
+            <idArg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="peer_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="last_seq" javaType="_long"/>
+            <arg column="last_read_seq" javaType="_long"/>
+            <arg column="unread_count" javaType="_long"/>
+            <arg column="last_message_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="last_from_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="last_to_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="last_content" javaType="java.lang.String"/>
+            <arg column="last_message_created_at" javaType="java.time.Instant"/>
+            <arg column="sort_at" javaType="java.time.Instant"/>
+        </constructor>
     </resultMap>
 
     <resultMap id="roomLastMessageResultMap"
                type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomLastMessageDataObject">
-        <id property="messageId" column="message_id" jdbcType="BINARY"/>
-        <result property="fromUserId" column="from_user_id" jdbcType="BINARY"/>
-        <result property="content" column="content"/>
-        <result property="createdAt" column="created_at"/>
+        <constructor>
+            <idArg column="message_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="from_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
     </resultMap>
 
     <resultMap id="roomUnreadResultMap"
                type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.RoomUnreadDataObject">
-        <id property="roomId" column="room_id" jdbcType="BINARY"/>
-        <result property="lastSeq" column="last_seq"/>
-        <result property="lastReadSeq" column="last_read_seq"/>
-        <result property="unreadCount" column="unread_count"/>
+        <constructor>
+            <idArg column="room_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="last_seq" javaType="_long"/>
+            <arg column="last_read_seq" javaType="_long"/>
+            <arg column="unread_count" javaType="_long"/>
+        </constructor>
     </resultMap>
 
     <resultMap id="conversationUnreadResultMap"
                type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.ConversationUnreadDataObject">
-        <id property="conversationId" column="conversation_id"/>
-        <result property="lastSeq" column="last_seq"/>
-        <result property="lastReadSeq" column="last_read_seq"/>
-        <result property="unreadCount" column="unread_count"/>
+        <constructor>
+            <idArg column="conversation_id" javaType="java.lang.String"/>
+            <arg column="last_seq" javaType="_long"/>
+            <arg column="last_read_seq" javaType="_long"/>
+            <arg column="unread_count" javaType="_long"/>
+        </constructor>
     </resultMap>
 
     <insert id="insertMissingRoomInboxRows">

@@ -4,14 +4,12 @@ import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.content.application.ContentIntegrationEventDispatcher;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletionException;
 
 @Component
-@ConditionalOnClass(KafkaTemplate.class)
 public class ContentEventKafkaSenderAdapter implements ContentIntegrationEventDispatcher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

@@ -2,7 +2,6 @@ package com.nowcoder.community.oss.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
@@ -54,7 +53,7 @@ public class ObjectUploadApplicationService {
     private final String publicBaseUrl;
     private final Clock clock;
     private final UploadPolicyDecisions uploadPolicyDecisions;
-    private final FeatureFlagDecisions featureFlags;
+    private final FeatureFlagProperties featureFlags;
     private final ObjectUploadTransactionOperations transactionOperations;
 
     @Autowired
@@ -67,7 +66,7 @@ public class ObjectUploadApplicationService {
             ObjectStorageSettings settings,
             Clock clock,
             UploadPolicyDecisions uploadPolicyDecisions,
-            FeatureFlagDecisions featureFlags,
+            FeatureFlagProperties featureFlags,
             ObjectUploadTransactionOperations transactionOperations
     ) {
         this.objectRepository = objectRepository;
@@ -79,7 +78,7 @@ public class ObjectUploadApplicationService {
         this.publicBaseUrl = normalizeBaseUrl(settings.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.uploadPolicyDecisions = uploadPolicyDecisions == null ? defaultUploadPolicyDecisions() : uploadPolicyDecisions;
-        this.featureFlags = featureFlags == null ? defaultFeatureFlagDecisions() : featureFlags;
+        this.featureFlags = featureFlags == null ? new FeatureFlagProperties() : featureFlags;
         this.transactionOperations = transactionOperations;
     }
 
@@ -621,7 +620,7 @@ public class ObjectUploadApplicationService {
     }
 
     private void validateGlobalUploadPolicy(String fileName, String contentType, long contentLength) {
-        if (!featureFlags.enabledOrDefault(FEATURE_FILE_UPLOAD, true)) {
+        if (!Boolean.TRUE.equals(featureFlags.getFeatures().getOrDefault(FEATURE_FILE_UPLOAD, true))) {
             throw new IllegalStateException("file upload is disabled by feature flag");
         }
         if (!uploadPolicyDecisions.allowsFileSize(contentLength)) {
@@ -646,10 +645,6 @@ public class ObjectUploadApplicationService {
 
     private static UploadPolicyDecisions defaultUploadPolicyDecisions() {
         return new UploadPolicyDecisions(new UploadPolicyProperties());
-    }
-
-    private static FeatureFlagDecisions defaultFeatureFlagDecisions() {
-        return new FeatureFlagDecisions(new FeatureFlagProperties());
     }
 
     private void requirePrepareCommand(PrepareObjectUploadCommand command) {

@@ -11,6 +11,8 @@ import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.content.application.result.FeedPageResult;
 import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.PostSummaryView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.RecentUserCommentView;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.user.application.port.AvatarStoragePort;
 import org.junit.jupiter.api.Test;
@@ -111,9 +113,9 @@ class PublicReadEndpointSecurityTest {
     @Test
     void unauthenticatedRecentActivityEndpointsShouldBeAllowed() throws Exception {
         when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageResult.RecentPostSummaryResult>of());
+                .thenReturn(List.<PostSummaryView>of());
         when(userProfileApplicationService.listRecentComments(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageResult.RecentCommentItemResult>of());
+                .thenReturn(List.<RecentUserCommentView>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts"))
                 .andExpect(status().isOk());
@@ -162,7 +164,7 @@ class PublicReadEndpointSecurityTest {
     @Test
     void directCommunityAppReadEndpointShouldNotEmitCorsHeaders() throws Exception {
         when(userProfileApplicationService.listRecentPosts(eq(USER_ID), any(), any()))
-                .thenReturn(List.<UserProfilePageResult.RecentPostSummaryResult>of());
+                .thenReturn(List.<PostSummaryView>of());
 
         mockMvc.perform(get("/api/users/" + USER_ID + "/recent-posts").header("Origin", "http://localhost:12881"))
                 .andExpect(status().isOk())

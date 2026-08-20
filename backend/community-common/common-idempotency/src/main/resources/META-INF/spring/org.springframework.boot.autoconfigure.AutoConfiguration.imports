@@ -1,3 +1,2 @@
-com.nowcoder.community.common.idempotency.autoconfig.IdempotencyAutoConfiguration
 com.nowcoder.community.common.idempotency.autoconfig.JdbcIdempotencyAutoConfiguration
 com.nowcoder.community.common.idempotency.autoconfig.IdempotencyGuardAutoConfiguration

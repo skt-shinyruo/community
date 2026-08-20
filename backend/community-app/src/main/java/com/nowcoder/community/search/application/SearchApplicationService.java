@@ -1,6 +1,6 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
+import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
@@ -20,13 +20,13 @@ public class SearchApplicationService {
     private final PostSearchRepository postSearchRepository;
     private final PostSearchDomainService postSearchDomainService;
     private final SearchPolicyProperties searchPolicyProperties;
-    private final FeatureFlagDecisions featureFlags;
+    private final FeatureFlagProperties featureFlags;
 
     public SearchApplicationService(
             PostSearchRepository postSearchRepository,
             PostSearchDomainService postSearchDomainService,
             SearchPolicyProperties searchPolicyProperties,
-            FeatureFlagDecisions featureFlags
+            FeatureFlagProperties featureFlags
     ) {
         this.postSearchRepository = Objects.requireNonNull(postSearchRepository, "postSearchRepository must not be null");
         this.postSearchDomainService = Objects.requireNonNull(postSearchDomainService, "postSearchDomainService must not be null");
@@ -36,7 +36,7 @@ public class SearchApplicationService {
 
     public List<SearchPostResult> searchPosts(SearchPostsCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        if (!featureFlags.enabledOrDefault("search", true)) {
+        if (!Boolean.TRUE.equals(featureFlags.getFeatures().getOrDefault("search", true))) {
             return List.of();
         }
         PostSearchQuery query = postSearchDomainService.normalizeSearchQuery(

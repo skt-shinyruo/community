@@ -9,7 +9,7 @@ public interface DriveObjectStoragePort {
 
     PreparedObject prepareUpload(PrepareObject command);
 
-    StoredObject completeUpload(CompleteObject command);
+    void completeUpload(CompleteObject command);
 
     UploadCancellation cancelUpload(UUID sessionId, UUID objectId, UUID versionId);
 
@@ -50,21 +50,13 @@ public interface DriveObjectStoragePort {
     ) {
     }
 
-    record StoredObject(UUID objectId, UUID versionId, String publicUrl) {
-    }
-
     record UploadCancellation(boolean completed, boolean cancelled) {
     }
 
     record ObjectMetadata(
             UUID objectId,
             UUID currentVersionId,
-            String status,
-            String fileName,
-            String contentType,
-            long contentLength,
-            String checksumSha256,
-            String publicUrl
+            String status
     ) {
     }
 

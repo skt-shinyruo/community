@@ -58,7 +58,7 @@ class UserProfileQueryApplicationServiceTest {
         UserProfilePageResult page = service.get(userId);
 
         assertThat(page).extracting(
-                UserProfilePageResult::userId,
+                UserProfilePageResult::id,
                 UserProfilePageResult::username,
                 UserProfilePageResult::userLevel,
                 UserProfilePageResult::likeCount,
@@ -76,15 +76,15 @@ class UserProfileQueryApplicationServiceTest {
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(userId))
                 .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 1, createTime));
-        when(postReadQueryApi.listPostsByUser(userId, 1, 5)).thenReturn(List.of(new PostSummaryView(
+        PostSummaryView view = new PostSummaryView(
                 postId, userId, "first post", 1, 0, createTime, 4, 9.5,
                 uuid(3), List.of("java"), uuid(8), createTime, createTime, "latest reply"
-        )));
+        );
+        when(postReadQueryApi.listPostsByUser(userId, 1, 5)).thenReturn(List.of(view));
 
-        List<UserProfilePageResult.RecentPostSummaryResult> items = service.listRecentPosts(userId, 1, 5);
+        List<PostSummaryView> items = service.listRecentPosts(userId, 1, 5);
 
-        assertThat(items).extracting(UserProfilePageResult.RecentPostSummaryResult::id)
-                .containsExactly(postId);
+        assertThat(items).containsExactly(view);
         InOrder order = inOrder(userProfileQueryApi, postReadQueryApi);
         order.verify(userProfileQueryApi).getProfile(userId);
         order.verify(postReadQueryApi).listPostsByUser(userId, 1, 5);
@@ -98,17 +98,15 @@ class UserProfileQueryApplicationServiceTest {
         Date createTime = new Date();
         when(userProfileQueryApi.getProfile(userId))
                 .thenReturn(new UserProfileView(userId, "alice", "h7", 2, 1, createTime));
-        when(postReadQueryApi.listRecentCommentsByUser(userId, 2, 10)).thenReturn(List.of(
-                new RecentUserCommentView(
-                        commentId, userId, 1, uuid(101), uuid(301), uuid(201),
-                        "post title", "reply body", createTime
-                )
-        ));
+        RecentUserCommentView view = new RecentUserCommentView(
+                commentId, userId, 1, uuid(101), uuid(301), uuid(201),
+                "post title", "reply body", createTime
+        );
+        when(postReadQueryApi.listRecentCommentsByUser(userId, 2, 10)).thenReturn(List.of(view));
 
-        List<UserProfilePageResult.RecentCommentItemResult> items = service.listRecentComments(userId, 2, 10);
+        List<RecentUserCommentView> items = service.listRecentComments(userId, 2, 10);
 
-        assertThat(items).extracting(UserProfilePageResult.RecentCommentItemResult::id)
-                .containsExactly(commentId);
+        assertThat(items).containsExactly(view);
         InOrder order = inOrder(userProfileQueryApi, postReadQueryApi);
         order.verify(userProfileQueryApi).getProfile(userId);
         order.verify(postReadQueryApi).listRecentCommentsByUser(userId, 2, 10);

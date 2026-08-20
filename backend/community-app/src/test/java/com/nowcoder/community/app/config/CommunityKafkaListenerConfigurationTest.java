@@ -1,6 +1,5 @@
 package com.nowcoder.community.app.config;
 
-import com.nowcoder.community.common.spring.policy.KafkaPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import org.apache.kafka.clients.consumer.Consumer;
 import org.apache.kafka.clients.consumer.ConsumerRecord;
@@ -44,7 +43,7 @@ class CommunityKafkaListenerConfigurationTest {
 
     @Test
     void retryBackOffShouldTreatConfiguredAttemptsAsTotalDeliveries() {
-        BackOffExecution execution = configuration.retryBackOff(decisions(3, true)).start();
+        BackOffExecution execution = configuration.retryBackOff(properties(3)).start();
 
         assertThat(execution.nextBackOff()).isEqualTo(100L);
         assertThat(execution.nextBackOff()).isEqualTo(200L);
@@ -53,7 +52,7 @@ class CommunityKafkaListenerConfigurationTest {
 
     @Test
     void oneTotalAttemptShouldNotScheduleARetry() {
-        BackOffExecution execution = configuration.retryBackOff(decisions(1, true)).start();
+        BackOffExecution execution = configuration.retryBackOff(properties(1)).start();
 
         assertThat(execution.nextBackOff()).isEqualTo(BackOffExecution.STOP);
     }
@@ -124,14 +123,6 @@ class CommunityKafkaListenerConfigurationTest {
     }
 
     @Test
-    void disabledDlqShouldFailErrorHandlerCreation() {
-        assertThatThrownBy(() -> configuration.communityKafkaDefaultErrorHandler(
-                mock(KafkaTemplate.class), decisions(3, false)))
-                .isInstanceOf(IllegalStateException.class)
-                .hasMessageContaining("DLQ");
-    }
-
-    @Test
     void listenerFactoryShouldKeepAdditionalRecordInterceptors() {
         AtomicBoolean customInterceptorCalled = new AtomicBoolean(false);
         RecordInterceptor<Object, Object> customInterceptor = (record, consumer) -> {
@@ -158,13 +149,12 @@ class CommunityKafkaListenerConfigurationTest {
         assertThat(customInterceptorCalled).isTrue();
     }
 
-    private static KafkaPolicyDecisions decisions(int maxAttempts, boolean dlqEnabled) {
+    private static KafkaPolicyProperties properties(int maxAttempts) {
         KafkaPolicyProperties properties = new KafkaPolicyProperties();
         properties.getRetry().setMaxAttempts(maxAttempts);
         properties.getRetry().setBaseBackoff(Duration.ofMillis(100));
         properties.getRetry().setMaxBackoff(Duration.ofSeconds(1));
-        properties.getDlq().setEnabled(dlqEnabled);
-        return new KafkaPolicyDecisions(properties);
+        return properties;
     }
 
     private static String stringHeader(ProducerRecord<?, ?> record, String key) {

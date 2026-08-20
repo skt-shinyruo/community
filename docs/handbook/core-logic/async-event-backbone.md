@@ -108,7 +108,7 @@ filter 先让业务 filter chain 完成，再在 `finally` 中提取请求观察
 
 owner outbox 是 at-least-once，状态为 `PENDING`、`PROCESSING`、`SUCCEEDED`、`DEAD`。Kafka listener 已取得记录后的异常不会回写 producer outbox，而由 `CommunityKafkaListenerConfiguration` 的共享 `DefaultErrorHandler` 处理：
 
-- 总投递次数来自 `KafkaPolicyDecisions.retryMaxAttempts()`，包含首次投递。
+- 总投递次数来自 `KafkaPolicyProperties.retry.maxAttempts`，包含首次投递。
 - 退避使用配置的 base 和 max duration。
 - 最终失败发布到源 topic 的 `.dlq`，保留原 partition 与异常 headers。
 - `content.events`、`social.events`、`user.events` 及各自 `.dlq` 均为 12 partitions。

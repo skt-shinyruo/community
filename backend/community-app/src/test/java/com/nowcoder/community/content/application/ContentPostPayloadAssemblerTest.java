@@ -55,17 +55,17 @@ class ContentPostPayloadAssemblerTest {
 
         PostPayload payload = assembler.assemble(uuid(11));
 
-        assertThat(payload.getPostId()).isEqualTo(uuid(11));
-        assertThat(payload.getUserId()).isEqualTo(uuid(7));
-        assertThat(payload.getCategoryId()).isEqualTo(uuid(3));
-        assertThat(payload.getTags()).containsExactly("java", "ddd");
-        assertThat(payload.getTitle()).isEqualTo("<title>");
-        assertThat(payload.getContent()).isEqualTo("<p>body</p>");
-        assertThat(payload.getType()).isEqualTo(0);
-        assertThat(payload.getStatus()).isEqualTo(0);
-        assertThat(payload.getCreateTime()).isEqualTo(Instant.parse("2026-04-29T09:30:00Z"));
-        assertThat(payload.getScore()).isEqualTo(2.5);
-        assertThat(payload.getScoreVersion()).isEqualTo(4L);
-        assertThat(payload.getAggregateVersion()).isEqualTo(7L);
+        assertThat(payload.postId()).isEqualTo(uuid(11));
+        assertThat(payload.userId()).isEqualTo(uuid(7));
+        assertThat(payload.categoryId()).isEqualTo(uuid(3));
+        assertThat(payload.tags()).containsExactly("java", "ddd");
+        assertThat(payload.title()).isEqualTo("<title>");
+        assertThat(payload.content()).isEqualTo("<p>body</p>");
+        assertThat(payload.type()).isEqualTo(0);
+        assertThat(payload.status()).isEqualTo(0);
+        assertThat(payload.createTime()).isEqualTo(Instant.parse("2026-04-29T09:30:00Z"));
+        assertThat(payload.score()).isEqualTo(2.5);
+        assertThat(payload.scoreVersion()).isEqualTo(4L);
+        assertThat(payload.aggregateVersion()).isEqualTo(7L);
     }
 }

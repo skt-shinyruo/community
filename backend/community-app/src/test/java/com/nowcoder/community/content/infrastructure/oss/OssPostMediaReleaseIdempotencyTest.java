@@ -4,6 +4,7 @@ import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
+import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
@@ -62,6 +63,9 @@ class OssPostMediaReleaseIdempotencyTest {
                 64L,
                 PostMediaKind.IMAGE,
                 PostMediaAssetLifecycle.UPLOADED,
+                PostMediaUploadStatus.COMPLETED,
+                1L,
+                now,
                 PostMediaReferenceStatus.RELEASE_PENDING,
                 2L,
                 now,

@@ -191,7 +191,7 @@ class NacosPolicyBindingTest {
         assertThat(Binder.get(environmentFrom("community-feature-flags.yaml"))
                 .bind("community", FeatureFlagProperties.class)
                 .orElseThrow(IllegalStateException::new)
-                .getFlags())
+                .getFeatures())
                 .containsEntry("post-publishing", true)
                 .containsEntry("analytics-ingest", false);
 

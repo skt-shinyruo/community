@@ -20,8 +20,6 @@ community:
       max-attempts: 3
       base-backoff: 1s
       max-backoff: 30s
-    dlq:
-      enabled: true
     producer:
       acks: all
       enable-idempotence: true

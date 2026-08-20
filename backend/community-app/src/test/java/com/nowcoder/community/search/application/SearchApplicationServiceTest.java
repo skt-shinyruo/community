@@ -1,6 +1,5 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.SearchApplicationService.DeleteIndexedPostCommand;
 import com.nowcoder.community.search.application.SearchApplicationService.SearchPostsCommand;
@@ -74,7 +73,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagDecisions(new FeatureFlagProperties())
+                new FeatureFlagProperties()
         );
         PostSearchQuery expectedQuery = new PostSearchQuery("spring", null, null, 0, 20);
         when(repository.search(expectedQuery)).thenReturn(List.of());
@@ -95,7 +94,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagDecisions(new FeatureFlagProperties())
+                new FeatureFlagProperties()
         );
         when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
                 .thenThrow(new IllegalStateException("es unavailable"));
@@ -109,12 +108,12 @@ class SearchApplicationServiceTest {
     void searchPostsShouldSkipRepositoryWhenNacosFeatureFlagDisablesSearch() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
         FeatureFlagProperties featureFlagProperties = new FeatureFlagProperties();
-        featureFlagProperties.getFlags().put("search", false);
+        featureFlagProperties.getFeatures().put("search", false);
         SearchApplicationService service = new SearchApplicationService(
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                new FeatureFlagDecisions(featureFlagProperties)
+                featureFlagProperties
         );
 
         var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
@@ -225,7 +224,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                new FeatureFlagDecisions(new FeatureFlagProperties())
+                new FeatureFlagProperties()
         );
     }
 }

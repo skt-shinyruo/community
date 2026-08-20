@@ -4,7 +4,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.oss.application.command.CompleteObjectUploadCommand;
 import com.nowcoder.community.oss.application.command.ObjectUploadContent;
@@ -1000,14 +999,14 @@ class ObjectUploadApplicationServiceTest {
     @Test
     void prepareUploadShouldRejectWhenNacosFileUploadFeatureIsDisabled() {
         FeatureFlagProperties flags = new FeatureFlagProperties();
-        flags.getFlags().put("file-upload", false);
+        flags.getFeatures().put("file-upload", false);
         ObjectUploadApplicationService service = builder(
                 new FakeObjectRepository(),
                 new FakeObjectVersionRepository(),
                 new FakeUploadSessionRepository(),
                 new CapturingObjectStore()
         ).clock(CLOCK)
-                .featureFlags(new FeatureFlagDecisions(flags))
+                .featureFlags(flags)
                 .build();
 
         assertThatThrownBy(() -> service.prepareUpload(new PrepareObjectUploadCommand(

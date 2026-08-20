@@ -55,10 +55,6 @@ public class UploadPolicyDecisions {
         return bytes(properties.getMaxFileSize(), new UploadPolicyProperties().getMaxFileSize());
     }
 
-    public long maxRequestSizeBytes() {
-        return bytes(properties.getMaxRequestSize(), new UploadPolicyProperties().getMaxRequestSize());
-    }
-
     public boolean avatarUploadEnabled() {
         return properties.isAvatarUploadEnabled();
     }

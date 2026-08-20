@@ -1,14 +1,13 @@
 package com.nowcoder.community.app.config;
 
 import com.nowcoder.community.common.kafka.trace.TraceRecordInterceptor;
-import com.nowcoder.community.common.spring.policy.KafkaPolicyDecisions;
+import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import org.apache.kafka.common.TopicPartition;
 import org.apache.kafka.common.serialization.ByteArraySerializer;
 import org.apache.kafka.common.serialization.Serializer;
 import org.apache.kafka.common.serialization.StringSerializer;
 import org.springframework.boot.kafka.autoconfigure.DefaultKafkaProducerFactoryCustomizer;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.boot.kafka.autoconfigure.ConcurrentKafkaListenerContainerFactoryConfigurer;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
@@ -32,7 +31,6 @@ import java.util.Map;
 import java.util.Objects;
 
 @Configuration
-@ConditionalOnClass(KafkaTemplate.class)
 public class CommunityKafkaListenerConfiguration {
 
     @Bean
@@ -79,28 +77,26 @@ public class CommunityKafkaListenerConfiguration {
     @Bean
     public DefaultErrorHandler communityKafkaDefaultErrorHandler(
             KafkaTemplate<Object, Object> kafkaTemplate,
-            KafkaPolicyDecisions decisions
+            KafkaPolicyProperties properties
     ) {
-        Objects.requireNonNull(decisions, "Kafka policy decisions must not be null");
-        if (!decisions.dlqEnabled()) {
-            throw new IllegalStateException("community Kafka DLQ must be enabled");
-        }
+        Objects.requireNonNull(properties, "Kafka policy properties must not be null");
         DefaultErrorHandler handler = new DefaultErrorHandler(
                 deadLetterPublishingRecoverer(kafkaTemplate),
-                retryBackOff(decisions)
+                retryBackOff(properties)
         );
         handler.addNotRetryableExceptions(DeserializationException.class);
         return handler;
     }
 
-    ExponentialBackOff retryBackOff(KafkaPolicyDecisions decisions) {
-        Objects.requireNonNull(decisions, "Kafka policy decisions must not be null");
+    ExponentialBackOff retryBackOff(KafkaPolicyProperties properties) {
+        Objects.requireNonNull(properties, "Kafka policy properties must not be null");
+        KafkaPolicyProperties.Retry retry = properties.getRetry();
         ExponentialBackOff backOff = new ExponentialBackOff(
-                decisions.retryBaseBackoff().toMillis(),
+                retry.getBaseBackoff().toMillis(),
                 2.0
         );
-        backOff.setMaxInterval(decisions.retryMaxBackoff().toMillis());
-        backOff.setMaxAttempts(Math.max(0, decisions.retryMaxAttempts() - 1));
+        backOff.setMaxInterval(retry.getMaxBackoff().toMillis());
+        backOff.setMaxAttempts(Math.max(0, retry.getMaxAttempts() - 1));
         return backOff;
     }
 

@@ -113,7 +113,7 @@ class OssDriveObjectStorageAdapterTest {
                 "",
                 uuid(7).toString()
         ));
-        DriveObjectStoragePort.StoredObject stored = adapter.completeUpload(new DriveObjectStoragePort.CompleteObject(
+        adapter.completeUpload(new DriveObjectStoragePort.CompleteObject(
                 sessionId,
                 objectId,
                 versionId,
@@ -129,9 +129,6 @@ class OssDriveObjectStorageAdapterTest {
 
         assertThat(prepared.objectId()).isEqualTo(objectId);
         assertThat(prepared.versionId()).isEqualTo(versionId);
-        assertThat(stored.objectId()).isEqualTo(objectId);
-        assertThat(stored.versionId()).isEqualTo(versionId);
-        assertThat(stored.publicUrl()).contains("/files/");
         assertThat(metadata.status()).isEqualTo("ACTIVE");
         assertThat(metadata.currentVersionId()).isEqualTo(versionId);
         assertThat(cancellation.cancelled()).isTrue();

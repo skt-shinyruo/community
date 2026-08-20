@@ -107,6 +107,7 @@ class DriveEntryApplicationServiceTest {
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock)),
                 entryRepository,
                 storagePort,
                 clock,
@@ -301,6 +302,7 @@ class DriveEntryApplicationServiceTest {
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock)),
                 entryRepository,
                 storagePort,
                 clock,
@@ -321,7 +323,7 @@ class DriveEntryApplicationServiceTest {
             }
 
             @Override
-            public StoredObject completeUpload(CompleteObject command) {
+            public void completeUpload(CompleteObject command) {
                 throw new UnsupportedOperationException();
             }
 

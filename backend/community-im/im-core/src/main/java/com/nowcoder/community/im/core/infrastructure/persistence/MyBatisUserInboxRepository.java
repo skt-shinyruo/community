@@ -183,15 +183,15 @@ public class MyBatisUserInboxRepository implements UserInboxRepository {
     }
 
     private void insertRoomInbox(UUID userId, UUID roomId, long lastSeq, RoomLastMessageDataObject lastMessage, long lastReadSeq) {
-        Instant sortAt = lastMessage == null || lastMessage.getCreatedAt() == null ? Instant.now() : lastMessage.getCreatedAt();
+        Instant sortAt = lastMessage == null || lastMessage.createdAt() == null ? Instant.now() : lastMessage.createdAt();
         mapper.insertRoomInbox(
                 userId,
                 roomId,
                 lastSeq,
-                lastMessage == null ? null : lastMessage.getMessageId(),
-                lastMessage == null ? null : lastMessage.getFromUserId(),
-                lastMessage == null ? null : lastMessage.getContent(),
-                lastMessage == null ? null : lastMessage.getCreatedAt(),
+                lastMessage == null ? null : lastMessage.messageId(),
+                lastMessage == null ? null : lastMessage.fromUserId(),
+                lastMessage == null ? null : lastMessage.content(),
+                lastMessage == null ? null : lastMessage.createdAt(),
                 lastReadSeq,
                 Math.max(0L, lastSeq - lastReadSeq),
                 sortAt

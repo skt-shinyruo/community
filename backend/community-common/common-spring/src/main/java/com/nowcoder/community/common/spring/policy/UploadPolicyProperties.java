@@ -10,7 +10,6 @@ import java.util.List;
 public class UploadPolicyProperties {
 
     private DataSize maxFileSize = DataSize.ofGigabytes(10);
-    private DataSize maxRequestSize = DataSize.ofGigabytes(10);
     private List<String> allowedMimeTypes = new ArrayList<>();
     private List<String> allowedExtensions = new ArrayList<>();
     private boolean avatarUploadEnabled = true;
@@ -22,14 +21,6 @@ public class UploadPolicyProperties {
 
     public void setMaxFileSize(DataSize maxFileSize) {
         this.maxFileSize = maxFileSize == null || maxFileSize.isNegative() ? DataSize.ofGigabytes(10) : maxFileSize;
-    }
-
-    public DataSize getMaxRequestSize() {
-        return maxRequestSize;
-    }
-
-    public void setMaxRequestSize(DataSize maxRequestSize) {
-        this.maxRequestSize = maxRequestSize == null || maxRequestSize.isNegative() ? DataSize.ofGigabytes(10) : maxRequestSize;
     }
 
     public List<String> getAllowedMimeTypes() {

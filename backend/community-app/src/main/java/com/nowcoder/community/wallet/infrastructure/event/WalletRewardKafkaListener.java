@@ -78,29 +78,29 @@ public class WalletRewardKafkaListener {
     }
 
     private void handlePostPublished(ContentContractEvent event, PostPayload payload) {
-        if (payload == null || payload.getPostId() == null || payload.getUserId() == null) {
+        if (payload == null || payload.postId() == null || payload.userId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        apply(applicationService.commandForPostPublished(payload.getPostId(), payload.getUserId()));
+        apply(applicationService.commandForPostPublished(payload.postId(), payload.userId()));
     }
 
     private void handleCommentCreated(ContentContractEvent event, CommentPayload payload) {
-        if (payload == null || payload.getCommentId() == null || payload.getUserId() == null) {
+        if (payload == null || payload.commentId() == null || payload.userId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        apply(applicationService.commandForCommentCreated(payload.getCommentId(), payload.getUserId()));
+        apply(applicationService.commandForCommentCreated(payload.commentId(), payload.userId()));
     }
 
     private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
         apply(applicationService.commandForLikeCreated(
-                likeSourceId("created", event, payload), payload.getActorUserId(), payload.getEntityUserId()));
+                likeSourceId("created", event, payload), payload.actorUserId(), payload.entityUserId()));
     }
 
     private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
         apply(applicationService.commandForLikeRemoved(
-                likeSourceId("removed", event, payload), payload.getActorUserId(), payload.getEntityUserId()));
+                likeSourceId("removed", event, payload), payload.actorUserId(), payload.entityUserId()));
     }
 
     private void apply(RewardProjectionCommand command) {
@@ -111,11 +111,11 @@ public class WalletRewardKafkaListener {
 
     private void validateLikePayload(SocialContractEvent event, LikePayload payload) {
         if (payload == null
-                || payload.getActorUserId() == null
-                || !EntityTypes.isValid(payload.getEntityType())
-                || payload.getEntityId() == null
-                || payload.getEntityUserId() == null
-                || !StringUtils.hasText(payload.getRelationKey())) {
+                || payload.actorUserId() == null
+                || !EntityTypes.isValid(payload.entityType())
+                || payload.entityId() == null
+                || payload.entityUserId() == null
+                || !StringUtils.hasText(payload.relationKey())) {
             throw malformed(event.type(), event.eventId());
         }
     }
@@ -131,9 +131,9 @@ public class WalletRewardKafkaListener {
     }
 
     private String likeSourceId(String action, SocialContractEvent event, LikePayload payload) {
-        String base = payload.getRelationInstanceId() == null
-                ? payload.getRelationKey().trim() + ":v" + event.version()
-                : payload.getRelationInstanceId().toString();
+        String base = payload.relationInstanceId() == null
+                ? payload.relationKey().trim() + ":v" + event.version()
+                : payload.relationInstanceId().toString();
         return base + ":" + action;
     }
 

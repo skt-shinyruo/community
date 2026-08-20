@@ -236,11 +236,15 @@ class DriveTrashApplicationServiceSpringTest {
     private DriveTrashApplicationService serviceAt(Instant now) {
         return new DriveTrashApplicationService(
                 spaceRepository,
+                new DriveSpaceApplicationService(
+                        spaceRepository,
+                        Clock.fixed(now, ZoneOffset.UTC),
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                ),
                 entryRepository,
                 objectStoragePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                transactionOperations,
-                new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                transactionOperations
         );
     }
 

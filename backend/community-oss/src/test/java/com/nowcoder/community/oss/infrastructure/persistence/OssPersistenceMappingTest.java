@@ -229,12 +229,12 @@ class OssPersistenceMappingTest {
 
         @Override
         public int insert(OssObjectDataObject row) {
-            return rows.putIfAbsent(row.getObjectId(), row) == null ? 1 : 0;
+            return rows.putIfAbsent(row.objectId(), row) == null ? 1 : 0;
         }
 
         @Override
         public int upsert(OssObjectDataObject row) {
-            rows.put(row.getObjectId(), row);
+            rows.put(row.objectId(), row);
             return 1;
         }
 
@@ -246,10 +246,10 @@ class OssPersistenceMappingTest {
         @Override
         public List<UUID> selectDeletePendingIds(Instant updatedBefore, int limit) {
             return rows.values().stream()
-                    .filter(row -> "DELETE_PENDING".equals(row.getStatus()))
-                    .filter(row -> !row.getUpdatedAt().isAfter(updatedBefore))
+                    .filter(row -> "DELETE_PENDING".equals(row.status()))
+                    .filter(row -> !row.updatedAt().isAfter(updatedBefore))
                     .limit(limit)
-                    .map(OssObjectDataObject::getObjectId)
+                    .map(OssObjectDataObject::objectId)
                     .toList();
         }
     }
@@ -259,12 +259,12 @@ class OssPersistenceMappingTest {
 
         @Override
         public int insert(OssObjectVersionDataObject row) {
-            return rows.putIfAbsent(row.getVersionId(), row) == null ? 1 : 0;
+            return rows.putIfAbsent(row.versionId(), row) == null ? 1 : 0;
         }
 
         @Override
         public int upsert(OssObjectVersionDataObject row) {
-            rows.put(row.getVersionId(), row);
+            rows.put(row.versionId(), row);
             return 1;
         }
 
@@ -279,12 +279,12 @@ class OssPersistenceMappingTest {
 
         @Override
         public int insert(OssUploadSessionDataObject row) {
-            return rows.putIfAbsent(row.getSessionId(), row) == null ? 1 : 0;
+            return rows.putIfAbsent(row.sessionId(), row) == null ? 1 : 0;
         }
 
         @Override
         public int upsert(OssUploadSessionDataObject row) {
-            rows.put(row.getSessionId(), row);
+            rows.put(row.sessionId(), row);
             return 1;
         }
 
@@ -296,7 +296,7 @@ class OssPersistenceMappingTest {
         @Override
         public OssUploadSessionDataObject selectByRequestId(UUID requestId) {
             return rows.values().stream()
-                    .filter(row -> requestId.equals(row.getRequestId()))
+                    .filter(row -> requestId.equals(row.requestId()))
                     .findFirst()
                     .orElse(null);
         }
@@ -304,13 +304,10 @@ class OssPersistenceMappingTest {
         @Override
         public int claimForCompletion(UUID sessionId, Instant updatedAt) {
             OssUploadSessionDataObject row = rows.get(sessionId);
-            if (row == null || !"READY".equals(row.getStatus())) {
+            if (row == null || !"READY".equals(row.status())) {
                 return 0;
             }
-            row.setStatus("UPLOADING");
-            row.setClaimVersion(row.getClaimVersion() + 1L);
-            row.setUpdatedAt(updatedAt);
-            row.setLastError("");
+            rows.put(sessionId, OssUploadSessionDataObject.from(row.toDomain().startUploading(updatedAt)));
             return 1;
         }
 
@@ -325,8 +322,7 @@ class OssPersistenceMappingTest {
             if (!matchesClaim(row, claimVersion)) {
                 return 0;
             }
-            row.setLastError(lastError);
-            row.setUpdatedAt(updatedAt);
+            rows.put(sessionId, OssUploadSessionDataObject.from(row.toDomain().recordClaimError(updatedAt, lastError)));
             return 1;
         }
 
@@ -338,14 +334,10 @@ class OssPersistenceMappingTest {
                 Instant retryExpiresAt
         ) {
             OssUploadSessionDataObject row = rows.get(sessionId);
-            if (!matchesClaim(row, claimVersion) || !row.getLastError().startsWith("PUT_FAILED:")) {
+            if (!matchesClaim(row, claimVersion) || !row.lastError().startsWith("PUT_FAILED:")) {
                 return 0;
             }
-            row.setStatus("READY");
-            row.setClaimVersion(row.getClaimVersion() + 1L);
-            row.setLastError("");
-            row.setUpdatedAt(updatedAt);
-            row.setExpiresAt(retryExpiresAt);
+            rows.put(sessionId, OssUploadSessionDataObject.from(row.toDomain().resetFailedClaim(updatedAt, retryExpiresAt)));
             return 1;
         }
 
@@ -355,10 +347,7 @@ class OssPersistenceMappingTest {
             if (!matchesClaim(row, claimVersion)) {
                 return 0;
             }
-            row.setStatus("COMPLETED");
-            row.setCompletedAt(completedAt);
-            row.setUpdatedAt(completedAt);
-            row.setLastError("");
+            rows.put(sessionId, OssUploadSessionDataObject.from(row.toDomain().complete(completedAt)));
             return 1;
         }
 
@@ -372,19 +361,14 @@ class OssPersistenceMappingTest {
         ) {
             OssUploadSessionDataObject row = rows.get(sessionId);
             if (row == null
-                    || !objectId.equals(row.getObjectId())
-                    || !versionId.equals(row.getVersionId())
-                    || !("READY".equals(row.getStatus())
-                    || "UPLOADING".equals(row.getStatus())
-                    || "EXPIRED".equals(row.getStatus()))) {
+                    || !objectId.equals(row.objectId())
+                    || !versionId.equals(row.versionId())
+                    || !("READY".equals(row.status())
+                    || "UPLOADING".equals(row.status())
+                    || "EXPIRED".equals(row.status()))) {
                 return 0;
             }
-            row.setStatus("CANCELLED_CLEANUP_PENDING");
-            row.setClaimVersion(row.getClaimVersion() + 1L);
-            row.setUpdatedAt(updatedAt);
-            row.setExpiresAt(cleanupAfter);
-            row.setCompletedAt(null);
-            row.setLastError("");
+            rows.put(sessionId, OssUploadSessionDataObject.from(row.toDomain().cancel(updatedAt, cleanupAfter)));
             return 1;
         }
 
@@ -397,12 +381,12 @@ class OssPersistenceMappingTest {
         ) {
             OssUploadSessionDataObject row = rows.get(sessionId);
             if (row == null
-                    || !"CANCELLED_CLEANUP_PENDING".equals(row.getStatus())
-                    || row.getClaimVersion() != claimVersion) {
+                    || !"CANCELLED_CLEANUP_PENDING".equals(row.status())
+                    || row.claimVersion() != claimVersion) {
                 return 0;
             }
-            row.setUpdatedAt(updatedAt);
-            row.setLastError(lastError);
+            rows.put(sessionId, OssUploadSessionDataObject.from(
+                    row.toDomain().recordCancellationCleanup(updatedAt, lastError)));
             return 1;
         }
 
@@ -410,15 +394,13 @@ class OssPersistenceMappingTest {
         public int completeCancellationCleanup(UUID sessionId, long claimVersion, Instant completedAt) {
             OssUploadSessionDataObject row = rows.get(sessionId);
             if (row == null
-                    || !"CANCELLED_CLEANUP_PENDING".equals(row.getStatus())
-                    || row.getClaimVersion() != claimVersion
-                    || row.getExpiresAt().isAfter(completedAt)) {
+                    || !"CANCELLED_CLEANUP_PENDING".equals(row.status())
+                    || row.claimVersion() != claimVersion
+                    || row.expiresAt().isAfter(completedAt)) {
                 return 0;
             }
-            row.setStatus("CANCELLED");
-            row.setUpdatedAt(completedAt);
-            row.setCompletedAt(completedAt);
-            row.setLastError("");
+            rows.put(sessionId, OssUploadSessionDataObject.from(
+                    row.toDomain().completeCancellationCleanup(completedAt)));
             return 1;
         }
 
@@ -431,13 +413,12 @@ class OssPersistenceMappingTest {
         ) {
             OssUploadSessionDataObject row = rows.get(sessionId);
             if (row == null
-                    || !"READY".equals(row.getStatus())
-                    || !expectedExpiresAt.equals(row.getExpiresAt())) {
+                    || !"READY".equals(row.status())
+                    || !expectedExpiresAt.equals(row.expiresAt())) {
                 return 0;
             }
-            row.setExpiresAt(renewedExpiresAt);
-            row.setUpdatedAt(updatedAt);
-            row.setLastError("");
+            rows.put(sessionId, OssUploadSessionDataObject.from(
+                    row.toDomain().renewReady(updatedAt, renewedExpiresAt)));
             return 1;
         }
 
@@ -448,21 +429,21 @@ class OssPersistenceMappingTest {
                 int limit
         ) {
             return rows.values().stream()
-                    .filter(row -> "UPLOADING".equals(row.getStatus())
-                            || "CANCELLED_CLEANUP_PENDING".equals(row.getStatus()))
-                    .filter(row -> "UPLOADING".equals(row.getStatus())
-                            ? !row.getUpdatedAt().isAfter(row.getLastError().startsWith("RECOVERY_FAILED:")
+                    .filter(row -> "UPLOADING".equals(row.status())
+                            || "CANCELLED_CLEANUP_PENDING".equals(row.status()))
+                    .filter(row -> "UPLOADING".equals(row.status())
+                            ? !row.updatedAt().isAfter(row.lastError().startsWith("RECOVERY_FAILED:")
                             ? cancellationUpdatedBefore
                             : uploadingUpdatedBefore)
-                            : !row.getUpdatedAt().isAfter(cancellationUpdatedBefore))
+                            : !row.updatedAt().isAfter(cancellationUpdatedBefore))
                     .limit(limit)
                     .toList();
         }
 
         private static boolean matchesClaim(OssUploadSessionDataObject row, long claimVersion) {
             return row != null
-                    && "UPLOADING".equals(row.getStatus())
-                    && row.getClaimVersion() == claimVersion;
+                    && "UPLOADING".equals(row.status())
+                    && row.claimVersion() == claimVersion;
         }
     }
 
@@ -471,7 +452,7 @@ class OssPersistenceMappingTest {
 
         @Override
         public int upsert(OssUsagePolicyDataObject row) {
-            rows.put(row.getUsage(), row);
+            rows.put(row.usage(), row);
             return 1;
         }
 
@@ -490,7 +471,7 @@ class OssPersistenceMappingTest {
 
         @Override
         public int upsert(OssAccessGrantDataObject row) {
-            rows.put(row.getGrantId(), row);
+            rows.put(row.grantId(), row);
             return 1;
         }
 
@@ -502,7 +483,7 @@ class OssPersistenceMappingTest {
         @Override
         public List<OssAccessGrantDataObject> selectByObjectId(UUID objectId) {
             return rows.values().stream()
-                    .filter(row -> objectId.equals(row.getObjectId()))
+                    .filter(row -> objectId.equals(row.objectId()))
                     .toList();
         }
 
@@ -517,11 +498,11 @@ class OssPersistenceMappingTest {
             focusedVersionId = versionId;
             focusedPrincipalValue = principalValue;
             return rows.values().stream()
-                    .filter(row -> objectId.equals(row.getObjectId()))
-                    .filter(row -> row.getVersionId() == null || row.getVersionId().equals(versionId))
-                    .filter(row -> "USER".equals(row.getPrincipalType()))
-                    .filter(row -> principalValue.equals(row.getPrincipalValue()))
-                    .filter(row -> "READ".equals(row.getPermission()))
+                    .filter(row -> objectId.equals(row.objectId()))
+                    .filter(row -> row.versionId() == null || row.versionId().equals(versionId))
+                    .filter(row -> "USER".equals(row.principalType()))
+                    .filter(row -> principalValue.equals(row.principalValue()))
+                    .filter(row -> "READ".equals(row.permission()))
                     .toList();
         }
     }
@@ -531,16 +512,16 @@ class OssPersistenceMappingTest {
 
         @Override
         public int insert(OssObjectReferenceDataObject row) {
-            rows.put(row.getReferenceId(), row);
+            rows.put(row.referenceId(), row);
             return 1;
         }
 
         @Override
         public int updateLifecycle(OssObjectReferenceDataObject row) {
-            if (!rows.containsKey(row.getReferenceId())) {
+            if (!rows.containsKey(row.referenceId())) {
                 return 0;
             }
-            rows.put(row.getReferenceId(), row);
+            rows.put(row.referenceId(), row);
             return 1;
         }
 
@@ -557,7 +538,7 @@ class OssPersistenceMappingTest {
         @Override
         public List<OssObjectReferenceDataObject> selectByObjectId(UUID objectId) {
             return rows.values().stream()
-                    .filter(row -> objectId.equals(row.getObjectId()))
+                    .filter(row -> objectId.equals(row.objectId()))
                     .toList();
         }
     }

@@ -955,6 +955,7 @@ class DriveUploadApplicationServiceTest {
     ) {
         return new DriveUploadApplicationService(
                 spaces,
+                new DriveSpaceApplicationService(spaces, clock, new UuidV7Generator(clock)),
                 entries,
                 uploads,
                 storage,
@@ -1247,7 +1248,7 @@ class DriveUploadApplicationServiceTest {
         }
 
         @Override
-        public StoredObject completeUpload(CompleteObject command) {
+        public void completeUpload(CompleteObject command) {
             completed.add(command);
             if (afterComplete != null) {
                 Runnable callback = afterComplete;
@@ -1258,7 +1259,6 @@ class DriveUploadApplicationServiceTest {
                 failAfterObjectCompleted = false;
                 throw new RuntimeException("response lost");
             }
-            return new StoredObject(command.objectId(), command.versionId(), "");
         }
 
         @Override
@@ -1281,12 +1281,7 @@ class DriveUploadApplicationServiceTest {
                 return new ObjectMetadata(
                         objectId,
                         null,
-                        metadataStatus,
-                        "",
-                        "application/octet-stream",
-                        0L,
-                        "",
-                        ""
+                        metadataStatus
                 );
             }
             return completed.stream()
@@ -1295,12 +1290,7 @@ class DriveUploadApplicationServiceTest {
                     .map(command -> new ObjectMetadata(
                             command.objectId(),
                             command.versionId(),
-                            "ACTIVE",
-                            command.fileName(),
-                            command.contentType(),
-                            command.contentLength(),
-                            command.checksumSha256(),
-                            ""
+                            "ACTIVE"
                     ))
                     .orElse(null);
         }

@@ -3,7 +3,6 @@ package com.nowcoder.community.ops.infrastructure.persistence;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.ops.application.GovernanceAuditPort;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
-import com.nowcoder.community.ops.application.result.GovernanceAuditResult;
 import com.nowcoder.community.ops.infrastructure.persistence.dataobject.GovernanceAuditDataObject;
 import com.nowcoder.community.ops.infrastructure.persistence.mapper.GovernanceAuditMapper;
 import org.springframework.stereotype.Repository;
@@ -32,7 +31,7 @@ public class MyBatisGovernanceAuditRepository implements GovernanceAuditPort {
     }
 
     @Override
-    public GovernanceAuditResult record(RecordGovernanceAuditCommand command) {
+    public void record(RecordGovernanceAuditCommand command) {
         RecordGovernanceAuditCommand c = Objects.requireNonNull(command, "command must not be null").normalized();
         if (!StringUtils.hasText(c.action()) || c.actorUserId() == null || !StringUtils.hasText(c.targetType())
                 || !StringUtils.hasText(c.result())) {
@@ -55,21 +54,6 @@ public class MyBatisGovernanceAuditRepository implements GovernanceAuditPort {
         row.setCreatedAt(now);
 
         mapper.insert(row);
-        GovernanceAuditDataObject inserted = mapper.selectById(id);
-        return inserted == null ? toResult(row) : toResult(inserted);
-    }
-
-    private GovernanceAuditResult toResult(GovernanceAuditDataObject row) {
-        return new GovernanceAuditResult(
-                row.getId(),
-                row.getAction(),
-                row.getActorUserId(),
-                row.getTargetType(),
-                row.getTargetId(),
-                row.getScope(),
-                row.getResult(),
-                row.getCreatedAt()
-        );
     }
 
     private static String truncate(String value, int maxLength) {

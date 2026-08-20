@@ -107,10 +107,10 @@ class OutboxUserPolicyEventPublisherTest {
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
         UserPolicyChangedPayload payload =
                 ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
-        assertThat(payload.getUserId()).isEqualTo(userId);
-        assertThat(payload.getVersion()).isEqualTo(42L);
-        assertThat(payload.isMuted()).isTrue();
-        assertThat(payload.isCanSendPrivate()).isFalse();
+        assertThat(payload.userId()).isEqualTo(userId);
+        assertThat(payload.version()).isEqualTo(42L);
+        assertThat(payload.muted()).isTrue();
+        assertThat(payload.canSendPrivate()).isFalse();
     }
 
     @Test
@@ -175,10 +175,10 @@ class OutboxUserPolicyEventPublisherTest {
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
         UserPolicyChangedPayload payload =
                 ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
-        assertThat(payload.getUserId()).isEqualTo(userId);
-        assertThat(payload.isUserExists()).isFalse();
-        assertThat(payload.isCanSendPrivate()).isFalse();
-        assertThat(payload.getVersion()).isEqualTo(44L);
+        assertThat(payload.userId()).isEqualTo(userId);
+        assertThat(payload.userExists()).isFalse();
+        assertThat(payload.canSendPrivate()).isFalse();
+        assertThat(payload.version()).isEqualTo(44L);
     }
 
     @Test

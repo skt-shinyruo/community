@@ -4,14 +4,12 @@ import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.social.application.SocialIntegrationEventDispatcher;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletionException;
 
 @Component
-@ConditionalOnClass(KafkaTemplate.class)
 public class SocialEventKafkaSenderAdapter implements SocialIntegrationEventDispatcher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

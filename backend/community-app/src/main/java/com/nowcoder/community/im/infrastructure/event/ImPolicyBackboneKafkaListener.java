@@ -53,24 +53,24 @@ public class ImPolicyBackboneKafkaListener {
         }
         if (!StringUtils.hasText(event.eventId())
                 || payload == null
-                || payload.getUserId() == null
-                || payload.getOccurredAtEpochMillis() <= 0L
-                || payload.getVersion() == null
-                || payload.getVersion() <= 0L) {
+                || payload.userId() == null
+                || payload.occurredAtEpochMillis() <= 0L
+                || payload.version() == null
+                || payload.version() <= 0L) {
             throw malformed(event.type(), event.eventId());
         }
         projectionApplicationService.projectUserPolicy(new ProjectUserPolicyCommand(
                 "user",
                 event.eventId(),
-                payload.getUserId(),
-                payload.isUserExists(),
-                payload.isSuspended(),
-                payload.isMuted(),
-                payload.getMuteUntil(),
-                payload.getBanUntil(),
-                payload.isCanSendPrivate(),
-                payload.getOccurredAtEpochMillis(),
-                payload.getVersion()
+                payload.userId(),
+                payload.userExists(),
+                payload.suspended(),
+                payload.muted(),
+                payload.muteUntil(),
+                payload.banUntil(),
+                payload.canSendPrivate(),
+                payload.occurredAtEpochMillis(),
+                payload.version()
         ));
     }
 
@@ -93,17 +93,17 @@ public class ImPolicyBackboneKafkaListener {
                 || event.occurredAt() == null
                 || event.version() <= 0L
                 || payload == null
-                || payload.getBlockerUserId() == null
-                || payload.getBlockedUserId() == null
-                || payload.getBlocked() == null) {
+                || payload.blockerUserId() == null
+                || payload.blockedUserId() == null
+                || payload.blocked() == null) {
             throw malformed(event.type(), event.eventId());
         }
         projectionApplicationService.projectBlockRelation(new ProjectBlockRelationCommand(
                 "social",
                 event.eventId(),
-                payload.getBlockerUserId(),
-                payload.getBlockedUserId(),
-                payload.getBlocked(),
+                payload.blockerUserId(),
+                payload.blockedUserId(),
+                payload.blocked(),
                 event.occurredAt().toEpochMilli(),
                 event.version()
         ));

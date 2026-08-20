@@ -52,8 +52,8 @@ class NoticeControllerUnitTest {
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).singleElement().satisfies(response -> {
-            assertThat(response.getId()).isEqualTo(NOTICE_ID);
-            assertThat(response.getTopic()).isEqualTo("comment");
+            assertThat(response.id()).isEqualTo(NOTICE_ID);
+            assertThat(response.topic()).isEqualTo("comment");
         });
         verify(noticeApplicationService).listNoticeItems(new ListNoticeItemsCommand(userId, "comment", null, null));
     }

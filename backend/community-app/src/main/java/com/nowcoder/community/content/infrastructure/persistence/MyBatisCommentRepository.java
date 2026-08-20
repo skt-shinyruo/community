@@ -8,18 +8,13 @@ import com.nowcoder.community.content.domain.model.CommentDraft;
 import com.nowcoder.community.content.domain.model.CommentEdit;
 import com.nowcoder.community.content.domain.model.CommentReplyContext;
 import com.nowcoder.community.content.domain.model.CommentSnapshot;
-import com.nowcoder.community.content.domain.model.CommentThreadDeletion;
 import com.nowcoder.community.content.domain.model.CommentTransitionStatus;
 import com.nowcoder.community.content.domain.repository.CommentRepository;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
-import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.CommentMapper;
 import org.springframework.stereotype.Repository;
 
-import java.util.Comparator;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.UUID;
@@ -126,30 +121,6 @@ public class MyBatisCommentRepository implements CommentRepository {
     }
 
     @Override
-    public List<CommentSnapshot> getActiveThreadSnapshots(UUID rootCommentId) {
-        if (rootCommentId == null) {
-            return List.of();
-        }
-        lockRootBeforeThread(rootCommentId);
-        List<CommentDataObject> rows = orderedRows(
-                rootCommentId,
-                commentMapper.selectThreadForUpdate(rootCommentId)
-        );
-        CommentDataObject root = rows.stream()
-                .filter(row -> rootCommentId.equals(row.getId()))
-                .findFirst()
-                .orElse(null);
-        if (root == null || root.getStatus() != 0 || root.getParentCommentId() != null) {
-            return List.of();
-        }
-        return rows.stream()
-                .filter(row -> row.getStatus() == 0)
-                .map(CommentPersistenceConverter::toSnapshot)
-                .sorted(threadOrder(rootCommentId))
-                .toList();
-    }
-
-    @Override
     public List<UUID> findDeletedRootIdsWithActiveReplies(int limit) {
         List<UUID> ids = commentMapper.selectDeletedRootIdsWithActiveReplies(
                 Math.min(500, Math.max(1, limit)));
@@ -197,68 +168,6 @@ public class MyBatisCommentRepository implements CommentRepository {
     }
 
     @Override
-    public CommentDeletionResult apply(CommentThreadDeletion deletion) {
-        lockRootBeforeThread(deletion.rootCommentId());
-        List<CommentDataObject> rows = orderedRows(
-                deletion.rootCommentId(),
-                commentMapper.selectThreadForUpdate(deletion.rootCommentId())
-        );
-        Map<UUID, CommentDataObject> rowsById = new LinkedHashMap<>();
-        for (CommentDataObject row : rows) {
-            rowsById.put(row.getId(), row);
-        }
-        CommentDataObject root = rowsById.get(deletion.rootCommentId());
-        if (root == null) {
-            return CommentDeletionResult.notFound();
-        }
-        if (root.getStatus() != 0) {
-            return CommentDeletionResult.noOp();
-        }
-
-        List<UUID> activeIds = rows.stream()
-                .filter(row -> row.getStatus() == 0)
-                .map(CommentDataObject::getId)
-                .toList();
-        List<UUID> targetIds = deletion.targets().stream()
-                .map(CommentThreadDeletion.Target::commentId)
-                .toList();
-        if (!activeIds.equals(targetIds)) {
-            return CommentDeletionResult.stale();
-        }
-
-        for (CommentThreadDeletion.Target target : deletion.targets()) {
-            CommentDataObject row = rowsById.get(target.commentId());
-            if (row == null) {
-                return CommentDeletionResult.notFound();
-            }
-            if (row.getStatus() != 0
-                    || row.getVersion() != target.expectedVersion()
-                    || !deletion.rootCommentId().equals(row.getRootCommentId())) {
-                return CommentDeletionResult.stale();
-            }
-        }
-
-        List<CommentTransitionTargetDataObject> persistenceTargets = deletion.targets().stream()
-                .map(target -> new CommentTransitionTargetDataObject(
-                        target.commentId(),
-                        target.expectedVersion()
-                ))
-                .toList();
-        int updated = commentMapper.applyThreadDeletion(
-                deletion.rootCommentId(),
-                persistenceTargets,
-                deletion.deletedBy(),
-                deletion.deletedReason(),
-                deletion.deletedTime()
-        );
-        ensureAppliedCount(deletion.targets().size(), updated);
-        List<CommentSnapshot> affected = deletion.targets().stream()
-                .map(target -> CommentPersistenceConverter.toSnapshot(rowsById.get(target.commentId())))
-                .toList();
-        return CommentDeletionResult.applied(affected);
-    }
-
-    @Override
     public CommentDeletionResult deleteActiveReplyBatch(
             UUID rootCommentId,
             UUID deletedBy,
@@ -281,11 +190,6 @@ public class MyBatisCommentRepository implements CommentRepository {
         return CommentDeletionResult.applied(rows.stream()
                 .map(CommentPersistenceConverter::toSnapshot)
                 .toList());
-    }
-
-    private void lockRootBeforeThread(UUID rootCommentId) {
-        // Keep thread deletion on the same root-first lock order as nested reply creation.
-        commentMapper.selectByIdForUpdate(rootCommentId);
     }
 
     private static boolean validLockedRoot(
@@ -342,25 +246,6 @@ public class MyBatisCommentRepository implements CommentRepository {
 
     private static List<CommentDataObject> safeRows(List<CommentDataObject> rows) {
         return rows == null ? List.of() : rows;
-    }
-
-    private static List<CommentDataObject> orderedRows(UUID rootCommentId, List<CommentDataObject> rows) {
-        return safeRows(rows).stream()
-                .sorted(Comparator
-                        .comparing((CommentDataObject row) -> !rootCommentId.equals(row.getId()))
-                        .thenComparing(
-                                CommentDataObject::getCreateTime,
-                                Comparator.nullsLast(Comparator.naturalOrder())
-                        )
-                        .thenComparing(row -> row.getId().toString()))
-                .toList();
-    }
-
-    private static Comparator<CommentSnapshot> threadOrder(UUID rootCommentId) {
-        return Comparator
-                .comparing((CommentSnapshot snapshot) -> !rootCommentId.equals(snapshot.id()))
-                .thenComparing(CommentSnapshot::createTime)
-                .thenComparing(snapshot -> snapshot.id().toString());
     }
 
     private static void ensureAppliedCount(int expected, int actual) {

@@ -32,13 +32,13 @@ public class PostIntegrationEventPublisher {
     public void postUpdated(UUID postId) {
         var payload = postPayloadAssembler.assemble(postId);
         eventPublisher.publishPostUpdated(payload);
-        readModelsAfterCommit.postUpdated(postId, payload.getAggregateVersion());
+        readModelsAfterCommit.postUpdated(postId, payload.aggregateVersion());
     }
 
     @Transactional(propagation = Propagation.MANDATORY)
     public void postDeleted(UUID postId) {
         var payload = postPayloadAssembler.assemble(postId);
         eventPublisher.publishPostDeleted(payload);
-        readModelsAfterCommit.postDeleted(postId, payload.getCategoryId(), payload.getAggregateVersion());
+        readModelsAfterCommit.postDeleted(postId, payload.categoryId(), payload.aggregateVersion());
     }
 }

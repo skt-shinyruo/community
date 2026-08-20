@@ -84,62 +84,62 @@ public class TaskProgressEventBackboneKafkaListener {
     }
 
     private void handlePostPublished(ContentContractEvent event, PostPayload payload) {
-        if (payload == null || payload.getPostId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
+        if (payload == null || payload.postId() == null || payload.userId() == null || payload.createTime() == null) {
             throw malformed(event.type(), event.eventId());
         }
         applicationService.triggerPostPublished(new TriggerPostPublishedCommand(
-                payload.getPostId(),
-                payload.getUserId(),
-                payload.getCreateTime()
+                payload.postId(),
+                payload.userId(),
+                payload.createTime()
         ));
     }
 
     private void handleCommentCreated(ContentContractEvent event, CommentPayload payload) {
-        if (payload == null || payload.getCommentId() == null || payload.getUserId() == null || payload.getCreateTime() == null) {
+        if (payload == null || payload.commentId() == null || payload.userId() == null || payload.createTime() == null) {
             throw malformed(event.type(), event.eventId());
         }
         applicationService.triggerCommentCreated(new TriggerCommentCreatedCommand(
-                payload.getCommentId(),
-                payload.getUserId(),
-                payload.getCreateTime()
+                payload.commentId(),
+                payload.userId(),
+                payload.createTime()
         ));
     }
 
     private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
-        if (!hasCanonicalLikeIdentity(payload) || payload.getEntityUserId() == null) {
+        if (!hasCanonicalLikeIdentity(payload) || payload.entityUserId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        if (payload.getActorUserId().equals(payload.getEntityUserId())) {
+        if (payload.actorUserId().equals(payload.entityUserId())) {
             return;
         }
         long sourceVersion = likeSourceVersion(event, payload);
         applicationService.triggerLikeCreated(new TriggerLikeCreatedCommand(
                 event.eventId().trim(),
                 sourceVersion,
-                payload.getRelationKey().trim(),
-                payload.getRelationInstanceId(),
-                payload.getActorUserId(),
-                payload.getEntityUserId(),
+                payload.relationKey().trim(),
+                payload.relationInstanceId(),
+                payload.actorUserId(),
+                payload.entityUserId(),
                 event.occurredAt()
         ));
     }
 
     private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
-        if (!hasCanonicalLikeIdentity(payload) || payload.getEntityUserId() == null) {
+        if (!hasCanonicalLikeIdentity(payload) || payload.entityUserId() == null) {
             throw malformed(event.type(), event.eventId());
         }
         long sourceVersion = likeSourceVersion(event, payload);
         applicationService.triggerLikeRemoved(new TriggerLikeRemovedCommand(
                 event.eventId().trim(),
                 sourceVersion,
-                payload.getRelationKey().trim(),
-                payload.getRelationInstanceId(),
-                payload.getEntityUserId()
+                payload.relationKey().trim(),
+                payload.relationInstanceId(),
+                payload.entityUserId()
         ));
     }
 
     private long likeSourceVersion(SocialContractEvent event, LikePayload payload) {
-        Long relationVersion = payload.getRelationVersion();
+        Long relationVersion = payload.relationVersion();
         if (relationVersion == null) {
             if (event.version() >= DURABLE_RELATION_VERSION_FLOOR) {
                 throw malformed(event.type(), event.eventId());
@@ -148,7 +148,7 @@ public class TaskProgressEventBackboneKafkaListener {
         }
         if (relationVersion <= 0L
                 || event.version() != relationVersion
-                || payload.getRelationInstanceId() == null) {
+                || payload.relationInstanceId() == null) {
             throw malformed(event.type(), event.eventId());
         }
         return relationVersion;
@@ -156,17 +156,17 @@ public class TaskProgressEventBackboneKafkaListener {
 
     private boolean hasCanonicalLikeIdentity(LikePayload payload) {
         if (payload == null
-                || payload.getActorUserId() == null
-                || !EntityTypes.isValid(payload.getEntityType())
-                || payload.getEntityId() == null
-                || !hasText(payload.getRelationKey())) {
+                || payload.actorUserId() == null
+                || !EntityTypes.isValid(payload.entityType())
+                || payload.entityId() == null
+                || !hasText(payload.relationKey())) {
             return false;
         }
         String expectedRelationKey = "like:"
-                + payload.getActorUserId()
-                + ":" + payload.getEntityType()
-                + ":" + payload.getEntityId();
-        return expectedRelationKey.equals(payload.getRelationKey().trim());
+                + payload.actorUserId()
+                + ":" + payload.entityType()
+                + ":" + payload.entityId();
+        return expectedRelationKey.equals(payload.relationKey().trim());
     }
 
     private boolean hasText(String value) {

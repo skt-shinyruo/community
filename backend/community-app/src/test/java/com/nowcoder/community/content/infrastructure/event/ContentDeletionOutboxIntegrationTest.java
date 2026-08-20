@@ -143,14 +143,8 @@ class ContentDeletionOutboxIntegrationTest {
     }
 
     private CommentPayload commentDeletedPayload() {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(COMMENT_ID);
-        payload.setPostId(POST_ID);
-        payload.setUserId(AUTHOR_ID);
-        payload.setEntityType(POST);
-        payload.setEntityId(POST_ID);
-        payload.setCreateTime(DELETED_AT);
-        return payload;
+        return new CommentPayload(
+                COMMENT_ID, POST_ID, AUTHOR_ID, POST, POST_ID, null, null, DELETED_AT, 0L);
     }
 
     private int postStatus() {

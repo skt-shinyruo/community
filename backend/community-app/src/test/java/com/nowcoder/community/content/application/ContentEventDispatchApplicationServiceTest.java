@@ -57,7 +57,7 @@ class ContentEventDispatchApplicationServiceTest {
         assertThat(event.type()).isEqualTo(ContentEventTypes.POST_PUBLISHED);
         ContentTypedEvent.PostPublished typedEvent =
                 (ContentTypedEvent.PostPublished) contractEventCodec.decode(event);
-        assertThat(typedEvent.payload().getPostId()).isEqualTo(postId);
+        assertThat(typedEvent.payload().postId()).isEqualTo(postId);
     }
 
     @Test
@@ -91,8 +91,8 @@ class ContentEventDispatchApplicationServiceTest {
                 (ContentTypedEvent.CommentCreated) contractEventCodec.decode(eventCaptor.getAllValues().get(0));
         ContentTypedEvent.ModerationActionApplied moderationActionApplied =
                 (ContentTypedEvent.ModerationActionApplied) contractEventCodec.decode(eventCaptor.getAllValues().get(1));
-        assertThat(commentCreated.payload().getCommentId()).isEqualTo(commentId);
-        assertThat(moderationActionApplied.payload().getToUserId()).isEqualTo(toUserId);
+        assertThat(commentCreated.payload().commentId()).isEqualTo(commentId);
+        assertThat(moderationActionApplied.payload().toUserId()).isEqualTo(toUserId);
     }
 
     @Test
@@ -236,20 +236,15 @@ class ContentEventDispatchApplicationServiceTest {
     }
 
     private static PostPayload postPayload(UUID postId) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        return payload;
+        return new PostPayload(
+                postId, null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
     }
 
     private static CommentPayload commentPayload(UUID commentId) {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        return payload;
+        return new CommentPayload(commentId, null, null, 0, null, null, null, null, 0L);
     }
 
     private static ModerationPayload moderationPayload(UUID toUserId) {
-        ModerationPayload payload = new ModerationPayload();
-        payload.setToUserId(toUserId);
-        return payload;
+        return new ModerationPayload(null, null, toUserId, null, null, null, null, null, null, null);
     }
 }

@@ -3,9 +3,10 @@ package com.nowcoder.community.profile.controller;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.PostSummaryView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.RecentUserCommentView;
 import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
-import com.nowcoder.community.profile.controller.dto.UserProfileResponse;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -59,7 +60,7 @@ class UserProfileControllerTest {
                 userId, "alice", "h7", 2, 0, createTime, true, 2, 13, 12, 5, 8
         ));
 
-        Result<UserProfileResponse> result = controller.getUser(userId);
+        Result<UserProfilePageResult> result = controller.getUser(userId);
 
         JsonNode data = objectMapper.valueToTree(result).path("data");
         assertThat(data.path("id").asText()).isEqualTo(userId.toString());
@@ -84,20 +85,20 @@ class UserProfileControllerTest {
         UUID commentId = uuid(21);
         Date createTime = new Date(1_720_000_000_000L);
         when(applicationService.listRecentPosts(userId, 1, 5)).thenReturn(List.of(
-                new UserProfilePageResult.RecentPostSummaryResult(
+                new PostSummaryView(
                         postId, userId, "first post", 1, 0, createTime, 4, 9.5,
                         uuid(3), List.of("java"), uuid(8), createTime, createTime, "latest reply"
                 )
         ));
         when(applicationService.listRecentComments(userId, 2, 10)).thenReturn(List.of(
-                new UserProfilePageResult.RecentCommentItemResult(
+                new RecentUserCommentView(
                         commentId, userId, 1, uuid(101), uuid(301), uuid(201),
                         "post title", "reply body", createTime
                 )
         ));
 
-        Result<List<UserProfilePageResult.RecentPostSummaryResult>> posts = controller.recentPosts(userId, 1, 5);
-        Result<List<UserProfilePageResult.RecentCommentItemResult>> comments = controller.recentComments(userId, 2, 10);
+        Result<List<PostSummaryView>> posts = controller.recentPosts(userId, 1, 5);
+        Result<List<RecentUserCommentView>> comments = controller.recentComments(userId, 2, 10);
 
         assertThat(posts.getData()).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo(postId);

@@ -3,7 +3,6 @@ package com.nowcoder.community.analytics.application;
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService.RequestObservation;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import org.junit.jupiter.api.Test;
 
@@ -69,11 +68,11 @@ class AnalyticsRequestCaptureApplicationServiceTest {
     void shouldSkipWhenDynamicFeatureFlagIsDisabled() {
         AnalyticsIngestProperties properties = enabledProperties();
         FeatureFlagProperties featureFlagProperties = new FeatureFlagProperties();
-        featureFlagProperties.getFlags().put("analytics-ingest", false);
+        featureFlagProperties.getFeatures().put("analytics-ingest", false);
         AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
         AnalyticsRequestCaptureApplicationService service = service(
                 properties,
-                new FeatureFlagDecisions(featureFlagProperties),
+                featureFlagProperties,
                 capturePort
         );
 
@@ -84,7 +83,7 @@ class AnalyticsRequestCaptureApplicationServiceTest {
 
     private static AnalyticsRequestCaptureApplicationService service(
             AnalyticsIngestProperties properties,
-            FeatureFlagDecisions featureFlags,
+            FeatureFlagProperties featureFlags,
             AnalyticsRequestCapturePort capturePort
     ) {
         return new AnalyticsRequestCaptureApplicationService(properties, featureFlags, capturePort);
@@ -97,7 +96,7 @@ class AnalyticsRequestCaptureApplicationServiceTest {
         return properties;
     }
 
-    private static FeatureFlagDecisions defaultFeatureFlags() {
-        return new FeatureFlagDecisions(new FeatureFlagProperties());
+    private static FeatureFlagProperties defaultFeatureFlags() {
+        return new FeatureFlagProperties();
     }
 }

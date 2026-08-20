@@ -76,10 +76,10 @@ public final class OtelTraceContext {
 
     public static Context extract(String traceparent) {
         if (traceparent == null || traceparent.isBlank()) {
-            return Context.current();
+            return Context.root();
         }
         return W3CTraceContextPropagator.getInstance()
-                .extract(Context.current(), Map.of(TraceHeaders.HEADER_TRACEPARENT, traceparent.trim()), MAP_GETTER);
+                .extract(Context.root(), Map.of(TraceHeaders.HEADER_TRACEPARENT, traceparent.trim()), MAP_GETTER);
     }
 
     public static void inject(Context context, Map<String, String> carrier) {
@@ -92,7 +92,7 @@ public final class OtelTraceContext {
         Context parent = extract(traceparent);
         SpanContext extracted = Span.fromContext(parent).getSpanContext();
         if (active != null && !shouldSwitchToExtracted(active, extracted)) {
-            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(active, false), Scope.noop(), null);
+            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(active), Scope.noop(), null);
         }
 
         SpanBuilder builder = GlobalOpenTelemetry.getTracer(INSTRUMENTATION_NAME)
@@ -108,12 +108,12 @@ public final class OtelTraceContext {
         SpanContext started = span.getSpanContext();
         if (started.isValid()) {
             Scope scope = span.makeCurrent();
-            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(started, false), scope, span);
+            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(started), scope, span);
         }
 
         if (extracted.isValid()) {
             Scope scope = Span.wrap(extracted).makeCurrent();
-            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(extracted, true), scope, null);
+            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(extracted), scope, null);
         }
 
         return TraceContextScope.open(TraceContextSnapshot.synthetic(), Scope.noop(), null);
@@ -131,10 +131,10 @@ public final class OtelTraceContext {
         SpanContext started = span.getSpanContext();
         if (started.isValid()) {
             Scope scope = span.makeCurrent();
-            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(started, false), scope, span);
+            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(started), scope, span);
         }
         if (active != null) {
-            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(active, false), Scope.noop(), null);
+            return TraceContextScope.open(TraceContextSnapshot.fromSpanContext(active), Scope.noop(), null);
         }
         return TraceContextScope.open(TraceContextSnapshot.synthetic(), Scope.noop(), null);
     }

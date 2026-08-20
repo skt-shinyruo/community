@@ -247,16 +247,17 @@ public class CommentApplicationService {
 
         String decodedContent = textCodec.decodeOnRead(safeContent);
         var createdAt = createTime.toInstant();
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        payload.setPostId(postId);
-        payload.setUserId(userId);
-        payload.setEntityType(target.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT);
-        payload.setEntityId(target.parentCommentId() == null ? postId : target.parentCommentId());
-        payload.setTargetUserId(target.targetUserId());
-        payload.setContent(decodedContent);
-        payload.setCreateTime(createdAt);
-        payload.setPostAggregateVersion(postAggregateVersion);
+        CommentPayload payload = new CommentPayload(
+                commentId,
+                postId,
+                userId,
+                target.parentCommentId() == null ? EntityTypes.POST : EntityTypes.COMMENT,
+                target.parentCommentId() == null ? postId : target.parentCommentId(),
+                target.targetUserId(),
+                decodedContent,
+                createdAt,
+                postAggregateVersion
+        );
         eventPublisher.publishCommentCreated(payload);
         return new CommentMutationResult(commentId, postAggregateVersion);
     }

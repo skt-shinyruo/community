@@ -113,12 +113,12 @@ public class AuthController {
     @GetMapping("/me")
     public Result<MeResponse> me(Authentication authentication) {
         var jwt = CurrentUser.requireJwt(authentication);
-        MeResponse me = new MeResponse();
-        me.setUserId(parseUserUuidOrThrow(jwt.getSubject()));
-        me.setUsername(jwt.getClaimAsString("username"));
         List<String> authorities = jwt.getClaimAsStringList("authorities");
-        me.setAuthorities(authorities == null ? List.of() : authorities);
-        return Result.ok(me);
+        return Result.ok(new MeResponse(
+                parseUserUuidOrThrow(jwt.getSubject()),
+                jwt.getClaimAsString("username"),
+                authorities == null ? List.of() : authorities
+        ));
     }
 
     @PostMapping("/register")

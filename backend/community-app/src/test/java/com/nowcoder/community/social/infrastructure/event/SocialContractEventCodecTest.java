@@ -121,15 +121,14 @@ class SocialContractEventCodecTest {
     @Test
     void likePayloadShouldRoundTripLifecycleIdentityAndDecodeLegacyPayloadWithoutIt() {
         UUID relationInstanceId = uuid(104);
-        LikePayload currentPayload = likePayload();
-        currentPayload.setRelationInstanceId(relationInstanceId);
+        LikePayload currentPayload = likePayload(relationInstanceId);
 
         SocialTypedEvent current = codec.decode(envelope(
                 SocialEventTypes.LIKE_CREATED,
                 JSON_CODEC.valueToTree(currentPayload)
         ));
 
-        assertThat(((SocialTypedEvent.LikeCreated) current).payload().getRelationInstanceId())
+        assertThat(((SocialTypedEvent.LikeCreated) current).payload().relationInstanceId())
                 .isEqualTo(relationInstanceId);
         assertThat(codec.encode(current).payload().path("relationInstanceId").asText())
                 .isEqualTo(relationInstanceId.toString());
@@ -144,7 +143,7 @@ class SocialContractEventCodecTest {
         ));
         SocialTypedEvent legacy = codec.decode(envelope(SocialEventTypes.LIKE_REMOVED, legacyPayload));
 
-        assertThat(((SocialTypedEvent.LikeRemoved) legacy).payload().getRelationInstanceId()).isNull();
+        assertThat(((SocialTypedEvent.LikeRemoved) legacy).payload().relationInstanceId()).isNull();
     }
 
     @Test
@@ -166,7 +165,7 @@ class SocialContractEventCodecTest {
     }
 
     private static Stream<Arguments> knownSocialEvents() {
-        JsonNode like = JSON_CODEC.valueToTree(likePayload());
+        JsonNode like = JSON_CODEC.valueToTree(likePayload(null));
         JsonNode follow = JSON_CODEC.valueToTree(followPayload());
         JsonNode block = JSON_CODEC.valueToTree(blockPayload());
         return Stream.of(
@@ -223,34 +222,24 @@ class SocialContractEventCodecTest {
         );
     }
 
-    private static LikePayload likePayload() {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(101));
-        payload.setEntityType(EntityTypes.POST);
-        payload.setEntityId(uuid(102));
-        payload.setEntityUserId(uuid(103));
-        payload.setPostId(uuid(102));
-        payload.setRelationKey("post:102:user:101");
-        return payload;
+    private static LikePayload likePayload(UUID relationInstanceId) {
+        return new LikePayload(
+                uuid(101),
+                EntityTypes.POST,
+                uuid(102),
+                uuid(103),
+                uuid(102),
+                "post:102:user:101",
+                relationInstanceId,
+                null
+        );
     }
 
     private static FollowPayload followPayload() {
-        FollowPayload payload = new FollowPayload();
-        payload.setActorUserId(uuid(201));
-        payload.setEntityType(EntityTypes.USER);
-        payload.setEntityId(uuid(202));
-        payload.setEntityUserId(uuid(202));
-        payload.setCreateTime(OCCURRED_AT);
-        return payload;
+        return new FollowPayload(uuid(201), EntityTypes.USER, uuid(202), uuid(202), OCCURRED_AT);
     }
 
     private static BlockPayload blockPayload() {
-        BlockPayload payload = new BlockPayload();
-        payload.setBlockerUserId(uuid(301));
-        payload.setBlockedUserId(uuid(302));
-        payload.setBlocked(true);
-        payload.setOccurredAt(OCCURRED_AT);
-        payload.setVersion(11L);
-        return payload;
+        return new BlockPayload(uuid(301), uuid(302), true, OCCURRED_AT, 11L);
     }
 }

@@ -36,8 +36,6 @@ public class ReportController {
                 request.detail()
         );
 
-        CreateReportResponse resp = new CreateReportResponse();
-        resp.setReportId(reportId);
-        return Result.ok(resp);
+        return Result.ok(new CreateReportResponse(reportId));
     }
 }

@@ -71,11 +71,11 @@ class PostMediaControllerUnitTest {
         Result<PostMediaUploadSessionResponse> result = controller.prepareUpload(authentication(actorUserId), request);
 
         assertThat(result.getCode()).isEqualTo(0);
-        assertThat(result.getData().getAssetId()).isEqualTo(assetId);
-        assertThat(result.getData().getUpload().getUrl()).isEqualTo("/api/posts/media/" + assetId + "/upload");
-        assertThat(result.getData().getUpload().getFileField()).isEqualTo("file");
-        assertThat(result.getData().getUpload().getFields()).containsEntry("uploadId", uuid(11).toString());
-        assertThat(result.getData().getConstraints().getMimeTypes()).contains("video/mp4", "application/pdf");
+        assertThat(result.getData().assetId()).isEqualTo(assetId);
+        assertThat(result.getData().upload().url()).isEqualTo("/api/posts/media/" + assetId + "/upload");
+        assertThat(result.getData().upload().fileField()).isEqualTo("file");
+        assertThat(result.getData().upload().fields()).containsEntry("uploadId", uuid(11).toString());
+        assertThat(result.getData().constraints().mimeTypes()).contains("video/mp4", "application/pdf");
         ArgumentCaptor<PreparePostMediaUploadCommand> captor = forClass(PreparePostMediaUploadCommand.class);
         verify(applicationService).prepareUpload(captor.capture());
         assertThat(captor.getValue().actorUserId()).isEqualTo(actorUserId);

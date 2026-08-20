@@ -9,7 +9,6 @@ import io.opentelemetry.api.trace.SpanKind;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -27,14 +26,6 @@ class ImPolicyEventKafkaSenderAdapterTest {
 
     private static final String USER_POLICY_TOPIC = "im.policy.user";
     private static final String BLOCK_TOPIC = "im.policy.block";
-
-    @Test
-    void senderShouldRemainKafkaClasspathConditional() {
-        ConditionalOnClass conditionalOnClass = ImPolicyEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-
-        assertThat(conditionalOnClass).isNotNull();
-        assertThat(conditionalOnClass.value()).containsExactly(KafkaTemplate.class);
-    }
 
     @Test
     void sendShouldPublishWithTopicKeyPayloadAndTraceHeaders() {

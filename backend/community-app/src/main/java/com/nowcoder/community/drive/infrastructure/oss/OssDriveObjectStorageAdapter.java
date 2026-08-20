@@ -46,7 +46,7 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
     }
 
     @Override
-    public StoredObject completeUpload(CompleteObject command) {
+    public void completeUpload(CompleteObject command) {
         OssMetadataResponse response = ossClient.completeProxyUpload(new OssCompleteUploadRequest(
                 command.sessionId(),
                 command.objectId(),
@@ -60,7 +60,6 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
         if (response == null || response.objectId() == null || response.currentVersionId() == null) {
             throw new BusinessException(INTERNAL_ERROR, "上传网盘文件失败");
         }
-        return new StoredObject(response.objectId(), response.currentVersionId(), response.publicUrl());
     }
 
     @Override
@@ -95,12 +94,7 @@ public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
         return new ObjectMetadata(
                 response.objectId(),
                 response.currentVersionId(),
-                response.status(),
-                response.fileName(),
-                response.contentType(),
-                response.contentLength(),
-                response.checksumSha256(),
-                response.publicUrl()
+                response.status()
         );
     }
 

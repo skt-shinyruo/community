@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
-import com.nowcoder.community.content.domain.model.ModerationActionSummary;
 import com.nowcoder.community.content.domain.repository.ModerationActionRepository;
 import com.nowcoder.community.content.domain.model.ModerationAction;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
@@ -69,11 +68,11 @@ public class MyBatisModerationActionRepository implements ModerationActionReposi
     }
 
     @Override
-    public List<ModerationActionSummary> listActions(UUID actorId, int page, int size) {
+    public List<ModerationActionRecord> listActions(UUID actorId, int page, int size) {
         int p = Math.max(0, page);
         int s = Math.min(100, Math.max(1, size));
         return moderationActionMapper.selectActions(actorId, Pagination.safeOffset(p, s), s).stream()
-                .map(this::toSummary)
+                .map(this::toRecord)
                 .toList();
     }
 
@@ -89,15 +88,4 @@ public class MyBatisModerationActionRepository implements ModerationActionReposi
         );
     }
 
-    private ModerationActionSummary toSummary(ModerationAction action) {
-        return new ModerationActionSummary(
-                action.getId(),
-                action.getReportId(),
-                action.getActorId(),
-                action.getAction(),
-                action.getReason(),
-                action.getDurationSeconds(),
-                action.getCreateTime()
-        );
-    }
 }

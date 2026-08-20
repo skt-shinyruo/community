@@ -48,20 +48,20 @@ public class ContentPostPayloadAssembler {
         if (post == null || post.getId() == null) {
             throw new IllegalArgumentException("post 为空或非法");
         }
-        PostPayload payload = new PostPayload();
-        payload.setPostId(post.getId());
-        payload.setUserId(post.getUserId());
-        payload.setCategoryId(post.getCategoryId());
-        payload.setTags(tags == null ? List.of() : tags);
-        payload.setTitle(textCodec.decodeOnRead(post.getTitle()));
-        payload.setContent(textCodec.decodeOnRead(postContentBlockTextProjector.fullText(blocks)));
-        payload.setType(post.getType());
-        payload.setStatus(post.getStatus());
-        payload.setCreateTime(post.getCreateTime() == null ? null : post.getCreateTime().toInstant());
-        payload.setUpdateTime(post.getUpdateTime() == null ? null : post.getUpdateTime().toInstant());
-        payload.setScore(post.getScore());
-        payload.setScoreVersion(post.getScoreVersion());
-        payload.setAggregateVersion(post.getAggregateVersion());
-        return payload;
+        return new PostPayload(
+                post.getId(),
+                post.getUserId(),
+                post.getCategoryId(),
+                tags == null ? List.of() : tags,
+                textCodec.decodeOnRead(post.getTitle()),
+                textCodec.decodeOnRead(postContentBlockTextProjector.fullText(blocks)),
+                post.getType(),
+                post.getStatus(),
+                post.getCreateTime() == null ? null : post.getCreateTime().toInstant(),
+                post.getUpdateTime() == null ? null : post.getUpdateTime().toInstant(),
+                post.getScore(),
+                post.getScoreVersion(),
+                post.getAggregateVersion()
+        );
     }
 }

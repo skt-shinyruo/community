@@ -16,7 +16,7 @@
 - `GET /api/users/{userId}/recent-posts`
 - `GET /api/users/{userId}/recent-comments`
 
-`UserProfileController` 只解析 path/query 参数，并把 application result 转为 HTTP response。
+`UserProfileController` 只解析 path/query 参数，并直接返回 transport-safe application result。
 
 ## 聚合流程
 
@@ -26,14 +26,14 @@
 2. 通过 `UserLevelQueryApi.evaluateLevel(...)` 读取 growth 等级。返回 `null` 或 `enabled=false` 时，主页明确返回等级功能未启用，不伪造等级值。
 3. 通过 `SocialLikeQueryApi.userLikeCount(...)` 读取获赞数。
 4. 通过 `SocialFollowQueryApi` 读取关注数和粉丝数。
-5. 组装不含查看者状态的 `UserProfilePageResult`，controller 再完成 transport DTO 转换。
+5. 组装不含查看者状态且与 HTTP 语义一致的 `UserProfilePageResult`，controller 直接返回，不建立镜像 DTO。
 
 `GET /api/users/{userId}` 不返回 `hasFollowed`。查看者与目标用户的关注关系由 social 的 `/api/follows/status` 返回，避免查看者相关状态进入可跨登录代际复用的资料缓存。
 
 最近内容：
 
 - `listRecentPosts(...)` 和 `listRecentComments(...)` 都先回源 user 确认目标存在，再调用 `PostReadQueryApi`。
-- 最近帖子、评论的分页和内容字段由 content owner 决定；profile 不跨表 JOIN，也不复制 content repository。
+- 最近帖子、评论的分页和内容字段由 content owner 决定；profile 直接复用 `PostReadQueryApi` 的 published view，不跨表 JOIN，也不复制 content repository 或 view model。
 
 ## 一致性与失败
 

@@ -37,6 +37,7 @@ import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
+import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
@@ -127,11 +128,6 @@ class DriveUploadApplicationServiceSpringTest {
                         new DriveObjectStoragePort.PreparedObject(uuid(111), uuid(112), uuid(113), expiresAt),
                         new DriveObjectStoragePort.PreparedObject(uuid(121), uuid(122), uuid(123), expiresAt)
                 );
-        when(objectStoragePort.completeUpload(any())).thenAnswer(invocation -> {
-            DriveObjectStoragePort.CompleteObject command = invocation.getArgument(0);
-            return new DriveObjectStoragePort.StoredObject(command.objectId(), command.versionId(), "");
-        });
-
         var firstSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "first.bin", "application/octet-stream", uploadSize, ""));
         var secondSession = service.prepareUpload(new PrepareUploadCommand(userId, null, "second.bin", "application/octet-stream", uploadSize, ""));
 
@@ -166,16 +162,15 @@ class DriveUploadApplicationServiceSpringTest {
         var session = service.prepareUpload(new PrepareUploadCommand(
                 userId, null, "rollback.txt", "text/plain", 2L, ""));
         UUID uploadId = UUID.fromString(session.uploadId());
-        when(objectStoragePort.completeUpload(any())).thenAnswer(invocation -> {
-            DriveObjectStoragePort.CompleteObject command = invocation.getArgument(0);
+        doAnswer(invocation -> {
             DriveUpload completing = uploadRepository.findById(uploadId).orElseThrow();
             assertThat(completing.status()).isEqualTo(DriveUploadStatus.COMPLETING);
             jdbcTemplate.update(
                     "update drive_space set reserved_bytes = 1 where space_id = ?",
                     BinaryUuidCodec.toBytes(completing.spaceId())
             );
-            return new DriveObjectStoragePort.StoredObject(command.objectId(), command.versionId(), "");
-        });
+            return null;
+        }).when(objectStoragePort).completeUpload(any());
 
         assertThatThrownBy(() -> service.completeUpload(new CompleteUploadCommand(
                 userId,
@@ -221,12 +216,7 @@ class DriveUploadApplicationServiceSpringTest {
         when(objectStoragePort.getMetadata(prepared.objectId())).thenReturn(new DriveObjectStoragePort.ObjectMetadata(
                 prepared.objectId(),
                 prepared.versionId(),
-                "STAGED",
-                prepared.name(),
-                prepared.mimeType(),
-                prepared.sizeBytes(),
-                prepared.checksumSha256(),
-                ""
+                "STAGED"
         ));
         CountDownLatch bothAtCancellation = new CountDownLatch(2);
         CountDownLatch allowCancellation = new CountDownLatch(1);

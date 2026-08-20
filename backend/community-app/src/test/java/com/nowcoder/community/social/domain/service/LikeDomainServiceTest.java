@@ -84,6 +84,7 @@ class LikeDomainServiceTest {
         LikeChangedDomainEvent event = service.likeChangedEvent(
                 relation,
                 new ResolvedSocialEntity(uuid(2), uuid(10)),
+                createdAt.toEpochMilli(),
                 true,
                 createdAt
         );
@@ -107,6 +108,7 @@ class LikeDomainServiceTest {
         LikeChangedDomainEvent event = service.likeChangedEvent(
                 relation,
                 new ResolvedSocialEntity(uuid(2), null),
+                1L,
                 false,
                 Instant.EPOCH
         );

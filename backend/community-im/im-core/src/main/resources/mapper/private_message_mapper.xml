@@ -11,14 +11,16 @@
 
     <resultMap id="privateMessageResultMap"
                type="com.nowcoder.community.im.core.infrastructure.persistence.dataobject.PrivateMessageDataObject">
-        <id property="conversationId" column="conversation_id"/>
-        <id property="seq" column="seq"/>
-        <result property="messageId" column="message_id" jdbcType="BINARY"/>
-        <result property="fromUserId" column="from_user_id" jdbcType="BINARY"/>
-        <result property="toUserId" column="to_user_id" jdbcType="BINARY"/>
-        <result property="content" column="content"/>
-        <result property="clientMsgId" column="client_msg_id"/>
-        <result property="createdAt" column="created_at"/>
+        <constructor>
+            <idArg column="conversation_id" javaType="java.lang.String"/>
+            <idArg column="seq" javaType="_long"/>
+            <arg column="message_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="from_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="to_user_id" javaType="java.util.UUID" jdbcType="BINARY"/>
+            <arg column="content" javaType="java.lang.String"/>
+            <arg column="client_msg_id" javaType="java.lang.String"/>
+            <arg column="created_at" javaType="java.time.Instant"/>
+        </constructor>
     </resultMap>
 
     <select id="selectByIdempotency" resultMap="privateMessageResultMap">

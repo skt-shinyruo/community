@@ -53,7 +53,7 @@ class MyBatisGovernanceAuditRepositoryTest {
     void recordShouldPersistGovernanceAuditFields() {
         UUID actorUserId = uuid(99);
 
-        var result = repository.record(new RecordGovernanceAuditCommand(
+        repository.record(new RecordGovernanceAuditCommand(
                 GovernanceAction.OUTBOX_REPLAY_BATCH.name(),
                 actorUserId,
                 "outbox_event",
@@ -66,17 +66,11 @@ class MyBatisGovernanceAuditRepositoryTest {
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
         ));
 
-        assertThat(result.id()).isNotNull();
-        assertThat(result.action()).isEqualTo(GovernanceAction.OUTBOX_REPLAY_BATCH.name());
-        assertThat(result.actorUserId()).isEqualTo(actorUserId);
-        assertThat(result.result()).isEqualTo(GovernanceResult.PARTIAL.name());
-        assertThat(result.createdAt()).isNotNull();
-
         var row = jdbcTemplate.queryForMap(
-                "select action, actor_user_id, target_type, target_id, scope, reason, request_json, result, summary_json, trace_id " +
-                        "from ops_governance_audit where id = ?",
-                BinaryUuidCodec.toBytes(result.id())
+                "select id, action, actor_user_id, target_type, target_id, scope, reason, request_json, " +
+                        "result, summary_json, trace_id, created_at from ops_governance_audit"
         );
+        assertThat(row.get("ID")).isNotNull();
         assertThat(row.get("ACTION")).isEqualTo(GovernanceAction.OUTBOX_REPLAY_BATCH.name());
         assertThat(BinaryUuidCodec.fromBytes((byte[]) row.get("ACTOR_USER_ID"))).isEqualTo(actorUserId);
         assertThat(row.get("TARGET_TYPE")).isEqualTo("outbox_event");
@@ -87,6 +81,7 @@ class MyBatisGovernanceAuditRepositoryTest {
         assertThat(row.get("RESULT")).isEqualTo(GovernanceResult.PARTIAL.name());
         assertThat(row.get("SUMMARY_JSON")).isEqualTo("{\"replayed\":1,\"rejected\":1}");
         assertThat(row.get("TRACE_ID")).isEqualTo("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
+        assertThat(row.get("CREATED_AT")).isNotNull();
     }
 
     private static UUID uuid(long suffix) {

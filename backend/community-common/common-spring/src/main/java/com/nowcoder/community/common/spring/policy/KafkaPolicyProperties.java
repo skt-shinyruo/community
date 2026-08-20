@@ -8,14 +8,9 @@ import java.time.Duration;
 public class KafkaPolicyProperties {
 
     private final Retry retry = new Retry();
-    private final Dlq dlq = new Dlq();
 
     public Retry getRetry() {
         return retry;
-    }
-
-    public Dlq getDlq() {
-        return dlq;
     }
 
     public static class Retry {
@@ -50,19 +45,6 @@ public class KafkaPolicyProperties {
 
         private Duration positiveOrDefault(Duration value, Duration fallback) {
             return value == null || value.isNegative() || value.isZero() ? fallback : value;
-        }
-    }
-
-    public static class Dlq {
-
-        private boolean enabled = true;
-
-        public boolean isEnabled() {
-            return enabled;
-        }
-
-        public void setEnabled(boolean enabled) {
-            this.enabled = enabled;
         }
     }
 }

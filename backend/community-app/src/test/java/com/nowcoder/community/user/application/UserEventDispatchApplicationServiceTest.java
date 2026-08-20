@@ -50,9 +50,9 @@ class UserEventDispatchApplicationServiceTest {
         assertThat(event.type()).isEqualTo(UserEventTypes.USER_POLICY_CHANGED);
         UserPolicyChangedPayload payload =
                 ((UserTypedEvent.UserPolicyChanged) contractEventCodec.decode(event)).payload();
-        assertThat(payload.getUserId()).isEqualTo(userId);
-        assertThat(payload.getVersion()).isEqualTo(42L);
-        assertThat(payload.isMuted()).isTrue();
+        assertThat(payload.userId()).isEqualTo(userId);
+        assertThat(payload.version()).isEqualTo(42L);
+        assertThat(payload.muted()).isTrue();
     }
 
     @Test
@@ -159,16 +159,16 @@ class UserEventDispatchApplicationServiceTest {
     }
 
     private static UserPolicyChangedPayload policyPayload(UUID userId) {
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(userId);
-        payload.setUserExists(true);
-        payload.setMuted(true);
-        payload.setSuspended(false);
-        payload.setMuteUntil(1712345678901L);
-        payload.setBanUntil(null);
-        payload.setCanSendPrivate(false);
-        payload.setOccurredAtEpochMillis(1712345678900L);
-        payload.setVersion(42L);
-        return payload;
+        return new UserPolicyChangedPayload(
+                userId,
+                true,
+                false,
+                true,
+                1712345678901L,
+                null,
+                false,
+                1712345678900L,
+                42L
+        );
     }
 }

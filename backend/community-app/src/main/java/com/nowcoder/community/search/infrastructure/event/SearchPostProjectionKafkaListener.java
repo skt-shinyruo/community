@@ -59,11 +59,11 @@ public class SearchPostProjectionKafkaListener {
             return;
         }
         PostPayload payload = postPayload(typedEvent);
-        if (payload == null || payload.getPostId() == null) {
+        if (payload == null || payload.postId() == null) {
             throw malformed(event);
         }
         searchPostProjectionApplicationService.projectPost(new ProjectPostCommand(
-                payload.getPostId(),
+                payload.postId(),
                 event.eventId(),
                 event.version()
         ));

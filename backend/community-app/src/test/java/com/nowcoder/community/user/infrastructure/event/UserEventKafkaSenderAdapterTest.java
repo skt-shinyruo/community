@@ -7,7 +7,6 @@ import com.nowcoder.community.user.contracts.event.UserPolicyChangedPayload;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -26,21 +25,12 @@ class UserEventKafkaSenderAdapterTest {
     private static final String KAFKA_TOPIC = "user.events";
 
     @Test
-    void senderShouldRemainKafkaClasspathConditional() {
-        ConditionalOnClass conditionalOnClass = UserEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-
-        assertThat(conditionalOnClass).isNotNull();
-        assertThat(conditionalOnClass.value()).contains(KafkaTemplate.class);
-    }
-
-    @Test
     void dispatchShouldPublishContractEventWithConfiguredTopicAndKey() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
         UserEventKafkaSenderAdapter adapter = new UserEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(uuid(101));
-        payload.setVersion(42L);
+        UserPolicyChangedPayload payload = new UserPolicyChangedPayload(
+                uuid(101), false, false, false, null, null, false, 0L, 42L);
         UserContractEvent event = new UserContractEvent(
                 "user:UserPolicyChanged:" + uuid(101) + ":42",
                 UserEventTypes.USER_POLICY_CHANGED,

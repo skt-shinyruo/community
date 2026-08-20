@@ -85,16 +85,16 @@ class OutboxContentEventPublisherTest {
         assertThat(event.aggregateId()).isEqualTo(recipientId);
         assertThat(event.aggregateType()).isEqualTo("user");
         assertThat(event.type()).isEqualTo(ContentEventTypes.MODERATION_ACTION_APPLIED);
-        assertThat(payload.getReportId()).isEqualTo(reportId);
-        assertThat(payload.getKind()).isEqualTo("comment");
-        assertThat(payload.getToUserId()).isEqualTo(recipientId);
-        assertThat(payload.getActorUserId()).isEqualTo(actorId);
-        assertThat(payload.getTargetType()).isEqualTo(2);
-        assertThat(payload.getTargetId()).isEqualTo(targetId);
-        assertThat(payload.getAction()).isEqualTo("HIDE");
-        assertThat(payload.getReason()).isEqualTo("policy");
-        assertThat(payload.getDurationSeconds()).isEqualTo(3600);
-        assertThat(payload.getCreateTime()).isBetween(beforePublish, afterPublish);
+        assertThat(payload.reportId()).isEqualTo(reportId);
+        assertThat(payload.kind()).isEqualTo("comment");
+        assertThat(payload.toUserId()).isEqualTo(recipientId);
+        assertThat(payload.actorUserId()).isEqualTo(actorId);
+        assertThat(payload.targetType()).isEqualTo(2);
+        assertThat(payload.targetId()).isEqualTo(targetId);
+        assertThat(payload.action()).isEqualTo("HIDE");
+        assertThat(payload.reason()).isEqualTo("policy");
+        assertThat(payload.durationSeconds()).isEqualTo(3600);
+        assertThat(payload.createTime()).isBetween(beforePublish, afterPublish);
     }
 
     @Test
@@ -108,10 +108,9 @@ class OutboxContentEventPublisherTest {
                 TOPIC
         );
 
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setCreateTime(Instant.EPOCH);
-        payload.setAggregateVersion(1L);
+        PostPayload payload = new PostPayload(
+                postId, null, null, null, null, null, 0, 0,
+                Instant.EPOCH, null, null, 0L, 1L);
 
         publisher.publishPostPublished(payload);
 
@@ -137,10 +136,9 @@ class OutboxContentEventPublisherTest {
         OutboxContentEventPublisher publisher = publisher(
                 new JacksonContentContractEventCodec(jsonCodec), store, "eventbus.content");
         UUID postId = UUID.randomUUID();
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setCreateTime(Instant.parse("2026-07-06T08:00:00Z"));
-        payload.setAggregateVersion(7L);
+        PostPayload payload = new PostPayload(
+                postId, null, null, null, null, null, 0, 0,
+                Instant.parse("2026-07-06T08:00:00Z"), null, null, 0L, 7L);
 
         publisher.publishPostPublished(payload);
 
@@ -164,11 +162,9 @@ class OutboxContentEventPublisherTest {
         );
         UUID postId = uuid(613);
         Instant deletedAt = Instant.parse("2026-07-20T12:34:56Z");
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setCreateTime(Instant.parse("2026-07-18T08:00:00Z"));
-        payload.setUpdateTime(deletedAt);
-        payload.setAggregateVersion(9L);
+        PostPayload payload = new PostPayload(
+                postId, null, null, null, null, null, 0, 0,
+                Instant.parse("2026-07-18T08:00:00Z"), deletedAt, null, 0L, 9L);
 
         publisher.publishPostDeleted(payload);
 
@@ -230,21 +226,12 @@ class OutboxContentEventPublisherTest {
         UUID commentId = uuid(702);
         UUID commenterId = uuid(8);
         UUID targetUserId = uuid(9);
-        PostPayload postPayload = postPayload(postId);
-        postPayload.setUserId(postAuthorId);
-        postPayload.setCategoryId(categoryId);
-        postPayload.setTags(List.of("java", "reliability"));
-        postPayload.setTitle("P2 post");
-        postPayload.setContent("source content");
-        postPayload.setStatus(0);
-        postPayload.setScore(1.5);
-        CommentPayload commentPayload = commentPayload(commentId);
-        commentPayload.setPostId(postId);
-        commentPayload.setUserId(commenterId);
-        commentPayload.setEntityType(1);
-        commentPayload.setEntityId(postId);
-        commentPayload.setTargetUserId(targetUserId);
-        commentPayload.setContent("comment body");
+        PostPayload postPayload = new PostPayload(
+                postId, postAuthorId, categoryId, List.of("java", "reliability"),
+                "P2 post", "source content", 0, 0, Instant.EPOCH, Instant.EPOCH, 1.5, 0L, 1L);
+        CommentPayload commentPayload = new CommentPayload(
+                commentId, postId, commenterId, 1, postId, targetUserId,
+                "comment body", Instant.EPOCH, 0L);
 
         publisher.publishPostPublished(postPayload);
         publisher.publishCommentCreated(commentPayload);
@@ -289,9 +276,8 @@ class OutboxContentEventPublisherTest {
                 store,
                 TOPIC
         );
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setAggregateVersion(1L);
+        PostPayload payload = new PostPayload(
+                postId, null, null, null, null, null, 0, 0, null, null, null, 0L, 1L);
 
         assertThatThrownBy(() -> publisher.publishPostPublished(payload))
                 .isInstanceOf(IllegalStateException.class)
@@ -357,17 +343,17 @@ class OutboxContentEventPublisherTest {
                         ContentEventTypes.MODERATION_ACTION_APPLIED
                 );
         assertThat(((ContentTypedEvent.PostPublished) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(0))).payload().getPostId()).isEqualTo(publishedPostId);
+                eventCaptor.getAllValues().get(0))).payload().postId()).isEqualTo(publishedPostId);
         assertThat(((ContentTypedEvent.PostUpdated) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(1))).payload().getPostId()).isEqualTo(updatedPostId);
+                eventCaptor.getAllValues().get(1))).payload().postId()).isEqualTo(updatedPostId);
         assertThat(((ContentTypedEvent.PostDeleted) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(2))).payload().getPostId()).isEqualTo(deletedPostId);
+                eventCaptor.getAllValues().get(2))).payload().postId()).isEqualTo(deletedPostId);
         assertThat(((ContentTypedEvent.CommentCreated) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(3))).payload().getCommentId()).isEqualTo(createdCommentId);
+                eventCaptor.getAllValues().get(3))).payload().commentId()).isEqualTo(createdCommentId);
         assertThat(((ContentTypedEvent.CommentDeleted) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(4))).payload().getCommentId()).isEqualTo(deletedCommentId);
+                eventCaptor.getAllValues().get(4))).payload().commentId()).isEqualTo(deletedCommentId);
         assertThat(((ContentTypedEvent.ModerationActionApplied) contractEventCodec.decode(
-                eventCaptor.getAllValues().get(5))).payload().getToUserId()).isEqualTo(moderatedUserId);
+                eventCaptor.getAllValues().get(5))).payload().toUserId()).isEqualTo(moderatedUserId);
     }
 
     @Test
@@ -381,9 +367,8 @@ class OutboxContentEventPublisherTest {
                 TOPIC
         );
 
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        payload.setCreateTime(Instant.EPOCH);
+        CommentPayload payload = new CommentPayload(
+                commentId, null, null, 0, null, null, null, Instant.EPOCH, 0L);
 
         publisher.publishCommentCreated(payload);
 
@@ -410,10 +395,13 @@ class OutboxContentEventPublisherTest {
         );
 
         publisher.publishPostPublished(null);
-        publisher.publishPostPublished(new PostPayload());
+        publisher.publishPostPublished(new PostPayload(
+                null, null, null, null, null, null, 0, 0, null, null, null, 0L, 0L));
         publisher.publishPostScoreUpdated(null);
-        publisher.publishCommentCreated(new CommentPayload());
-        publisher.publishModerationActionApplied(new ModerationPayload());
+        publisher.publishCommentCreated(new CommentPayload(
+                null, null, null, 0, null, null, null, null, 0L));
+        publisher.publishModerationActionApplied(new ModerationPayload(
+                null, null, null, null, null, null, null, null, null, null));
 
         verifyNoInteractions(store);
     }
@@ -462,10 +450,9 @@ class OutboxContentEventPublisherTest {
                 .thenThrow(new JsonCodecException("boom", new RuntimeException("boom")));
         OutboxContentEventPublisher publisher =
                 publisher(failingContractEventCodec, store, TOPIC);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(505));
-        payload.setCreateTime(Instant.EPOCH);
-        payload.setAggregateVersion(1L);
+        PostPayload payload = new PostPayload(
+                uuid(505), null, null, null, null, null, 0, 0,
+                Instant.EPOCH, null, null, 0L, 1L);
 
         assertThatThrownBy(() -> publisher.publishPostPublished(payload))
                 .isInstanceOf(IllegalStateException.class)
@@ -474,26 +461,18 @@ class OutboxContentEventPublisherTest {
     }
 
     private static PostPayload postPayload(UUID postId) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setCreateTime(Instant.EPOCH);
-        payload.setUpdateTime(Instant.EPOCH);
-        payload.setAggregateVersion(1L);
-        return payload;
+        return new PostPayload(
+                postId, null, null, null, null, null, 0, 0,
+                Instant.EPOCH, Instant.EPOCH, null, 0L, 1L);
     }
 
     private static CommentPayload commentPayload(UUID commentId) {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(commentId);
-        payload.setCreateTime(Instant.EPOCH);
-        return payload;
+        return new CommentPayload(commentId, null, null, 0, null, null, null, Instant.EPOCH, 0L);
     }
 
     private static ModerationPayload moderationPayload(UUID toUserId) {
-        ModerationPayload payload = new ModerationPayload();
-        payload.setToUserId(toUserId);
-        payload.setCreateTime(Instant.EPOCH);
-        return payload;
+        return new ModerationPayload(
+                null, null, toUserId, null, null, null, null, null, null, Instant.EPOCH);
     }
 
     private static OutboxContentEventPublisher publisher(

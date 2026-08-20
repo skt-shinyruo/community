@@ -3,7 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.model.ModerationActionRecord;
-import com.nowcoder.community.content.domain.model.ModerationActionSummary;
 import com.nowcoder.community.content.domain.model.ModerationDecision;
 import com.nowcoder.community.content.domain.model.ModerationTarget;
 import com.nowcoder.community.content.domain.model.ReportSnapshot;
@@ -178,7 +177,7 @@ public class ModerationApplicationService {
         );
     }
 
-    private ModerationActionResult toActionResult(ModerationActionSummary action) {
+    private ModerationActionResult toActionResult(ModerationActionRecord action) {
         return new ModerationActionResult(
                 action.id(),
                 action.reportId(),

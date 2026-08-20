@@ -45,10 +45,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void postPublishedShouldEnterGrowthApplicationServiceFromBackbone() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(100));
-        payload.setUserId(uuid(7));
-        payload.setCreateTime(Instant.parse("2026-05-18T08:30:00Z"));
+        PostPayload payload = new PostPayload(
+                uuid(100), uuid(7), null, null, null, null, 0, 0,
+                Instant.parse("2026-05-18T08:30:00Z"), null, null, 0L, 0L);
 
         listener.onContentEvent(new ContentContractEvent(
                 "ce:post:published:1", null, null, ContentEventTypes.POST_PUBLISHED,
@@ -65,10 +64,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void commentCreatedShouldEnterGrowthApplicationServiceFromBackbone() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(uuid(200));
-        payload.setUserId(uuid(3));
-        payload.setCreateTime(Instant.parse("2026-05-18T09:30:00Z"));
+        CommentPayload payload = new CommentPayload(
+                uuid(200), null, uuid(3), 0, null, null, null,
+                Instant.parse("2026-05-18T09:30:00Z"), 0L);
 
         listener.onContentEvent(new ContentContractEvent(
                 "ce:comment:created:1", null, null, ContentEventTypes.COMMENT_CREATED,
@@ -105,10 +103,8 @@ class TaskProgressEventBackboneKafkaListenerTest {
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
         String relationKey = "like:" + uuid(1) + ":" + POST + ":" + uuid(100);
         Instant occurredAt = Instant.parse("2026-05-18T10:30:00Z");
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationKey(relationKey);
-        payload.setRelationInstanceId(uuid(700));
-        payload.setRelationVersion(11L);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null, relationKey, uuid(700), 11L);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:1", null, null, SocialEventTypes.LIKE_CREATED,
@@ -135,8 +131,8 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void likeCreatedWithoutRelationKeyShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationKey(null);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null, null, null, null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:no-relation-key", null, null, SocialEventTypes.LIKE_CREATED,
@@ -175,10 +171,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void likeRemovedShouldTriggerRollbackByRelationKey() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
-        payload.setRelationInstanceId(uuid(700));
-        payload.setRelationVersion(12L);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100), uuid(700), 12L);
 
         listener.onSocialEvent(new SocialContractEvent(
                 "se:like:removed:1", null, null, SocialEventTypes.LIKE_REMOVED,
@@ -197,10 +192,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void likeRemovedWithNonCanonicalRelationKeyShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationKey("like:" + uuid(9) + ":" + POST + ":" + uuid(100));
-        payload.setRelationInstanceId(uuid(700));
-        payload.setRelationVersion(12L);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(9) + ":" + POST + ":" + uuid(100), uuid(700), 12L);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:removed:non-canonical-key", null, null, SocialEventTypes.LIKE_REMOVED,
@@ -230,8 +224,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void likeCreatedWithNonCanonicalRelationKeyShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(101));
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(101), null, null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:non-canonical-key", null, null, SocialEventTypes.LIKE_CREATED,
@@ -246,9 +241,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void relationVersionMismatchShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationInstanceId(uuid(700));
-        payload.setRelationVersion(12L);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100), uuid(700), 12L);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:version-mismatch", null, null, SocialEventTypes.LIKE_CREATED,
@@ -263,8 +258,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void declaredRelationVersionWithoutInstanceShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationVersion(12L);
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100), null, 12L);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:missing-instance", null, null, SocialEventTypes.LIKE_CREATED,
@@ -279,8 +275,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void durableEnvelopeVersionWithoutDeclaredRelationVersionShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(uuid(1), uuid(100), uuid(2));
-        payload.setRelationInstanceId(uuid(700));
+        LikePayload payload = new LikePayload(
+                uuid(1), POST, uuid(100), uuid(2), null,
+                "like:" + uuid(1) + ":" + POST + ":" + uuid(100), uuid(700), null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "se:like:created:missing-relation-version", null, null, SocialEventTypes.LIKE_CREATED,
@@ -317,7 +314,9 @@ class TaskProgressEventBackboneKafkaListenerTest {
 
         listener.onContentEvent(new ContentContractEvent(
                 "ce:post:updated", null, null, ContentEventTypes.POST_UPDATED,
-                java.time.Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload())));
+                java.time.Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload(
+                        null, null, null, null, null, null, 0, 0,
+                        null, null, null, 0L, 0L))));
         listener.onSocialEvent(new SocialContractEvent(
                 "se:follow:created", null, null, SocialEventTypes.FOLLOW_CREATED,
                 java.time.Instant.EPOCH, 1L, JsonMappers.standard().createObjectNode()));
@@ -342,10 +341,11 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void recognizedEventsWithMissingRequiredPayloadFieldsShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        PostPayload postPayload = new PostPayload();
-        postPayload.setPostId(uuid(100));
-        CommentPayload commentPayload = new CommentPayload();
-        commentPayload.setCommentId(uuid(200));
+        PostPayload postPayload = new PostPayload(
+                uuid(100), null, null, null, null, null, 0, 0,
+                null, null, null, 0L, 0L);
+        CommentPayload commentPayload = new CommentPayload(
+                uuid(200), null, null, 0, null, null, null, null, 0L);
         LikePayload likePayload = likePayload(null, uuid(100), uuid(2));
 
         listener.onContentEvent(null);
@@ -375,12 +375,10 @@ class TaskProgressEventBackboneKafkaListenerTest {
     void recognizedEventsWithInvalidSourceMetadataShouldFailDelivery() {
         TaskProgressApplicationService applicationService = mock(TaskProgressApplicationService.class);
         TaskProgressEventBackboneKafkaListener listener = listener(applicationService);
-        PostPayload postPayload = new PostPayload();
-        postPayload.setPostId(uuid(100));
-        postPayload.setUserId(uuid(7));
-        postPayload.setCreateTime(Instant.parse("2026-05-18T08:30:00Z"));
+        PostPayload postPayload = new PostPayload(
+                uuid(100), uuid(7), null, null, null, null, 0, 0,
+                Instant.parse("2026-05-18T08:30:00Z"), null, null, 0L, 0L);
         LikePayload likePayload = likePayload(uuid(1), uuid(100), uuid(2));
-        likePayload.setRelationKey("like:" + uuid(1) + ":" + POST + ":" + uuid(100));
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 " ", null, null, ContentEventTypes.POST_PUBLISHED, Instant.EPOCH, 1L,
@@ -409,12 +407,8 @@ class TaskProgressEventBackboneKafkaListenerTest {
     }
 
     private static LikePayload likePayload(java.util.UUID actorUserId, java.util.UUID entityId, java.util.UUID entityUserId) {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(actorUserId);
-        payload.setEntityType(POST);
-        payload.setEntityId(entityId);
-        payload.setEntityUserId(entityUserId);
-        payload.setRelationKey("like:" + actorUserId + ":" + POST + ":" + entityId);
-        return payload;
+        return new LikePayload(
+                actorUserId, POST, entityId, entityUserId, null,
+                "like:" + actorUserId + ":" + POST + ":" + entityId, null, null);
     }
 }

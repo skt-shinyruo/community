@@ -196,15 +196,15 @@ class CommentApplicationServiceTest {
         assertThat(draft.createTime()).isNotNull();
 
         CommentPayload event = eventCaptor.getValue();
-        assertThat(event.getCommentId()).isEqualTo(commentId);
-        assertThat(event.getPostId()).isEqualTo(postId);
-        assertThat(event.getUserId()).isEqualTo(userId);
-        assertThat(event.getEntityType()).isEqualTo(EntityTypes.POST);
-        assertThat(event.getEntityId()).isEqualTo(postId);
-        assertThat(event.getTargetUserId()).isEqualTo(postAuthorId);
-        assertThat(event.getContent()).isEqualTo("clean & body");
-        assertThat(event.getCreateTime()).isEqualTo(draft.createTime().toInstant());
-        assertThat(event.getPostAggregateVersion()).isEqualTo(2L);
+        assertThat(event.commentId()).isEqualTo(commentId);
+        assertThat(event.postId()).isEqualTo(postId);
+        assertThat(event.userId()).isEqualTo(userId);
+        assertThat(event.entityType()).isEqualTo(EntityTypes.POST);
+        assertThat(event.entityId()).isEqualTo(postId);
+        assertThat(event.targetUserId()).isEqualTo(postAuthorId);
+        assertThat(event.content()).isEqualTo("clean & body");
+        assertThat(event.createTime()).isEqualTo(draft.createTime().toInstant());
+        assertThat(event.postAggregateVersion()).isEqualTo(2L);
     }
 
     @Test
@@ -411,9 +411,9 @@ class CommentApplicationServiceTest {
         assertThat(draftCaptor.getValue().replyToUserId()).isEqualTo(rootAuthorId);
         ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher).publishCommentCreated(eventCaptor.capture());
-        assertThat(eventCaptor.getValue().getEntityType()).isEqualTo(EntityTypes.COMMENT);
-        assertThat(eventCaptor.getValue().getEntityId()).isEqualTo(rootCommentId);
-        assertThat(eventCaptor.getValue().getTargetUserId()).isEqualTo(rootAuthorId);
+        assertThat(eventCaptor.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(eventCaptor.getValue().entityId()).isEqualTo(rootCommentId);
+        assertThat(eventCaptor.getValue().targetUserId()).isEqualTo(rootAuthorId);
     }
 
     @Test
@@ -459,9 +459,9 @@ class CommentApplicationServiceTest {
                         && directParentAuthorId.equals(draft.replyToUserId())));
         ArgumentCaptor<CommentPayload> event = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher).publishCommentCreated(event.capture());
-        assertThat(event.getValue().getEntityType()).isEqualTo(EntityTypes.COMMENT);
-        assertThat(event.getValue().getEntityId()).isEqualTo(directParentId);
-        assertThat(event.getValue().getTargetUserId()).isEqualTo(directParentAuthorId);
+        assertThat(event.getValue().entityType()).isEqualTo(EntityTypes.COMMENT);
+        assertThat(event.getValue().entityId()).isEqualTo(directParentId);
+        assertThat(event.getValue().targetUserId()).isEqualTo(directParentAuthorId);
     }
 
     @Test
@@ -619,19 +619,19 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentPayload> eventCaptor = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher, times(3)).publishCommentDeleted(eventCaptor.capture());
         assertThat(eventCaptor.getAllValues())
-                .extracting(CommentPayload::getCommentId)
+                .extracting(CommentPayload::commentId)
                 .containsExactly(commentId, replyId, nestedReplyId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getPostId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::postId)
                 .containsExactly(postId, postId, postId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getUserId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::userId)
                 .containsExactly(userId, replyAuthorId, nestedReplyAuthorId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getEntityType)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::entityType)
                 .containsExactly(EntityTypes.POST, EntityTypes.COMMENT, EntityTypes.COMMENT);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getEntityId)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::entityId)
                 .containsExactly(postId, commentId, commentId);
-        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::getPostAggregateVersion)
+        assertThat(eventCaptor.getAllValues()).extracting(CommentPayload::postAggregateVersion)
                 .containsOnly(2L);
-        assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.getCreateTime()).isNotNull());
+        assertThat(eventCaptor.getAllValues()).allSatisfy(event -> assertThat(event.createTime()).isNotNull());
     }
 
     @Test
@@ -674,7 +674,7 @@ class CommentApplicationServiceTest {
         ArgumentCaptor<CommentPayload> events = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher, times(2)).publishCommentDeleted(events.capture());
         assertThat(events.getAllValues())
-                .extracting(CommentPayload::getCommentId)
+                .extracting(CommentPayload::commentId)
                 .containsExactly(commentId, nestedReplyId)
                 .doesNotContain(replyId);
     }

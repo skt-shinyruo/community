@@ -104,16 +104,6 @@
         for update
     </select>
 
-    <select id="selectThreadForUpdate" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
-        select <include refid="selectFields"></include>
-        from comment
-        where root_comment_id = #{rootCommentId, jdbcType=BINARY}
-        order by case when id = #{rootCommentId, jdbcType=BINARY} then 0 else 1 end,
-                 create_time asc,
-                 id asc
-        for update
-    </select>
-
     <select id="selectActiveReplyBatchForUpdate" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
@@ -198,22 +188,6 @@
         where id = #{commentId, jdbcType=BINARY}
           and status = 0
           and version = #{expectedVersion}
-    </update>
-
-    <update id="applyThreadDeletion">
-        update comment
-        set status = 1,
-            deleted_by = #{deletedBy, jdbcType=BINARY},
-            deleted_reason = #{deletedReason},
-            deleted_time = #{deletedTime},
-            version = version + 1
-        where status = 0
-          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
-          and (
-            <foreach collection="targets" item="target" separator=" or ">
-                (id = #{target.commentId, jdbcType=BINARY} and version = #{target.expectedVersion})
-            </foreach>
-          )
     </update>
 
     <update id="applyReplyBatchDeletion">

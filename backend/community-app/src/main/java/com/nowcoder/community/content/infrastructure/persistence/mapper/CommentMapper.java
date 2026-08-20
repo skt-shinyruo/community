@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject;
-import com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentTransitionTargetDataObject;
 import org.apache.ibatis.annotations.Mapper;
 import org.apache.ibatis.annotations.Param;
 
@@ -52,8 +51,6 @@ public interface CommentMapper {
 
     CommentDataObject selectByIdForUpdate(@Param("id") UUID id);
 
-    List<CommentDataObject> selectThreadForUpdate(@Param("rootCommentId") UUID rootCommentId);
-
     List<CommentDataObject> selectActiveReplyBatchForUpdate(
             @Param("rootCommentId") UUID rootCommentId,
             @Param("limit") int limit
@@ -75,14 +72,6 @@ public interface CommentMapper {
     int applyDeletion(
             @Param("commentId") UUID commentId,
             @Param("expectedVersion") long expectedVersion,
-            @Param("deletedBy") UUID deletedBy,
-            @Param("deletedReason") String deletedReason,
-            @Param("deletedTime") Date deletedTime
-    );
-
-    int applyThreadDeletion(
-            @Param("rootCommentId") UUID rootCommentId,
-            @Param("targets") List<CommentTransitionTargetDataObject> targets,
             @Param("deletedBy") UUID deletedBy,
             @Param("deletedReason") String deletedReason,
             @Param("deletedTime") Date deletedTime

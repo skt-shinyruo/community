@@ -35,9 +35,38 @@ class JdbcOutboxGovernanceAdapterTest {
             JdbcTemplate jdbcTemplate = new JdbcTemplate(db);
             createOutboxSchema(jdbcTemplate);
             UUID outboxId = UUID.fromString("0197e6f0-0000-7000-8000-000000000111");
-            insertEvent(jdbcTemplate, outboxId);
+            UUID pendingId = UUID.fromString("0197e6f0-0000-7000-8000-000000000112");
+            Instant createdAt = Instant.parse("2026-07-07T00:00:00Z");
+            Instant updatedAt = Instant.parse("2026-07-07T00:01:00Z");
+            insertEvent(
+                    jdbcTemplate,
+                    outboxId,
+                    "event-1",
+                    "eventbus.content",
+                    OutboxEventStatus.DEAD,
+                    2,
+                    createdAt,
+                    updatedAt
+            );
+            insertEvent(
+                    jdbcTemplate,
+                    pendingId,
+                    "event-2",
+                    "projection.im.policy",
+                    OutboxEventStatus.PENDING,
+                    1,
+                    createdAt.plusSeconds(30),
+                    updatedAt.plusSeconds(30)
+            );
+            jdbcTemplate.update(
+                    "update outbox_event set lease_token = ?, processing_lease_until = ? where id = ?",
+                    BinaryUuidCodec.toBytes(UUID.fromString("0197e6f0-0000-7000-8000-000000000113")),
+                    Timestamp.from(updatedAt.plusSeconds(60)),
+                    BinaryUuidCodec.toBytes(outboxId)
+            );
             Instant replayedAt = Instant.parse("2026-07-07T00:03:00Z");
             JdbcOutboxGovernanceAdapter adapter = new JdbcOutboxGovernanceAdapter(
+                    jdbcTemplate,
                     new JdbcOutboxEventStore(jdbcTemplate),
                     Clock.fixed(replayedAt, ZoneOffset.UTC)
             );
@@ -46,19 +75,24 @@ class JdbcOutboxGovernanceAdapterTest {
                     OutboxEventStatus.DEAD,
                     "eventbus.content",
                     null,
-                    null,
-                    null,
+                    createdAt.minusSeconds(1),
+                    updatedAt.plusSeconds(1),
                     10
             ));
 
             assertThat(rows).hasSize(1);
             assertThat(rows.get(0).id()).isEqualTo(outboxId);
+            assertThat(rows.get(0).createdAt()).isEqualTo(createdAt);
+            assertThat(rows.get(0).updatedAt()).isEqualTo(updatedAt);
             assertThat(adapter.findById(outboxId)).isPresent();
             assertThat(adapter.listBacklog()).extracting(row -> row.topic() + "|" + row.status() + "|" + row.count())
-                    .contains("eventbus.content|DEAD|1");
+                    .contains("eventbus.content|DEAD|1", "projection.im.policy|PENDING|1");
 
             assertThat(adapter.requeueDead(outboxId, "operator replay")).isTrue();
-            assertThat(adapter.findById(outboxId).orElseThrow().status()).isEqualTo(OutboxEventStatus.PENDING);
+            var replayed = adapter.findById(outboxId).orElseThrow();
+            assertThat(replayed.status()).isEqualTo(OutboxEventStatus.PENDING);
+            assertThat(replayed.retryCount()).isZero();
+            assertThat(replayed.lastError()).isEqualTo("replay requested: operator replay");
             Timestamp nextRetryAt = jdbcTemplate.queryForObject(
                     "select next_retry_at from outbox_event where id = ?",
                     Timestamp.class,
@@ -66,6 +100,16 @@ class JdbcOutboxGovernanceAdapterTest {
             );
             assertThat(nextRetryAt).isNotNull();
             assertThat(nextRetryAt.toInstant()).isEqualTo(replayedAt);
+            assertThat(jdbcTemplate.queryForObject(
+                    "select lease_token from outbox_event where id = ?",
+                    byte[].class,
+                    BinaryUuidCodec.toBytes(outboxId)
+            )).isNull();
+            assertThat(jdbcTemplate.queryForObject(
+                    "select processing_lease_until from outbox_event where id = ?",
+                    Timestamp.class,
+                    BinaryUuidCodec.toBytes(outboxId)
+            )).isNull();
         } finally {
             db.shutdown();
         }
@@ -104,26 +148,35 @@ class JdbcOutboxGovernanceAdapterTest {
         };
     }
 
-    private static void insertEvent(JdbcTemplate jdbcTemplate, UUID id) {
+    private static void insertEvent(
+            JdbcTemplate jdbcTemplate,
+            UUID id,
+            String eventId,
+            String topic,
+            String status,
+            int retryCount,
+            Instant createdAt,
+            Instant updatedAt
+    ) {
         jdbcTemplate.update(
                 """
                         insert into outbox_event(
                           id, event_id, topic, event_key, payload, status, retry_count,
                           next_retry_at, last_error, trace_id, traceparent, created_at, updated_at
                         ) values (?, ?, ?, ?, ?, ?, ?, null, ?, ?, ?, ?, ?)
-                        """,
+                """,
                 BinaryUuidCodec.toBytes(id),
-                "event-1",
-                "eventbus.content",
+                eventId,
+                topic,
                 "post-1",
                 "{\"postId\":\"post-1\"}",
-                OutboxEventStatus.DEAD,
-                2,
+                status,
+                retryCount,
                 "boom",
                 "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
                 "00-aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa-00f067aa0ba902b7-01",
-                Timestamp.from(Instant.parse("2026-07-07T00:00:00Z")),
-                Timestamp.from(Instant.parse("2026-07-07T00:01:00Z"))
+                Timestamp.from(createdAt),
+                Timestamp.from(updatedAt)
         );
     }
 

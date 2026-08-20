@@ -5,14 +5,12 @@ import com.nowcoder.community.im.application.ImPolicyIntegrationEventDispatcher;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
 import java.util.concurrent.CompletionException;
 
 @Component
-@ConditionalOnClass(KafkaTemplate.class)
 public class ImPolicyEventKafkaSenderAdapter implements ImPolicyIntegrationEventDispatcher {
 
     private final KafkaTemplate<String, Object> kafkaTemplate;

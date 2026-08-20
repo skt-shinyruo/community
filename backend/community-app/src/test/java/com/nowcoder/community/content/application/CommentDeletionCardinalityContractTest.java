@@ -100,9 +100,9 @@ class CommentDeletionCardinalityContractTest {
 
         ArgumentCaptor<CommentPayload> events = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher, times(3)).publishCommentDeleted(events.capture());
-        assertThat(events.getAllValues()).extracting(CommentPayload::getCommentId)
+        assertThat(events.getAllValues()).extracting(CommentPayload::commentId)
                 .containsExactly(ROOT_ID, FIRST_REPLY_ID, SECOND_REPLY_ID);
-        assertThat(events.getAllValues()).extracting(CommentPayload::getEntityType)
+        assertThat(events.getAllValues()).extracting(CommentPayload::entityType)
                 .containsExactly(POST, COMMENT, COMMENT);
         verify(postRepository).incrementActiveCommentCount(POST_ID, -3);
         verify(counterCache).markDirty(POST_ID);
@@ -149,9 +149,9 @@ class CommentDeletionCardinalityContractTest {
 
         ArgumentCaptor<CommentPayload> event = ArgumentCaptor.forClass(CommentPayload.class);
         verify(eventPublisher).publishCommentDeleted(event.capture());
-        assertThat(event.getValue().getCommentId()).isEqualTo(FIRST_REPLY_ID);
-        assertThat(event.getValue().getUserId()).isEqualTo(AUTHOR_ID);
-        assertThat(event.getValue().getEntityType()).isEqualTo(COMMENT);
+        assertThat(event.getValue().commentId()).isEqualTo(FIRST_REPLY_ID);
+        assertThat(event.getValue().userId()).isEqualTo(AUTHOR_ID);
+        assertThat(event.getValue().entityType()).isEqualTo(COMMENT);
     }
 
     private CommentSnapshot root(UUID id, UUID authorId) {

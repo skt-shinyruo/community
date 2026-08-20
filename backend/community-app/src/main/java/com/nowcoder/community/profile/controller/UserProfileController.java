@@ -1,9 +1,9 @@
 package com.nowcoder.community.profile.controller;
 
 import com.nowcoder.community.common.web.Result;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.profile.application.UserProfileQueryApplicationService;
 import com.nowcoder.community.profile.application.result.UserProfilePageResult;
-import com.nowcoder.community.profile.controller.dto.UserProfileResponse;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -24,26 +24,12 @@ public class UserProfileController {
     }
 
     @GetMapping("/{userId}")
-    public Result<UserProfileResponse> getUser(@PathVariable UUID userId) {
-        UserProfilePageResult user = applicationService.get(userId);
-        UserProfileResponse response = new UserProfileResponse();
-        response.setId(user.userId());
-        response.setUsername(user.username());
-        response.setHeaderUrl(user.headerUrl());
-        response.setType(user.type());
-        response.setStatus(user.status());
-        response.setCreateTime(user.createTime());
-        response.setUserLevelEnabled(user.userLevelEnabled());
-        response.setUserLevel(user.userLevel());
-        response.setSignInDaysInWindow(user.signInDaysInWindow());
-        response.setLikeCount(user.likeCount());
-        response.setFolloweeCount(user.followeeCount());
-        response.setFollowerCount(user.followerCount());
-        return Result.ok(response);
+    public Result<UserProfilePageResult> getUser(@PathVariable UUID userId) {
+        return Result.ok(applicationService.get(userId));
     }
 
     @GetMapping("/{userId}/recent-posts")
-    public Result<List<UserProfilePageResult.RecentPostSummaryResult>> recentPosts(
+    public Result<List<PostReadQueryApi.PostSummaryView>> recentPosts(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size
@@ -52,7 +38,7 @@ public class UserProfileController {
     }
 
     @GetMapping("/{userId}/recent-comments")
-    public Result<List<UserProfilePageResult.RecentCommentItemResult>> recentComments(
+    public Result<List<PostReadQueryApi.RecentUserCommentView>> recentComments(
             @PathVariable UUID userId,
             @RequestParam(required = false) Integer page,
             @RequestParam(required = false) Integer size

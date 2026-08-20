@@ -81,14 +81,14 @@ public class PostHotFeedProjectionKafkaListener {
                 ? value.payload()
                 : ((SocialTypedEvent.LikeRemoved) typedEvent).payload();
         if (payload == null
-                || !EntityTypes.isValid(payload.getEntityType())
-                || !StringUtils.hasText(payload.getRelationKey())) {
+                || !EntityTypes.isValid(payload.entityType())
+                || !StringUtils.hasText(payload.relationKey())) {
             throw malformed(event.type(), event.eventId());
         }
-        if (payload.getEntityType() != EntityTypes.POST) {
+        if (payload.entityType() != EntityTypes.POST) {
             return;
         }
-        UUID postId = payload.getPostId();
+        UUID postId = payload.postId();
         if (postId == null) {
             throw malformed(event.type(), event.eventId());
         }
@@ -125,17 +125,17 @@ public class PostHotFeedProjectionKafkaListener {
             ContentContractEvent event,
             PostPayload payload
     ) {
-        if (payload == null || payload.getPostId() == null) {
+        if (payload == null || payload.postId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        if (!"post".equalsIgnoreCase(event.aggregateType()) || !payload.getPostId().equals(event.aggregateId())) {
+        if (!"post".equalsIgnoreCase(event.aggregateType()) || !payload.postId().equals(event.aggregateId())) {
             throw malformed(event.type(), event.eventId());
         }
         boolean terminalDeletion = ContentEventTypes.POST_DELETED.equals(event.type());
         PostVersionSource versionSource = postVersionSource(event, payload);
         return new PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand(
-                payload.getPostId(),
-                payload.getCategoryId(),
+                payload.postId(),
+                payload.categoryId(),
                 event.eventId(),
                 versionSource.version(),
                 versionSource.lane(),
@@ -147,12 +147,12 @@ public class PostHotFeedProjectionKafkaListener {
             ContentContractEvent event,
             CommentPayload payload
     ) {
-        if (payload == null || payload.getPostId() == null) {
+        if (payload == null || payload.postId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        long postAggregateVersion = payload.getPostAggregateVersion();
+        long postAggregateVersion = payload.postAggregateVersion();
         return new PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand(
-                payload.getPostId(),
+                payload.postId(),
                 null,
                 event.eventId(),
                 postAggregateVersion > 0L ? postAggregateVersion : event.version(),
@@ -164,7 +164,7 @@ public class PostHotFeedProjectionKafkaListener {
     }
 
     private PostVersionSource postVersionSource(ContentContractEvent event, PostPayload payload) {
-        long aggregateVersion = payload.getAggregateVersion();
+        long aggregateVersion = payload.aggregateVersion();
         if (aggregateVersion <= 0L) {
             return new PostVersionSource(event.version(), PostProjectionVersionLane.LEGACY_POST);
         }

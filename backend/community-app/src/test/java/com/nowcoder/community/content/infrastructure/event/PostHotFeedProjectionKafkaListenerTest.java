@@ -198,8 +198,8 @@ class PostHotFeedProjectionKafkaListenerTest {
     void versionedCommentShouldShareThePostAggregateVersionLane() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
         PostHotFeedProjectionKafkaListener listener = listener(applicationService);
-        CommentPayload payload = commentPayload(uuid(201));
-        payload.setPostAggregateVersion(51L);
+        CommentPayload payload = new CommentPayload(
+                uuid(211), uuid(201), uuid(1), 0, null, null, null, null, 51L);
 
         listener.onContentEvent(new ContentContractEvent(
                 "evt-comment-created-versioned",
@@ -290,7 +290,9 @@ class PostHotFeedProjectionKafkaListenerTest {
 
         assertThatThrownBy(() -> listener.onContentEvent(new ContentContractEvent(
                 "evt-post-missing", null, null, ContentEventTypes.POST_UPDATED,
-                Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload()))))
+                Instant.EPOCH, 1L, jsonCodec.valueToTree(new PostPayload(
+                        null, null, null, null, null, null, 0, 0,
+                        null, null, null, 0L, 0L)))))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessageContaining(ContentEventTypes.POST_UPDATED)
                 .hasMessageContaining("evt-post-missing");
@@ -316,8 +318,9 @@ class PostHotFeedProjectionKafkaListenerTest {
     void recognizedLikeWithoutProducerIdentityShouldFailDelivery() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
         PostHotFeedProjectionKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(EntityTypes.POST, uuid(202));
-        payload.setActorUserId(null);
+        LikePayload payload = new LikePayload(
+                null, EntityTypes.POST, uuid(202), null, uuid(202),
+                "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(202), null, null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-missing-actor", uuid(202), "like", SocialEventTypes.LIKE_CREATED,
@@ -333,8 +336,9 @@ class PostHotFeedProjectionKafkaListenerTest {
     void recognizedPostLikeWithoutPostIdShouldFailDelivery() {
         PostHotFeedProjectionApplicationService applicationService = mock(PostHotFeedProjectionApplicationService.class);
         PostHotFeedProjectionKafkaListener listener = listener(applicationService);
-        LikePayload payload = likePayload(EntityTypes.POST, uuid(202));
-        payload.setPostId(null);
+        LikePayload payload = new LikePayload(
+                uuid(1), EntityTypes.POST, uuid(202), null, null,
+                "like:" + uuid(1) + ":" + EntityTypes.POST + ":" + uuid(202), null, null);
 
         assertThatThrownBy(() -> listener.onSocialEvent(new SocialContractEvent(
                 "evt-like-missing-post-id", uuid(202), "like", SocialEventTypes.LIKE_CREATED,
@@ -353,28 +357,18 @@ class PostHotFeedProjectionKafkaListenerTest {
     }
 
     private static PostPayload postPayload(java.util.UUID postId, java.util.UUID boardId, long aggregateVersion) {
-        PostPayload payload = new PostPayload();
-        payload.setPostId(postId);
-        payload.setCategoryId(boardId);
-        payload.setAggregateVersion(aggregateVersion);
-        return payload;
+        return new PostPayload(
+                postId, null, boardId, null, null, null, 0, 0,
+                null, null, null, 0L, aggregateVersion);
     }
 
     private static LikePayload likePayload(int entityType, java.util.UUID postId) {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(uuid(1));
-        payload.setEntityType(entityType);
-        payload.setEntityId(postId);
-        payload.setPostId(postId);
-        payload.setRelationKey("like:" + uuid(1) + ":" + entityType + ":" + postId);
-        return payload;
+        return new LikePayload(
+                uuid(1), entityType, postId, null, postId,
+                "like:" + uuid(1) + ":" + entityType + ":" + postId, null, null);
     }
 
     private static CommentPayload commentPayload(java.util.UUID postId) {
-        CommentPayload payload = new CommentPayload();
-        payload.setCommentId(uuid(211));
-        payload.setPostId(postId);
-        payload.setUserId(uuid(1));
-        return payload;
+        return new CommentPayload(uuid(211), postId, uuid(1), 0, null, null, null, null, 0L);
     }
 }

@@ -10,10 +10,6 @@ public class FeatureFlagProperties {
 
     private final Map<String, Boolean> features = new LinkedHashMap<>();
 
-    public Map<String, Boolean> getFlags() {
-        return features;
-    }
-
     public Map<String, Boolean> getFeatures() {
         return features;
     }

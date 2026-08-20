@@ -7,7 +7,6 @@ import com.nowcoder.community.content.contracts.event.PostPayload;
 import org.apache.kafka.clients.producer.ProducerRecord;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.kafka.support.SendResult;
 
@@ -26,20 +25,12 @@ class ContentEventKafkaSenderAdapterTest {
     private static final String KAFKA_TOPIC = "content.events";
 
     @Test
-    void senderShouldRemainKafkaClasspathConditional() {
-        ConditionalOnClass conditional = ContentEventKafkaSenderAdapter.class.getAnnotation(ConditionalOnClass.class);
-
-        assertThat(conditional).isNotNull();
-        assertThat(conditional.value()).contains(KafkaTemplate.class);
-    }
-
-    @Test
     void dispatchShouldPublishContractEventWithConfiguredTopicAndKey() {
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.send(any(ProducerRecord.class))).thenReturn(completedSend());
         ContentEventKafkaSenderAdapter adapter = new ContentEventKafkaSenderAdapter(kafkaTemplate, KAFKA_TOPIC);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(101));
+        PostPayload payload = new PostPayload(
+                uuid(101), null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
         ContentContractEvent event = new ContentContractEvent(
                 "content:PostPublished:" + uuid(101), null, null, ContentEventTypes.POST_PUBLISHED,
                 java.time.Instant.EPOCH, 1L, JsonMappers.standard().valueToTree(payload));

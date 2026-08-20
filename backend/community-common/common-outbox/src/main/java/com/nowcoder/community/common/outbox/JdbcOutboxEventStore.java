@@ -312,51 +312,6 @@ public class JdbcOutboxEventStore {
         return recovered;
     }
 
-    public List<OutboxEventView> findEvents(OutboxEventQuery query) {
-        OutboxEventQuery q = query == null ? new OutboxEventQuery(null, null, null, null, null, 50) : query;
-        StringBuilder sql = new StringBuilder(
-                "select id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, " +
-                        "last_error, trace_id, traceparent, created_at, updated_at from outbox_event where 1 = 1"
-        );
-        List<Object> args = new java.util.ArrayList<>();
-        if (q.normalizedStatus() != null) {
-            sql.append(" and status = ?");
-            args.add(q.normalizedStatus());
-        }
-        if (q.normalizedTopic() != null) {
-            sql.append(" and topic = ?");
-            args.add(q.normalizedTopic());
-        }
-        if (q.normalizedEventId() != null) {
-            sql.append(" and event_id = ?");
-            args.add(q.normalizedEventId());
-        }
-        if (q.createdFrom() != null) {
-            sql.append(" and created_at >= ?");
-            args.add(Timestamp.from(q.createdFrom()));
-        }
-        if (q.createdTo() != null) {
-            sql.append(" and created_at <= ?");
-            args.add(Timestamp.from(q.createdTo()));
-        }
-        sql.append(" order by id asc limit ?");
-        args.add(q.safeLimit());
-        return jdbcTemplate.query(sql.toString(), governanceRowMapper(), args.toArray());
-    }
-
-    public Optional<OutboxEventView> findEventById(UUID id) {
-        if (id == null) {
-            return Optional.empty();
-        }
-        List<OutboxEventView> rows = jdbcTemplate.query(
-                "select id, event_id, topic, event_key, payload, status, retry_count, next_retry_at, " +
-                        "last_error, trace_id, traceparent, created_at, updated_at from outbox_event where id = ?",
-                governanceRowMapper(),
-                BinaryUuidCodec.toBytes(id)
-        );
-        return rows.stream().findFirst();
-    }
-
     public List<OutboxBacklogRow> countBacklogByTopicAndStatus() {
         return jdbcTemplate.query(
                 "select topic, status, count(*) as row_count from outbox_event " +
@@ -406,29 +361,6 @@ public class JdbcOutboxEventStore {
             return s;
         }
         return s.substring(0, 255);
-    }
-
-    private static RowMapper<OutboxEventView> governanceRowMapper() {
-        return (rs, rowNum) -> {
-            Timestamp nextRetryAt = rs.getTimestamp("next_retry_at");
-            Timestamp createdAt = rs.getTimestamp("created_at");
-            Timestamp updatedAt = rs.getTimestamp("updated_at");
-            return new OutboxEventView(
-                    BinaryUuidCodec.fromBytes(rs.getBytes("id")),
-                    rs.getString("event_id"),
-                    rs.getString("topic"),
-                    rs.getString("event_key"),
-                    rs.getString("payload"),
-                    rs.getString("status"),
-                    rs.getInt("retry_count"),
-                    nextRetryAt == null ? null : nextRetryAt.toInstant(),
-                    rs.getString("last_error"),
-                    rs.getString("trace_id"),
-                    rs.getString("traceparent"),
-                    createdAt == null ? null : createdAt.toInstant(),
-                    updatedAt == null ? null : updatedAt.toInstant()
-            );
-        };
     }
 
     private static RowMapper<OutboxEvent> rowMapper() {

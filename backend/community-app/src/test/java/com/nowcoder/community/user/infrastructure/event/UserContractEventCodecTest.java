@@ -150,16 +150,16 @@ class UserContractEventCodecTest {
     }
 
     private static UserPolicyChangedPayload policyPayload() {
-        UserPolicyChangedPayload payload = new UserPolicyChangedPayload();
-        payload.setUserId(uuid(301));
-        payload.setUserExists(true);
-        payload.setSuspended(false);
-        payload.setMuted(true);
-        payload.setMuteUntil(1_784_078_400_000L);
-        payload.setBanUntil(null);
-        payload.setCanSendPrivate(false);
-        payload.setOccurredAtEpochMillis(1_773_800_000_000L);
-        payload.setVersion(13L);
-        return payload;
+        return new UserPolicyChangedPayload(
+                uuid(301),
+                true,
+                false,
+                true,
+                1_784_078_400_000L,
+                null,
+                false,
+                1_773_800_000_000L,
+                13L
+        );
     }
 }

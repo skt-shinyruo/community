@@ -59,8 +59,8 @@ class SocialEventDispatchApplicationServiceTest {
         assertThat(event.eventId()).isEqualTo("social:LikeCreated:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
         assertThat(event.type()).isEqualTo(SocialEventTypes.LIKE_CREATED);
         SocialTypedEvent.LikeCreated typedEvent = (SocialTypedEvent.LikeCreated) contractEventCodec.decode(event);
-        assertThat(typedEvent.payload().getActorUserId()).isEqualTo(actorUserId);
-        assertThat(typedEvent.payload().getEntityId()).isEqualTo(entityId);
+        assertThat(typedEvent.payload().actorUserId()).isEqualTo(actorUserId);
+        assertThat(typedEvent.payload().entityId()).isEqualTo(entityId);
     }
 
     @Test
@@ -102,8 +102,8 @@ class SocialEventDispatchApplicationServiceTest {
                 (SocialTypedEvent.FollowCreated) contractEventCodec.decode(eventCaptor.getAllValues().get(0));
         SocialTypedEvent.BlockRelationChanged blockRelationChanged =
                 (SocialTypedEvent.BlockRelationChanged) contractEventCodec.decode(eventCaptor.getAllValues().get(1));
-        assertThat(followCreated.payload().getEntityId()).isEqualTo(followedUserId);
-        assertThat(blockRelationChanged.payload().getBlockedUserId()).isEqualTo(blockedUserId);
+        assertThat(followCreated.payload().entityId()).isEqualTo(followedUserId);
+        assertThat(blockRelationChanged.payload().blockedUserId()).isEqualTo(blockedUserId);
         assertThat(eventCaptor.getAllValues().get(2).payload().path("value").asText()).isEqualTo("kept");
     }
 
@@ -256,32 +256,29 @@ class SocialEventDispatchApplicationServiceTest {
     }
 
     private static LikePayload likePayload(UUID actorUserId, UUID entityId) {
-        LikePayload payload = new LikePayload();
-        payload.setActorUserId(actorUserId);
-        payload.setEntityType(EntityTypes.POST);
-        payload.setEntityId(entityId);
-        payload.setEntityUserId(uuid(103));
-        payload.setPostId(entityId);
-        payload.setRelationKey("like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId);
-        return payload;
+        return new LikePayload(
+                actorUserId,
+                EntityTypes.POST,
+                entityId,
+                uuid(103),
+                entityId,
+                "like:" + actorUserId + ":" + EntityTypes.POST + ":" + entityId,
+                null,
+                null
+        );
     }
 
     private static FollowPayload followPayload(UUID actorUserId, UUID followedUserId) {
-        FollowPayload payload = new FollowPayload();
-        payload.setActorUserId(actorUserId);
-        payload.setEntityType(EntityTypes.USER);
-        payload.setEntityId(followedUserId);
-        payload.setEntityUserId(followedUserId);
-        payload.setCreateTime(Instant.EPOCH);
-        return payload;
+        return new FollowPayload(
+                actorUserId,
+                EntityTypes.USER,
+                followedUserId,
+                followedUserId,
+                Instant.EPOCH
+        );
     }
 
     private static BlockPayload blockPayload(UUID blockerUserId, UUID blockedUserId) {
-        BlockPayload payload = new BlockPayload();
-        payload.setBlockerUserId(blockerUserId);
-        payload.setBlockedUserId(blockedUserId);
-        payload.setBlocked(true);
-        payload.setVersion(42L);
-        return payload;
+        return new BlockPayload(blockerUserId, blockedUserId, true, null, 42L);
     }
 }

@@ -1,8 +1,6 @@
 package com.nowcoder.community.common.spring.autoconfig;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagDecisions;
 import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
-import com.nowcoder.community.common.spring.policy.KafkaPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
@@ -21,19 +19,7 @@ public class RuntimePolicyAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public FeatureFlagDecisions featureFlagDecisions(FeatureFlagProperties properties) {
-        return new FeatureFlagDecisions(properties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
     public UploadPolicyDecisions uploadPolicyDecisions(UploadPolicyProperties properties) {
         return new UploadPolicyDecisions(properties);
-    }
-
-    @Bean
-    @ConditionalOnMissingBean
-    public KafkaPolicyDecisions kafkaPolicyDecisions(KafkaPolicyProperties properties) {
-        return new KafkaPolicyDecisions(properties);
     }
 }

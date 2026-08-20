@@ -39,8 +39,10 @@ class SocialContentDeletionKafkaListenerTest {
     void postDeletedShouldMapTypedPayloadToSocialOwnedCleanupCommand() {
         LikeApplicationService applicationService = mock(LikeApplicationService.class);
         SocialContentDeletionKafkaListener listener = listener(applicationService);
-        PostPayload payload = new PostPayload();
-        payload.setPostId(uuid(100));
+        PostPayload payload = new PostPayload(
+                uuid(100), null, null, null, null, null, 0, 0,
+                null, null, null, 0L, 0L
+        );
 
         listener.onContentEvent(contentEvent(
                 "content:PostDeleted:" + uuid(100),
@@ -127,7 +129,9 @@ class SocialContentDeletionKafkaListenerTest {
     void recognizedDeletionWithMissingIdentityOrSourceMetadataShouldFailDelivery() {
         LikeApplicationService applicationService = mock(LikeApplicationService.class);
         SocialContentDeletionKafkaListener listener = listener(applicationService);
-        CommentPayload missingCommentId = new CommentPayload();
+        CommentPayload missingCommentId = new CommentPayload(
+                null, null, null, 0, null, null, null, null, 0L
+        );
 
         assertThatThrownBy(() -> listener.onContentEvent(contentEvent(
                 "content:CommentDeleted:missing",

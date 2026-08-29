@@ -4,7 +4,7 @@ import com.nowcoder.community.auth.application.PasswordResetApplicationService.C
 import com.nowcoder.community.auth.application.PasswordResetApplicationService.PasswordResetRequestResult;
 import com.nowcoder.community.auth.application.PasswordResetApplicationService.RequestPasswordResetCommand;
 import com.nowcoder.community.auth.application.port.PasswordResetMailDispatcher;
-import com.nowcoder.community.auth.application.port.PasswordResetTransactionCompletion;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
@@ -62,7 +62,7 @@ class PasswordResetApplicationServiceTest {
     @Mock
     private PasswordResetMailDispatcher passwordResetMailDispatcher;
     @Mock
-    private PasswordResetTransactionCompletion transactionCompletion;
+    private TransactionCompletion transactionCompletion;
     @Mock
     private CaptchaChallengeComponent captchaChallenge;
 

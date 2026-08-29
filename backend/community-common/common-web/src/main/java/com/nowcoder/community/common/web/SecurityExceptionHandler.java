@@ -1,6 +1,6 @@
 package com.nowcoder.community.common.web;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.security.response.SecurityResponseSupport;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceId;
@@ -18,9 +18,9 @@ import java.nio.charset.StandardCharsets;
 @Component
 public class SecurityExceptionHandler implements AuthenticationEntryPoint, AccessDeniedHandler {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public SecurityExceptionHandler(JsonCodec jsonCodec) {
+    public SecurityExceptionHandler(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

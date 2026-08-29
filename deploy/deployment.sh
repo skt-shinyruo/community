@@ -76,123 +76,59 @@ resolve_default_project_name() {
   esac
 }
 
-read_dotenv_value() {
-  local variable="$1"
-  local file="$2"
-
-  awk -v variable="${variable}" '
-    /^[[:space:]]*(#|$)/ { next }
-    {
-      line = $0
-      sub(/\r$/, "", line)
-      prefix = "^[[:space:]]*(export[[:space:]]+)?" variable "[[:space:]]*="
-      if (line ~ prefix) {
-        sub(prefix, "", line)
-        sub(/^[[:space:]]+/, "", line)
-        sub(/[[:space:]]+$/, "", line)
-        if (length(line) >= 2) {
-          first = substr(line, 1, 1)
-          last = substr(line, length(line), 1)
-          if ((first == "\"" && last == "\"") || (first == "\047" && last == "\047")) {
-            line = substr(line, 2, length(line) - 2)
-          }
-        }
-        value = line
-        found = 1
-      }
-    }
-    END {
-      if (!found) exit 1
-      print value
-    }
-  ' "${file}"
-}
-
-resolve_process_env_then_dotenv_then_fallback() {
-  local variable="$1"
-  local fallback="$2"
-  local resolved
-
-  if [[ -v "${variable}" ]]; then
-    resolved="${!variable}"
-  elif resolved="$(read_dotenv_value "${variable}" "${ENV_FILE}")"; then
-    :
-  else
-    resolved="${fallback}"
-  fi
-  printf '%s' "${resolved}"
-}
-
 initialize_topology_defaults() {
-  declare -gA TOPOLOGY_DEFAULTS=()
-  declare -ga TOPOLOGY_VARIABLES=()
+  local volume_namespace
+  local subnet_prefix
 
-  if [ "${STACK:-}" = "infra" ]; then
-    TOPOLOGY_VARIABLES=(
-      COMMUNITY_VOLUME_NAMESPACE
-      COMMUNITY_NETWORK_SUBNET
-      COMMUNITY_NETWORK_DYNAMIC_RANGE
-      NGINX_STATIC_IP
-      COMMUNITY_GATEWAY_STATIC_IP
-      GATEWAY_TRUSTED_PROXY_CIDRS
-      COMMUNITY_APP_TRUSTED_PROXY_CIDRS
-    )
-    TOPOLOGY_DEFAULTS[COMMUNITY_VOLUME_NAMESPACE]=community_infra
-    TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_SUBNET]=172.32.0.0/24
-    TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_DYNAMIC_RANGE]=172.32.0.128/25
-    TOPOLOGY_DEFAULTS[NGINX_STATIC_IP]=172.32.0.10
-    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_STATIC_IP]=172.32.0.20
-    TOPOLOGY_DEFAULTS[GATEWAY_TRUSTED_PROXY_CIDRS]=172.32.0.10/32
-    TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]=172.32.0.20/32
-    return
-  fi
-
-  case "${TOPOLOGY}" in
+  case "${STACK}" in
+    infra)
+      volume_namespace=community_infra
+      subnet_prefix=172.32
+      ;;
     single)
-      TOPOLOGY_VARIABLES=(
-        COMMUNITY_VOLUME_NAMESPACE
-        COMMUNITY_NETWORK_SUBNET
-        COMMUNITY_NETWORK_DYNAMIC_RANGE
-        NGINX_STATIC_IP
-        COMMUNITY_GATEWAY_STATIC_IP
-        GATEWAY_TRUSTED_PROXY_CIDRS
-        COMMUNITY_APP_TRUSTED_PROXY_CIDRS
-      )
-      TOPOLOGY_DEFAULTS[COMMUNITY_VOLUME_NAMESPACE]=community_single
-      TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_SUBNET]=172.30.0.0/24
-      TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_DYNAMIC_RANGE]=172.30.0.128/25
-      TOPOLOGY_DEFAULTS[NGINX_STATIC_IP]=172.30.0.10
-      TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_STATIC_IP]=172.30.0.20
-      TOPOLOGY_DEFAULTS[GATEWAY_TRUSTED_PROXY_CIDRS]=172.30.0.10/32
-      TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]=172.30.0.20/32
+      volume_namespace=community_single
+      subnet_prefix=172.30
       ;;
     cluster)
-      TOPOLOGY_VARIABLES=(
-        COMMUNITY_VOLUME_NAMESPACE
-        COMMUNITY_NETWORK_SUBNET
-        COMMUNITY_NETWORK_DYNAMIC_RANGE
-        NGINX_STATIC_IP
-        COMMUNITY_GATEWAY_1_STATIC_IP
-        COMMUNITY_GATEWAY_2_STATIC_IP
-        COMMUNITY_GATEWAY_3_STATIC_IP
-        GATEWAY_TRUSTED_PROXY_CIDRS
-        COMMUNITY_APP_TRUSTED_PROXY_CIDRS
-      )
-      TOPOLOGY_DEFAULTS[COMMUNITY_VOLUME_NAMESPACE]=community_cluster
-      TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_SUBNET]=172.31.0.0/24
-      TOPOLOGY_DEFAULTS[COMMUNITY_NETWORK_DYNAMIC_RANGE]=172.31.0.128/25
-      TOPOLOGY_DEFAULTS[NGINX_STATIC_IP]=172.31.0.10
-      TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_1_STATIC_IP]=172.31.0.20
-      TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_2_STATIC_IP]=172.31.0.21
-      TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_3_STATIC_IP]=172.31.0.22
-      TOPOLOGY_DEFAULTS[GATEWAY_TRUSTED_PROXY_CIDRS]=172.31.0.10/32
-      TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]=172.31.0.20/32,172.31.0.21/32,172.31.0.22/32
+      volume_namespace=community_cluster
+      subnet_prefix=172.31
       ;;
     *)
       echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
       exit 1
       ;;
   esac
+
+  declare -gA TOPOLOGY_DEFAULTS=(
+    [COMMUNITY_VOLUME_NAMESPACE]="${volume_namespace}"
+    [COMMUNITY_NETWORK_SUBNET]="${subnet_prefix}.0.0/24"
+    [COMMUNITY_NETWORK_DYNAMIC_RANGE]="${subnet_prefix}.0.128/25"
+    [NGINX_STATIC_IP]="${subnet_prefix}.0.10"
+    [GATEWAY_TRUSTED_PROXY_CIDRS]="${subnet_prefix}.0.10/32"
+  )
+  declare -ga TOPOLOGY_VARIABLES=(
+    COMMUNITY_VOLUME_NAMESPACE
+    COMMUNITY_NETWORK_SUBNET
+    COMMUNITY_NETWORK_DYNAMIC_RANGE
+    NGINX_STATIC_IP
+  )
+
+  if [ "${STACK}" = "cluster" ]; then
+    TOPOLOGY_VARIABLES+=(
+      COMMUNITY_GATEWAY_1_STATIC_IP
+      COMMUNITY_GATEWAY_2_STATIC_IP
+      COMMUNITY_GATEWAY_3_STATIC_IP
+    )
+    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_1_STATIC_IP]="${subnet_prefix}.0.20"
+    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_2_STATIC_IP]="${subnet_prefix}.0.21"
+    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_3_STATIC_IP]="${subnet_prefix}.0.22"
+    TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]="${subnet_prefix}.0.20/32,${subnet_prefix}.0.21/32,${subnet_prefix}.0.22/32"
+  else
+    TOPOLOGY_VARIABLES+=(COMMUNITY_GATEWAY_STATIC_IP)
+    TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_STATIC_IP]="${subnet_prefix}.0.20"
+    TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]="${subnet_prefix}.0.20/32"
+  fi
+  TOPOLOGY_VARIABLES+=(GATEWAY_TRUSTED_PROXY_CIDRS COMMUNITY_APP_TRUSTED_PROXY_CIDRS)
 }
 
 validate_topology_value() {
@@ -369,6 +305,8 @@ CALLER_PWD="$(pwd)"
 SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
 REPO_ROOT="$(CDPATH= cd -- "${SCRIPT_DIR}/.." && pwd)"
 export COMMUNITY_DEPLOY_ROOT="${REPO_ROOT}/deploy"
+
+. "${SCRIPT_DIR}/scripts/lib/dotenv.sh"
 
 if [ "$#" -eq 0 ]; then
   usage

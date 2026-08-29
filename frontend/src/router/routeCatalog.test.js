@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest'
 
 import {
-  getCatalogRouteNames,
+  ROUTES,
   getRouteAccess,
   getRouteBreadcrumbItems,
   getRouteFamilyNames,
@@ -11,8 +11,8 @@ import {
 
 describe('router/routeCatalog', () => {
   it('owns the complete formal route-name inventory', () => {
-    expect(getCatalogRouteNames()).toContain('posts')
-    expect(getCatalogRouteNames()).toContain('notFound')
+    expect(Object.keys(ROUTES)).toContain('posts')
+    expect(Object.keys(ROUTES)).toContain('notFound')
   })
 
   it('owns stable workspace labels', () => {

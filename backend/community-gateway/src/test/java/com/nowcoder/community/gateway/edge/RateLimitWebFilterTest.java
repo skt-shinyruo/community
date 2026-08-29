@@ -31,7 +31,7 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofMinutes(1));
         properties.getPolicies().put("/limited", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("principal:alice:/limited", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
@@ -70,7 +70,7 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofSeconds(30));
         properties.getPolicies().put("/ip-limited", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:10.10.10.10:/ip-limited", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
@@ -97,7 +97,7 @@ class RateLimitWebFilterTest {
         RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
         properties.getPolicies().put("/canonical", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:198.51.100.1:/canonical", policy)).thenReturn(true);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
         ServerWebExchange exchange = buildExchange(
@@ -123,7 +123,7 @@ class RateLimitWebFilterTest {
         String policyPath = "/api/drive/shares/{shareToken}/verify";
         properties.getPolicies().put(policyPath, policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:198.51.100.9:" + policyPath, policy)).thenReturn(true);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
         ServerWebExchange exchange = buildExchange(
@@ -143,7 +143,7 @@ class RateLimitWebFilterTest {
         RateLimitProperties.Policy initialPolicy = new RateLimitProperties.Policy();
         String initialPath = "/api/drive/shares/{shareToken}/verify";
         properties.getPolicies().put(initialPath, initialPolicy);
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         RateLimitProperties.Policy refreshedPolicy = new RateLimitProperties.Policy();
@@ -170,7 +170,7 @@ class RateLimitWebFilterTest {
                 .isEqualTo(RateLimitWebFilter.SECURITY_WEB_FILTER_CHAIN_ORDER + 1);
         assertThat(ForwardedHeaderCanonicalizationWebFilter.ORDER)
                 .isLessThan(RateLimitWebFilter.ORDER);
-        assertThat(new RateLimitWebFilter(new RateLimitProperties(), mock(RateLimiter.class)))
+        assertThat(new RateLimitWebFilter(new RateLimitProperties(), mock(RedisRateLimiter.class)))
                 .isInstanceOf(Ordered.class)
                 .extracting(filter -> ((Ordered) filter).getOrder())
                 .isEqualTo(RateLimitWebFilter.ORDER);
@@ -185,7 +185,7 @@ class RateLimitWebFilterTest {
         policy.setEnabled(false);
         properties.getPolicies().put("/disabled", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
         AtomicInteger chainInvocations = new AtomicInteger();
@@ -209,7 +209,7 @@ class RateLimitWebFilterTest {
         policy.setWindow(Duration.ofSeconds(30));
         properties.getPolicies().put("/blank-principal", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:10.10.10.11:/blank-principal", policy)).thenReturn(true, false);
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
@@ -238,7 +238,7 @@ class RateLimitWebFilterTest {
         RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
         properties.getPolicies().put("/limited", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:127.0.0.1:/limited", policy)).thenThrow(new RuntimeException("redis down"));
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 
@@ -262,7 +262,7 @@ class RateLimitWebFilterTest {
         RateLimitProperties.Policy policy = new RateLimitProperties.Policy();
         properties.getPolicies().put("/limited", policy);
 
-        RateLimiter limiter = mock(RateLimiter.class);
+        RedisRateLimiter limiter = mock(RedisRateLimiter.class);
         when(limiter.allow("ip:127.0.0.1:/limited", policy)).thenThrow(new RuntimeException("redis down"));
         RateLimitWebFilter filter = new RateLimitWebFilter(properties, limiter);
 

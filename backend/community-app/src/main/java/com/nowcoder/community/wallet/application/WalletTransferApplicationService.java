@@ -3,7 +3,6 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.domain.model.TransferOrder;
@@ -77,19 +76,19 @@ public class WalletTransferApplicationService {
     @Transactional
     public TransferOrderResult transfer(CreateTransferCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "wallet:transfer|toUserId=" + command.toUserId() + "|amount=" + command.amount()
         );
         return idempotencyGuard.executeRequired(
                 "wallet:transfer",
                 command.fromUserId(),
-                effective.value(),
+                effective,
                 requestHash,
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 TransferOrderResult.class,
                 () -> createInternal(
-                        effective.value(),
+                        effective,
                         command.fromUserId(),
                         command.toUserId(),
                         command.amount()

@@ -2,7 +2,6 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
@@ -335,7 +334,7 @@ class CommentReadApplicationServiceTest {
     }
 
     private static CommentCursorCodec cursorCodec() {
-        return new CommentCursorCodec(new JacksonJsonCodec(JsonMappers.standard()));
+        return new CommentCursorCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper()));
     }
 
     private static String forgeCursor(
@@ -352,7 +351,7 @@ class CommentReadApplicationServiceTest {
         payload.put("rootCommentId", rootCommentId == null ? null : rootCommentId.toString());
         payload.put("createTime", createTime.toString());
         payload.put("commentId", commentId.toString());
-        String json = new JacksonJsonCodec(JsonMappers.standard()).toJson(payload);
+        String json = new JacksonJsonCodec(JacksonJsonCodec.standardMapper()).toJson(payload);
         return Base64.getUrlEncoder().withoutPadding()
                 .encodeToString(json.getBytes(StandardCharsets.UTF_8));
     }

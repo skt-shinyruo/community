@@ -694,20 +694,9 @@ class JsonContractsTest {
     }
 
     @Test
-    void shouldExposeNewProjectionTopics() {
-        assertEquals("im.event.private-committed", ImTopics.EVENT_PRIVATE_COMMITTED);
-        assertEquals("im.event.room-committed", ImTopics.EVENT_ROOM_COMMITTED);
-        assertEquals("im.event.room-member-changed", ImTopics.EVENT_ROOM_MEMBER_CHANGED);
-        assertEquals("im.event.user-messaging-policy-changed", ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED);
-        assertEquals("im.event.user-block-relation-changed", ImTopics.EVENT_USER_BLOCK_RELATION_CHANGED);
-        assertEquals("im.command.room-fanout-routed", ImTopics.COMMAND_ROOM_FANOUT_ROUTED);
-    }
-
-    @Test
     void shouldExposeContractVersionConstants() throws Exception {
         assertEquals(1, ImContractVersions.CURRENT_SCHEMA_VERSION);
         assertEquals(1, ImContractVersions.WS_FRAME_VERSION);
-        assertEquals("im.event.private-committed", ImTopics.EVENT_PRIVATE_COMMITTED);
     }
 
     @Test

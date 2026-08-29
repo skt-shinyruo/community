@@ -1,7 +1,7 @@
 package com.nowcoder.community.social.infrastructure.event;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.constants.EntityTypes;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.social.contracts.event.LikePayload;
 import com.nowcoder.community.social.contracts.event.SocialContractEvent;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
@@ -35,7 +35,7 @@ class SocialEventKafkaSenderAdapterTest {
         SocialContractEvent event = new SocialContractEvent(
                 "social:LikeCreated:" + uuid(101) + ":" + EntityTypes.POST + ":" + uuid(102),
                 null, null, SocialEventTypes.LIKE_CREATED, java.time.Instant.EPOCH, 1L,
-                JsonMappers.standard().valueToTree(payload));
+                JacksonJsonCodec.standardMapper().valueToTree(payload));
 
         adapter.dispatch(uuid(101).toString(), event);
 
@@ -55,7 +55,7 @@ class SocialEventKafkaSenderAdapterTest {
 
         assertThatThrownBy(() -> adapter.dispatch("key", new SocialContractEvent(
                 "event-1", null, null, "Type", java.time.Instant.EPOCH, 1L,
-                JsonMappers.standard().createObjectNode())))
+                JacksonJsonCodec.standardMapper().createObjectNode())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("social event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);

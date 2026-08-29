@@ -35,8 +35,7 @@
 | 类 | 核心职责 |
 | --- | --- |
 | `community-oss.application.*` | OSS deployable 内部的同名应用服务实现。 |
-| `community-oss-client.CommunityOssClient` | 业务服务调用 OSS 的 typed contract。 |
-| `community-oss-client.HttpCommunityOssClient` | typed contract 的 HTTP 实现。 |
+| `community-oss-client.HttpCommunityOssClient` | 业务服务调用 OSS 的 typed HTTP client。 |
 | `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | OSS schema 的 UUID binary 适配。 |
 | `community-oss.infrastructure.job.ObjectUploadRecoveryJob` | 按 stale threshold 和 batch 调度 upload recovery。 |
 

@@ -1,12 +1,16 @@
 package com.nowcoder.community.common.json;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.fasterxml.jackson.databind.SerializationFeature;
+import com.fasterxml.jackson.databind.json.JsonMapper;
 
 import java.util.Objects;
 
-public class JacksonJsonCodec implements JsonCodec {
+public class JacksonJsonCodec {
 
     private final ObjectMapper objectMapper;
 
@@ -14,7 +18,24 @@ public class JacksonJsonCodec implements JsonCodec {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
     }
 
-    @Override
+    /**
+     * Standard codec: module auto-discovery, ISO-8601 dates, unknown properties ignored.
+     */
+    public static JacksonJsonCodec standard() {
+        return new JacksonJsonCodec(standardMapper());
+    }
+
+    /**
+     * The shared {@link ObjectMapper} configuration used across the backend.
+     */
+    public static ObjectMapper standardMapper() {
+        return JsonMapper.builder()
+                .findAndAddModules()
+                .disable(SerializationFeature.WRITE_DATES_AS_TIMESTAMPS)
+                .disable(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES)
+                .build();
+    }
+
     public String toJson(Object value) {
         try {
             return objectMapper.writeValueAsString(value);
@@ -23,7 +44,6 @@ public class JacksonJsonCodec implements JsonCodec {
         }
     }
 
-    @Override
     public <T> T fromJson(String json, Class<T> type) {
         try {
             return objectMapper.readValue(json, type);
@@ -32,7 +52,6 @@ public class JacksonJsonCodec implements JsonCodec {
         }
     }
 
-    @Override
     public JsonNode readTree(String json) {
         try {
             return objectMapper.readTree(json);
@@ -41,7 +60,6 @@ public class JacksonJsonCodec implements JsonCodec {
         }
     }
 
-    @Override
     public <T> T treeToValue(JsonNode node, Class<T> type) {
         try {
             return objectMapper.treeToValue(node, type);
@@ -50,7 +68,6 @@ public class JacksonJsonCodec implements JsonCodec {
         }
     }
 
-    @Override
     public JsonNode valueToTree(Object value) {
         try {
             return objectMapper.valueToTree(value);

@@ -1,5 +1,6 @@
 package com.nowcoder.community.auth.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.auth.application.CaptchaApplicationService;
@@ -35,7 +36,6 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
@@ -73,7 +73,7 @@ import static org.mockito.Mockito.when;
 @ExtendWith(MockitoExtension.class)
 class AuthControllerUnitTest {
 
-    private static final ObjectMapper OBJECT_MAPPER = JsonMappers.standard();
+    private static final ObjectMapper OBJECT_MAPPER = JacksonJsonCodec.standardMapper();
 
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 

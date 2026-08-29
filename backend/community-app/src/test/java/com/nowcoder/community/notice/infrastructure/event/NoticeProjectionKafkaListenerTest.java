@@ -2,8 +2,6 @@ package com.nowcoder.community.notice.infrastructure.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
@@ -34,7 +32,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class NoticeProjectionKafkaListenerTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final ContentContractEventCodec contentContractEventCodec =
             new JacksonContentContractEventCodec(jsonCodec);
     private final SocialContractEventCodec socialContractEventCodec =

@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
@@ -78,18 +78,18 @@ public class RedisPostSummaryCache implements PostSummaryCache {
             """, Long.class);
 
     private final StringRedisTemplate redisTemplate;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final CacheTtlPolicy ttlPolicy;
     private final ContentHotPathProperties hotPathProperties;
 
-    public RedisPostSummaryCache(StringRedisTemplate redisTemplate, JsonCodec jsonCodec) {
+    public RedisPostSummaryCache(StringRedisTemplate redisTemplate, JacksonJsonCodec jsonCodec) {
         this(redisTemplate, jsonCodec, new CacheTtlPolicy(new ContentHotPathProperties()), new ContentHotPathProperties());
     }
 
     @Autowired
     public RedisPostSummaryCache(
             StringRedisTemplate redisTemplate,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             CacheTtlPolicy ttlPolicy,
             ContentHotPathProperties hotPathProperties
     ) {

@@ -7,8 +7,6 @@ import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.CreatePostCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
@@ -74,8 +72,8 @@ class PostPublishingApplicationServiceTest {
     private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostPublishingApplicationService service;
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 
     @BeforeEach

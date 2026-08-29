@@ -80,10 +80,13 @@ class RateLimitSecurityOrderIntegrationTest {
 
         @Bean
         @Primary
-        RateLimiter recordingRateLimiter() {
-            return (key, policy) -> {
-                RATE_LIMIT_KEYS.add(key);
-                return true;
+        RedisRateLimiter recordingRateLimiter() {
+            return new RedisRateLimiter(null) {
+                @Override
+                public boolean allow(String key, RateLimitProperties.Policy policy) {
+                    RATE_LIMIT_KEYS.add(key);
+                    return true;
+                }
             };
         }
 

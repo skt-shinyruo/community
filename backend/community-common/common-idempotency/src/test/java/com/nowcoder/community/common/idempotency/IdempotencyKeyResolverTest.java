@@ -21,8 +21,8 @@ class IdempotencyKeyResolverTest {
 
     @Test
     void resolveShouldUseTrimmedHeader() {
-        EffectiveIdempotencyKey key = IdempotencyKeyResolver.resolve(" request-1 ");
+        String key = IdempotencyKeyResolver.resolve(" request-1 ");
 
-        assertThat(key.value()).isEqualTo("request-1");
+        assertThat(key).isEqualTo("request-1");
     }
 }

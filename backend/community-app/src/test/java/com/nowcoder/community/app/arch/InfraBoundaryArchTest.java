@@ -21,12 +21,7 @@ import static com.tngtech.archunit.lang.syntax.ArchRuleDefinition.noClasses;
 )
 class InfraBoundaryArchTest {
 
-    private static final Set<String> REVIEWED_SUBSTANTIVE_API_ADAPTERS = Set.of(
-            "com.nowcoder.community.analytics.infrastructure.api.AnalyticsIngestActionApiAdapter",
-            "com.nowcoder.community.content.infrastructure.api.PostReadQueryApiAdapter",
-            "com.nowcoder.community.content.infrastructure.api.SocialLikeQueryAdapter",
-            "com.nowcoder.community.user.infrastructure.api.UserCredentialApiAdapter"
-    );
+    private static final Set<String> REVIEWED_SUBSTANTIVE_API_ADAPTERS = Set.of();
 
     private static final Set<String> FOREIGN_IMPLEMENTATION_LAYERS = Set.of(
             "controller",
@@ -59,14 +54,16 @@ class InfraBoundaryArchTest {
     static final ArchRule infrastructure_owner_api_implementations_should_be_named_adapters =
             classes()
                     .that().resideInAnyPackage("..infrastructure.api..")
-                    .should(haveApiAdapterNameWhenImplementingOwnerApi());
+                    .should(haveApiAdapterNameWhenImplementingOwnerApi())
+                    .allowEmptyShould(true);
 
     @ArchTest
     static final ArchRule infrastructure_api_adapters_must_have_a_reviewed_conversion_responsibility =
             classes()
                     .that().resideInAnyPackage("..infrastructure.api..")
                     .should(beAReviewedSubstantiveApiAdapter())
-                    .because("owner ApplicationServices implement APIs directly unless an adapter owns real conversion or policy");
+                    .because("owner ApplicationServices implement APIs directly unless an adapter owns real conversion or policy")
+                    .allowEmptyShould(true);
 
     private static ArchCondition<JavaClass> haveApiAdapterNameWhenImplementingOwnerApi() {
         return new ArchCondition<>("end with ApiAdapter when implementing published owner APIs") {

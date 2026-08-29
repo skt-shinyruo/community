@@ -1,6 +1,6 @@
 package com.nowcoder.community.app.contract;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
 import com.nowcoder.community.content.infrastructure.event.OutboxContentEventPublisher;
 import com.nowcoder.community.content.infrastructure.event.PostHotFeedProjectionKafkaListener;
@@ -43,7 +43,7 @@ class ContractEventCodecAdoptionTest {
     ) {
         assertThat(dependencyTypeNames(boundaryType))
                 .contains(codecType)
-                .doesNotContain(JsonCodec.class.getName());
+                .doesNotContain(JacksonJsonCodec.class.getName());
         assertThat(objectPayloadMethods(boundaryType))
                 .as("generic Object payload methods in %s", boundaryType.getName())
                 .isEmpty();
@@ -60,7 +60,7 @@ class ContractEventCodecAdoptionTest {
     ) {
         assertThat(dependencyTypeNames(listenerType))
                 .containsAll(expectedCodecTypes)
-                .doesNotContain(JsonCodec.class.getName());
+                .doesNotContain(JacksonJsonCodec.class.getName());
         assertThat(objectPayloadMethods(listenerType))
                 .as("Object payload methods in %s", listenerType.getName())
                 .isEmpty();

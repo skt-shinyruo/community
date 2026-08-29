@@ -1,11 +1,11 @@
 package com.nowcoder.community.content.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.PostMediaUploadContent;
 import com.nowcoder.community.content.application.PostMediaStoragePort;
 import com.nowcoder.community.content.application.result.PostMediaUploadSessionResult;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.OssClientException;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
@@ -37,9 +37,9 @@ public class OssPostMediaStorageAdapter implements PostMediaStoragePort {
     private static final long MAX_BYTES = 100L * 1024 * 1024;
     private static final String MIME_TYPES = "image/png;image/jpeg;image/webp;image/gif;video/mp4;video/webm;application/pdf;application/zip";
 
-    private final CommunityOssClient ossClient;
+    private final HttpCommunityOssClient ossClient;
 
-    public OssPostMediaStorageAdapter(CommunityOssClient ossClient) {
+    public OssPostMediaStorageAdapter(HttpCommunityOssClient ossClient) {
         this.ossClient = ossClient;
     }
 

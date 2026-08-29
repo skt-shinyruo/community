@@ -1,7 +1,6 @@
 package com.nowcoder.community.auth.application;
 
 import com.nowcoder.community.auth.application.port.PasswordResetMailDispatcher;
-import com.nowcoder.community.auth.application.port.PasswordResetTransactionCompletion;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.auth.config.PasswordResetUrlPolicy;
 import com.nowcoder.community.auth.domain.repository.LoginRateLimitRepository;
@@ -10,6 +9,7 @@ import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.user.api.action.UserCredentialActionApi;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
@@ -62,7 +62,7 @@ public class PasswordResetApplicationService {
     private final UserCredentialQueryApi userCredentialQueryApi;
     private final UserCredentialActionApi userCredentialActionApi;
     private final PasswordResetMailDispatcher passwordResetMailDispatcher;
-    private final PasswordResetTransactionCompletion transactionCompletion;
+    private final TransactionCompletion transactionCompletion;
     private final CaptchaChallengeComponent captchaChallenge;
     private final PasswordResetTokenDeriver passwordResetTokenDeriver;
     private final Clock clock;
@@ -74,7 +74,7 @@ public class PasswordResetApplicationService {
             UserCredentialQueryApi userCredentialQueryApi,
             UserCredentialActionApi userCredentialActionApi,
             PasswordResetMailDispatcher passwordResetMailDispatcher,
-            PasswordResetTransactionCompletion transactionCompletion,
+            TransactionCompletion transactionCompletion,
             CaptchaChallengeComponent captchaChallenge,
             PasswordResetTokenDeriver passwordResetTokenDeriver,
             Clock clock

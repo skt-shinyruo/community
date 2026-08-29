@@ -2,8 +2,6 @@ package com.nowcoder.community.social.application;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService.DispatchSocialEventCommand;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
@@ -31,7 +29,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class SocialEventDispatchApplicationServiceTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
     private final SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
     private final SocialEventDispatchApplicationService service =

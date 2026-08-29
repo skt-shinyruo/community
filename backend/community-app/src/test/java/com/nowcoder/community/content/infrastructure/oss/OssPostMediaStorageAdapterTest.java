@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.application.PostMediaUploadContent;
 import com.nowcoder.community.content.application.PostMediaStoragePort;
@@ -8,7 +9,6 @@ import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostVideoState;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
@@ -53,7 +53,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void prepareUploadShouldUseContentPostMediaOwnerContext() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         UUID sessionId = uuid(21);
         UUID objectId = uuid(22);
         UUID versionId = uuid(23);
@@ -93,7 +93,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void completeUploadShouldProxyStreamToOssClient() throws Exception {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         UUID objectId = uuid(22);
         UUID versionId = uuid(23);
         when(ossClient.completeProxyUpload(any())).thenReturn(new OssMetadataResponse(
@@ -139,7 +139,7 @@ class OssPostMediaStorageAdapterTest {
     void completeUploadMustRejectForeignLaterOrContentDriftedMetadata() {
         PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
         AtomicReference<OssMetadataResponse> response = new AtomicReference<>();
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.completeProxyUpload(any())).thenAnswer(invocation -> response.get());
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
         PostMediaUploadContent content = new PostMediaUploadContent(
@@ -175,7 +175,7 @@ class OssPostMediaStorageAdapterTest {
     void canonicalMetadataMustRejectForeignOrLaterVersionInsteadOfWritingItBack() {
         PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
         AtomicReference<OssMetadataResponse> response = new AtomicReference<>();
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.getMetadata(asset.ossObjectId())).thenAnswer(invocation -> response.get());
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
         List<OssMetadataResponse> invalidResponses = List.of(
@@ -201,7 +201,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void bindReferenceShouldUsePostSubjectContext() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         UUID referenceId = uuid(31);
         UUID objectId = uuid(22);
         UUID versionId = uuid(23);
@@ -236,7 +236,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void bindReferenceShouldForwardCallerSuppliedReferenceId() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         UUID requestedReferenceId = uuid(31);
         UUID objectId = uuid(22);
         UUID versionId = uuid(23);
@@ -267,7 +267,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void releaseReferenceShouldIgnoreAssetsWithoutReferenceId() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
 
         adapter.releaseReference(draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23)), uuid(2));
@@ -277,7 +277,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void deleteDraftObjectShouldDeletePreparedObjectByOwner() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
         PostMediaAsset asset = draft(uuid(1), uuid(2), uuid(21), uuid(22), uuid(23));
 
@@ -288,7 +288,7 @@ class OssPostMediaStorageAdapterTest {
 
     @Test
     void prepareUploadShouldRejectNullOssResponse() {
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.prepareUpload(any())).thenReturn(null);
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(ossClient);
 

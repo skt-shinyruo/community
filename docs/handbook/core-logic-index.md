@@ -401,14 +401,13 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `community-oss-client.CommunityOssClient` | typed OSS client contract for business services | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
-| `community-oss-client.HttpCommunityOssClient` | HTTP implementation of OSS client contract | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `community-oss-client.HttpCommunityOssClient` | typed HTTP OSS client for business services | [OSS 对象存储业务逻辑](business-logic/oss.md) | Covered |
+| `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community_oss` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `common-idempotency.IdempotencyGuard` | HTTP write idempotency guard | [可靠性机制](reliability.md#http-idempotency-key) | Covered |
 | `common-outbox.OutboxWorkerScheduler` | outbox local scheduler | [可靠性机制](reliability.md#db-outbox) | Covered |
 | `common-outbox.OutboxHandler` | outbox topic handler contract | [可靠性机制](reliability.md#db-outbox) | Covered |
 | `common-core.id.BinaryUuidCodec` | binary UUID conversion helper for persistence | [数据与存储](data-and-storage.md) | IndexOnly |
 | `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
-| `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `community_oss` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | MyBatis UUID binary adapter for `im_core` schema | [数据与存储](data-and-storage.md#mysql) | IndexOnly |
 | `common-core.trace.TraceIdCodec` | trace id normalization helper | [安全模型](security.md) | Covered |
 | `common-web.TraceIdFilter` | servlet trace id filter | [安全模型](security.md) | Covered |

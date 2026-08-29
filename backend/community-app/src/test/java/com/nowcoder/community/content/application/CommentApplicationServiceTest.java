@@ -8,8 +8,6 @@ import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
@@ -83,8 +81,8 @@ class CommentApplicationServiceTest {
     private CommentDeletionTransactionOperations deletionOperations;
     private CommentApplicationService service;
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 
     @BeforeEach

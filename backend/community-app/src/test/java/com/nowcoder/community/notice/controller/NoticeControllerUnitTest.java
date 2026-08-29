@@ -1,7 +1,7 @@
 package com.nowcoder.community.notice.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.application.NoticeApplicationService.ListNoticeItemsCommand;
@@ -75,7 +75,7 @@ class NoticeControllerUnitTest {
         ));
 
         Result<List<NoticeTopicSummaryResponse>> result = controller.summary(authentication(userId));
-        JsonNode summary = JsonMappers.standard().valueToTree(result.getData().get(0));
+        JsonNode summary = JacksonJsonCodec.standardMapper().valueToTree(result.getData().get(0));
         List<String> summaryFields = new ArrayList<>();
         summary.fieldNames().forEachRemaining(summaryFields::add);
         List<String> latestFields = new ArrayList<>();

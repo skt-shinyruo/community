@@ -76,6 +76,7 @@ import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
 import { listImConversationPage } from '../api/services/imCoreChatService'
 import { mergeConversations } from './conversationDetailState'
+import { formatConversationTime as formatTimeShort } from '../utils/time'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -97,19 +98,6 @@ function currentIdentityScope() {
 
 function isCurrentRequest(generation, identityScope) {
   return generation === requestGeneration && currentIdentityScope() === identityScope
-}
-
-function formatTimeShort(ts) {
-  if (!ts) return ''
-  const d = new Date(ts)
-  const now = new Date()
-  const isToday =
-    d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()
-
-  if (isToday) {
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
-  }
-  return d.toLocaleDateString()
 }
 
 function shortParticipant(value) {

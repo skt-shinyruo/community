@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.infrastructure.event;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.im.application.ImPolicyProjectionEvent;
@@ -17,12 +17,12 @@ import java.util.Base64;
 public class JdbcImPolicyProjectionOutboxAdapter implements ImPolicyProjectionOutboxPort {
 
     private final JdbcOutboxEventStore store;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final String topic;
 
     public JdbcImPolicyProjectionOutboxAdapter(
             JdbcOutboxEventStore store,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             @Value("${im.policy.outbox.topic:projection.im.policy}") String topic
     ) {
         this.store = store;

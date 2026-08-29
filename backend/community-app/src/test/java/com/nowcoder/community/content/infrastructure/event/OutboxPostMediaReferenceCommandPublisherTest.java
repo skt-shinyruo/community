@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.PostMediaReferenceCommandPublisher;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
@@ -54,7 +53,7 @@ class OutboxPostMediaReferenceCommandPublisherTest {
     void publisherShouldUseStableOperationVersionEventIdAndMinimalPayload() throws Exception {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxPostMediaReferenceCommandPublisher publisher = new OutboxPostMediaReferenceCommandPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                 store,
                 TOPIC,
                 Clock.systemUTC()
@@ -76,7 +75,7 @@ class OutboxPostMediaReferenceCommandPublisherTest {
                 eq(ASSET_ID.toString()),
                 payloadCaptor.capture()
         );
-        JsonNode payload = JsonMappers.standard().readTree(payloadCaptor.getValue());
+        JsonNode payload = JacksonJsonCodec.standardMapper().readTree(payloadCaptor.getValue());
         List<String> fieldNames = new ArrayList<>();
         payload.fieldNames().forEachRemaining(fieldNames::add);
         assertThat(fieldNames)
@@ -120,7 +119,7 @@ class OutboxPostMediaReferenceCommandPublisherTest {
 
     private OutboxPostMediaReferenceCommandPublisher publisher(JdbcOutboxEventStore store) {
         return new OutboxPostMediaReferenceCommandPublisher(
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                 store,
                 TOPIC,
                 Clock.systemUTC()

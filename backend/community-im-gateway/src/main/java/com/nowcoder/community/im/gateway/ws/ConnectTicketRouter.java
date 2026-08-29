@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.gateway.ws;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.gateway.shard.WorkerDescriptor;
 import com.nowcoder.community.im.gateway.shard.WorkerRegistry;
@@ -20,12 +20,12 @@ public class ConnectTicketRouter {
     static final String REASON_INVALID_TICKET = "invalid_ticket";
     static final String REASON_WORKER_UNAVAILABLE = "worker_unavailable";
 
-    private final JsonCodec frameCodec;
+    private final JacksonJsonCodec frameCodec;
     private final SessionTicketCodec sessionTicketCodec;
     private final WorkerRegistry workerRegistry;
 
     public ConnectTicketRouter(
-            JsonCodec frameCodec,
+            JacksonJsonCodec frameCodec,
             SessionTicketCodec sessionTicketCodec,
             WorkerRegistry workerRegistry
     ) {

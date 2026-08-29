@@ -1,8 +1,8 @@
 package com.nowcoder.community.social.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.social.application.FollowApplicationService.FollowRelationResult;
 import com.nowcoder.community.social.controller.dto.BlockRequest;
 import jakarta.validation.ConstraintViolation;
@@ -17,7 +17,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class SocialControllerDtoContractTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test

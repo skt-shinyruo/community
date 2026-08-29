@@ -3,9 +3,9 @@ import {
   buildCommunityNextSteps,
   buildProfileWalletAsset,
   describeFollowStatusText
-} from './userProfileSurface'
+} from './useUserProfilePage'
 
-describe('userProfileSurface', () => {
+describe('useUserProfilePage surface builders', () => {
   it('builds self and public profile next steps', () => {
     expect(buildCommunityNextSteps({ authed: true, isSelf: true }).map((item) => item.label))
       .toEqual(['编辑资料', '回到讨论区', '查看钱包'])

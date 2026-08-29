@@ -1,16 +1,19 @@
-package com.nowcoder.community.auth.infrastructure.transaction;
+package com.nowcoder.community.common.tx;
 
-import com.nowcoder.community.auth.application.port.PasswordResetTransactionCompletion;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.support.TransactionSynchronization;
 import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.util.Objects;
 
+/**
+ * Runs follow-up work when the current transaction completes. When no
+ * transaction synchronization is active, rollback actions are skipped and
+ * commit actions run immediately.
+ */
 @Component
-public class SpringPasswordResetTransactionCompletion implements PasswordResetTransactionCompletion {
+public class TransactionCompletion {
 
-    @Override
     public void afterRollback(Runnable action) {
         Objects.requireNonNull(action, "action must not be null");
         if (!TransactionSynchronizationManager.isSynchronizationActive()) {
@@ -22,6 +25,20 @@ public class SpringPasswordResetTransactionCompletion implements PasswordResetTr
                 if (status != STATUS_COMMITTED) {
                     action.run();
                 }
+            }
+        });
+    }
+
+    public void afterCommit(Runnable action) {
+        Objects.requireNonNull(action, "action must not be null");
+        if (!TransactionSynchronizationManager.isSynchronizationActive()) {
+            action.run();
+            return;
+        }
+        TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+            @Override
+            public void afterCommit() {
+                action.run();
             }
         });
     }

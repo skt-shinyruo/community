@@ -1,8 +1,8 @@
 package com.nowcoder.community.wallet.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.wallet.application.WalletAccountApplicationService.WalletSummaryResult;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.WalletTestCreditCapabilityApplicationService.WalletCapabilitiesResult;
@@ -25,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class WalletControllerDtoContractTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test

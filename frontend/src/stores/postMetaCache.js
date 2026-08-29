@@ -2,6 +2,7 @@ import { defineStore } from 'pinia'
 import { batchUserSummary } from '../api/services/userService'
 import { getLikeCounts, getLikeStatuses } from '../api/services/socialService'
 import { useAuthStore } from './auth'
+import { identityScope } from './identityScope'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 
 // TTL 约定：
@@ -27,8 +28,7 @@ export const usePostMetaCacheStore = defineStore('postMetaCache', {
   }),
   actions: {
     syncLikeStatusScope() {
-      const auth = useAuthStore()
-      const scope = `${auth.tokenGeneration}:${normalizeOpaqueId(auth.userId)}`
+      const scope = identityScope(useAuthStore())
       if (this.likeStatusScope !== scope) {
         this.likeStatuses = {}
         this.likeStatusScope = scope

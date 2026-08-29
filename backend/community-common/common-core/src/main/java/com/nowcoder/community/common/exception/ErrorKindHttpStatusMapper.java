@@ -1,13 +1,15 @@
-package com.nowcoder.community.common.webflux;
+package com.nowcoder.community.common.exception;
 
-import com.nowcoder.community.common.exception.ErrorKind;
-
-final class ErrorKindHttpStatusMapper {
+/**
+ * Maps {@link ErrorKind} to the HTTP status used by both the servlet and the
+ * reactive error-handling stacks.
+ */
+public final class ErrorKindHttpStatusMapper {
 
     private ErrorKindHttpStatusMapper() {
     }
 
-    static int statusOf(ErrorKind kind) {
+    public static int statusOf(ErrorKind kind) {
         if (kind == null) {
             return 500;
         }

@@ -2,6 +2,7 @@
 
 import { defineStore } from 'pinia'
 import { safeJsonParse } from '../utils/safeJson'
+import { safeStorageGet, safeStorageSet } from '../utils/safeStorage'
 
 const STORAGE_KEY = 'community.ui'
 
@@ -20,13 +21,7 @@ export const useUiStore = defineStore('ui', {
     init() {
       if (typeof window === 'undefined') return
 
-      let raw = ''
-      try {
-        raw = window.localStorage.getItem(STORAGE_KEY) || ''
-      } catch {
-        // Storage can be unavailable in private or restricted browser contexts.
-      }
-      const parsed = safeJsonParse(raw)
+      const parsed = safeJsonParse(safeStorageGet(STORAGE_KEY))
 
       const prefersDark = window.matchMedia?.('(prefers-color-scheme: dark)')?.matches
       const theme = clampEnum(parsed?.theme, ['light', 'dark'], prefersDark ? 'dark' : 'light')
@@ -51,18 +46,14 @@ export const useUiStore = defineStore('ui', {
 
     persist() {
       if (typeof window === 'undefined') return
-      try {
-        window.localStorage.setItem(
-          STORAGE_KEY,
-          JSON.stringify({
-            theme: this.theme,
-            density: this.density,
-            sidebarCollapsed: this.sidebarCollapsed
-          })
-        )
-      } catch {
-        // Storage can be unavailable in private or restricted browser contexts.
-      }
+      safeStorageSet(
+        STORAGE_KEY,
+        JSON.stringify({
+          theme: this.theme,
+          density: this.density,
+          sidebarCollapsed: this.sidebarCollapsed
+        })
+      )
     },
 
     setTheme(theme) {

@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
 import com.nowcoder.community.user.contracts.event.UserEventTypes;
@@ -27,7 +25,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class UserContractEventCodecTest {
 
-    private static final JsonCodec JSON_CODEC = new JacksonJsonCodec(JsonMappers.standard());
+    private static final JacksonJsonCodec JSON_CODEC = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
 
     private final UserContractEventCodec codec = new JacksonUserContractEventCodec(JSON_CODEC);
 

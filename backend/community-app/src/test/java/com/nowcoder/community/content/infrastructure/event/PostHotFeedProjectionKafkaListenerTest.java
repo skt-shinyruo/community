@@ -2,8 +2,6 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService;
 import com.nowcoder.community.content.application.PostProjectionVersionLane;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
@@ -33,7 +31,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class PostHotFeedProjectionKafkaListenerTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final ContentContractEventCodec contentContractEventCodec =
             new JacksonContentContractEventCodec(jsonCodec);
     private final SocialContractEventCodec socialContractEventCodec =

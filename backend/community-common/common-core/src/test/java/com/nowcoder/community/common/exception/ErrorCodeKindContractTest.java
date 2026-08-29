@@ -2,7 +2,6 @@ package com.nowcoder.community.common.exception;
 
 import org.junit.jupiter.api.Test;
 
-import java.lang.reflect.Constructor;
 import java.lang.reflect.Method;
 import java.util.Arrays;
 import java.util.Set;
@@ -45,20 +44,5 @@ class ErrorCodeKindContractTest {
                 .containsExactlyInAnyOrderElementsOf(REQUIRED_KINDS);
     }
 
-    @Test
-    void simpleErrorCodeShouldRequireAnExplicitErrorKind() {
-        Set<String> constructorSignatures = Arrays.stream(SimpleErrorCode.class.getDeclaredConstructors())
-                .map(ErrorCodeKindContractTest::signatureOf)
-                .collect(Collectors.toSet());
 
-        assertThat(constructorSignatures)
-                .contains("(int,String,ErrorKind)")
-                .doesNotContain("(int,String)", "(int,String,int)");
-    }
-
-    private static String signatureOf(Constructor<?> constructor) {
-        return Arrays.stream(constructor.getParameterTypes())
-                .map(Class::getSimpleName)
-                .collect(Collectors.joining(",", "(", ")"));
-    }
 }

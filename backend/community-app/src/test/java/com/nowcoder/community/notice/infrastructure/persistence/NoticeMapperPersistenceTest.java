@@ -3,8 +3,6 @@ package com.nowcoder.community.notice.infrastructure.persistence;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
@@ -273,7 +271,7 @@ class NoticeMapperPersistenceTest {
         );
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

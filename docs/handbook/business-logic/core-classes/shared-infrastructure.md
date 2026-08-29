@@ -17,7 +17,6 @@
 | --- | --- |
 | `common-core.id.BinaryUuidCodec` | UUID 与 16-byte binary 的互转。 |
 | `community-app.infra.persistence.mybatis.UuidBinaryTypeHandler` | community schema 的 UUID binary 适配。 |
-| `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | community_oss schema 的 UUID binary 适配。 |
 | `im.core.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | im_core schema 的 UUID binary 适配。 |
 
 ## 幂等、outbox 和事件
@@ -48,8 +47,8 @@
 | --- | --- |
 | `community-gateway.edge.RateLimitWebFilter` | gateway edge 限流。 |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log。 |
-| `community-oss-client.CommunityOssClient` | typed OSS client contract。 |
-| `community-oss-client.HttpCommunityOssClient` | typed OSS client HTTP 实现。 |
+| `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | community_oss schema 的 UUID binary 适配。 |
+| `community-oss-client.HttpCommunityOssClient` | 业务服务调用 OSS 的 typed HTTP client。 |
 
 ## 关键语义
 

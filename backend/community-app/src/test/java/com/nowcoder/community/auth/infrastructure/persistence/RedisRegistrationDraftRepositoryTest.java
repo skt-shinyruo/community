@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -117,7 +116,7 @@ class RedisRegistrationDraftRepositoryTest {
     }
 
     private static JacksonJsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 
     private static PreparedRegistrationDraft draft() {

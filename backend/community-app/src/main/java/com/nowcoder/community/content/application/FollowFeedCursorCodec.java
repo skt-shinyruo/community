@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -13,9 +13,9 @@ import java.util.UUID;
 @Component
 public class FollowFeedCursorCodec {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public FollowFeedCursorCodec(JsonCodec jsonCodec) {
+    public FollowFeedCursorCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

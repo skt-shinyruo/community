@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.ModerationApplicationService;
 import com.nowcoder.community.content.application.ModerationApplicationService.ModerationActionResult;
@@ -31,7 +31,7 @@ class ModerationControllerTest {
 
     private static final UUID REPORT_ID = UUID.fromString("00000000-0000-7000-8000-000000000304");
     private static final UUID ACTION_ID = UUID.fromString("00000000-0000-7000-8000-000000000305");
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
 
     @Mock
     private ModerationApplicationService moderationApplicationService;

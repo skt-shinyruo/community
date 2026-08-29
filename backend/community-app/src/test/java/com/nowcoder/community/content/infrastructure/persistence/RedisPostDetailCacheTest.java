@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
@@ -33,7 +33,7 @@ class RedisPostDetailCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
         ContentHotPathProperties properties = new ContentHotPathProperties();
         UUID postId = uuid(10);
@@ -64,7 +64,7 @@ class RedisPostDetailCacheTest {
     @Test
     void terminalEvictShouldWriteBoundedFenceAndDeleteOnePostAtomically() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(11);
         String key = "post:detail:" + postId;
         when(redisTemplate.execute(any(RedisScript.class), any(List.class), any(Object[].class))).thenReturn(1L);
@@ -87,7 +87,7 @@ class RedisPostDetailCacheTest {
     @Test
     void terminalEvictShouldFailWhenLuaDoesNotConfirmFencePersistence() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(13);
         RedisPostDetailCache cache = new RedisPostDetailCache(redisTemplate, jsonCodec);
 
@@ -100,7 +100,7 @@ class RedisPostDetailCacheTest {
     @Test
     void ordinaryEvictShouldNotWriteTerminalFence() {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(12);
         RedisPostDetailCache cache = new RedisPostDetailCache(redisTemplate, jsonCodec);
 
@@ -115,7 +115,7 @@ class RedisPostDetailCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(10);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
@@ -134,7 +134,7 @@ class RedisPostDetailCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(10);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);

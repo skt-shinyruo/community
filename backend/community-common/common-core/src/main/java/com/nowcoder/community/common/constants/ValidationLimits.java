@@ -19,12 +19,10 @@ public final class ValidationLimits {
     public static final int CAPTCHA_CODE_MAX = 16;
     public static final int REGISTRATION_TOKEN_MAX = 256;
     public static final int REGISTRATION_EMAIL_CODE_MIN = 6;
-    public static final int REGISTRATION_EMAIL_CODE_MAX = 16;
     public static final int REGISTRATION_CODE_MAX = 16;
 
     // 内容相关
     public static final int POST_TITLE_MAX = 128;
-    public static final int POST_CONTENT_MAX = 10_000;
     public static final int POST_CONTENT_BLOCKS_MAX = 80;
     public static final int POST_BLOCK_TEXT_MAX = 10_000;
     public static final int POST_BLOCK_CAPTION_MAX = 512;
@@ -33,8 +31,4 @@ public final class ValidationLimits {
     public static final int TAG_MAX = 32;
     public static final int TAGS_MAX = 8;
     public static final int COMMENT_CONTENT_MAX = 2_000;
-
-    // 消息相关
-    public static final int MESSAGE_CONTENT_MAX = 2_000;
-    public static final int IDS_MAX = 200;
 }

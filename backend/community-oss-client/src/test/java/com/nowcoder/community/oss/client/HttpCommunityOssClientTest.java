@@ -1,7 +1,7 @@
 package com.nowcoder.community.oss.client;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
@@ -603,7 +603,7 @@ class HttpCommunityOssClientTest {
             ));
 
             assertThat(requestReceived.await(2, TimeUnit.SECONDS)).isTrue();
-            assertThat(JsonMappers.standard().readTree(requestBody.get()).path("referenceId").asText())
+            assertThat(JacksonJsonCodec.standardMapper().readTree(requestBody.get()).path("referenceId").asText())
                     .isEqualTo(referenceId.toString());
             assertThat(response.referenceId()).isEqualTo(referenceId);
         } finally {

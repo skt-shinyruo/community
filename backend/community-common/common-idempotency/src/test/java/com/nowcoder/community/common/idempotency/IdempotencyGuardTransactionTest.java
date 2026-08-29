@@ -1,7 +1,7 @@
 package com.nowcoder.community.common.idempotency;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.json.JsonCodec;
 import org.junit.jupiter.api.Test;
 import org.springframework.jdbc.datasource.DataSourceTransactionManager;
 import org.springframework.jdbc.datasource.DriverManagerDataSource;
@@ -81,7 +81,7 @@ class IdempotencyGuardTransactionTest {
     @Test
     void executeRequiredShouldSaveSuccessBeforeReturningFromCurrentTransaction() {
         TransactionalIdempotencyStore store = mock(TransactionalIdempotencyStore.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         @SuppressWarnings("unchecked")
         Supplier<String> supplier = (Supplier<String>) mock(Supplier.class);
         when(store.isEnlistedInCurrentTransaction()).thenReturn(true);
@@ -124,7 +124,7 @@ class IdempotencyGuardTransactionTest {
     }
 
     private static IdempotencyGuard guard(IdempotencyStore store) {
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         when(jsonCodec.toJson(any())).thenReturn("\"OK\"");
         return new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
     }

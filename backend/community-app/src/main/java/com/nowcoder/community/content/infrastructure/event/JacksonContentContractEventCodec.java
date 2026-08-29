@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.event;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
@@ -21,9 +21,9 @@ import java.util.UUID;
 @Component
 public class JacksonContentContractEventCodec implements ContentContractEventCodec {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public JacksonContentContractEventCodec(JsonCodec jsonCodec) {
+    public JacksonContentContractEventCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

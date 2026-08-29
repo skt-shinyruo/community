@@ -2,12 +2,9 @@
 
 import { defineStore } from 'pinia'
 import { useAuthStore } from './auth'
+import { identityScope } from './identityScope'
 import { listBlockedUsers } from '../api/services/blockService'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-
-function identityScope(auth) {
-  return `${Number(auth?.tokenGeneration || 0)}:${normalizeOpaqueId(auth?.userId)}`
-}
 
 export const useSocialPrefsStore = defineStore('socialPrefs', {
   state: () => ({

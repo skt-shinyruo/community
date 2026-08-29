@@ -3,9 +3,9 @@ import {
   canJumpToLastSeenDivider,
   findLastSeenDividerIndex,
   hasLastSeenDivider
-} from './postsFeedState'
+} from './usePostsFeed'
 
-describe('postsFeedState', () => {
+describe('usePostsFeed last-seen divider', () => {
   it('enables last-seen jump only when a divider exists inside the current feed', () => {
     const dividerIndex = findLastSeenDividerIndex(
       [

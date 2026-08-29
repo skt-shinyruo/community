@@ -1,8 +1,6 @@
 package com.nowcoder.community.wallet.infrastructure.event;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
@@ -33,7 +31,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class WalletRewardKafkaListenerTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final ContentContractEventCodec contentContractEventCodec =
             new JacksonContentContractEventCodec(jsonCodec);
     private final SocialContractEventCodec socialContractEventCodec =

@@ -1,11 +1,9 @@
 package com.nowcoder.community.common.idempotency;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
-import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.common.exception.SimpleErrorCode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Tags;
@@ -30,13 +28,13 @@ public class IdempotencyGuard {
 
     private static final String METRIC = "http_idempotency_total";
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final IdempotencyStore store;
     private final ObjectProvider<MeterRegistry> meterRegistryProvider;
     private final IdempotencyProperties properties;
 
     public IdempotencyGuard(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             IdempotencyStore store,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties
@@ -245,10 +243,10 @@ public class IdempotencyGuard {
     }
 
     private BusinessException replayConflict(ErrorCode replayConflictCode) {
-        ErrorCode code = replayConflictCode == null
-                ? new SimpleErrorCode(409, "请求参数与已有幂等请求不一致", ErrorKind.CONFLICT)
-                : replayConflictCode;
-        return new BusinessException(code);
+        if (replayConflictCode != null) {
+            return new BusinessException(replayConflictCode);
+        }
+        return new BusinessException(CommonErrorCode.CONFLICT, "请求参数与已有幂等请求不一致");
     }
 
     private void record(String operation, String outcome) {

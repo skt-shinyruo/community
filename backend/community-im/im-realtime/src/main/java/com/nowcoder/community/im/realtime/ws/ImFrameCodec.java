@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.realtime.ws;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
@@ -10,9 +10,9 @@ import org.springframework.stereotype.Component;
 @Component
 public class ImFrameCodec {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public ImFrameCodec(JsonCodec jsonCodec) {
+    public ImFrameCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

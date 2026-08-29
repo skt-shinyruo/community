@@ -1,7 +1,7 @@
 package com.nowcoder.community.auth.infrastructure.mail;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import org.springframework.stereotype.Component;
@@ -13,10 +13,10 @@ public class OutboxRegistrationCodeMailDispatcher implements RegistrationCodeMai
     public static final String TOPIC = "auth.registration-code-mail";
     private static final String EVENT_ID_PREFIX = "auth:registration-mail:";
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final JdbcOutboxEventStore outboxEventStore;
 
-    public OutboxRegistrationCodeMailDispatcher(JsonCodec jsonCodec, JdbcOutboxEventStore outboxEventStore) {
+    public OutboxRegistrationCodeMailDispatcher(JacksonJsonCodec jsonCodec, JdbcOutboxEventStore outboxEventStore) {
         this.jsonCodec = jsonCodec;
         this.outboxEventStore = outboxEventStore;
     }

@@ -720,7 +720,6 @@ Key code：
 - `analytics.application.AnalyticsRequestCaptureApplicationService`
 - `analytics.infrastructure.event.AnalyticsRequestKafkaListener`
 - `analytics.infrastructure.web.AnalyticsRequestCaptureFilter`
-- `analytics.infrastructure.api.AnalyticsIngestActionApiAdapter`
 - `analytics.security.AnalyticsSecurityRules`
 
 ## Growth Task Reward Level And Retired Check In Surface

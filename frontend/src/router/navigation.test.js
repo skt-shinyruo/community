@@ -2,11 +2,11 @@ import { describe, expect, it } from 'vitest'
 
 import {
   canAccessNavItem,
-  getRouteWorkspaceLabel,
   getMobileNavigation,
   getSidebarNavigation,
   isNavItemActive,
 } from './navigation'
+import { getRouteWorkspaceLabel } from './routeCatalog'
 
 describe('router/navigation', () => {
   it('canAccessNavItem should enforce auth and roles', () => {

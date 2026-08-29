@@ -3,8 +3,6 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 
 import java.nio.charset.StandardCharsets;
@@ -24,7 +22,7 @@ class CommentCursorCodecTest {
 
     private static final String INVALID_CURSOR_MESSAGE = "评论游标非法";
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final CommentCursorCodec codec = new CommentCursorCodec(jsonCodec);
 
     @Test

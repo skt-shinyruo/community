@@ -2,6 +2,7 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.api.model.PostScanView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi;
 import com.nowcoder.community.content.api.query.PostScanQueryApi;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
@@ -13,8 +14,9 @@ import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.Comment;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.application.PostReadTransactionOperations.DetailSnapshot;
@@ -33,13 +35,13 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.UNAUTHORIZ
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class PostReadApplicationService implements PostScanQueryApi {
+public class PostReadApplicationService implements PostScanQueryApi, PostReadQueryApi {
 
     private static final int MAX_BATCH_POST_IDS = 200;
 
     private final PostContentRepository postContentPort;
     private final CommentContentRepository commentContentPort;
-    private final LikeQueryPort likeQueryService;
+    private final SocialLikeQueryApi likeQueryService;
     private final TagContentRepository tagContentPort;
     private final BookmarkRepository bookmarkContentPort;
     private final SubscriptionRepository subscriptionContentPort;
@@ -59,7 +61,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
     public PostReadApplicationService(
             PostContentRepository postContentPort,
             CommentContentRepository commentContentPort,
-            LikeQueryPort likeQueryService,
+            SocialLikeQueryApi likeQueryService,
             TagContentRepository tagContentPort,
             BookmarkRepository bookmarkContentPort,
             SubscriptionRepository subscriptionContentPort,
@@ -129,10 +131,32 @@ public class PostReadApplicationService implements PostScanQueryApi {
         return postFeedSummaryLoader.readSnapshot(snapshot);
     }
 
-    public List<PostSummaryResult> listPostsByUser(UUID userId, Integer page, Integer size) {
+    @Override
+    public List<PostSummaryView> listPostsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
-        return postFeedSummaryLoader.readSnapshot(readTransactionOperations.listPostsByUser(userId, p, s));
+        return postFeedSummaryLoader.readSnapshot(readTransactionOperations.listPostsByUser(userId, p, s)).stream()
+                .map(PostReadApplicationService::toPostSummaryView)
+                .toList();
+    }
+
+    private static PostSummaryView toPostSummaryView(PostSummaryResult result) {
+        return new PostSummaryView(
+                result.id(),
+                result.userId(),
+                result.title(),
+                result.type(),
+                result.status(),
+                result.createTime(),
+                result.commentCount(),
+                result.score(),
+                result.categoryId(),
+                result.tags(),
+                result.lastReplyUserId(),
+                result.lastReplyTime(),
+                result.lastActivityTime(),
+                result.lastReplyPreview()
+        );
     }
 
     public List<PostSummaryResult> listPostsByIds(List<UUID> postIds) {
@@ -223,7 +247,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
         if (detail == null || currentUserId == null) {
             return detail;
         }
-        boolean liked = likeQueryService.hasLikedPost(currentUserId, detail.id());
+        boolean liked = currentUserId != null && likeQueryService.isLiked(currentUserId, EntityTypes.POST, detail.id());
         boolean bookmarked = bookmarkContentPort.hasBookmarked(currentUserId, detail.id());
         return new PostDetailResult(
                 detail.id(),
@@ -245,7 +269,8 @@ public class PostReadApplicationService implements PostScanQueryApi {
         );
     }
 
-    public List<RecentUserCommentResult> listRecentCommentsByUser(UUID userId, Integer page, Integer size) {
+    @Override
+    public List<RecentUserCommentView> listRecentCommentsByUser(UUID userId, Integer page, Integer size) {
         int p = page == null ? 0 : page;
         int s = size == null ? 3 : size;
         List<Comment> comments = commentContentPort.listRecentCommentsByUser(userId, p, s);
@@ -331,7 +356,7 @@ public class PostReadApplicationService implements PostScanQueryApi {
         );
     }
 
-    private RecentUserCommentResult toRecentComment(Comment comment, Map<UUID, DiscussPost> visiblePostsById) {
+    private RecentUserCommentView toRecentComment(Comment comment, Map<UUID, DiscussPost> visiblePostsById) {
         if (comment == null || comment.getId() == null || comment.getPostId() == null) {
             return null;
         }

@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
-import com.nowcoder.community.common.json.JsonMappers;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
@@ -33,7 +33,7 @@ class ContentEventKafkaSenderAdapterTest {
                 uuid(101), null, null, null, null, null, 0, 0, null, null, null, 0L, 0L);
         ContentContractEvent event = new ContentContractEvent(
                 "content:PostPublished:" + uuid(101), null, null, ContentEventTypes.POST_PUBLISHED,
-                java.time.Instant.EPOCH, 1L, JsonMappers.standard().valueToTree(payload));
+                java.time.Instant.EPOCH, 1L, JacksonJsonCodec.standardMapper().valueToTree(payload));
 
         adapter.dispatch(uuid(101).toString(), event);
 
@@ -53,7 +53,7 @@ class ContentEventKafkaSenderAdapterTest {
 
         assertThatThrownBy(() -> adapter.dispatch("key", new ContentContractEvent(
                 "event-1", null, null, "Type", java.time.Instant.EPOCH, 1L,
-                JsonMappers.standard().createObjectNode())))
+                JacksonJsonCodec.standardMapper().createObjectNode())))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("content event kafka publish failed: " + KAFKA_TOPIC)
                 .hasCauseInstanceOf(RuntimeException.class);

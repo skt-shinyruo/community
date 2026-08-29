@@ -1,9 +1,10 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.PostSummaryView;
+import com.nowcoder.community.content.api.query.PostReadQueryApi.RecentUserCommentView;
 import com.nowcoder.community.content.application.result.PostDetailResult;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
-import com.nowcoder.community.content.application.result.RecentUserCommentResult;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.CommentContentRepository;
@@ -19,7 +20,8 @@ import com.nowcoder.community.content.domain.model.Comment;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.exception.ContentErrorCode;
-import com.nowcoder.community.content.application.LikeQueryPort;
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.content.application.ContentTextCodec;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import org.junit.jupiter.api.Test;
@@ -48,7 +50,7 @@ class PostReadApplicationServiceTest {
     void listPostsShouldAssemblePostSummariesWithoutHttpDtoProjection() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -103,7 +105,7 @@ class PostReadApplicationServiceTest {
     void getPostDetailShouldAssembleTagsLikesAndBookmarkStateWithoutHttpDtoProjection() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -134,7 +136,7 @@ class PostReadApplicationServiceTest {
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
         when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 5L, 2L, 12.5));
-        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(likeQueryService.isLiked(currentUserId, EntityTypes.POST, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
         PostReadApplicationService service = service(
@@ -168,7 +170,7 @@ class PostReadApplicationServiceTest {
     void detailShouldReturnCachedShellBeforeFallingBackToRepositories() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -201,7 +203,7 @@ class PostReadApplicationServiceTest {
     void detailShouldOverlayCounterSnapshotOnCacheHit() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -240,7 +242,7 @@ class PostReadApplicationServiceTest {
     void detailShouldOverlayViewerSpecificStateOnAuthenticatedCacheHit() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -251,7 +253,7 @@ class PostReadApplicationServiceTest {
         UUID postId = uuid(101);
 
         when(postDetailCache.get(postId)).thenReturn(detail(postId));
-        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(likeQueryService.isLiked(currentUserId, EntityTypes.POST, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
         PostReadApplicationService service = service(
@@ -272,7 +274,7 @@ class PostReadApplicationServiceTest {
         assertThat(result.liked()).isTrue();
         assertThat(result.bookmarked()).isTrue();
         verify(postDetailCache).get(postId);
-        verify(likeQueryService).hasLikedPost(currentUserId, postId);
+        verify(likeQueryService).isLiked(currentUserId, EntityTypes.POST, postId);
         verify(bookmarkService).hasBookmarked(currentUserId, postId);
         verifyNoInteractions(postService, blockRepository, tagService, mediaAssetRepository);
     }
@@ -281,7 +283,7 @@ class PostReadApplicationServiceTest {
     void detailShouldWriteViewerNeutralShellIntoCacheOnMiss() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -310,8 +312,8 @@ class PostReadApplicationServiceTest {
         when(postService.getById(postId)).thenReturn(post);
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
-        when(likeQueryService.countPostLikes(postId)).thenReturn(9L);
-        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(likeQueryService.count(EntityTypes.POST, postId)).thenReturn(9L);
+        when(likeQueryService.isLiked(currentUserId, EntityTypes.POST, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
 
         PostReadApplicationService service = service(
@@ -341,7 +343,7 @@ class PostReadApplicationServiceTest {
     void getPostDetailShouldLoadShellThroughSingleFlightOnCacheMiss() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -394,7 +396,7 @@ class PostReadApplicationServiceTest {
     void detailShouldFailOpenToSourceWhenCacheReadFails() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -413,7 +415,7 @@ class PostReadApplicationServiceTest {
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
         when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 7L, 0L, 33.5));
-        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(likeQueryService.isLiked(currentUserId, EntityTypes.POST, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
         PostReadApplicationService service = service(
                 postService,
@@ -445,7 +447,7 @@ class PostReadApplicationServiceTest {
     void detailShouldIgnoreCacheWriteFailureOnMiss() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -466,7 +468,7 @@ class PostReadApplicationServiceTest {
         when(blockRepository.listByPostId(postId)).thenReturn(List.of(paragraphBlock(postId, "&lt;body&gt;")));
         when(tagService.getTagsByPostIds(List.of(postId))).thenReturn(Map.of(postId, List.of("java", "spring")));
         when(postCounterApplicationService.read(postId)).thenReturn(new PostCounterSnapshot(postId, 3L, 9L, 7L, 0L, 33.5));
-        when(likeQueryService.hasLikedPost(currentUserId, postId)).thenReturn(true);
+        when(likeQueryService.isLiked(currentUserId, EntityTypes.POST, postId)).thenReturn(true);
         when(bookmarkService.hasBookmarked(currentUserId, postId)).thenReturn(true);
         PostReadApplicationService service = service(
                 postService,
@@ -498,7 +500,7 @@ class PostReadApplicationServiceTest {
     void listPostsByUserShouldAssembleRecentSummaries() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -544,7 +546,7 @@ class PostReadApplicationServiceTest {
                 postDetailCache
         );
 
-        List<PostSummaryResult> items = service.listPostsByUser(userId, 0, 3);
+        List<PostSummaryView> items = service.listPostsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(2);
         assertThat(items.get(0).userId()).isEqualTo(userId);
@@ -559,7 +561,7 @@ class PostReadApplicationServiceTest {
     void listRecentCommentsByUserShouldResolveDirectCommentsAndReplies() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -615,7 +617,7 @@ class PostReadApplicationServiceTest {
                 postDetailCache
         );
 
-        List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
+        List<RecentUserCommentView> items = service.listRecentCommentsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(2);
         assertThat(items.get(0).postId()).isEqualTo(secondPostId);
@@ -631,7 +633,7 @@ class PostReadApplicationServiceTest {
     void listRecentCommentsByUserShouldSkipCommentsMissingPostReferenceInsteadOfFailingWholeFeed() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -676,7 +678,7 @@ class PostReadApplicationServiceTest {
                 postDetailCache
         );
 
-        List<RecentUserCommentResult> items = service.listRecentCommentsByUser(userId, 0, 3);
+        List<RecentUserCommentView> items = service.listRecentCommentsByUser(userId, 0, 3);
 
         assertThat(items).hasSize(1);
         assertThat(items.get(0).id()).isEqualTo(directCommentId);
@@ -689,7 +691,7 @@ class PostReadApplicationServiceTest {
     void listPostsByIdsShouldPreserveRequestedOrderWithoutHttpDtoProjection() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -750,7 +752,7 @@ class PostReadApplicationServiceTest {
     void listPostsByIdsShouldRejectOversizedBatchAtApplicationBoundary() {
         PostContentRepository postService = mock(PostContentRepository.class);
         CommentContentRepository commentService = mock(CommentContentRepository.class);
-        LikeQueryPort likeQueryService = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryService = mock(SocialLikeQueryApi.class);
         TagContentRepository tagService = mock(TagContentRepository.class);
         BookmarkRepository bookmarkService = mock(BookmarkRepository.class);
         SubscriptionRepository subscriptionService = mock(SubscriptionRepository.class);
@@ -785,7 +787,7 @@ class PostReadApplicationServiceTest {
     private static PostReadApplicationService service(
             PostContentRepository postService,
             CommentContentRepository commentService,
-            LikeQueryPort likeQueryService,
+            SocialLikeQueryApi likeQueryService,
             TagContentRepository tagService,
             BookmarkRepository bookmarkService,
             SubscriptionRepository subscriptionService,
@@ -812,7 +814,7 @@ class PostReadApplicationServiceTest {
     private static PostReadApplicationService service(
             PostContentRepository postService,
             CommentContentRepository commentService,
-            LikeQueryPort likeQueryService,
+            SocialLikeQueryApi likeQueryService,
             TagContentRepository tagService,
             BookmarkRepository bookmarkService,
             SubscriptionRepository subscriptionService,
@@ -839,7 +841,7 @@ class PostReadApplicationServiceTest {
     private static PostReadApplicationService service(
             PostContentRepository postService,
             CommentContentRepository commentService,
-            LikeQueryPort likeQueryService,
+            SocialLikeQueryApi likeQueryService,
             TagContentRepository tagService,
             BookmarkRepository bookmarkService,
             SubscriptionRepository subscriptionService,

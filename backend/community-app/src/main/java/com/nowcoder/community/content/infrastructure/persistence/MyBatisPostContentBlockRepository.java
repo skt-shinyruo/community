@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
@@ -26,13 +26,13 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_E
 public class MyBatisPostContentBlockRepository implements PostContentBlockRepository {
 
     private final PostContentBlockMapper mapper;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final UuidV7Generator idGenerator;
     private final Clock clock;
 
     public MyBatisPostContentBlockRepository(
             PostContentBlockMapper mapper,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             UuidV7Generator idGenerator,
             Clock clock
     ) {

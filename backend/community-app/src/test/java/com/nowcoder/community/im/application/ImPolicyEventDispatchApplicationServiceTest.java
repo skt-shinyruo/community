@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.application;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.application.ImPolicyEventDispatchApplicationService.DispatchImPolicyEventCommand;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
@@ -23,7 +22,7 @@ class ImPolicyEventDispatchApplicationServiceTest {
     private final ImPolicyIntegrationEventDispatcher dispatcher = mock(ImPolicyIntegrationEventDispatcher.class);
     private final ImPolicyEventDispatchApplicationService service =
             new ImPolicyEventDispatchApplicationService(
-                    new JacksonJsonCodec(JsonMappers.standard()),
+                    new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                     dispatcher
             );
 

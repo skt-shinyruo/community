@@ -89,6 +89,7 @@ class ErrorCodeCompatibilityGoldenTest {
                 golden(CommonErrorCode.UNAUTHORIZED, 401, "未登录或登录已失效", "UNAUTHENTICATED", 401),
                 golden(CommonErrorCode.FORBIDDEN, 403, "无权限访问", "FORBIDDEN", 403),
                 golden(CommonErrorCode.NOT_FOUND, 404, "资源不存在", "NOT_FOUND", 404),
+                golden(CommonErrorCode.CONFLICT, 409, "请求冲突", "CONFLICT", 409),
                 golden(CommonErrorCode.TOO_MANY_REQUESTS, 429, "请求过于频繁", "THROTTLED", 429),
                 golden(CommonErrorCode.SERVICE_UNAVAILABLE, 503, "服务不可用", "UNAVAILABLE", 503),
                 golden(CommonErrorCode.INTERNAL_ERROR, 500, "服务端异常", "INTERNAL", 500),

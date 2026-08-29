@@ -76,6 +76,8 @@ Client + Authorization + Idempotency-Key
 
 `Result.code` 表达业务细分错误码。Servlet / WebFlux 服务统一回写 `traceparent`，便于 Kibana 按 trace 关联。
 
+业务细分码收敛在通用 `CommonErrorCode` 与各域 `*ErrorCode` 枚举；历史遗留的自定义码已并入（如 OSS 媒体引用绑定冲突曾用 `40901`，现统一为 `CommonErrorCode.CONFLICT` 的 `409`）。
+
 客户端侧不能只依赖 HTTP 200 判断完整业务终态。资金、IM 和投影类链路还要看业务状态字段、IM event/history 或后台 action/outbox 状态。
 
 ## 同步跨域协作

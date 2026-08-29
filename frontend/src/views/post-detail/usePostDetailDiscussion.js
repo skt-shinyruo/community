@@ -5,7 +5,7 @@ import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
-import { scrollToAnchor } from '../../utils/scrollToAnchor'
+import { safeStorageGet, safeStorageRemove, safeStorageSet } from '../../utils/safeStorage'
 import { createWriteAttempt } from '../../api/writeAttempt'
 import { setLike } from '../../api/services/socialService'
 import {
@@ -20,7 +20,6 @@ import {
   hydrateCommentItem,
   hydrateReplyItem
 } from '../postDetailState'
-import { usePostDetailDrafts } from './usePostDetailDrafts'
 
 function normalizeCommentCursorPage(raw) {
   const page = raw && typeof raw === 'object' ? raw : {}
@@ -28,6 +27,48 @@ function normalizeCommentCursorPage(raw) {
     items: Array.isArray(page.items) ? page.items : [],
     nextCursor: page.nextCursor == null ? '' : String(page.nextCursor)
   }
+}
+
+// 滚动定位工具：用于评论/回复锚点定位（hash 或 query），并提供短暂高亮提示。
+export function scrollToAnchor(anchorId, options = {}) {
+  if (typeof document === 'undefined') return false
+
+  const id = String(anchorId || '').trim()
+  if (!id) return false
+
+  const {
+    behavior = 'smooth',
+    block = 'center',
+    highlightClass = 'anchor-highlight',
+    highlightMs = 1600
+  } = options || {}
+
+  const el = document.getElementById(id)
+  if (!el) return false
+
+  try {
+    el.scrollIntoView({ behavior, block })
+  } catch {
+    try {
+      el.scrollIntoView()
+    } catch {
+      return false
+    }
+  }
+
+  if (highlightClass) {
+    el.classList.add(highlightClass)
+    window.setTimeout(() => el.classList.remove(highlightClass), Number(highlightMs || 0))
+  }
+
+  return true
+}
+
+// 草稿语义：空草稿清掉存储键，非空草稿落盘。
+function persistDraft(key, value) {
+  const v = String(value || '')
+  if (v) safeStorageSet(key, v)
+  else safeStorageRemove(key)
 }
 
 export function usePostDetailDiscussion({
@@ -49,14 +90,25 @@ export function usePostDetailDiscussion({
   const commentError = ref('')
   const commentAttempt = createWriteAttempt()
   const replyAttempts = new Map()
-  const {
-    safeStorageGet,
-    safeStorageSet,
-    commentDraftKey,
-    replyDraftKey,
-    setNewComment,
-    setReplyDraft: persistReplyDraft
-  } = usePostDetailDrafts(postId, newComment, meUserId)
+
+  function commentDraftKey() {
+    return `community.draft.posts.${String(meUserId?.value || 'anonymous')}.${String(postId.value || '')}.comment`
+  }
+
+  function replyDraftKey(commentId) {
+    return `community.draft.posts.${String(meUserId?.value || 'anonymous')}.${String(postId.value || '')}.reply.${normalizeOpaqueId(commentId)}`
+  }
+
+  function setNewComment(v) {
+    newComment.value = String(v || '')
+    persistDraft(commentDraftKey(), newComment.value)
+  }
+
+  function persistReplyDraft(comment, value) {
+    if (!comment) return
+    comment.ui.replyEditor.draft = String(value || '')
+    persistDraft(replyDraftKey(comment.id), comment.ui.replyEditor.draft)
+  }
 
   const comments = ref(/** @type {Array<Record<string, any>>} */ ([]))
   const commentsPage = ref(0)
@@ -329,7 +381,7 @@ export function usePostDetailDiscussion({
       editor.draft = ''
       attempt.succeed()
       record.signature = ''
-      safeStorageSet(replyDraftKey(comment.id), '')
+      safeStorageRemove(replyDraftKey(comment.id))
       editor.open = false
       editor.parentCommentId = ''
       editor.quote = null

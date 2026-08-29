@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.core.application;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.core.domain.model.ConversationListItem;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
@@ -57,7 +56,7 @@ class ConversationApplicationServiceCursorPaginationTest {
                 mock(ConversationReadStateRepository.class),
                 mock(ConversationRepository.class),
                 userInboxRepository,
-                new ConversationCursorCodec(new JacksonJsonCodec(JsonMappers.standard()))
+                new ConversationCursorCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper()))
         );
     }
 

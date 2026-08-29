@@ -5,8 +5,6 @@ import com.fasterxml.jackson.databind.node.NullNode;
 import com.fasterxml.jackson.databind.node.TextNode;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
 import com.nowcoder.community.social.contracts.event.LikePayload;
@@ -32,7 +30,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class SocialContractEventCodecTest {
 
-    private static final JsonCodec JSON_CODEC = new JacksonJsonCodec(JsonMappers.standard());
+    private static final JacksonJsonCodec JSON_CODEC = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private static final UUID AGGREGATE_ID = uuid(900);
     private static final Instant OCCURRED_AT = Instant.parse("2026-07-15T02:03:04Z");
 

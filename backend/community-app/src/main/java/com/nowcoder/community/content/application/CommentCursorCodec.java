@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -34,9 +34,9 @@ public class CommentCursorCodec {
             "commentId"
     );
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public CommentCursorCodec(JsonCodec jsonCodec) {
+    public CommentCursorCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

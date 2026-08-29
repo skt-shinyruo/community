@@ -8,7 +8,7 @@ import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.model.VerifiedRegistrationUserCommand;
-import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
+import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.infrastructure.event.OutboxUserPolicyEventPublisher;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,6 +32,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.doAnswer;
@@ -65,14 +66,14 @@ class UserWriteTransactionIntegrationTest {
     private JdbcTemplate jdbcTemplate;
 
     @MockitoSpyBean
-    private Slf4jUserAuditLogAdapter userAuditLogAdapter;
+    private UserRepository userRepository;
 
     @MockitoSpyBean
     private OutboxUserPolicyEventPublisher userPolicyEventPublisher;
 
     @BeforeEach
     void setUp() {
-        reset(userAuditLogAdapter, userPolicyEventPublisher);
+        reset(userRepository, userPolicyEventPublisher);
         jdbcTemplate.update("delete from outbox_event");
         jdbcTemplate.update("delete from user_policy_version_log");
         jdbcTemplate.update("delete from user where id = ?", BinaryUuidCodec.toBytes(ACTOR_USER_ID));
@@ -141,14 +142,14 @@ class UserWriteTransactionIntegrationTest {
     }
 
     @Test
-    void roleAuditFailureMustRollbackRoleAndSecurityCounter() {
+    void roleWriteFailureMustRollbackRoleAndSecurityCounter() {
         doAnswer(invocation -> {
             invocation.callRealMethod();
             assertThat(userType()).isEqualTo(2);
             assertThat(userSecurityVersion()).isEqualTo(INITIAL_SECURITY_COUNTER + 1L);
             assertThat(securityCounter()).isEqualTo(INITIAL_SECURITY_COUNTER + 1L);
-            throw new IllegalStateException("audit failed");
-        }).when(userAuditLogAdapter).recordRoleUpdated(any(), any(), any(Integer.class), any(Integer.class), any());
+            throw new IllegalStateException("role write failed");
+        }).when(userRepository).updateRole(any(), anyInt(), anyLong());
 
         assertThatThrownBy(() -> adminUserApplicationService.updateRole(new AdminUserApplicationService.UpdateRoleCommand(
                 ACTOR_USER_ID,
@@ -158,7 +159,7 @@ class UserWriteTransactionIntegrationTest {
                 true
         )))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("audit failed");
+                .hasMessage("role write failed");
 
         assertThat(userType()).isZero();
         assertThat(userSecurityVersion()).isEqualTo(INITIAL_USER_SECURITY_VERSION);

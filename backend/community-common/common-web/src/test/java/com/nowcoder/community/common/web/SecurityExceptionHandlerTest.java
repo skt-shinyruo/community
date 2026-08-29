@@ -4,7 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import io.opentelemetry.api.trace.Span;
@@ -84,7 +83,7 @@ class SecurityExceptionHandlerTest {
         return Span.wrap(spanContext).makeCurrent();
     }
 
-    private JsonCodec jsonCodec() {
+    private JacksonJsonCodec jsonCodec() {
         return new JacksonJsonCodec(objectMapper);
     }
 }

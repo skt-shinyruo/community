@@ -3,7 +3,6 @@ package com.nowcoder.community.analytics.application;
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService.RequestObservation;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
 import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import org.junit.jupiter.api.Test;
 
 import java.util.List;
@@ -21,7 +20,7 @@ class AnalyticsRequestCaptureApplicationServiceTest {
         properties.setRecordUv(false);
         properties.setRecordDau(true);
         AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
-        AnalyticsRequestCaptureApplicationService service = service(properties, defaultFeatureFlags(), capturePort);
+        AnalyticsRequestCaptureApplicationService service = service(properties, true, capturePort);
         UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
         service.capture(new RequestObservation(
@@ -41,7 +40,7 @@ class AnalyticsRequestCaptureApplicationServiceTest {
         properties.setIncludePaths(List.of("/api/**"));
         properties.setExcludePaths(List.of("/api/analytics/**"));
         AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
-        AnalyticsRequestCaptureApplicationService service = service(properties, defaultFeatureFlags(), capturePort);
+        AnalyticsRequestCaptureApplicationService service = service(properties, true, capturePort);
 
         service.capture(new RequestObservation("GET", "/api/analytics/uv", 200, "1.1.1.1", null));
         service.capture(new RequestObservation("OPTIONS", "/api/posts/123", 200, "1.1.1.1", null));
@@ -57,7 +56,7 @@ class AnalyticsRequestCaptureApplicationServiceTest {
         AnalyticsIngestProperties properties = enabledProperties();
         properties.setEnabled(false);
         AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
-        AnalyticsRequestCaptureApplicationService service = service(properties, defaultFeatureFlags(), capturePort);
+        AnalyticsRequestCaptureApplicationService service = service(properties, true, capturePort);
 
         service.capture(new RequestObservation("GET", "/api/posts/123", 200, "1.1.1.1", null));
 
@@ -67,14 +66,8 @@ class AnalyticsRequestCaptureApplicationServiceTest {
     @Test
     void shouldSkipWhenDynamicFeatureFlagIsDisabled() {
         AnalyticsIngestProperties properties = enabledProperties();
-        FeatureFlagProperties featureFlagProperties = new FeatureFlagProperties();
-        featureFlagProperties.getFeatures().put("analytics-ingest", false);
         AnalyticsRequestCapturePort capturePort = mock(AnalyticsRequestCapturePort.class);
-        AnalyticsRequestCaptureApplicationService service = service(
-                properties,
-                featureFlagProperties,
-                capturePort
-        );
+        AnalyticsRequestCaptureApplicationService service = service(properties, false, capturePort);
 
         service.capture(new RequestObservation("GET", "/api/posts/123", 200, "1.1.1.1", null));
 
@@ -83,10 +76,10 @@ class AnalyticsRequestCaptureApplicationServiceTest {
 
     private static AnalyticsRequestCaptureApplicationService service(
             AnalyticsIngestProperties properties,
-            FeatureFlagProperties featureFlags,
+            boolean analyticsIngestEnabled,
             AnalyticsRequestCapturePort capturePort
     ) {
-        return new AnalyticsRequestCaptureApplicationService(properties, featureFlags, capturePort);
+        return new AnalyticsRequestCaptureApplicationService(properties, analyticsIngestEnabled, capturePort);
     }
 
     private static AnalyticsIngestProperties enabledProperties() {
@@ -94,9 +87,5 @@ class AnalyticsRequestCaptureApplicationServiceTest {
         properties.setEnabled(true);
         properties.setIncludePaths(List.of("/api/posts/**"));
         return properties;
-    }
-
-    private static FeatureFlagProperties defaultFeatureFlags() {
-        return new FeatureFlagProperties();
     }
 }

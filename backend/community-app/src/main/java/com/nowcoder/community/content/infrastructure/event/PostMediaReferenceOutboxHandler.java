@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.content.application.PostMediaReferenceApplicationService;
@@ -13,12 +13,12 @@ import java.util.Objects;
 @Component
 public class PostMediaReferenceOutboxHandler implements OutboxHandler {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final PostMediaReferenceApplicationService applicationService;
     private final String topic;
 
     public PostMediaReferenceOutboxHandler(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             PostMediaReferenceApplicationService applicationService,
             @Value("${content.media.reference-command-topic:command.content.post-media-reference}") String topic
     ) {

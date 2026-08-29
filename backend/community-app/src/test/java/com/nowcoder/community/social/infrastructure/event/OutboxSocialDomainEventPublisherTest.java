@@ -5,9 +5,7 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.social.application.SocialEventDispatchApplicationService;
 import com.nowcoder.community.social.application.SocialIntegrationEventDispatcher;
@@ -54,12 +52,12 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void likeCreatedShouldWriteSocialContractEnvelopeToOutbox() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID actorUserId = uuid(1);
         UUID entityId = uuid(10);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -97,7 +95,7 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void publishLikeChangedShouldSerializeBackboneMetadata() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID actorUserId = uuid(11);
         UUID entityId = uuid(12);
@@ -121,12 +119,12 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void likeRemovedShouldUseRemovedEventIdAndEntityKey() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID actorUserId = uuid(3);
         UUID entityId = uuid(30);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -156,7 +154,7 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void likeEventsShouldPublishLifecycleIdentityForCreatedAndRemoved() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
@@ -197,12 +195,12 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void followCreatedShouldUseActorEntityEventIdAndEntityKey() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID actorUserId = uuid(5);
         UUID entityId = uuid(50);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -231,7 +229,7 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void publishedSocialOutboxPayloadsShouldDispatchAsTypedKafkaContractEvents() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         SocialIntegrationEventDispatcher dispatcher = mock(SocialIntegrationEventDispatcher.class);
         SocialContractEventCodec contractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
@@ -311,13 +309,13 @@ class OutboxSocialDomainEventPublisherTest {
 
     @Test
     void blockRelationChangedShouldWriteVersionedContractEnvelopeToOutbox() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID blockerUserId = uuid(6);
         UUID blockedUserId = uuid(7);
         Instant occurredAt = Instant.parse("2026-07-06T09:00:00Z");
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -362,7 +360,7 @@ class OutboxSocialDomainEventPublisherTest {
         UUID actorUserId = uuid(9);
         UUID entityId = uuid(90);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -383,7 +381,7 @@ class OutboxSocialDomainEventPublisherTest {
     void publishLikeChangedShouldRejectMissingRelationKey() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -405,7 +403,7 @@ class OutboxSocialDomainEventPublisherTest {
         UUID actorUserId = uuid(8);
         UUID entityId = uuid(80);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()
@@ -438,7 +436,7 @@ class OutboxSocialDomainEventPublisherTest {
     void eventsWithoutRequiredIdsShouldNotEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxSocialDomainEventPublisher publisher = new OutboxSocialDomainEventPublisher(
-                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonSocialContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC,
                 idGenerator()

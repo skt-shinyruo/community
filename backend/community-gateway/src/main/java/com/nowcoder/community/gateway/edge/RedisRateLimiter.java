@@ -7,7 +7,7 @@ import org.springframework.data.redis.core.script.RedisScript;
 import java.time.Duration;
 import java.util.List;
 
-public class RedisRateLimiter implements RateLimiter {
+public class RedisRateLimiter {
 
     private static final String KEY_PREFIX = "gateway:rate-limit:";
     private static final RedisScript<Long> INCREMENT_WITH_WINDOW_SCRIPT = script(
@@ -27,7 +27,6 @@ public class RedisRateLimiter implements RateLimiter {
         this.redisTemplate = redisTemplate;
     }
 
-    @Override
     public boolean allow(String key, RateLimitProperties.Policy policy) {
         if (policy == null) {
             return true;

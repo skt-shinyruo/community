@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
@@ -40,9 +40,9 @@ public class OssAvatarStorageAdapter implements AvatarStoragePort {
             "image/gif"
     );
 
-    private final CommunityOssClient ossClient;
+    private final HttpCommunityOssClient ossClient;
 
-    public OssAvatarStorageAdapter(CommunityOssClient ossClient) {
+    public OssAvatarStorageAdapter(HttpCommunityOssClient ossClient) {
         this.ossClient = Objects.requireNonNull(ossClient, "ossClient must not be null");
     }
 

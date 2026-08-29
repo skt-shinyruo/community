@@ -3,7 +3,6 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.domain.model.RechargeOrder;
@@ -73,15 +72,15 @@ public class WalletRechargeApplicationService {
         Objects.requireNonNull(command, "command must not be null");
         orderDomainService.validatePositiveAmount(command.amount());
         testCreditPolicy.assertGrantAllowed(command.amount());
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:recharge",
                 command.userId(),
-                effective.value(),
+                effective,
                 RequestFingerprint.sha256("wallet:recharge|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 RechargeOrderResult.class,
-                () -> grantTestCredits(effective.value(), command.userId(), command.amount())
+                () -> grantTestCredits(effective, command.userId(), command.amount())
         );
     }
 

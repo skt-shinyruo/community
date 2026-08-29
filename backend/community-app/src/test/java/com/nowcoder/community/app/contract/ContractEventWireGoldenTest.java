@@ -1,8 +1,8 @@
 package com.nowcoder.community.app.contract;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentEventTypes;
 import com.nowcoder.community.content.contracts.event.PostPayload;
@@ -24,7 +24,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class ContractEventWireGoldenTest {
 
-    private static final ObjectMapper OBJECT_MAPPER = JsonMappers.standard();
+    private static final ObjectMapper OBJECT_MAPPER = JacksonJsonCodec.standardMapper();
 
     @Test
     void envelopeClassNamesAndJsonNodePayloadComponentsMustRemainStable() {

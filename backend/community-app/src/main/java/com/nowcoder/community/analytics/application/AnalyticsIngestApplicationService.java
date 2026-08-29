@@ -1,6 +1,8 @@
 package com.nowcoder.community.analytics.application;
 
+import com.nowcoder.community.analytics.api.action.AnalyticsIngestActionApi;
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRepository;
 import org.slf4j.Logger;
@@ -15,12 +17,13 @@ import java.util.UUID;
 import java.util.concurrent.atomic.AtomicLong;
 
 @Service
-public class AnalyticsIngestApplicationService {
+public class AnalyticsIngestApplicationService implements AnalyticsIngestActionApi {
 
     private static final Logger log = LoggerFactory.getLogger(AnalyticsIngestApplicationService.class);
 
     private final AnalyticsRepository analyticsRepository;
     private final AnalyticsUserOrdinalRepository ordinalRepository;
+    private final AnalyticsIngestProperties properties;
     private final Clock clock;
     private final AtomicLong uvFailureCount = new AtomicLong();
     private final AtomicLong dauFailureCount = new AtomicLong();
@@ -28,10 +31,12 @@ public class AnalyticsIngestApplicationService {
     public AnalyticsIngestApplicationService(
             AnalyticsRepository analyticsRepository,
             AnalyticsUserOrdinalRepository ordinalRepository,
+            AnalyticsIngestProperties properties,
             Clock clock
     ) {
         this.analyticsRepository = Objects.requireNonNull(analyticsRepository, "analyticsRepository must not be null");
         this.ordinalRepository = Objects.requireNonNull(ordinalRepository, "ordinalRepository must not be null");
+        this.properties = Objects.requireNonNull(properties, "properties must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null").withZone(ZoneId.systemDefault());
     }
 
@@ -46,12 +51,12 @@ public class AnalyticsIngestApplicationService {
         }
     }
 
-    public void recordLoginSuccess(RecordLoginSuccess command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (!command.recordDau()) {
+    @Override
+    public void recordLoginSuccess(UUID userId) {
+        if (!properties.isEnabled() || !properties.isRecordDau()) {
             return;
         }
-        recordDau(LocalDate.now(clock), command.userId());
+        recordDau(LocalDate.now(clock), userId);
     }
 
     private boolean hasText(String value) {
@@ -90,8 +95,5 @@ public class AnalyticsIngestApplicationService {
 
     private boolean isPowerOfTwo(long value) {
         return value > 0 && (value & (value - 1)) == 0;
-    }
-
-    public record RecordLoginSuccess(UUID userId, boolean recordDau) {
     }
 }

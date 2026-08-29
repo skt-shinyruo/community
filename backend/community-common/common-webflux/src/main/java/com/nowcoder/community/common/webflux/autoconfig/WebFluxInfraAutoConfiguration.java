@@ -2,7 +2,6 @@ package com.nowcoder.community.common.webflux.autoconfig;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.webflux.GlobalExceptionHandler;
 import com.nowcoder.community.common.webflux.SecurityExceptionHandler;
 import com.nowcoder.community.common.webflux.TraceIdWebFilter;
@@ -25,13 +24,13 @@ public class WebFluxInfraAutoConfiguration {
 
     @Bean
     @ConditionalOnMissingBean
-    public JsonCodec jsonCodec(ObjectMapper objectMapper) {
+    public JacksonJsonCodec jsonCodec(ObjectMapper objectMapper) {
         return new JacksonJsonCodec(objectMapper);
     }
 
     @Bean
     @ConditionalOnMissingBean
-    public SecurityExceptionHandler securityExceptionHandler(JsonCodec jsonCodec) {
+    public SecurityExceptionHandler securityExceptionHandler(JacksonJsonCodec jsonCodec) {
         return new SecurityExceptionHandler(jsonCodec);
     }
 

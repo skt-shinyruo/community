@@ -3,8 +3,6 @@ package com.nowcoder.community.notice.application;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.LikeNoticeProjectionState;
@@ -355,7 +353,7 @@ class NoticeProjectionApplicationServiceTest {
         return captor.getAllValues();
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

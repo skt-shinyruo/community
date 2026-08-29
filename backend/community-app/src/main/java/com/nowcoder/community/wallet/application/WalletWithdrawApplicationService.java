@@ -3,7 +3,6 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.wallet.domain.model.WithdrawOrder;
@@ -73,15 +72,15 @@ public class WalletWithdrawApplicationService {
         Objects.requireNonNull(command, "command must not be null");
         orderDomainService.validatePositiveAmount(command.amount());
         testCreditPolicy.assertDiscardAllowed(command.amount());
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         return idempotencyGuard.executeRequired(
                 "wallet:withdraw",
                 command.userId(),
-                effective.value(),
+                effective,
                 RequestFingerprint.sha256("wallet:withdraw|amount=" + command.amount()),
                 WalletErrorCode.REQUEST_REPLAY_CONFLICT,
                 WithdrawOrderResult.class,
-                () -> discardTestCredits(effective.value(), command.userId(), command.amount())
+                () -> discardTestCredits(effective, command.userId(), command.amount())
         );
     }
 

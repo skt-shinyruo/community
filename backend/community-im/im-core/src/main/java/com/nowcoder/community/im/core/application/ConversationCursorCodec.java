@@ -1,9 +1,9 @@
 package com.nowcoder.community.im.core.application;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -22,9 +22,9 @@ public class ConversationCursorCodec {
     private static final String INVALID_CURSOR_MESSAGE = "会话游标非法";
     private static final Set<String> PAYLOAD_FIELDS = Set.of("version", "sortAt", "conversationId");
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public ConversationCursorCodec(JsonCodec jsonCodec) {
+    public ConversationCursorCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

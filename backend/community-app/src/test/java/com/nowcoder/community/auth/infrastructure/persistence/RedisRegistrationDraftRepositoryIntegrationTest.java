@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -31,7 +30,7 @@ class RedisRegistrationDraftRepositoryIntegrationTest {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redis = redisTemplate(connectionFactory);
         RedisRegistrationDraftRepository repository = new RedisRegistrationDraftRepository(
-                redis, new JacksonJsonCodec(JsonMappers.standard()));
+                redis, new JacksonJsonCodec(JacksonJsonCodec.standardMapper()));
         UUID userId = uuid(1);
         PreparedRegistrationDraft draft = draft(userId);
         try {

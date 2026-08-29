@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.stereotype.Component;
 
@@ -18,9 +18,9 @@ public class FeedCursorCodec {
     static final int MAX_CURSOR_PAGE = 200;
     static final int MAX_CURSOR_SIZE = 50;
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
-    public FeedCursorCodec(JsonCodec jsonCodec) {
+    public FeedCursorCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
     }
 

@@ -1,8 +1,6 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService.DispatchUserEventCommand;
 import com.nowcoder.community.user.contracts.event.UserContractEvent;
 import com.nowcoder.community.user.contracts.event.UserContractEventCodec;
@@ -27,7 +25,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class UserEventDispatchApplicationServiceTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final UserContractEventCodec contractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
     private final UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
     private final UserEventDispatchApplicationService service =

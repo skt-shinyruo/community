@@ -1,34 +1,40 @@
-package com.nowcoder.community.common.idempotency.autoconfig;
+package com.nowcoder.community.infra.idempotency;
 
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.idempotency.IdempotencyProperties;
+import com.nowcoder.community.common.idempotency.JdbcIdempotencyStore;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.Configuration;
+import org.springframework.jdbc.core.JdbcTemplate;
 
-@AutoConfiguration(
-        after = JdbcIdempotencyAutoConfiguration.class,
-        afterName = {
-                "com.nowcoder.community.common.web.autoconfig.ServletWebInfraAutoConfiguration",
-                "com.nowcoder.community.common.webflux.autoconfig.WebFluxInfraAutoConfiguration"
-        }
-)
+/**
+ * Wires the JDBC-backed idempotency guard for community-app. The module has a
+ * single consumer, so a plain configuration replaces the starter split.
+ */
+@Configuration(proxyBeanMethods = false)
 @ConditionalOnProperty(prefix = "http.idempotency", name = "enabled", havingValue = "true")
-@ConditionalOnBean({IdempotencyStore.class, JsonCodec.class})
 @EnableConfigurationProperties(IdempotencyProperties.class)
-public class IdempotencyGuardAutoConfiguration {
+public class IdempotencyConfiguration {
+
+    @Bean
+    @ConditionalOnMissingBean(IdempotencyStore.class)
+    public com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore idempotencyStore(
+            JdbcTemplate jdbcTemplate
+    ) {
+        return new JdbcIdempotencyStore(jdbcTemplate);
+    }
 
     @Bean
     @ConditionalOnMissingBean
     public IdempotencyGuard idempotencyGuard(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             IdempotencyStore store,
             ObjectProvider<MeterRegistry> meterRegistryProvider,
             IdempotencyProperties properties

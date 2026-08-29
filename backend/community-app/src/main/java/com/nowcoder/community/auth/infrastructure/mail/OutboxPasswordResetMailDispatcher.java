@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.mail;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.auth.application.PasswordResetMailDeliveryApplicationService;
 import com.nowcoder.community.auth.application.port.PasswordResetMailDispatcher;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import org.springframework.stereotype.Component;
@@ -19,10 +19,10 @@ public class OutboxPasswordResetMailDispatcher implements PasswordResetMailDispa
     private static final String TOPIC = "auth.password-reset-mail";
     private static final Pattern DELIVERY_REFERENCE = Pattern.compile("[A-Za-z0-9_-]{32,128}");
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final JdbcOutboxEventStore outboxEventStore;
 
-    public OutboxPasswordResetMailDispatcher(JsonCodec jsonCodec, JdbcOutboxEventStore outboxEventStore) {
+    public OutboxPasswordResetMailDispatcher(JacksonJsonCodec jsonCodec, JdbcOutboxEventStore outboxEventStore) {
         this.jsonCodec = jsonCodec;
         this.outboxEventStore = outboxEventStore;
     }

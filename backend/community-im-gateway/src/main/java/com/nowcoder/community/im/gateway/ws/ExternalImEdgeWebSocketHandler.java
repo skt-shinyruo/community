@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.gateway.ws;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ws.RejectFrame;
@@ -35,14 +35,14 @@ public class ExternalImEdgeWebSocketHandler implements WebSocketHandler {
 
     private final ConnectTicketRouter connectTicketRouter;
     private final InternalWorkerBridge bridge;
-    private final JsonCodec frameCodec;
+    private final JacksonJsonCodec frameCodec;
     private final ImGatewaySessionProperties properties;
     private final ImGatewayMetrics metrics;
 
     public ExternalImEdgeWebSocketHandler(
             ConnectTicketRouter connectTicketRouter,
             InternalWorkerBridge bridge,
-            JsonCodec frameCodec,
+            JacksonJsonCodec frameCodec,
             ImGatewaySessionProperties properties,
             ImGatewayMetrics metrics
     ) {

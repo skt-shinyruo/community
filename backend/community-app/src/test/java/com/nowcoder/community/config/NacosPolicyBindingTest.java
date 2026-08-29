@@ -1,8 +1,8 @@
 package com.nowcoder.community.config;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.common.web.net.TrustedProxyProperties;
@@ -130,7 +130,7 @@ class NacosPolicyBindingTest {
     }
 
     @Test
-    void bindsCommunityOssClientFromRuntimeOverrides() throws Exception {
+    void bindsHttpCommunityOssClientFromRuntimeOverrides() throws Exception {
         StandardEnvironment environment = environmentFrom(
                 "community-app.yaml",
                 Map.of(
@@ -188,12 +188,9 @@ class NacosPolicyBindingTest {
 
     @Test
     void bindsRuntimePolicySeedDataIds() throws Exception {
-        assertThat(Binder.get(environmentFrom("community-feature-flags.yaml"))
-                .bind("community", FeatureFlagProperties.class)
-                .orElseThrow(IllegalStateException::new)
-                .getFeatures())
-                .containsEntry("post-publishing", true)
-                .containsEntry("analytics-ingest", false);
+        assertThat(environmentFrom("community-feature-flags.yaml")
+                .getProperty("community.features.analytics-ingest", Boolean.class))
+                .isFalse();
 
         UploadPolicyProperties upload = Binder.get(environmentFrom("community-upload-policy.yaml"))
                 .bind("community.upload", UploadPolicyProperties.class)

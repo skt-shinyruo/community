@@ -1,8 +1,12 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.user.api.action.UserCredentialActionApi;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi.AuthenticationChallenge;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi.AuthenticationSubject;
 import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
@@ -18,13 +22,14 @@ import java.time.Instant;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
 import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
-public class UserCredentialApplicationService {
+public class UserCredentialApplicationService implements UserCredentialQueryApi, UserCredentialActionApi {
 
     private static final String DUMMY_PASSWORD_HASH =
             "$2a$10$pEbLAXD.5j9U47tFYwlcM.xJyDlxVuxJ/RCBkcWAQHSwBS9w/vKKm";
@@ -64,10 +69,10 @@ public class UserCredentialApplicationService {
                 || !StringUtils.hasText(password)) {
             return UserAuthenticationResultView.invalidCredentials();
         }
-        return authenticate(prepareAuthentication(username), password);
+        return authenticate(prepare(username), password);
     }
 
-    public PreparedAuthentication prepareAuthentication(String username) {
+    public PreparedAuthentication prepare(String username) {
         String trimmedUsername = userCredentialDomainService.trim(username);
         if (!StringUtils.hasText(trimmedUsername) || !userCredentialDomainService.isSafeUsername(trimmedUsername)) {
             return new PreparedAuthentication(null, DUMMY_PASSWORD_HASH, false);
@@ -82,7 +87,13 @@ public class UserCredentialApplicationService {
         return new PreparedAuthentication(user, encodedPassword, storedHashUsable);
     }
 
-    public String authenticationSubject(String username) {
+    @Override
+    public AuthenticationChallenge prepareAuthentication(String username) {
+        return new OneShotAuthenticationChallenge(prepare(username));
+    }
+
+    @Override
+    public AuthenticationSubject authenticationSubject(String username) {
         String trimmedUsername = userCredentialDomainService.trim(username);
         if (!StringUtils.hasText(trimmedUsername) || !userCredentialDomainService.isSafeUsername(trimmedUsername)) {
             throw new BusinessException(INVALID_ARGUMENT, "username 非法");
@@ -96,7 +107,7 @@ public class UserCredentialApplicationService {
         if (!StringUtils.hasText(subject)) {
             throw new BusinessException(SERVICE_UNAVAILABLE, "用户认证服务暂时不可用");
         }
-        return subject.trim();
+        return new AuthenticationSubject(subject.trim());
     }
 
     public UserAuthenticationResultView authenticate(PreparedAuthentication preparation, String password) {
@@ -128,15 +139,15 @@ public class UserCredentialApplicationService {
 
     }
 
+    @Override
     public UserCredentialView getByUserId(UUID userId) {
         if (userId == null) {
             throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
         }
-        return userRepository.findById(userId)
-                .map(this::toCredentialView)
-                .orElseThrow(() -> new BusinessException(USER_NOT_FOUND));
+        return userRepository.findById(userId).map(this::toCredentialView).orElse(null);
     }
 
+    @Override
     public UserCredentialView findByEmailOrNull(String email) {
         String value = userCredentialDomainService.canonicalEmail(email);
         if (!StringUtils.hasText(value)) {
@@ -151,6 +162,7 @@ public class UserCredentialApplicationService {
     }
 
     @Transactional
+    @Override
     public boolean updatePasswordIfSecurityVersion(
             UUID userId,
             String newPassword,
@@ -170,6 +182,7 @@ public class UserCredentialApplicationService {
         );
     }
 
+    @Override
     public void validatePasswordPolicy(String newPassword) {
         passwordPolicyDomainService.requireValidPassword(newPassword);
     }
@@ -186,8 +199,37 @@ public class UserCredentialApplicationService {
         userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword), securityVersion);
     }
 
+    @Override
     public List<String> authoritiesOf(UserCredentialView user) {
         return user == null ? List.of() : userCredentialDomainService.authoritiesForType(user.type());
+    }
+
+    private final class OneShotAuthenticationChallenge implements AuthenticationChallenge {
+
+        private final UUID userId;
+        private final AtomicReference<PreparedAuthentication> preparation;
+
+        private OneShotAuthenticationChallenge(PreparedAuthentication preparation) {
+            this.userId = preparation == null || preparation.user() == null
+                    ? null
+                    : preparation.user().id();
+            this.preparation = new AtomicReference<>(preparation);
+        }
+
+        @Override
+        public UUID userId() {
+            return userId;
+        }
+
+        @Override
+        public UserAuthenticationResultView authenticate(String password) {
+            PreparedAuthentication current = preparation.getAndSet(null);
+            if (current == null) {
+                return UserAuthenticationResultView.invalidCredentials();
+            }
+            UserAuthenticationResultView result = UserCredentialApplicationService.this.authenticate(current, password);
+            return result == null ? UserAuthenticationResultView.invalidCredentials() : result;
+        }
     }
 
     private boolean passwordMatches(String rawPassword, String encodedPassword) {

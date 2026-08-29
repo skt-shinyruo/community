@@ -2,7 +2,6 @@ package com.nowcoder.community.auth.infrastructure.web;
 
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -169,6 +168,6 @@ class AuthOriginGuardFilterTest {
     }
 
     private static JacksonJsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

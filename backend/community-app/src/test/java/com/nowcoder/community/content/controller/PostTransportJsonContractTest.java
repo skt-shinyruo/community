@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.result.PostContentBlockResult;
 import com.nowcoder.community.content.application.result.PostMediaViewResult;
 import com.nowcoder.community.content.controller.dto.CreatePostRequest;
@@ -19,7 +19,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class PostTransportJsonContractTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
 
     @Test
     void directBlockMediaModelShouldPreserveNestedResponseJsonFields() {

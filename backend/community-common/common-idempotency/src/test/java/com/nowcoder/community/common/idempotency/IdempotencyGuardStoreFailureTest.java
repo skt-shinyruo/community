@@ -1,8 +1,6 @@
 package com.nowcoder.community.common.idempotency;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 
 import java.time.Duration;
@@ -104,7 +102,7 @@ class IdempotencyGuardStoreFailureTest {
         return new IdempotencyGuard(jsonCodec(), store, null, new IdempotencyProperties());
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

@@ -9,7 +9,6 @@ import com.nimbusds.jose.crypto.RSASSASigner;
 import com.nimbusds.jwt.JWTClaimsSet;
 import com.nimbusds.jwt.SignedJWT;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.trace.TraceHeaders;
@@ -147,7 +146,7 @@ class OssSecurityConfigTest {
     static class WebMvcSliceJsonCodecTestConfig {
 
         @Bean
-        JsonCodec jsonCodec(ObjectMapper objectMapper) {
+        JacksonJsonCodec jsonCodec(ObjectMapper objectMapper) {
             return new JacksonJsonCodec(objectMapper);
         }
     }

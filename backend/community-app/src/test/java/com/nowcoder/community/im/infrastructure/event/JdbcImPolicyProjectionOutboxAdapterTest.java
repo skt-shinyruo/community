@@ -3,7 +3,6 @@ package com.nowcoder.community.im.infrastructure.event;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.im.application.ImPolicyProjectionEvent;
 import org.junit.jupiter.api.Test;
@@ -29,7 +28,7 @@ class JdbcImPolicyProjectionOutboxAdapterTest {
             createSchema(jdbcTemplate);
             JdbcImPolicyProjectionOutboxAdapter adapter = new JdbcImPolicyProjectionOutboxAdapter(
                     new JdbcOutboxEventStore(jdbcTemplate),
-                    new JacksonJsonCodec(JsonMappers.standard()),
+                    new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                     "projection.im.policy"
             );
             ImPolicyProjectionEvent event = new ImPolicyProjectionEvent(
@@ -65,7 +64,7 @@ class JdbcImPolicyProjectionOutboxAdapterTest {
             createSchema(jdbcTemplate);
             JdbcImPolicyProjectionOutboxAdapter adapter = new JdbcImPolicyProjectionOutboxAdapter(
                     new JdbcOutboxEventStore(jdbcTemplate),
-                    new JacksonJsonCodec(JsonMappers.standard()),
+                    new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                     "projection.im.policy"
             );
             ImPolicyProjectionEvent event = new ImPolicyProjectionEvent(

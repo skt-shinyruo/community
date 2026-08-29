@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.PostMediaReferenceCommandPublisher;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
@@ -13,13 +13,13 @@ import java.util.Objects;
 @Component
 public class OutboxPostMediaReferenceCommandPublisher implements PostMediaReferenceCommandPublisher {
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final JdbcOutboxEventStore store;
     private final String topic;
     private final Clock clock;
 
     public OutboxPostMediaReferenceCommandPublisher(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             JdbcOutboxEventStore store,
             @Value("${content.media.reference-command-topic:command.content.post-media-reference}") String topic,
             Clock clock

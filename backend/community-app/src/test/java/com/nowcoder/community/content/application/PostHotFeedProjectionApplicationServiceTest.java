@@ -1,5 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -28,7 +31,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void postUpdatedShouldRecomputeHotnessAndUpsertBothFeeds() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -47,7 +50,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         DiscussPost post = post(uuid(200), uuid(10), 0, 12.0);
         when(postContentRepository.getByIdAllowDeleted(uuid(200))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(200))).thenReturn(41L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(200))).thenReturn(41L);
         when(postHotnessDomainService.recomputeScore(post, 41L)).thenReturn(88.5);
         when(postContentRepository.updateScore(uuid(200), 88.5, 7L)).thenReturn(8L);
 
@@ -72,7 +75,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void duplicateSourceEventShouldSkipProjectionWork() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -116,7 +119,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void staleSourceVersionShouldSkipProjectionWork() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -160,7 +163,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void supersededSourceVersionShouldAbortBeforeProjectionWrites() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -189,7 +192,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         DiscussPost post = post(uuid(210), uuid(20), 0, 10.0);
         when(projectionGuard.tryBegin(uuid(210), "evt-old", 50L, PostProjectionVersionLane.POST, false)).thenReturn(attempt);
         when(postContentRepository.getByIdAllowDeleted(uuid(210))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(210))).thenReturn(1L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(210))).thenReturn(1L);
         when(postHotnessDomainService.recomputeScore(post, 1L)).thenReturn(12.0);
         when(projectionGuard.isCurrent(attempt)).thenReturn(false);
 
@@ -209,7 +212,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void supersededSourceVersionAfterScoreShouldAbortBeforeProjectionWrites() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -238,7 +241,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         DiscussPost post = post(uuid(212), uuid(22), 0, 10.0);
         when(projectionGuard.tryBegin(uuid(212), "evt-superseded", 52L, PostProjectionVersionLane.POST, false)).thenReturn(attempt);
         when(postContentRepository.getByIdAllowDeleted(uuid(212))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(212))).thenReturn(2L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(212))).thenReturn(2L);
         when(postHotnessDomainService.recomputeScore(post, 2L)).thenReturn(14.0);
         when(projectionGuard.isCurrent(attempt)).thenReturn(true, false);
 
@@ -258,7 +261,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void supersededSourceVersionAfterScoreCasShouldAbortBeforeCacheWrites() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -267,7 +270,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
         PostHotFeedProjectionTransactionOperations transactionOperations =
                 mock(PostHotFeedProjectionTransactionOperations.class);
-        HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
+        TransactionCompletion projectionCompletion = mock(TransactionCompletion.class);
         PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
@@ -298,7 +301,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 false
         )).thenReturn(attempt);
         when(postContentRepository.getByIdAllowDeleted(uuid(213))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(213))).thenReturn(2L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(213))).thenReturn(2L);
         when(postHotnessDomainService.recomputeScore(post, 2L)).thenReturn(14.0);
         when(projectionGuard.isCurrent(attempt)).thenReturn(true, true, false);
 
@@ -319,7 +322,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void successfulProjectionShouldCommitSourceAttemptAfterWrites() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -348,7 +351,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         DiscussPost post = post(uuid(211), uuid(21), 0, 10.0);
         when(projectionGuard.tryBegin(uuid(211), "evt-current", 51L, PostProjectionVersionLane.POST, false)).thenReturn(attempt);
         when(postContentRepository.getByIdAllowDeleted(uuid(211))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(211))).thenReturn(2L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(211))).thenReturn(2L);
         when(postHotnessDomainService.recomputeScore(post, 2L)).thenReturn(14.0);
         when(postContentRepository.updateScore(uuid(211), 14.0, 7L)).thenReturn(8L);
         when(projectionGuard.isCurrent(attempt)).thenReturn(true);
@@ -369,7 +372,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void outOfOrderProjectionShouldNotRegressVersion() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -406,7 +409,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         when(projectionGuard.tryBegin(uuid(230), "evt-new", 20L, PostProjectionVersionLane.POST, false)).thenReturn(accepted);
         when(projectionGuard.tryBegin(uuid(230), "evt-old", 10L, PostProjectionVersionLane.POST, false)).thenReturn(stale);
         when(postContentRepository.getByIdAllowDeleted(uuid(230))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(230))).thenReturn(2L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(230))).thenReturn(2L);
         when(postHotnessDomainService.recomputeScore(post, 2L)).thenReturn(14.0);
         when(postContentRepository.updateScore(uuid(230), 14.0, 7L)).thenReturn(8L);
         when(projectionGuard.isCurrent(accepted)).thenReturn(true);
@@ -425,7 +428,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void blankSourceEventIdShouldSkipProjectionWork() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -453,7 +456,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void nonPositiveSourceVersionShouldSkipProjectionWork() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -481,7 +484,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void postUpdatedShouldClearExistingBoardMembershipBeforeUpsertingCurrentBoard() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -500,7 +503,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         DiscussPost post = post(uuid(203), uuid(13), 0, 15.0);
         when(postContentRepository.getByIdAllowDeleted(uuid(203))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(203))).thenReturn(5L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(203))).thenReturn(5L);
         when(postHotnessDomainService.recomputeScore(post, 5L)).thenReturn(18.0);
         when(postContentRepository.updateScore(uuid(203), 18.0, 7L)).thenReturn(8L);
 
@@ -520,7 +523,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void deletedOwnerFactShouldTerminallyFenceEveryReadModel() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -559,7 +562,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void missingOwnerFactShouldAlsoTerminallyFenceEveryReadModel() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -599,14 +602,14 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void terminalDeletionShouldEvictWithoutReadingCurrentFactsAndCommitAfterTransaction() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
+        TransactionCompletion projectionCompletion = mock(TransactionCompletion.class);
         PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
@@ -646,8 +649,7 @@ class PostHotFeedProjectionApplicationServiceTest {
         verify(postDetailCache).terminalEvict(uuid(231), 5L);
         verifyNoInteractions(postContentRepository, likeQueryPort, postCounterCache, postHotnessDomainService);
         ArgumentCaptor<Runnable> committedAction = ArgumentCaptor.forClass(Runnable.class);
-        ArgumentCaptor<Runnable> rolledBackAction = ArgumentCaptor.forClass(Runnable.class);
-        verify(projectionCompletion).afterTransaction(committedAction.capture(), rolledBackAction.capture());
+        verify(projectionCompletion).afterCommit(committedAction.capture());
         verify(projectionGuard, never()).commit(attempt);
 
         committedAction.getValue().run();
@@ -659,14 +661,14 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void terminalDeletionRollbackShouldAbortAttemptWithoutCommit() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
+        TransactionCompletion projectionCompletion = mock(TransactionCompletion.class);
         PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
@@ -701,9 +703,8 @@ class PostHotFeedProjectionApplicationServiceTest {
                 true
         ));
 
-        ArgumentCaptor<Runnable> committedAction = ArgumentCaptor.forClass(Runnable.class);
         ArgumentCaptor<Runnable> rolledBackAction = ArgumentCaptor.forClass(Runnable.class);
-        verify(projectionCompletion).afterTransaction(committedAction.capture(), rolledBackAction.capture());
+        verify(projectionCompletion).afterRollback(rolledBackAction.capture());
         verifyNoInteractions(postContentRepository, likeQueryPort, postCounterCache, postHotnessDomainService);
 
         rolledBackAction.getValue().run();
@@ -715,14 +716,14 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void terminalDeletionSinkFailureShouldAbortWithoutSchedulingGuardCommit() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
         PostCounterCache postCounterCache = mock(PostCounterCache.class);
         PostHotnessDomainService postHotnessDomainService = mock(PostHotnessDomainService.class);
         HotFeedProjectionGuard projectionGuard = mock(HotFeedProjectionGuard.class);
-        HotFeedProjectionCompletion projectionCompletion = mock(HotFeedProjectionCompletion.class);
+        TransactionCompletion projectionCompletion = mock(TransactionCompletion.class);
         PostHotFeedProjectionApplicationService service = newService(
                 postContentRepository,
                 likeQueryPort,
@@ -770,7 +771,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void socialLikeSignalShouldUseCurrentPostBoardWhenCommandBoardIdMissing() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -789,7 +790,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         DiscussPost post = post(uuid(202), uuid(12), 0, 20.0);
         when(postContentRepository.getByIdAllowDeleted(uuid(202))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(202))).thenReturn(9L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(202))).thenReturn(9L);
         when(postHotnessDomainService.recomputeScore(post, 9L)).thenReturn(31.0);
         when(postContentRepository.updateScore(uuid(202), 31.0, 7L)).thenReturn(8L);
 
@@ -809,7 +810,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void postUpdatedShouldUseCurrentPersistedBoardWhenCommandBoardIdIsStale() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -828,7 +829,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         DiscussPost post = post(uuid(204), uuid(14), 0, 22.0);
         when(postContentRepository.getByIdAllowDeleted(uuid(204))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(204))).thenReturn(7L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(204))).thenReturn(7L);
         when(postHotnessDomainService.recomputeScore(post, 7L)).thenReturn(25.0);
         when(postContentRepository.updateScore(uuid(204), 25.0, 7L)).thenReturn(8L);
 
@@ -848,7 +849,7 @@ class PostHotFeedProjectionApplicationServiceTest {
     @Test
     void wonderfulPostShouldRemainVisibleInHotFeeds() {
         PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         PostFeedCache postFeedCache = mock(PostFeedCache.class);
         PostSummaryCache postSummaryCache = mock(PostSummaryCache.class);
         PostDetailCache postDetailCache = mock(PostDetailCache.class);
@@ -867,7 +868,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
         DiscussPost post = post(uuid(205), uuid(15), 1, 42.0);
         when(postContentRepository.getByIdAllowDeleted(uuid(205))).thenReturn(post);
-        when(likeQueryPort.countPostLikes(uuid(205))).thenReturn(9L);
+        when(likeQueryPort.count(EntityTypes.POST, uuid(205))).thenReturn(9L);
         when(postHotnessDomainService.recomputeScore(post, 9L)).thenReturn(51.0);
         when(postContentRepository.updateScore(uuid(205), 51.0, 7L)).thenReturn(8L);
 
@@ -895,7 +896,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
     private static PostHotFeedProjectionApplicationService newService(
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
@@ -918,7 +919,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
     private static PostHotFeedProjectionApplicationService newService(
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
@@ -943,7 +944,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
     private static PostHotFeedProjectionApplicationService newService(
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
@@ -951,7 +952,7 @@ class PostHotFeedProjectionApplicationServiceTest {
             PostHotnessDomainService postHotnessDomainService,
             ContentFeedPolicyProperties policyProperties,
             HotFeedProjectionGuard projectionGuard,
-            HotFeedProjectionCompletion projectionCompletion
+            TransactionCompletion projectionCompletion
     ) {
         return newService(
                 postContentRepository,
@@ -970,7 +971,7 @@ class PostHotFeedProjectionApplicationServiceTest {
 
     private static PostHotFeedProjectionApplicationService newService(
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
@@ -979,7 +980,7 @@ class PostHotFeedProjectionApplicationServiceTest {
             ContentFeedPolicyProperties policyProperties,
             HotFeedProjectionGuard projectionGuard,
             PostHotFeedProjectionTransactionOperations transactionOperations,
-            HotFeedProjectionCompletion projectionCompletion
+            TransactionCompletion projectionCompletion
     ) {
         return new PostHotFeedProjectionApplicationService(
                 postContentRepository,
@@ -996,11 +997,11 @@ class PostHotFeedProjectionApplicationServiceTest {
         );
     }
 
-    private enum ImmediateProjectionCompletion implements HotFeedProjectionCompletion {
-        INSTANCE;
+    private static final class ImmediateProjectionCompletion extends TransactionCompletion {
+        static final ImmediateProjectionCompletion INSTANCE = new ImmediateProjectionCompletion();
 
         @Override
-        public void afterTransaction(Runnable committedAction, Runnable rolledBackAction) {
+        public void afterCommit(Runnable committedAction) {
             committedAction.run();
         }
     }

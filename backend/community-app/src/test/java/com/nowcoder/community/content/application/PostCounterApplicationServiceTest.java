@@ -1,5 +1,7 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.content.application.PostCounterApplicationService.RecordPostViewCommand;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
@@ -59,7 +61,7 @@ class PostCounterApplicationServiceTest {
     void readShouldRestoreViewSnapshotAndAuthoritativeBookmarkCountAfterCacheLoss() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
         PostContentRepository postRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         PostCounterApplicationService recoveryService = newService(
                 postCounterCache,
@@ -80,7 +82,7 @@ class PostCounterApplicationServiceTest {
         when(snapshotRepository.findByPostId(postId))
                 .thenReturn(new PostCounterSnapshot(postId, 41L, 8L, 4L, 2L, 90.0, 13L));
         when(postRepository.getByIdAllowDeleted(postId)).thenReturn(post);
-        when(likeQueryPort.countPostLikes(postId)).thenReturn(9L);
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenReturn(9L);
         when(bookmarkRepository.countByPostId(postId)).thenReturn(7L);
 
         PostCounterSnapshot result = recoveryService.read(postId);
@@ -123,7 +125,7 @@ class PostCounterApplicationServiceTest {
     @Test
     void flushSnapshotsShouldCapRequestedDirtyBatchSizeAtFiveHundred() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         PostCounterApplicationService flushService = newService(
                 postCounterCache,
@@ -137,7 +139,7 @@ class PostCounterApplicationServiceTest {
         when(postCounterCache.dirtyPosts(500)).thenReturn(List.of(dirtyPost));
         when(postCounterCache.get(postId)).thenReturn(new PostCounterSnapshot(postId, 11L, 3L, 5L, 2L, 99.5));
         when(postCounterCache.isInitialized(postId)).thenReturn(true);
-        when(likeQueryPort.countPostLikes(postId)).thenReturn(3L);
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenReturn(3L);
         when(bookmarkRepository.countByPostId(postId)).thenReturn(2L);
 
         int flushed = flushService.flushSnapshots(2_000);
@@ -152,7 +154,7 @@ class PostCounterApplicationServiceTest {
     void readShouldFallBackToPersistedAndOwnerFactsWhenRedisIsUnavailable() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
         PostContentRepository postRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         PostCounterApplicationService fallbackService = newService(
                 postCounterCache,
@@ -170,7 +172,7 @@ class PostCounterApplicationServiceTest {
         when(snapshotRepository.findByPostId(postId))
                 .thenReturn(new PostCounterSnapshot(postId, 21L, 2L, 3L, 4L, 5.0, 19L));
         when(postRepository.getByIdAllowDeleted(postId)).thenReturn(post);
-        when(likeQueryPort.countPostLikes(postId)).thenReturn(9L);
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenReturn(9L);
         when(bookmarkRepository.countByPostId(postId)).thenReturn(6L);
 
         PostCounterSnapshot result = fallbackService.read(postId);
@@ -245,7 +247,7 @@ class PostCounterApplicationServiceTest {
     void flushSnapshotsShouldRetainDirtyMarkerWhenLikeFactReadFails() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
         PostContentRepository postRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         UUID postId = uuid(307);
         PostCounterApplicationService flushService = flushService(
                 snapshotRepository,
@@ -255,7 +257,7 @@ class PostCounterApplicationServiceTest {
         );
         prepareInitializedSnapshot(postId);
         when(postRepository.getByIdAllowDeleted(postId)).thenReturn(post(postId));
-        when(likeQueryPort.countPostLikes(postId)).thenThrow(new IllegalStateException("like store unavailable"));
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenThrow(new IllegalStateException("like store unavailable"));
 
         assertFlushFailureRetainsDirty(flushService, snapshotRepository);
     }
@@ -264,7 +266,7 @@ class PostCounterApplicationServiceTest {
     void flushSnapshotsShouldRetainDirtyMarkerWhenBookmarkFactReadFails() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
         PostContentRepository postRepository = mock(PostContentRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         UUID postId = uuid(308);
         PostCounterApplicationService flushService = flushService(
@@ -275,7 +277,7 @@ class PostCounterApplicationServiceTest {
         );
         prepareInitializedSnapshot(postId);
         when(postRepository.getByIdAllowDeleted(postId)).thenReturn(post(postId));
-        when(likeQueryPort.countPostLikes(postId)).thenReturn(3L);
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenReturn(3L);
         when(bookmarkRepository.countByPostId(postId))
                 .thenThrow(new IllegalStateException("bookmark store unavailable"));
 
@@ -304,7 +306,7 @@ class PostCounterApplicationServiceTest {
     @Test
     void flushSnapshotsShouldIsolateOnePostFailureAndFlushHealthyRows() {
         PostCounterSnapshotRepository snapshotRepository = mock(PostCounterSnapshotRepository.class);
-        LikeQueryPort likeQueryPort = mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort = mock(SocialLikeQueryApi.class);
         BookmarkRepository bookmarkRepository = mock(BookmarkRepository.class);
         UUID failedPost = uuid(330);
         UUID healthyPost = uuid(331);
@@ -317,7 +319,7 @@ class PostCounterApplicationServiceTest {
         when(postCounterCache.get(healthyPost)).thenReturn(
                 new PostCounterSnapshot(healthyPost, 3L, 4L, 5L, 6L, 7.0)
         );
-        when(likeQueryPort.countPostLikes(healthyPost)).thenReturn(4L);
+        when(likeQueryPort.count(EntityTypes.POST, healthyPost)).thenReturn(4L);
         when(bookmarkRepository.countByPostId(healthyPost)).thenReturn(6L);
 
         PostCounterApplicationService flushService = newService(
@@ -575,7 +577,7 @@ class PostCounterApplicationServiceTest {
     private PostCounterApplicationService flushService(
             PostCounterSnapshotRepository snapshotRepository,
             PostContentRepository postRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             BookmarkRepository bookmarkRepository
     ) {
         return newService(
@@ -592,7 +594,7 @@ class PostCounterApplicationServiceTest {
                 postCounterCache,
                 mock(PostCounterSnapshotRepository.class),
                 mock(PostContentRepository.class),
-                mock(LikeQueryPort.class),
+                mock(SocialLikeQueryApi.class),
                 mock(BookmarkRepository.class),
                 mock(BookmarkCounterReconciliationPort.class)
         );
@@ -602,13 +604,13 @@ class PostCounterApplicationServiceTest {
             PostCounterCache postCounterCache,
             PostCounterSnapshotRepository snapshotRepository,
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort
+            SocialLikeQueryApi likeQueryPort
     ) {
         return newService(
                 postCounterCache,
                 dependencyOrMock(snapshotRepository, PostCounterSnapshotRepository.class),
                 dependencyOrMock(postContentRepository, PostContentRepository.class),
-                dependencyOrMock(likeQueryPort, LikeQueryPort.class),
+                dependencyOrMock(likeQueryPort, SocialLikeQueryApi.class),
                 mock(BookmarkRepository.class),
                 mock(BookmarkCounterReconciliationPort.class)
         );
@@ -618,14 +620,14 @@ class PostCounterApplicationServiceTest {
             PostCounterCache postCounterCache,
             PostCounterSnapshotRepository snapshotRepository,
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             BookmarkRepository bookmarkRepository
     ) {
         return newService(
                 postCounterCache,
                 dependencyOrMock(snapshotRepository, PostCounterSnapshotRepository.class),
                 dependencyOrMock(postContentRepository, PostContentRepository.class),
-                dependencyOrMock(likeQueryPort, LikeQueryPort.class),
+                dependencyOrMock(likeQueryPort, SocialLikeQueryApi.class),
                 dependencyOrMock(bookmarkRepository, BookmarkRepository.class),
                 mock(BookmarkCounterReconciliationPort.class)
         );
@@ -635,7 +637,7 @@ class PostCounterApplicationServiceTest {
             PostCounterCache postCounterCache,
             PostCounterSnapshotRepository snapshotRepository,
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryPort,
             BookmarkRepository bookmarkRepository,
             BookmarkCounterReconciliationPort reconciliationPort
     ) {
@@ -643,7 +645,7 @@ class PostCounterApplicationServiceTest {
                 postCounterCache,
                 dependencyOrMock(snapshotRepository, PostCounterSnapshotRepository.class),
                 dependencyOrMock(postContentRepository, PostContentRepository.class),
-                dependencyOrMock(likeQueryPort, LikeQueryPort.class),
+                dependencyOrMock(likeQueryPort, SocialLikeQueryApi.class),
                 dependencyOrMock(bookmarkRepository, BookmarkRepository.class),
                 dependencyOrMock(reconciliationPort, BookmarkCounterReconciliationPort.class)
         );

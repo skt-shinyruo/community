@@ -137,16 +137,7 @@ Transactional methods must not rely on self-invocation for Spring proxy behavior
 
 #### Reviewed API adapter surface
 
-`infrastructure.api` 是需要显式评审的例外面，不是每个 owner API 的必备层。当前保留 4 个 adapter：
-
-| Adapter | 保留理由 |
-| --- | --- |
-| `AnalyticsIngestActionApiAdapter` | 注入采集配置并决定 DAU capture policy。 |
-| `PostReadQueryApiAdapter` | 将 content 内部 read result 收缩为 profile 所需的 published author activity view。 |
-| `SocialLikeQueryAdapter` | foreign social API 到 content query port，并提供 null/default policy。 |
-| `UserCredentialApiAdapter` | 用户不存在、认证失败和 published credential view 的错误/模型翻译。 |
-
-其余 owner API 由 owner ApplicationService 直接实现。新增 adapter 必须说明独立转换或策略，并同步更新 `InfraBoundaryArchTest` 的 reviewed set；纯 delegate 不得进入该包。
+`infrastructure.api` 是需要显式评审的例外面，不是每个 owner API 的必备层。当前没有保留任何 adapter：所有 owner API 由 owner ApplicationService 直接实现。新增 adapter 必须说明独立转换或策略，并同步更新 `InfraBoundaryArchTest` 的 reviewed set；纯 delegate 不得进入该包。
 
 ## 跨域协作规则
 

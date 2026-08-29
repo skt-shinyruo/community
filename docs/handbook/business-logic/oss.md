@@ -137,5 +137,5 @@ S3-compatible 后端的整个 SDK API call timeout（包含 retry）由 `oss.obj
 - `oss.infrastructure.storage.LocalFilesystemObjectStore`
 - `oss.infrastructure.storage.S3CompatibleObjectStore`
 - `oss.infrastructure.job.ObjectUploadRecoveryJob`
-- `backend/community-oss-client/src/main/java/com/nowcoder/community/oss/client/CommunityOssClient.java`
+- `backend/community-oss-client/src/main/java/com/nowcoder/community/oss/client/HttpCommunityOssClient.java`
 - `user.infrastructure.oss.OssAvatarStorageAdapter`

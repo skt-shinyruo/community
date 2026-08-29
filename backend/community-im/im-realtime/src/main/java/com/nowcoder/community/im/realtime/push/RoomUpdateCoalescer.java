@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.realtime.push;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
@@ -25,7 +25,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
     private static final Logger log = LoggerFactory.getLogger(RoomUpdateCoalescer.class);
 
     private final ConnectionRegistry connectionRegistry;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final Duration flushInterval;
 
     private final ConcurrentLinkedQueue<String> pendingConnectionIds = new ConcurrentLinkedQueue<>();
@@ -33,7 +33,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
 
     public RoomUpdateCoalescer(
             ConnectionRegistry connectionRegistry,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             @Value("${im.ws.room-flush-interval-ms:50}") long flushIntervalMs
     ) {
         this.connectionRegistry = connectionRegistry;

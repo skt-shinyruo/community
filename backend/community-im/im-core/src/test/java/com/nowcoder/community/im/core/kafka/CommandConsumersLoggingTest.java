@@ -5,7 +5,6 @@ import ch.qos.logback.classic.Logger;
 import ch.qos.logback.classic.spi.ILoggingEvent;
 import ch.qos.logback.core.read.ListAppender;
 import com.nowcoder.community.common.logging.EventLogFields;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
@@ -276,13 +275,13 @@ class CommandConsumersLoggingTest {
         @SuppressWarnings("unchecked")
         KafkaTemplate<Object, Object> kafkaTemplate = mock(KafkaTemplate.class);
         when(kafkaTemplate.isTransactional()).thenReturn(false);
-        when(kafkaTemplate.partitionsFor(ImTopics.COMMAND_ROOM_TEXT + ".dlq"))
-                .thenReturn(List.of(new PartitionInfo(ImTopics.COMMAND_ROOM_TEXT + ".dlq", 0, null, null, null)));
+        when(kafkaTemplate.partitionsFor("im.command.room-text" + ".dlq"))
+                .thenReturn(List.of(new PartitionInfo("im.command.room-text" + ".dlq", 0, null, null, null)));
         when(kafkaTemplate.send(any(org.apache.kafka.clients.producer.ProducerRecord.class)))
                 .thenReturn(CompletableFuture.completedFuture(null));
 
         DefaultErrorHandler handler = new KafkaConfig().kafkaDefaultErrorHandler(kafkaTemplate);
-        ConsumerRecord<Object, Object> record = new ConsumerRecord<>(ImTopics.COMMAND_ROOM_TEXT, 0, 15L, "9001", "{\"clientMsgId\":\"c-bad\"}");
+        ConsumerRecord<Object, Object> record = new ConsumerRecord<>("im.command.room-text", 0, 15L, "9001", "{\"clientMsgId\":\"c-bad\"}");
 
         handler.handleOne(
                 new IllegalArgumentException("content required"),
@@ -302,8 +301,8 @@ class CommandConsumersLoggingTest {
                 .contains("community.error_class=java.lang.IllegalArgumentException")
                 .contains("community.error_message=content%20required");
         assertThat(output.getAll())
-                .contains("community.source_topic=" + ImTopics.COMMAND_ROOM_TEXT)
-                .contains("community.dlq_topic=" + ImTopics.COMMAND_ROOM_TEXT + ".dlq")
+                .contains("community.source_topic=" + "im.command.room-text")
+                .contains("community.dlq_topic=" + "im.command.room-text" + ".dlq")
                 .contains("community.kafka_partition=0")
                 .contains("community.kafka_offset=15")
                 .contains("community.reason_code=illegal_argument")

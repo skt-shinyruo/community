@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.infrastructure.event.JacksonContentContractEventCodec;
@@ -150,7 +149,7 @@ class PostScoreOutboxAtomicityIntegrationTest {
         ContentEventPublisher contentEventPublisher(JdbcTemplate jdbcTemplate) {
             return new OutboxContentEventPublisher(
                     new JacksonContentContractEventCodec(
-                            new JacksonJsonCodec(JsonMappers.standard())
+                            new JacksonJsonCodec(JacksonJsonCodec.standardMapper())
                     ),
                     new JdbcOutboxEventStore(jdbcTemplate),
                     "content.events",

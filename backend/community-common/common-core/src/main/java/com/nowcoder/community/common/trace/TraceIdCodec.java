@@ -4,16 +4,29 @@ import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
 import io.opentelemetry.api.trace.SpanId;
 import io.opentelemetry.api.trace.TraceFlags;
+import io.opentelemetry.api.trace.TraceState;
+import io.opentelemetry.api.trace.propagation.W3CTraceContextPropagator;
+import io.opentelemetry.context.Context;
+import io.opentelemetry.context.propagation.TextMapSetter;
 
+import java.util.HashMap;
 import java.util.Locale;
+import java.util.Map;
 import java.util.UUID;
 
 /**
  * traceId 编解码/规范化工具（契约侧纯工具类）：
- * - 负责 traceId 的生成、规范化、从 W3C traceparent 提取等纯逻辑
+ * - 负责 traceId 的生成、规范化、W3C traceparent 的提取与构造等纯逻辑
+ * - W3C traceparent 的解析与序列化全部委托给 OTel 的 {@link W3CTraceContextPropagator}
  * - 不引入 ThreadLocal/MDC/Spring Web 等运行期实现细节（避免 contracts 泄漏 runtime）
  */
 public final class TraceIdCodec {
+
+    private static final TextMapSetter<Map<String, String>> TRACEPARENT_SETTER = (carrier, key, value) -> {
+        if (carrier != null && key != null && value != null) {
+            carrier.put(key, value);
+        }
+    };
 
     private TraceIdCodec() {
     }
@@ -76,7 +89,7 @@ public final class TraceIdCodec {
     }
 
     /**
-     * 构造 W3C traceparent：00-traceid-spanid-01
+     * 构造 W3C traceparent，序列化由 OTel W3C propagator 完成。
      */
     public static String buildTraceparent(String traceId) {
         return buildTraceparent(traceId, null, "01");
@@ -91,8 +104,11 @@ public final class TraceIdCodec {
         if (s == null) {
             s = generateSpanId();
         }
-        String f = normalizeTraceFlags(flags);
-        return "00-" + t + "-" + s + "-" + f;
+        SpanContext context = SpanContext.create(t, s, normalizeTraceFlags(flags), TraceState.getDefault());
+        Map<String, String> carrier = new HashMap<>();
+        W3CTraceContextPropagator.getInstance()
+                .inject(Context.root().with(Span.wrap(context)), carrier, TRACEPARENT_SETTER);
+        return carrier.get(TraceHeaders.HEADER_TRACEPARENT);
     }
 
     private static String generateSpanId() {
@@ -112,18 +128,18 @@ public final class TraceIdCodec {
         )).getSpanContext();
     }
 
-    private static String normalizeTraceFlags(String flags) {
+    private static TraceFlags normalizeTraceFlags(String flags) {
         if (flags == null) {
-            return TraceFlags.getSampled().asHex();
+            return TraceFlags.getSampled();
         }
         String normalized = flags.trim().toLowerCase(Locale.ROOT);
         if (normalized.length() != TraceFlags.getLength()) {
-            return TraceFlags.getSampled().asHex();
+            return TraceFlags.getSampled();
         }
         try {
-            return TraceFlags.fromHex(normalized, 0).asHex();
+            return TraceFlags.fromHex(normalized, 0);
         } catch (IllegalArgumentException ignored) {
-            return TraceFlags.getSampled().asHex();
+            return TraceFlags.getSampled();
         }
     }
 }

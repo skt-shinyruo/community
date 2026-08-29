@@ -1,6 +1,5 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.SearchApplicationService.DeleteIndexedPostCommand;
 import com.nowcoder.community.search.application.SearchApplicationService.SearchPostsCommand;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
@@ -73,7 +72,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagProperties()
+                true
         );
         PostSearchQuery expectedQuery = new PostSearchQuery("spring", null, null, 0, 20);
         when(repository.search(expectedQuery)).thenReturn(List.of());
@@ -94,7 +93,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 properties,
-                new FeatureFlagProperties()
+                true
         );
         when(repository.search(new PostSearchQuery("spring", null, null, 0, 10)))
                 .thenThrow(new IllegalStateException("es unavailable"));
@@ -107,13 +106,11 @@ class SearchApplicationServiceTest {
     @Test
     void searchPostsShouldSkipRepositoryWhenNacosFeatureFlagDisablesSearch() {
         PostSearchRepository repository = mock(PostSearchRepository.class);
-        FeatureFlagProperties featureFlagProperties = new FeatureFlagProperties();
-        featureFlagProperties.getFeatures().put("search", false);
         SearchApplicationService service = new SearchApplicationService(
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                featureFlagProperties
+                false
         );
 
         var results = service.searchPosts(new SearchPostsCommand("spring", null, null, 0, 10));
@@ -224,7 +221,7 @@ class SearchApplicationServiceTest {
                 repository,
                 new PostSearchDomainService(),
                 new SearchPolicyProperties(),
-                new FeatureFlagProperties()
+                true
         );
     }
 }

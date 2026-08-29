@@ -45,19 +45,11 @@ onUnmounted(() => {
   justify-content: center;
   cursor: pointer;
   z-index: 100;
-  transition: all 0.2s;
+  /* transform/filter 走悬停动效；opacity 保留 0.3s 显隐节奏（作用域规则优先级高于全局 .fade-*） */
+  transition: transform 0.2s, filter 0.2s, opacity 0.3s;
 }
 .scroll-top:hover {
   transform: translateY(-2px);
   filter: brightness(1.1);
-}
-
-.fade-enter-active,
-.fade-leave-active {
-  transition: opacity 0.3s;
-}
-.fade-enter-from,
-.fade-leave-to {
-  opacity: 0;
 }
 </style>

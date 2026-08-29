@@ -5,7 +5,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.domain.repository.UserRepository;
-import com.nowcoder.community.user.infrastructure.audit.Slf4jUserAuditLogAdapter;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -27,6 +26,8 @@ import java.util.concurrent.atomic.AtomicInteger;
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
+import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.reset;
 
@@ -53,12 +54,9 @@ class UserModerationRoleChangeConcurrencyIntegrationTest {
     @MockitoSpyBean
     private UserRepository userRepository;
 
-    @MockitoSpyBean
-    private Slf4jUserAuditLogAdapter userAuditLogAdapter;
-
     @BeforeEach
     void setUp() {
-        reset(userRepository, userAuditLogAdapter);
+        reset(userRepository);
         jdbcTemplate.update("delete from outbox_event");
         deleteUser(ADMIN_ID);
         deleteUser(MODERATOR_ID);
@@ -72,7 +70,7 @@ class UserModerationRoleChangeConcurrencyIntegrationTest {
 
     @Test
     void moderationMustObserveRoleDowngradeCommittedUnderSharedLock() throws Exception {
-        CountDownLatch roleAuditEntered = new CountDownLatch(1);
+        CountDownLatch roleWriteEntered = new CountDownLatch(1);
         CountDownLatch releaseRoleChange = new CountDownLatch(1);
         CountDownLatch moderationLockAttempted = new CountDownLatch(1);
         AtomicInteger lockCalls = new AtomicInteger();
@@ -85,12 +83,12 @@ class UserModerationRoleChangeConcurrencyIntegrationTest {
         }).when(userRepository).lockRoleManagement();
         doAnswer(invocation -> {
             invocation.callRealMethod();
-            roleAuditEntered.countDown();
+            roleWriteEntered.countDown();
             if (!releaseRoleChange.await(10, TimeUnit.SECONDS)) {
                 throw new IllegalStateException("role change was not released");
             }
             return null;
-        }).when(userAuditLogAdapter).recordRoleUpdated(any(), any(), any(Integer.class), any(Integer.class), any());
+        }).when(userRepository).updateRole(any(), anyInt(), anyLong());
 
         ExecutorService executor = Executors.newFixedThreadPool(2);
         try {
@@ -103,7 +101,7 @@ class UserModerationRoleChangeConcurrencyIntegrationTest {
                             true
                     ))
             ));
-            assertThat(roleAuditEntered.await(10, TimeUnit.SECONDS)).isTrue();
+            assertThat(roleWriteEntered.await(10, TimeUnit.SECONDS)).isTrue();
 
             Future<Throwable> moderation = executor.submit(() -> attempt(() ->
                     userModerationApplicationService.applyModeration(new ApplyModerationCommand(

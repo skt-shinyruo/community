@@ -1,7 +1,7 @@
 package com.nowcoder.community.im.application;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
@@ -21,11 +21,11 @@ public class ImPolicyEventDispatchApplicationService {
     ) {
     }
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final ImPolicyIntegrationEventDispatcher dispatcher;
 
     public ImPolicyEventDispatchApplicationService(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             ImPolicyIntegrationEventDispatcher dispatcher
     ) {
         this.jsonCodec = jsonCodec;

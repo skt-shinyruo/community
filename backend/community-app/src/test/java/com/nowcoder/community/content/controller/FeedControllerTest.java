@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.content.application.FeedReadApplicationService;
@@ -60,7 +60,7 @@ class FeedControllerTest {
                 createTime,
                 "last reply"
         )), "cursor-2", "rank-v1");
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
 
         JsonNode json = objectMapper.valueToTree(page);
 

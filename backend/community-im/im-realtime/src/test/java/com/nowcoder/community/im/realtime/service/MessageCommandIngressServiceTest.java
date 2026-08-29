@@ -3,7 +3,6 @@ package com.nowcoder.community.im.realtime.service;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
 import com.nowcoder.community.im.realtime.presence.WsConnection;
@@ -107,6 +106,6 @@ class MessageCommandIngressServiceTest {
     }
 
     private static JacksonJsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

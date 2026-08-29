@@ -1,8 +1,8 @@
 package com.nowcoder.community.content.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort;
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort.RemoteReferenceStatus;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -41,7 +41,7 @@ class OssPostMediaReferenceQueryAdapterTest {
 
     @Test
     void activeAndReleasedOssStatesShouldMapWithoutLeakingClientModels() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         OssPostMediaReferenceQueryAdapter adapter = new OssPostMediaReferenceQueryAdapter(client);
         when(client.getObjectReference(OBJECT_ID, REFERENCE_ID))
                 .thenReturn(response("ACTIVE"), response("RELEASED"));
@@ -54,7 +54,7 @@ class OssPostMediaReferenceQueryAdapterTest {
 
     @Test
     void missingAndUnrecognizedOssStatesShouldRemainDistinct() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         OssPostMediaReferenceQueryAdapter adapter = new OssPostMediaReferenceQueryAdapter(client);
         when(client.getObjectReference(OBJECT_ID, REFERENCE_ID))
                 .thenReturn(null, response("CORRUPT"));

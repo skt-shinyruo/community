@@ -1,4 +1,4 @@
-const ROUTES = Object.freeze({
+export const ROUTES = Object.freeze({
   login: { workspace: 'Community', navGroup: 'auth' },
   register: { workspace: 'Community', navGroup: 'auth' },
   passwordReset: { workspace: 'Community', navGroup: 'auth' },
@@ -102,10 +102,6 @@ const BREADCRUMBS = Object.freeze({
 
 function routeEntry(routeName) {
   return ROUTES[String(routeName || '')] || null
-}
-
-export function getCatalogRouteNames() {
-  return Object.keys(ROUTES)
 }
 
 export function getRouteWorkspaceLabel(routeName) {

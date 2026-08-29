@@ -32,8 +32,4 @@ test('loadConfig applies CLI defaults and trims credentials', () => {
 test('loadConfig validates required credentials and numeric settings', () => {
   assert.throws(() => loadConfig({ ...required, MOCK_DATA_STUDIO_DB_URL: '' }), /DB_URL is required/u)
   assert.throws(() => loadConfig({ ...required, MOCK_DATA_DEFAULT_POSTS: '-1' }), /non-negative integer/u)
-  assert.throws(
-    () => loadConfig({ ...required, MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS: '0' }),
-    /positive integer/u
-  )
 })

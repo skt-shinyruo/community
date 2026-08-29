@@ -17,12 +17,3 @@ public interface DriveTransactionOperations {
         });
     }
 }
-
-enum DirectDriveTransactionOperations implements DriveTransactionOperations {
-    INSTANCE;
-
-    @Override
-    public <T> T requiresNew(Supplier<T> action) {
-        return action.get();
-    }
-}

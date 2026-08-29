@@ -31,8 +31,7 @@ describe('k6 load testing suite structure', () => {
     'scenarios/im-ws.js',
     'scenarios/soak.js',
     'scenarios/stress.js',
-    'scenarios/spike.js',
-    'scripts/run-k6.mjs'
+    'scenarios/spike.js'
   ]
 
   for (const relativePath of requiredFiles) {
@@ -47,7 +46,7 @@ describe('k6 load testing suite structure', () => {
     assert.equal(packageJson.type, 'module')
     assert.equal(packageJson.scripts.test, 'node --test tests/*.test.mjs')
     for (const profile of ['smoke', 'api-mix', 'hot-path', 'write-paths', 'im-ws', 'soak', 'stress', 'spike']) {
-      assert.equal(packageJson.scripts[profile], `node scripts/run-k6.mjs ${profile}`)
+      assert.equal(packageJson.scripts[profile], `./run.sh ${profile}`)
     }
   })
 

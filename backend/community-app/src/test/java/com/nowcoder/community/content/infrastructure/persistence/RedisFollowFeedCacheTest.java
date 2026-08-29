@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
@@ -32,7 +31,7 @@ class RedisFollowFeedCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
         ContentHotPathProperties properties = new ContentHotPathProperties();
         UUID viewerId = UUID.randomUUID();
@@ -56,7 +55,7 @@ class RedisFollowFeedCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID viewerId = UUID.fromString("00000000-0000-7000-8000-000000000001");
         UUID postId = UUID.randomUUID();
         String key = "post:feed:follow:" + viewerId + ":cursor:cursor-token:size:2";
@@ -76,7 +75,7 @@ class RedisFollowFeedCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID viewerId = UUID.randomUUID();
         UUID firstPostId = UUID.randomUUID();
         UUID secondPostId = UUID.randomUUID();
@@ -110,7 +109,7 @@ class RedisFollowFeedCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOperations = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID viewerId = UUID.randomUUID();
         AtomicInteger loads = new AtomicInteger();
 

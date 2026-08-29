@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.core.outbox;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaSender;
 import com.nowcoder.community.common.outbox.OutboxEvent;
@@ -14,13 +14,13 @@ public class ImKafkaOutboxHandler<T> implements OutboxHandler {
 
     private final String topic;
     private final Class<T> payloadType;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final KafkaTemplate<String, Object> kafkaTemplate;
 
     public ImKafkaOutboxHandler(
             String topic,
             Class<T> payloadType,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             KafkaTemplate<String, Object> kafkaTemplate
     ) {
         this.topic = topic;

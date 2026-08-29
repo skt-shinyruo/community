@@ -1,12 +1,12 @@
 package com.nowcoder.community.search.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.search.application.command.SyncPostProjectionCommand;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
 import com.nowcoder.community.search.domain.repository.PostSearchRepository;
 import com.nowcoder.community.search.domain.service.PostSearchDomainService;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Service;
 
 import java.time.Instant;
@@ -20,23 +20,23 @@ public class SearchApplicationService {
     private final PostSearchRepository postSearchRepository;
     private final PostSearchDomainService postSearchDomainService;
     private final SearchPolicyProperties searchPolicyProperties;
-    private final FeatureFlagProperties featureFlags;
+    private final boolean searchEnabled;
 
     public SearchApplicationService(
             PostSearchRepository postSearchRepository,
             PostSearchDomainService postSearchDomainService,
             SearchPolicyProperties searchPolicyProperties,
-            FeatureFlagProperties featureFlags
+            @Value("${community.features.search:true}") boolean searchEnabled
     ) {
         this.postSearchRepository = Objects.requireNonNull(postSearchRepository, "postSearchRepository must not be null");
         this.postSearchDomainService = Objects.requireNonNull(postSearchDomainService, "postSearchDomainService must not be null");
         this.searchPolicyProperties = Objects.requireNonNull(searchPolicyProperties, "searchPolicyProperties must not be null");
-        this.featureFlags = Objects.requireNonNull(featureFlags, "featureFlags must not be null");
+        this.searchEnabled = searchEnabled;
     }
 
     public List<SearchPostResult> searchPosts(SearchPostsCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        if (!Boolean.TRUE.equals(featureFlags.getFeatures().getOrDefault("search", true))) {
+        if (!searchEnabled) {
             return List.of();
         }
         PostSearchQuery query = postSearchDomainService.normalizeSearchQuery(

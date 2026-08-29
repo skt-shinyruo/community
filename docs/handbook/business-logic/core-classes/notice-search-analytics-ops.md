@@ -40,7 +40,6 @@
 | `analytics.application.AnalyticsIngestApplicationService` | 请求 / 登录成功采集写入。 |
 | `analytics.infrastructure.web.AnalyticsRequestCaptureFilter` | 请求完成后的 Servlet、IP 和 principal 观察值适配。 |
 | `analytics.infrastructure.event.AnalyticsRequestKafkaListener` | `analytics.request` 到 ingest application。 |
-| `analytics.infrastructure.api.AnalyticsIngestActionApiAdapter` | 登录成功采集的 action API 适配。 |
 | `analytics.infrastructure.persistence.RedisAnalyticsRepository` | Redis 统计存储。 |
 | `analytics.infrastructure.persistence.RedisAnalyticsUserOrdinalRepository` | DAU ordinal 映射存储。 |
 

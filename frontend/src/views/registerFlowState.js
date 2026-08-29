@@ -1,4 +1,5 @@
 import { backendErrorCode, backendErrorMessage } from '../api/backendError'
+import { safeJsonParse } from '../utils/safeJson'
 
 const STORAGE_KEY = 'community.register.pending'
 
@@ -57,17 +58,16 @@ export function restoreRegisterFlowState(storage = getStorage()) {
   if (!raw) {
     return buildRegisterFlowState()
   }
-  try {
-    const parsed = JSON.parse(raw)
-    const restored = buildRegisterFlowState(parsed)
-    if (Object.prototype.hasOwnProperty.call(parsed, 'debugEmailCode')) {
-      persistRegisterFlowState(restored, storage)
-    }
-    return { ...restored, debugEmailCode: '' }
-  } catch {
+  const parsed = safeJsonParse(raw)
+  if (parsed === null) {
     storage.removeItem(STORAGE_KEY)
     return buildRegisterFlowState()
   }
+  const restored = buildRegisterFlowState(parsed)
+  if (Object.prototype.hasOwnProperty.call(parsed, 'debugEmailCode')) {
+    persistRegisterFlowState(restored, storage)
+  }
+  return { ...restored, debugEmailCode: '' }
 }
 
 export function clearRegisterFlowState(storage = getStorage()) {

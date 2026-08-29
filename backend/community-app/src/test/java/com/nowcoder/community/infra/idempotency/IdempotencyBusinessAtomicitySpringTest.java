@@ -7,9 +7,7 @@ import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.JdbcIdempotencyStore;
 import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -85,7 +83,7 @@ class IdempotencyBusinessAtomicitySpringTest {
 
     @Test
     void serializationFailureShouldRollBackBusinessAndIdempotencyRows() {
-        JsonCodec failingCodec = mock(JsonCodec.class);
+        JacksonJsonCodec failingCodec = mock(JacksonJsonCodec.class);
         JsonCodecException failure = new JsonCodecException("serialization failed", new RuntimeException("boom"));
         when(failingCodec.toJson(any())).thenThrow(failure);
         IdempotencyGuard failingGuard = new IdempotencyGuard(
@@ -148,8 +146,8 @@ class IdempotencyBusinessAtomicitySpringTest {
         return jdbcTemplate.queryForObject("select count(*) from " + table, Integer.class);
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 
     @TestConfiguration(proxyBeanMethods = false)
@@ -182,12 +180,12 @@ class IdempotencyBusinessAtomicitySpringTest {
         }
 
         @Bean
-        JsonCodec jsonCodec() {
+        JacksonJsonCodec jsonCodec() {
             return IdempotencyBusinessAtomicitySpringTest.jsonCodec();
         }
 
         @Bean
-        IdempotencyGuard idempotencyGuard(JsonCodec jsonCodec, TransactionalIdempotencyStore store) {
+        IdempotencyGuard idempotencyGuard(JacksonJsonCodec jsonCodec, TransactionalIdempotencyStore store) {
             return new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
         }
 

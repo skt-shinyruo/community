@@ -1,8 +1,7 @@
 package com.nowcoder.community.oss.controller;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.common.exception.SimpleErrorCode;
+import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.oss.application.ObjectReferenceApplicationService;
 import com.nowcoder.community.oss.application.ObjectAccessApplicationService;
@@ -452,7 +451,7 @@ class InternalOssObjectControllerTest {
         UUID objectId = uuid(1);
         ObjectReferenceApplicationService referenceService = mock(ObjectReferenceApplicationService.class);
         when(referenceService.bindInternalReference(eq(SERVICE_SUBJECT), any())).thenThrow(new BusinessException(
-                new SimpleErrorCode(40901, "object reference semantic conflict", ErrorKind.CONFLICT)));
+                CommonErrorCode.CONFLICT, "object reference semantic conflict"));
         MockMvc mvc = MockMvcBuilders.standaloneSetup(controller(referenceService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
@@ -472,7 +471,7 @@ class InternalOssObjectControllerTest {
                                 }
                                 """))
                 .andExpect(status().isConflict())
-                .andExpect(jsonPath("$.code").value(40901))
+                .andExpect(jsonPath("$.code").value(409))
                 .andExpect(jsonPath("$.httpStatus").value(409));
     }
 

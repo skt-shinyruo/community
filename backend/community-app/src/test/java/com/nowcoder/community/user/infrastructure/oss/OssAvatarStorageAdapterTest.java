@@ -1,7 +1,7 @@
 package com.nowcoder.community.user.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssUploadSessionRequest;
 import com.nowcoder.community.oss.client.model.OssUploadSessionResponse;
@@ -45,7 +45,7 @@ class OssAvatarStorageAdapterTest {
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);
         UUID sessionId = uuid(3);
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.prepareUpload(any())).thenReturn(new OssUploadSessionResponse(
                 sessionId,
                 objectId,
@@ -94,7 +94,7 @@ class OssAvatarStorageAdapterTest {
         UUID userId = uuid(7);
         UUID objectId = uuid(1);
         UUID versionId = uuid(2);
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.getMetadata(objectId)).thenReturn(new OssMetadataResponse(
                 objectId,
                 versionId,
@@ -123,7 +123,7 @@ class OssAvatarStorageAdapterTest {
     void resolvePublicAvatarUrlShouldRejectForeignAvatarObject() {
         UUID userId = uuid(7);
         UUID objectId = uuid(1);
-        CommunityOssClient ossClient = mock(CommunityOssClient.class);
+        HttpCommunityOssClient ossClient = mock(HttpCommunityOssClient.class);
         when(ossClient.getMetadata(objectId)).thenReturn(new OssMetadataResponse(
                 objectId,
                 uuid(2),

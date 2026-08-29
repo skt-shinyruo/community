@@ -1,7 +1,7 @@
 package com.nowcoder.community.search.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.search.application.SearchApplicationService;
 import com.nowcoder.community.search.application.SearchApplicationService.SearchPostResult;
@@ -77,7 +77,7 @@ class SearchControllerTest {
         when(searchApplicationService.searchPosts(new SearchPostsCommand(null, null, null, null, null)))
                 .thenReturn(List.of(item));
 
-        JsonNode json = JsonMappers.standard().valueToTree(
+        JsonNode json = JacksonJsonCodec.standardMapper().valueToTree(
                 controller.searchPosts(null, null, null, null, null).getData().get(0)
         );
         List<String> fields = new ArrayList<>();

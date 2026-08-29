@@ -4,8 +4,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.domain.model.PostContentBlock;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostContentBlockDataObject;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.PostContentBlockMapper;
@@ -93,8 +91,8 @@ class PostContentBlockRepositoryJsonCodecTest {
                 mapper, jsonCodec(), new UuidV7Generator(), java.time.Clock.systemUTC());
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 
     private static PostContentBlockDataObject row(UUID postId, String metadataJson) {

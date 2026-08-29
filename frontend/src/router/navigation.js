@@ -1,14 +1,10 @@
 import { hasOpaqueId } from '../utils/opaqueId'
 import {
   getRouteAccess,
-  getRouteBreadcrumbItems,
-  getRouteFamilyNames,
-  getRouteWorkspaceLabel
+  getRouteFamilyNames
 } from './routeCatalog'
 
 // 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射。
-
-export { getRouteWorkspaceLabel }
 
 function normalizeRoles(roles) {
   return Array.isArray(roles) ? roles.filter(Boolean).map(String) : []
@@ -363,10 +359,4 @@ export function getMobileNavigation(ctx = {}) {
   }
 
   return [posts, search, notices, messages, me]
-}
-
-export function getBreadcrumbItems(route) {
-  const name = getRouteName(route)
-  const params = route?.params && typeof route.params === 'object' ? route.params : {}
-  return getRouteBreadcrumbItems(name, params)
 }

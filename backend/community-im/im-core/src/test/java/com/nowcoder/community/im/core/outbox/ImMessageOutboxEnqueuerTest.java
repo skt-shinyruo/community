@@ -3,9 +3,7 @@ package com.nowcoder.community.im.core.outbox;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.event.PrivateMessageRejectedEvent;
@@ -31,11 +29,11 @@ import static org.mockito.Mockito.when;
 
 class ImMessageOutboxEnqueuerTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
     private final JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
     private final ImMessageOutboxEnqueuer enqueuer = new ImMessageOutboxEnqueuer(
             store,
-            new JacksonJsonCodec(JsonMappers.standard()),
+            new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
             "im.event.private-persisted",
             "im.event.room-persisted",
             "im.event.private-committed",
@@ -162,7 +160,7 @@ class ImMessageOutboxEnqueuerTest {
     @Test
     void enqueueWrapsJsonCodecSerializationFailure() {
         UUID fromUserId = uuid(21);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         when(jsonCodec.toJson(any()))
                 .thenThrow(new JsonCodecException("serialize json failed", new IllegalArgumentException("bad payload")));
         ImMessageOutboxEnqueuer enqueuer = new ImMessageOutboxEnqueuer(

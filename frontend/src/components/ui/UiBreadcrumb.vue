@@ -12,10 +12,10 @@
 <script setup>
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
-import { getBreadcrumbItems } from '../../router/navigation'
+import { getRouteBreadcrumbItems } from '../../router/routeCatalog'
 
 const route = useRoute()
-const resolvedItems = computed(() => getBreadcrumbItems(route))
+const resolvedItems = computed(() => getRouteBreadcrumbItems(String(route?.name || ''), route?.params || {}))
 </script>
 
 <style scoped>

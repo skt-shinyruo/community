@@ -3,7 +3,6 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.idempotency.EffectiveIdempotencyKey;
 import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
 import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.application.result.MarketOrderResult;
@@ -98,7 +97,7 @@ public class MarketOrderApplicationService {
     @Transactional
     public MarketOrderResult createOrder(CreateOrderCommand command) {
         Objects.requireNonNull(command, "command must not be null");
-        EffectiveIdempotencyKey effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
         String requestHash = RequestFingerprint.sha256(
                 "market:create_order|listingId=" + command.listingId()
                         + "|quantity=" + command.quantity()
@@ -107,12 +106,12 @@ public class MarketOrderApplicationService {
         return idempotencyGuard.executeRequired(
                 "market:create_order",
                 command.buyerUserId(),
-                effective.value(),
+                effective,
                 requestHash,
                 MarketErrorCode.REQUEST_REPLAY_CONFLICT,
                 MarketOrderResult.class,
                 () -> createOrderInternal(
-                        effective.value(),
+                        effective,
                         command.buyerUserId(),
                         command.listingId(),
                         command.quantity(),

@@ -1,10 +1,11 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.port.UserAuditLogPort;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
@@ -21,20 +22,19 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_AR
 @Service
 public class AdminUserApplicationService {
 
+    private static final Logger log = LoggerFactory.getLogger(AdminUserApplicationService.class);
+
     private final UserRepository userRepository;
     private final UserRoleDomainService userRoleDomainService;
-    private final UserAuditLogPort userAuditLogPort;
     private final Clock clock;
 
     public AdminUserApplicationService(
             UserRepository userRepository,
             UserRoleDomainService userRoleDomainService,
-            UserAuditLogPort userAuditLogPort,
             Clock clock
     ) {
         this.userRepository = Objects.requireNonNull(userRepository, "userRepository must not be null");
         this.userRoleDomainService = Objects.requireNonNull(userRoleDomainService, "userRoleDomainService must not be null");
-        this.userAuditLogPort = Objects.requireNonNull(userAuditLogPort, "userAuditLogPort must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
@@ -78,7 +78,8 @@ public class AdminUserApplicationService {
 
         long securityVersion = userRepository.nextUserSecurityVersion(command.targetUserId());
         userRepository.updateRole(command.targetUserId(), toType, securityVersion);
-        userAuditLogPort.recordRoleUpdated(command.actorUserId(), command.targetUserId(), fromType, toType, reason);
+        log.info("[audit] action=admin_user_role_update actorUserId={} targetUserId={} fromType={} toType={} reason={}",
+                command.actorUserId(), command.targetUserId(), fromType, toType, reason);
     }
 
     private Optional<UserAccount> resolveSearchTarget(UUID userId, String username, String email) {

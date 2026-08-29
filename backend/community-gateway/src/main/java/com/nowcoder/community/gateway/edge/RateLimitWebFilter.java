@@ -25,10 +25,10 @@ public class RateLimitWebFilter implements WebFilter, Ordered {
     public static final int ORDER = SECURITY_WEB_FILTER_CHAIN_ORDER + 1;
 
     private final RateLimitProperties properties;
-    private final RateLimiter limiter;
+    private final RedisRateLimiter limiter;
     private volatile PolicyPatternSnapshot policyPatternSnapshot;
 
-    public RateLimitWebFilter(RateLimitProperties properties, RateLimiter limiter) {
+    public RateLimitWebFilter(RateLimitProperties properties, RedisRateLimiter limiter) {
         this.properties = properties;
         this.limiter = limiter;
         List<String> policyKeys = currentPolicyKeys(properties);

@@ -1,8 +1,8 @@
 package com.nowcoder.community.user.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.application.AdminUserApplicationService;
 import com.nowcoder.community.user.controller.dto.AvatarUploadSessionRequest;
@@ -26,7 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 class UserControllerDtoContractTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
     private final Validator validator = Validation.buildDefaultValidatorFactory().getValidator();
 
     @Test

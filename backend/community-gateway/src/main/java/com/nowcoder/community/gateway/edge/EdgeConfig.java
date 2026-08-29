@@ -15,12 +15,12 @@ import org.springframework.data.redis.core.StringRedisTemplate;
 public class EdgeConfig {
 
     @Bean
-    RateLimiter edgeRedisRateLimiter(StringRedisTemplate redisTemplate) {
+    RedisRateLimiter edgeRedisRateLimiter(StringRedisTemplate redisTemplate) {
         return new RedisRateLimiter(redisTemplate);
     }
 
     @Bean
-    RateLimitWebFilter rateLimitWebFilter(RateLimitProperties properties, RateLimiter limiter) {
+    RateLimitWebFilter rateLimitWebFilter(RateLimitProperties properties, RedisRateLimiter limiter) {
         return new RateLimitWebFilter(properties, limiter);
     }
 

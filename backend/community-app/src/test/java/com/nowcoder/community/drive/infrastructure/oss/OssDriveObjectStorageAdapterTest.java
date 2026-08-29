@@ -1,9 +1,9 @@
 package com.nowcoder.community.drive.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
@@ -43,8 +43,8 @@ class OssDriveObjectStorageAdapterTest {
     }
 
     @Test
-    void adapterShouldMapDrivePortToCommunityOssClient() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+    void adapterShouldMapDrivePortToHttpCommunityOssClient() {
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         UUID sessionId = uuid(1);
         UUID objectId = uuid(2);
         UUID versionId = uuid(3);
@@ -141,7 +141,7 @@ class OssDriveObjectStorageAdapterTest {
 
     @Test
     void adapterShouldMapSignedDownloadAndDeleteCalls() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         UUID objectId = uuid(2);
         UUID versionId = uuid(3);
         Instant expiresAt = Instant.parse("2026-05-09T00:10:00Z");
@@ -174,7 +174,7 @@ class OssDriveObjectStorageAdapterTest {
 
     @Test
     void adapterShouldRejectCancellationFlagsThatContradictTheStatus() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         UUID sessionId = uuid(11);
         UUID objectId = uuid(12);
         UUID versionId = uuid(13);
@@ -225,7 +225,7 @@ class OssDriveObjectStorageAdapterTest {
     }
 
     private void assertDeleteRejected(UUID objectId, OssLifecycleResponse response) {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         when(client.deleteObject(objectId, "7")).thenReturn(response);
         OssDriveObjectStorageAdapter adapter = new OssDriveObjectStorageAdapter(client);
 

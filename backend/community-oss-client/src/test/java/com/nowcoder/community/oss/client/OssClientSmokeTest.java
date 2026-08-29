@@ -8,6 +8,6 @@ class OssClientSmokeTest {
 
     @Test
     void clientTypesCompile() {
-        assertThat(CommunityOssClient.class).isNotNull();
+        assertThat(HttpCommunityOssClient.class).isNotNull();
     }
 }

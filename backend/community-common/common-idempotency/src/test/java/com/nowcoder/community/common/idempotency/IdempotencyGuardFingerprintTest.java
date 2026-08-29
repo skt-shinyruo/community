@@ -2,10 +2,9 @@ package com.nowcoder.community.common.idempotency;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.common.exception.SimpleErrorCode;
+import com.nowcoder.community.common.exception.ErrorKind;
+import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.NullAndEmptySource;
@@ -44,7 +43,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-1",
-                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
+                new TestErrorCode(17007, "replay conflict"),
                 String.class,
                 () -> {
                     supplierCalls.incrementAndGet();
@@ -64,7 +63,7 @@ class IdempotencyGuardFingerprintTest {
         when(store.get("wallet:recharge", USER_ID, "idem-1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-old"));
         IdempotencyGuard guard = guard(store);
-        SimpleErrorCode conflictCode = new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT);
+        TestErrorCode conflictCode = new TestErrorCode(17007, "replay conflict");
         AtomicInteger supplierCalls = new AtomicInteger();
 
         assertThatThrownBy(() -> guard.executeRequired(
@@ -100,7 +99,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-1",
-                new SimpleErrorCode(18001, "replay conflict", ErrorKind.CONFLICT),
+                new TestErrorCode(18001, "replay conflict"),
                 String.class,
                 () -> "NEW"
         ))
@@ -124,7 +123,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "hash-1",
-                new SimpleErrorCode(18001, "replay conflict", ErrorKind.CONFLICT),
+                new TestErrorCode(18001, "replay conflict"),
                 String.class,
                 () -> "NEW"
         ))
@@ -174,7 +173,7 @@ class IdempotencyGuardFingerprintTest {
                 .thenReturn(false);
         when(store.get("wallet:recharge", USER_ID, "idem-1"))
                 .thenReturn(new IdempotencyStore.Entry(IdempotencyStore.Status.SUCCESS, "\"OK\"", "hash-1"));
-        JsonCodec codec = mock(JsonCodec.class);
+        JacksonJsonCodec codec = mock(JacksonJsonCodec.class);
         when(codec.fromJson(anyString(), eq(String.class)))
                 .thenThrow(new IllegalArgumentException("codec exploded"));
         IdempotencyGuard guard = guard(codec, store);
@@ -235,7 +234,7 @@ class IdempotencyGuardFingerprintTest {
                 USER_ID,
                 "idem-1",
                 "h".repeat(65),
-                new SimpleErrorCode(17007, "replay conflict", ErrorKind.CONFLICT),
+                new TestErrorCode(17007, "replay conflict"),
                 String.class,
                 () -> "NEW"
         ))
@@ -257,11 +256,30 @@ class IdempotencyGuardFingerprintTest {
         return guard(jsonCodec(), store);
     }
 
-    private static IdempotencyGuard guard(JsonCodec jsonCodec, IdempotencyStore store) {
+    private static IdempotencyGuard guard(JacksonJsonCodec jsonCodec, IdempotencyStore store) {
         return new IdempotencyGuard(jsonCodec, store, null, new IdempotencyProperties());
     }
 
-    private static JsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JsonMappers.standard());
+    private static JacksonJsonCodec jsonCodec() {
+        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
+
+    private record TestErrorCode(int code, String message) implements ErrorCode {
+
+        @Override
+        public int getCode() {
+            return code;
+        }
+
+        @Override
+        public String getMessage() {
+            return message;
+        }
+
+        @Override
+        public ErrorKind getKind() {
+            return ErrorKind.CONFLICT;
+        }
+    }
+
 }

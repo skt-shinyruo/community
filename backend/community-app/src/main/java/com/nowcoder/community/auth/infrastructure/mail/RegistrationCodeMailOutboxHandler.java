@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.mail;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.auth.application.RegistrationCodeMailDeliveryApplicationService;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxHandler;
@@ -15,11 +15,11 @@ public class RegistrationCodeMailOutboxHandler implements OutboxHandler {
 
     public static final String TOPIC = "auth.registration-code-mail";
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final RegistrationCodeMailDeliveryApplicationService deliveryApplicationService;
 
     public RegistrationCodeMailOutboxHandler(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             RegistrationCodeMailDeliveryApplicationService deliveryApplicationService
     ) {
         this.jsonCodec = jsonCodec;

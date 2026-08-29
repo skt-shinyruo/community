@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
@@ -39,7 +38,7 @@ class RedisCommentPageCacheTest {
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         @SuppressWarnings("unchecked")
         SetOperations<String, String> setOps = mock(SetOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         CacheTtlPolicy ttlPolicy = mock(CacheTtlPolicy.class);
         ContentHotPathProperties properties = new ContentHotPathProperties();
         UUID postId = uuid(100);
@@ -63,7 +62,7 @@ class RedisCommentPageCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID postId = uuid(100);
         CommentPageResult cached = new CommentPageResult(List.of(commentResult(postId)), "next");
 
@@ -87,7 +86,7 @@ class RedisCommentPageCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID postId = uuid(100);
         CommentPageResult legacy = new CommentPageResult(List.of(commentResult(postId)), "legacy-page-cursor");
 
@@ -108,7 +107,7 @@ class RedisCommentPageCacheTest {
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
         @SuppressWarnings("unchecked")
         SetOperations<String, String> setOps = mock(SetOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID postId = uuid(100);
         CommentPageResult page = new CommentPageResult(List.of(commentResult(postId)), "next");
 
@@ -129,7 +128,7 @@ class RedisCommentPageCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         ValueOperations<String, String> valueOps = mock(ValueOperations.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         UUID postId = uuid(100);
 
         when(redisTemplate.opsForValue()).thenReturn(valueOps);
@@ -148,7 +147,7 @@ class RedisCommentPageCacheTest {
         StringRedisTemplate redisTemplate = mock(StringRedisTemplate.class);
         @SuppressWarnings("unchecked")
         SetOperations<String, String> setOps = mock(SetOperations.class);
-        JsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(new ObjectMapper());
         UUID postId = uuid(100);
         String sizeTenKey = pageKey(postId, 10);
         String sizeTwentyKey = pageKey(postId, 20);

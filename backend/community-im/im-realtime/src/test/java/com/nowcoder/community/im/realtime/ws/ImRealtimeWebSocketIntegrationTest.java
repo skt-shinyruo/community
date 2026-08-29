@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.ImContractVersions;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
@@ -76,8 +75,8 @@ import static org.assertj.core.api.Assertions.assertThat;
 @EmbeddedKafka(
         partitions = 1,
         topics = {
-                ImTopics.COMMAND_PRIVATE_TEXT,
-                ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED
+                "im.command.private-text",
+                "im.event.user-messaging-policy-changed"
         }
 )
 @TestPropertySource(properties = {
@@ -177,7 +176,7 @@ class ImRealtimeWebSocketIntegrationTest {
         projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
 
         commandConsumer = newCommandStringConsumer("im-realtime-ws-it");
-        commandConsumer.subscribe(List.of(ImTopics.COMMAND_PRIVATE_TEXT));
+        commandConsumer.subscribe(List.of("im.command.private-text"));
         commandConsumer.poll(Duration.ofMillis(200));
 
         OpenSessionData sessionData = newSession(senderUserId, WORKER_ID);
@@ -207,17 +206,17 @@ class ImRealtimeWebSocketIntegrationTest {
             assertThat(ackFrame.path("requestId").asText("")).isNotBlank();
 
             ConsumerRecord<String, String> commandRecord =
-                    pollForSingleRecord(commandConsumer, ImTopics.COMMAND_PRIVATE_TEXT, Duration.ofSeconds(10));
+                    pollForSingleRecord(commandConsumer, "im.command.private-text", Duration.ofSeconds(10));
             JsonNode command = objectMapper.readTree(commandRecord.value());
             assertThat(command.path("fromUserId").asText("")).isEqualTo(senderUserId.toString());
             assertThat(command.path("toUserId").asText("")).isEqualTo(allowedRecipientId.toString());
             assertThat(command.path("content").asText("")).isEqualTo("hi");
             assertThat(command.path("clientMsgId").asText("")).isEqualTo("c-allow");
 
-            awaitRealtimeEventAssignments(Set.of(ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED), Duration.ofSeconds(8));
+            awaitRealtimeEventAssignments(Set.of("im.event.user-messaging-policy-changed"), Duration.ofSeconds(8));
 
             kafkaTemplate.send(
-                    ImTopics.EVENT_USER_MESSAGING_POLICY_CHANGED,
+                    "im.event.user-messaging-policy-changed",
                     deniedRecipientId.toString(),
                     new UserMessagingPolicyChanged(
                             "evt-policy-deny",

@@ -7,58 +7,16 @@ if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
   exit 1
 fi
 
-env_file="$1"
+ENV_FILE="$1"
 output_dir="${2:-backend/env/generated}"
 
-if [ ! -f "${env_file}" ]; then
-  echo "[render-backend-env] env file not found: ${env_file}" >&2
+if [ ! -f "${ENV_FILE}" ]; then
+  echo "[render-backend-env] env file not found: ${ENV_FILE}" >&2
   exit 1
 fi
 
-read_dotenv_value() {
-  local variable="$1"
-  awk -v variable="${variable}" '
-    /^[[:space:]]*(#|$)/ { next }
-    {
-      line = $0
-      sub(/\r$/, "", line)
-      prefix = "^[[:space:]]*(export[[:space:]]+)?" variable "[[:space:]]*="
-      if (line ~ prefix) {
-        sub(prefix, "", line)
-        sub(/^[[:space:]]+/, "", line)
-        sub(/[[:space:]]+$/, "", line)
-        if (length(line) >= 2) {
-          first = substr(line, 1, 1)
-          last = substr(line, length(line), 1)
-          if ((first == "\"" && last == "\"") || (first == "\047" && last == "\047")) {
-            line = substr(line, 2, length(line) - 2)
-          }
-        }
-        value = line
-        found = 1
-      }
-    }
-    END {
-      if (!found) exit 1
-      print value
-    }
-  ' "${env_file}"
-}
-
-resolve_process_env_then_dotenv_then_fallback() {
-  local variable="$1"
-  local fallback="${2:-}"
-  local resolved
-
-  if [[ -v "${variable}" ]]; then
-    resolved="${!variable}"
-  elif resolved="$(read_dotenv_value "${variable}")"; then
-    :
-  else
-    resolved="${fallback}"
-  fi
-  printf '%s' "${resolved}"
-}
+SCRIPT_DIR="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
+. "${SCRIPT_DIR}/lib/dotenv.sh"
 
 require_process_env_then_dotenv_value() {
   local variable="$1"

@@ -1,5 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.application.PostHotFeedProjectionApplicationService.ProjectPostHotFeedCommand;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -40,7 +43,7 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
     private PostContentRepository postContentRepository;
 
     @Autowired
-    private LikeQueryPort likeQueryPort;
+    private SocialLikeQueryApi likeQueryPort;
 
     @Autowired
     private PostFeedCache postFeedCache;
@@ -67,7 +70,7 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
             assertOutsideTransaction();
             return post;
         });
-        when(likeQueryPort.countPostLikes(postId)).thenAnswer(ignored -> {
+        when(likeQueryPort.count(EntityTypes.POST, postId)).thenAnswer(ignored -> {
             assertOutsideTransaction();
             return 9L;
         });
@@ -170,8 +173,8 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         }
 
         @Bean
-        LikeQueryPort likeQueryPort() {
-            return mock(LikeQueryPort.class);
+        SocialLikeQueryApi likeQueryPort() {
+            return mock(SocialLikeQueryApi.class);
         }
 
         @Bean
@@ -244,10 +247,13 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         }
 
         @Bean
-        HotFeedProjectionCompletion hotFeedProjectionCompletion() {
-            return (committedAction, rolledBackAction) -> {
-                assertOutsideTransaction();
-                committedAction.run();
+        TransactionCompletion hotFeedProjectionCompletion() {
+            return new TransactionCompletion() {
+                @Override
+                public void afterCommit(Runnable committedAction) {
+                    assertOutsideTransaction();
+                    committedAction.run();
+                }
             };
         }
 
@@ -262,7 +268,7 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
         @Bean
         PostHotFeedProjectionApplicationService postHotFeedProjectionApplicationService(
                 PostContentRepository postContentRepository,
-                LikeQueryPort likeQueryPort,
+                SocialLikeQueryApi likeQueryPort,
                 PostFeedCache postFeedCache,
                 PostSummaryCache postSummaryCache,
                 PostDetailCache postDetailCache,
@@ -271,7 +277,7 @@ class PostHotFeedProjectionTransactionBoundaryIntegrationTest {
                 ContentFeedPolicyProperties policyProperties,
                 HotFeedProjectionGuard projectionGuard,
                 PostHotFeedProjectionTransactionOperations transactionOperations,
-                HotFeedProjectionCompletion projectionCompletion
+                TransactionCompletion projectionCompletion
         ) {
             return new PostHotFeedProjectionApplicationService(
                     postContentRepository,

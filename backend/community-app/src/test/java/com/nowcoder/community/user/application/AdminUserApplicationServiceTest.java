@@ -1,7 +1,6 @@
 package com.nowcoder.community.user.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.user.application.port.UserAuditLogPort;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.UserRoleDomainService;
@@ -39,9 +38,6 @@ class AdminUserApplicationServiceTest {
     @Mock
     private UserRepository userRepository;
 
-    @Mock
-    private UserAuditLogPort userAuditLogPort;
-
     @Test
     void searchShouldRejectWhenNoSelectorProvided() {
         AdminUserApplicationService service = service();
@@ -51,7 +47,7 @@ class AdminUserApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class)
                 .hasMessage("请提供 userId/username/email 之一");
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(INVALID_ARGUMENT);
-        verifyNoInteractions(userRepository, userAuditLogPort);
+        verifyNoInteractions(userRepository);
     }
 
     @Test
@@ -101,7 +97,6 @@ class AdminUserApplicationServiceTest {
         verify(userRepository).findByIdForUpdate(ACTOR_ID);
         verify(userRepository).findByIdForUpdate(TARGET_ID);
         verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
-        verifyNoInteractions(userAuditLogPort);
     }
 
     @Test
@@ -123,7 +118,6 @@ class AdminUserApplicationServiceTest {
         service.updateRole(command);
 
         verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
-        verifyNoInteractions(userAuditLogPort);
     }
 
     @Test
@@ -136,13 +130,12 @@ class AdminUserApplicationServiceTest {
 
         service.updateRole(command);
 
-        InOrder inOrder = inOrder(userRepository, userAuditLogPort);
+        InOrder inOrder = inOrder(userRepository);
         inOrder.verify(userRepository).lockRoleManagement();
         inOrder.verify(userRepository).findByIdForUpdate(ACTOR_ID);
         inOrder.verify(userRepository).findByIdForUpdate(TARGET_ID);
         inOrder.verify(userRepository).nextUserSecurityVersion(TARGET_ID);
         inOrder.verify(userRepository).updateRole(TARGET_ID, 2, 123L);
-        inOrder.verify(userAuditLogPort).recordRoleUpdated(ACTOR_ID, TARGET_ID, 1, 2, "delegate moderation");
     }
 
     @Test
@@ -162,14 +155,12 @@ class AdminUserApplicationServiceTest {
         inOrder.verify(userRepository).findByIdForUpdate(ACTOR_ID);
         verify(userRepository, never()).findByIdForUpdate(TARGET_ID);
         verify(userRepository, never()).updateRole(any(), anyInt(), anyLong());
-        verifyNoInteractions(userAuditLogPort);
     }
 
     private AdminUserApplicationService service() {
         return new AdminUserApplicationService(
                 userRepository,
                 new UserRoleDomainService(),
-                userAuditLogPort,
                 Clock.systemUTC()
         );
     }

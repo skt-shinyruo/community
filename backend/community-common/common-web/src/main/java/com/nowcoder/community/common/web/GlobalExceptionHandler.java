@@ -1,5 +1,6 @@
 package com.nowcoder.community.common.web;
 
+import com.nowcoder.community.common.exception.ErrorKindHttpStatusMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.web.Result;

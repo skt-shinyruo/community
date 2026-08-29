@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.core.outbox;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.im.common.event.ImEventIds;
@@ -20,7 +20,7 @@ import org.springframework.util.StringUtils;
 public class ImMessageOutboxEnqueuer {
 
     private final JdbcOutboxEventStore store;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final String privatePersistedTopic;
     private final String roomPersistedTopic;
     private final String privateCommittedTopic;
@@ -31,7 +31,7 @@ public class ImMessageOutboxEnqueuer {
 
     public ImMessageOutboxEnqueuer(
             JdbcOutboxEventStore store,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             @Value("${im.kafka.topics.event-private-persisted:im.event.private-persisted}") String privatePersistedTopic,
             @Value("${im.kafka.topics.event-room-persisted:im.event.room-persisted}") String roomPersistedTopic,
             @Value("${im.kafka.topics.event-private-committed:im.event.private-committed}") String privateCommittedTopic,

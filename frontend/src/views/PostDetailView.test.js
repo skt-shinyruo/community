@@ -66,10 +66,6 @@ vi.mock('../utils/readTracker', () => ({
   markPostRead: vi.fn()
 }))
 
-vi.mock('../utils/scrollToAnchor', () => ({
-  scrollToAnchor: vi.fn().mockReturnValue(false)
-}))
-
 import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
 import { getFollowStatus, setLike } from '../api/services/socialService'
 import { markPostRead } from '../utils/readTracker'

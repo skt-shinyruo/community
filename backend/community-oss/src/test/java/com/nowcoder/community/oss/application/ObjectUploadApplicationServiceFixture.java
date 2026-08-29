@@ -1,6 +1,5 @@
 package com.nowcoder.community.oss.application;
 
-import com.nowcoder.community.common.spring.feature.FeatureFlagProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyDecisions;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
 import com.nowcoder.community.oss.application.port.ObjectStorageSettings;
@@ -38,7 +37,7 @@ final class ObjectUploadApplicationServiceFixture {
         private Clock clock = Clock.systemUTC();
         private UploadPolicyDecisions uploadPolicyDecisions =
                 new UploadPolicyDecisions(new UploadPolicyProperties());
-        private FeatureFlagProperties featureFlags = new FeatureFlagProperties();
+        private boolean fileUploadEnabled = true;
 
         private Builder(
                 OssObjectRepository objectRepository,
@@ -77,8 +76,8 @@ final class ObjectUploadApplicationServiceFixture {
             return this;
         }
 
-        Builder featureFlags(FeatureFlagProperties featureFlags) {
-            this.featureFlags = featureFlags;
+        Builder featureFlags(boolean fileUploadEnabled) {
+            this.fileUploadEnabled = fileUploadEnabled;
             return this;
         }
 
@@ -93,7 +92,7 @@ final class ObjectUploadApplicationServiceFixture {
                     settings,
                     clock,
                     uploadPolicyDecisions,
-                    featureFlags,
+                    fileUploadEnabled,
                     new ObjectUploadTransactionOperations(
                             objectRepository, versionRepository, uploadSessionRepository)
             );

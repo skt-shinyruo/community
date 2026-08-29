@@ -1,6 +1,6 @@
 package com.nowcoder.community.notice.application;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.notice.application.NoticeApplicationService.CreateNoticeCommand;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
@@ -23,14 +23,14 @@ public class NoticeProjectionApplicationService {
 
     private static final int COMMENT_PREVIEW_CODE_POINT_LIMIT = 240;
 
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
     private final NoticePolicyProperties noticePolicyProperties;
     private final Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder;
     private final Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository;
 
     public NoticeProjectionApplicationService(
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties,
             Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder,

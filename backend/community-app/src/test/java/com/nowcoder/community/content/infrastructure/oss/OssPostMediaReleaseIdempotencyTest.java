@@ -1,12 +1,12 @@
 package com.nowcoder.community.content.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
 import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostVideoState;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import org.junit.jupiter.api.Test;
 
@@ -28,7 +28,7 @@ class OssPostMediaReleaseIdempotencyTest {
 
     @Test
     void releaseShouldTreatMissingRemoteReferenceAsAlreadyReleased() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         when(client.getObjectReference(OBJECT_ID, REFERENCE_ID)).thenReturn(null);
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(client);
 
@@ -39,7 +39,7 @@ class OssPostMediaReleaseIdempotencyTest {
 
     @Test
     void releaseShouldDeleteAnActiveRemoteReference() {
-        CommunityOssClient client = mock(CommunityOssClient.class);
+        HttpCommunityOssClient client = mock(HttpCommunityOssClient.class);
         when(client.getObjectReference(OBJECT_ID, REFERENCE_ID)).thenReturn(activeReference());
         OssPostMediaStorageAdapter adapter = new OssPostMediaStorageAdapter(client);
 

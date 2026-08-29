@@ -2,8 +2,6 @@ package com.nowcoder.community.social.infrastructure.event;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
 import com.nowcoder.community.content.contracts.event.ContentContractEventCodec;
@@ -32,7 +30,7 @@ class SocialContentDeletionKafkaListenerTest {
 
     private static final Instant DELETED_AT = Instant.parse("2026-07-15T08:30:00Z");
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final ContentContractEventCodec contractEventCodec = new JacksonContentContractEventCodec(jsonCodec);
 
     @Test

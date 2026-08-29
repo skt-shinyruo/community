@@ -1,8 +1,6 @@
 package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
 import com.nowcoder.community.common.outbox.OutboxHandler;
@@ -29,7 +27,7 @@ class PostMediaReferenceOutboxHandlerTest {
 
     @Test
     void handlerShouldDecodeTheCommandAndEnterOnlyTheSameDomainApplicationService() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         PostMediaReferenceApplicationService applicationService = mock(PostMediaReferenceApplicationService.class);
         PostMediaReferenceOutboxHandler handler = new PostMediaReferenceOutboxHandler(
                 jsonCodec,
@@ -68,7 +66,7 @@ class PostMediaReferenceOutboxHandlerTest {
                 .containsExactly(OutboxHandler.class);
         assertThat(Arrays.stream(PostMediaReferenceOutboxHandler.class.getDeclaredFields())
                 .map(Field::getType))
-                .contains(PostMediaReferenceApplicationService.class, JsonCodec.class)
+                .contains(PostMediaReferenceApplicationService.class, JacksonJsonCodec.class)
                 .doesNotContain(PostMediaAssetRepository.class, PostMediaStoragePort.class);
     }
 }

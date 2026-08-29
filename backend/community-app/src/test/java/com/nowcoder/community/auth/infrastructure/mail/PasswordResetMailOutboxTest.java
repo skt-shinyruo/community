@@ -5,8 +5,6 @@ import com.nowcoder.community.auth.application.PasswordResetTokenDeriver;
 import com.nowcoder.community.auth.application.port.MailPort;
 import com.nowcoder.community.auth.config.PasswordResetProperties;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
@@ -38,13 +36,13 @@ import static org.mockito.Mockito.when;
 
 class PasswordResetMailOutboxTest {
 
-    private JsonCodec jsonCodec;
+    private JacksonJsonCodec jsonCodec;
     private PasswordResetProperties properties;
     private PasswordResetTokenDeriver tokenDeriver;
 
     @BeforeEach
     void setUp() {
-        jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         properties = new PasswordResetProperties();
         properties.setResetBaseUrl("https://community.example");
         properties.setIdentifierHmacSecret("test-password-reset-hmac-secret");

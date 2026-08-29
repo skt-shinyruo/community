@@ -2,9 +2,7 @@ package com.nowcoder.community.oss.client;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
@@ -39,9 +37,9 @@ import static com.nowcoder.community.oss.client.OssClientException.Category.NOT_
 import static com.nowcoder.community.oss.client.OssClientException.Category.TIMEOUT;
 import static com.nowcoder.community.oss.client.OssClientException.Category.TRANSIENT;
 
-public class HttpCommunityOssClient implements CommunityOssClient {
+public class HttpCommunityOssClient {
 
-    private static final JsonCodec JSON = new JacksonJsonCodec(JsonMappers.standard());
+    private static final JacksonJsonCodec JSON = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
 
     private final RestClient publicRestClient;
     private final RestClient internalRestClient;
@@ -72,7 +70,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         );
     }
 
-    @Override
     public OssUploadSessionResponse prepareUpload(OssUploadSessionRequest request) {
         return execute(() -> internalRestClient.post()
                 .uri("/internal/oss/upload-sessions")
@@ -81,7 +78,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssUploadSessionResponse.class);
     }
 
-    @Override
     public OssUploadCancellationResponse cancelUpload(UUID sessionId, UUID objectId, UUID versionId) {
         return execute(() -> internalRestClient.post()
                 .uri(builder -> builder
@@ -93,7 +89,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssUploadCancellationResponse.class);
     }
 
-    @Override
     public OssMetadataResponse completeProxyUpload(OssCompleteUploadRequest request) {
         return execute(() -> {
             MultiValueMap<String, Object> body = new LinkedMultiValueMap<>();
@@ -114,7 +109,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         }, OssMetadataResponse.class);
     }
 
-    @Override
     public OssMetadataResponse getMetadata(UUID objectId) {
         return execute(() -> internalRestClient.get()
                 .uri("/internal/oss/objects/{objectId}", objectId)
@@ -122,7 +116,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssMetadataResponse.class);
     }
 
-    @Override
     public OssPublicFileResponse loadPublicFile(String fileKey) {
         try {
             ResponseEntity<byte[]> response = publicRestClient.get()
@@ -155,7 +148,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
         }
     }
 
-    @Override
     public OssSignedUrlResponse createSignedDownloadUrl(UUID objectId, long ttlSeconds) {
         return execute(() -> internalRestClient.get()
                 .uri(builder -> builder
@@ -166,7 +158,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssSignedUrlResponse.class);
     }
 
-    @Override
     public OssReferenceResponse bindObjectReference(UUID objectId, OssBindReferenceRequest request) {
         return execute(() -> internalRestClient.post()
                 .uri("/internal/oss/objects/{objectId}/references", objectId)
@@ -175,7 +166,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssReferenceResponse.class);
     }
 
-    @Override
     public OssReferenceResponse getObjectReference(UUID objectId, UUID referenceId) {
         return execute(() -> internalRestClient.get()
                 .uri("/internal/oss/objects/{objectId}/references/{referenceId}", objectId, referenceId)
@@ -183,7 +173,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssReferenceResponse.class);
     }
 
-    @Override
     public OssReferenceResponse releaseObjectReference(UUID objectId, UUID referenceId, String actorId) {
         return execute(() -> internalRestClient.delete()
                 .uri(builder -> builder
@@ -194,7 +183,6 @@ public class HttpCommunityOssClient implements CommunityOssClient {
                 .body(String.class), OssReferenceResponse.class);
     }
 
-    @Override
     public OssLifecycleResponse deleteObject(UUID objectId, String actorId) {
         return execute(() -> internalRestClient.delete()
                 .uri(builder -> builder
@@ -361,23 +349,19 @@ public class HttpCommunityOssClient implements CommunityOssClient {
             this.request = request;
         }
 
-        @Override
-        public String getDescription() {
+            public String getDescription() {
             return "OSS upload content " + request.fileName();
         }
 
-        @Override
-        public InputStream getInputStream() {
+            public InputStream getInputStream() {
             return open(request);
         }
 
-        @Override
-        public String getFilename() {
+            public String getFilename() {
             return request.fileName();
         }
 
-        @Override
-        public long contentLength() {
+            public long contentLength() {
             return request.contentLength();
         }
 

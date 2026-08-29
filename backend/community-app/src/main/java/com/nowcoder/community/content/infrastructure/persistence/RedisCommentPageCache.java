@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.CommentPageCache;
@@ -23,13 +23,13 @@ public class RedisCommentPageCache implements CommentPageCache {
     private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:v3:";
 
     private final StringRedisTemplate redisTemplate;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final Duration ttl;
     private final CacheTtlPolicy ttlPolicy;
 
     public RedisCommentPageCache(
             StringRedisTemplate redisTemplate,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             @Value("${content.comments.first-page-cache-ttl-seconds:15}") long ttlSeconds
     ) {
         this(redisTemplate, jsonCodec, fixedTtlPolicy(ttlSeconds), fixedProperties(ttlSeconds));
@@ -38,7 +38,7 @@ public class RedisCommentPageCache implements CommentPageCache {
     @Autowired
     public RedisCommentPageCache(
             StringRedisTemplate redisTemplate,
-            JsonCodec jsonCodec,
+            JacksonJsonCodec jsonCodec,
             CacheTtlPolicy ttlPolicy,
             ContentHotPathProperties hotPathProperties
     ) {

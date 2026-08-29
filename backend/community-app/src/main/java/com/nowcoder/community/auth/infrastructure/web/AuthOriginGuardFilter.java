@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.web;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.logging.SecurityEventLogger;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import jakarta.servlet.FilterChain;
@@ -39,10 +39,10 @@ public class AuthOriginGuardFilter extends OncePerRequestFilter {
     private static final Logger log = LoggerFactory.getLogger(AuthOriginGuardFilter.class);
 
     private final OriginGuardProperties properties;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
     private final AtomicBoolean warnedEmptyAllowlist = new AtomicBoolean(false);
 
-    public AuthOriginGuardFilter(OriginGuardProperties properties, JsonCodec jsonCodec) {
+    public AuthOriginGuardFilter(OriginGuardProperties properties, JacksonJsonCodec jsonCodec) {
         this.properties = properties;
         this.jsonCodec = jsonCodec;
     }

@@ -2,8 +2,6 @@ package com.nowcoder.community.oss.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.common.exception.SimpleErrorCode;
 import com.nowcoder.community.oss.application.command.BindObjectReferenceCommand;
 import com.nowcoder.community.oss.application.command.ReleaseObjectReferenceCommand;
 import com.nowcoder.community.oss.application.result.ObjectReferenceResult;
@@ -25,8 +23,7 @@ import java.util.UUID;
 @Service
 public class ObjectReferenceApplicationService {
 
-    private static final SimpleErrorCode REFERENCE_SEMANTIC_CONFLICT =
-            new SimpleErrorCode(40901, "object reference semantic conflict", ErrorKind.CONFLICT);
+    private static final CommonErrorCode REFERENCE_SEMANTIC_CONFLICT = CommonErrorCode.CONFLICT;
 
     private final OssObjectRepository objectRepository;
     private final OssObjectVersionRepository versionRepository;
@@ -173,7 +170,7 @@ public class ObjectReferenceApplicationService {
             OssObjectReference requested
     ) {
         if (!sameSemanticFingerprint(existing, requested)) {
-            throw new BusinessException(REFERENCE_SEMANTIC_CONFLICT);
+            throw new BusinessException(REFERENCE_SEMANTIC_CONFLICT, "object reference semantic conflict");
         }
         return toResult(existing);
     }

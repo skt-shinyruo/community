@@ -48,7 +48,6 @@
 | `user.infrastructure.event.OutboxUserPolicyEventPublisher` | user policy contract event 写 `eventbus.user`。 |
 | `user.infrastructure.event.UserEventKafkaOutboxHandler` | owner outbox 进入 dispatch application。 |
 | `user.infrastructure.event.UserEventKafkaSenderAdapter` | 发布 `user.events`。 |
-| `user.infrastructure.audit.Slf4jUserAuditLogAdapter` | 管理动作审计日志。 |
 
 ## 关键语义
 

@@ -1,7 +1,7 @@
 package com.nowcoder.community.oss.client;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
 import com.nowcoder.community.oss.client.model.OssPublicFileResponse;
 import com.nowcoder.community.oss.client.model.OssBindReferenceRequest;
@@ -23,7 +23,7 @@ import java.util.concurrent.atomic.AtomicReference;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.catchThrowable;
 
-class CommunityOssClientContractTest {
+class HttpCommunityOssClientContractTest {
 
     @Test
     void serviceTokenProviderShouldBeAMinimalFunctionalContract() {
@@ -46,7 +46,7 @@ class CommunityOssClientContractTest {
 
     @Test
     void internalClientShouldNotExposeUserGrantManagementCapabilities() {
-        assertThat(Arrays.stream(CommunityOssClient.class.getMethods())
+        assertThat(Arrays.stream(HttpCommunityOssClient.class.getMethods())
                 .map(method -> method.getName()))
                 .doesNotContain("grantObjectAccess", "revokeObjectAccess");
     }
@@ -182,7 +182,7 @@ class CommunityOssClientContractTest {
                 "7"
         );
 
-        assertThat(CommunityOssClient.class).isNotNull();
+        assertThat(HttpCommunityOssClient.class).isNotNull();
         assertThat(request.usage()).isEqualTo("USER_AVATAR");
         assertThat(upload.uploadMode()).isEqualTo("PROXY");
         assertThat(cancellation.cancelled()).isTrue();
@@ -211,7 +211,7 @@ class CommunityOssClientContractTest {
                 "actor-7"
         );
 
-        JsonNode json = JsonMappers.standard().valueToTree(request);
+        JsonNode json = JacksonJsonCodec.standardMapper().valueToTree(request);
 
         assertThat(json.fieldNames()).toIterable().containsExactlyInAnyOrder(
                 "referenceId",

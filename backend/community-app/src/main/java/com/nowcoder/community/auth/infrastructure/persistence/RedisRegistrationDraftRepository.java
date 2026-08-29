@@ -1,8 +1,8 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.auth.domain.model.PreparedRegistrationDraft;
 import com.nowcoder.community.auth.domain.repository.RegistrationDraftRepository;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -60,12 +60,12 @@ public class RedisRegistrationDraftRepository implements RegistrationDraftReposi
     );
 
     private final StringRedisTemplate redisTemplate;
-    private final JsonCodec jsonCodec;
+    private final JacksonJsonCodec jsonCodec;
 
     @Autowired
     public RedisRegistrationDraftRepository(
             StringRedisTemplate redisTemplate,
-            JsonCodec jsonCodec
+            JacksonJsonCodec jsonCodec
     ) {
         this.redisTemplate = redisTemplate;
         this.jsonCodec = jsonCodec;

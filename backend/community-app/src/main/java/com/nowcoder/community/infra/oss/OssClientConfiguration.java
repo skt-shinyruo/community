@@ -1,7 +1,6 @@
 package com.nowcoder.community.infra.oss;
 
 import com.nowcoder.community.common.security.jwt.JwtProperties;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.oss.client.OssServiceTokenProvider;
 import io.micrometer.observation.ObservationRegistry;
@@ -29,7 +28,7 @@ public class OssClientConfiguration {
     }
 
     @Bean
-    public CommunityOssClient communityOssClient(
+    public HttpCommunityOssClient communityOssClient(
             OssClientProperties properties,
             ObjectProvider<RestClient.Builder> restClientBuilder,
             ObjectProvider<ClientHttpRequestFactory> requestFactory,

@@ -2,7 +2,6 @@ package com.nowcoder.community.oss.infrastructure.security;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.security.autoconfig.SecurityCommonAutoConfiguration;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import org.junit.jupiter.api.Test;
@@ -52,7 +51,7 @@ class OssMetricsSecurityWithoutCredentialsTest {
     static class WebMvcSliceJsonCodecTestConfig {
 
         @Bean
-        JsonCodec jsonCodec(ObjectMapper objectMapper) {
+        JacksonJsonCodec jsonCodec(ObjectMapper objectMapper) {
             return new JacksonJsonCodec(objectMapper);
         }
     }

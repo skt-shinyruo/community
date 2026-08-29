@@ -1,6 +1,7 @@
 package com.nowcoder.community.analytics.application;
 
 import com.nowcoder.community.analytics.application.command.RecordRequestCommand;
+import com.nowcoder.community.analytics.config.AnalyticsIngestProperties;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsRepository;
 import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRepository;
 import org.junit.jupiter.api.Test;
@@ -91,10 +92,6 @@ class AnalyticsIngestApplicationServiceTest {
                 false,
                 false
         ));
-        service.recordLoginSuccess(new AnalyticsIngestApplicationService.RecordLoginSuccess(
-                UUID.fromString("11111111-1111-1111-1111-111111111111"),
-                false
-        ));
 
         verifyNoInteractions(analyticsRepository, ordinalRepository);
     }
@@ -106,7 +103,7 @@ class AnalyticsIngestApplicationServiceTest {
         AnalyticsIngestApplicationService service = newService(analyticsRepository, ordinalRepository);
 
         service.recordRequest(new RecordRequestCommand(" ", null, true, true));
-        service.recordLoginSuccess(new AnalyticsIngestApplicationService.RecordLoginSuccess(null, true));
+        service.recordLoginSuccess(null);
 
         verifyNoInteractions(analyticsRepository, ordinalRepository);
     }
@@ -121,22 +118,50 @@ class AnalyticsIngestApplicationServiceTest {
     }
 
     @Test
-    void recordLoginSuccessShouldRejectNullCommand() {
-        AnalyticsIngestApplicationService service = newService(mock(AnalyticsRepository.class), mock(AnalyticsUserOrdinalRepository.class));
+    void loginSuccessDauShouldFollowIngestPropertiesGate() {
+        AnalyticsRepository analyticsRepository = mock(AnalyticsRepository.class);
+        AnalyticsUserOrdinalRepository ordinalRepository = mock(AnalyticsUserOrdinalRepository.class);
+        UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
+        when(ordinalRepository.ordinalOf(userId)).thenReturn(9);
+        AnalyticsIngestApplicationService disabled = newService(
+                analyticsRepository, ordinalRepository, ingestProperties(false, true));
 
-        assertThatThrownBy(() -> service.recordLoginSuccess(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
+        disabled.recordLoginSuccess(userId);
+
+        verifyNoInteractions(analyticsRepository, ordinalRepository);
+
+        AnalyticsIngestApplicationService enabled = newService(
+                analyticsRepository, ordinalRepository, ingestProperties(true, true));
+
+        enabled.recordLoginSuccess(userId);
+
+        verify(analyticsRepository).recordDau(LocalDate.of(2026, 4, 26), 9);
     }
 
     private AnalyticsIngestApplicationService newService(
             AnalyticsRepository analyticsRepository,
             AnalyticsUserOrdinalRepository ordinalRepository
     ) {
+        return newService(analyticsRepository, ordinalRepository, ingestProperties(true, true));
+    }
+
+    private AnalyticsIngestApplicationService newService(
+            AnalyticsRepository analyticsRepository,
+            AnalyticsUserOrdinalRepository ordinalRepository,
+            AnalyticsIngestProperties properties
+    ) {
         return new AnalyticsIngestApplicationService(
                 analyticsRepository,
                 ordinalRepository,
+                properties,
                 clock
         );
+    }
+
+    private AnalyticsIngestProperties ingestProperties(boolean enabled, boolean recordDau) {
+        AnalyticsIngestProperties properties = new AnalyticsIngestProperties();
+        properties.setEnabled(enabled);
+        properties.setRecordDau(recordDau);
+        return properties;
     }
 }

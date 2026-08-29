@@ -3,9 +3,7 @@ package com.nowcoder.community.content.infrastructure.event;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.content.application.ContentEventDispatchApplicationService;
 import com.nowcoder.community.content.application.ContentEventPublisher;
@@ -52,7 +50,7 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void moderationNoticeShouldMapDomainInputsIntoTheExistingContentEventEnvelope() throws Exception {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
                 new JacksonContentContractEventCodec(jsonCodec), store, TOPIC
@@ -99,11 +97,11 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void postPublishedShouldWriteContentContractEnvelopeToOutbox() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID postId = uuid(101);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -131,7 +129,7 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void publishPostPublishedShouldSerializeBackboneMetadata() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
                 new JacksonContentContractEventCodec(jsonCodec), store, "eventbus.content");
@@ -153,7 +151,7 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void postDeletedShouldUseDeletionTimeAndAggregateVersion() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
                 new JacksonContentContractEventCodec(jsonCodec),
@@ -183,7 +181,7 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void postScoreUpdatedShouldWriteDeterministicVersionedOwnerFact() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
                 new JacksonContentContractEventCodec(jsonCodec),
@@ -213,10 +211,10 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void contentEventbusPayloadShouldCarryOwnerFactFieldsForP2Projections() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 "eventbus.content"
         );
@@ -272,7 +270,7 @@ class OutboxContentEventPublisherTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID postId = uuid(612);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -288,7 +286,7 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void publishedContentOutboxPayloadsShouldDispatchAsTypedKafkaContractEvents() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         ContentIntegrationEventDispatcher dispatcher = mock(ContentIntegrationEventDispatcher.class);
         UUID publishedPostId = uuid(606);
@@ -358,11 +356,11 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void commentCreatedShouldUseStableCommentEventIdAndKey() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID commentId = uuid(202);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -389,7 +387,7 @@ class OutboxContentEventPublisherTest {
     void eventsWithoutRequiredKeysShouldNotEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -408,12 +406,12 @@ class OutboxContentEventPublisherTest {
 
     @Test
     void postUpdatedAndModerationEventsShouldUseShortUuidV7EventIds() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID postId = uuid(303);
         UUID toUserId = uuid(404);
         OutboxContentEventPublisher publisher = publisher(
-                new JacksonContentContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonContentContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );

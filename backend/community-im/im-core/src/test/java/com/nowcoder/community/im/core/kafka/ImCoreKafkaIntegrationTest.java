@@ -2,7 +2,6 @@ package com.nowcoder.community.im.core.kafka;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
@@ -50,15 +49,15 @@ import static org.mockito.Mockito.when;
 @EmbeddedKafka(
         partitions = 1,
         topics = {
-                ImTopics.COMMAND_PRIVATE_TEXT,
-                ImTopics.COMMAND_ROOM_TEXT,
-                ImTopics.EVENT_PRIVATE_PERSISTED,
-                ImTopics.EVENT_ROOM_PERSISTED,
-                ImTopics.EVENT_PRIVATE_COMMITTED,
-                ImTopics.EVENT_ROOM_COMMITTED,
-                ImTopics.EVENT_PRIVATE_REJECTED,
-                ImTopics.EVENT_ROOM_REJECTED,
-                ImTopics.EVENT_ROOM_MEMBER_CHANGED
+                "im.command.private-text",
+                "im.command.room-text",
+                "im.event.private-persisted",
+                "im.event.room-persisted",
+                "im.event.private-committed",
+                "im.event.room-committed",
+                "im.event.private-rejected",
+                "im.event.room-rejected",
+                "im.event.room-member-changed"
         }
 )
 @TestPropertySource(properties = {
@@ -122,22 +121,22 @@ class ImCoreKafkaIntegrationTest {
 
         // subscribe before sending to avoid missing the event
         consumer = newStringConsumer("im-core-it-room");
-        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED));
+        consumer.subscribe(List.of("im.event.room-persisted", "im.event.room-committed"));
         // trigger partition assignment
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_ROOM_TEXT,
+                "im.command.room-text",
                 String.valueOf(roomId),
                 new SendRoomTextCommand("req-1", "c1", sender, roomId, "hi", System.currentTimeMillis())
         );
 
         Map<String, ConsumerRecord<String, String>> records = pollForTopics(
                 consumer,
-                List.of(ImTopics.EVENT_ROOM_PERSISTED, ImTopics.EVENT_ROOM_COMMITTED),
+                List.of("im.event.room-persisted", "im.event.room-committed"),
                 Duration.ofSeconds(10)
         );
-        JsonNode eventJson = objectMapper.readTree(records.get(ImTopics.EVENT_ROOM_PERSISTED).value());
+        JsonNode eventJson = objectMapper.readTree(records.get("im.event.room-persisted").value());
 
         assertThat(eventJson.path("roomId").asText("")).isEqualTo(roomId.toString());
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
@@ -146,7 +145,7 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.has("clientMsgId")).isFalse();
         assertThat(eventJson.hasNonNull("content")).isFalse();
 
-        JsonNode committedJson = objectMapper.readTree(records.get(ImTopics.EVENT_ROOM_COMMITTED).value());
+        JsonNode committedJson = objectMapper.readTree(records.get("im.event.room-committed").value());
         assertThat(committedJson.path("requestId").asText("")).isEqualTo("req-1");
         assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo("c1");
         assertThat(committedJson.path("roomId").asText("")).isEqualTo(roomId.toString());
@@ -164,21 +163,21 @@ class ImCoreKafkaIntegrationTest {
         String conversationId = fromUserId + "_" + toUserId;
 
         consumer = newStringConsumer("im-core-it-private");
-        consumer.subscribe(List.of(ImTopics.EVENT_PRIVATE_PERSISTED, ImTopics.EVENT_PRIVATE_COMMITTED));
+        consumer.subscribe(List.of("im.event.private-persisted", "im.event.private-committed"));
         consumer.poll(Duration.ofMillis(200));
 
         kafkaTemplate.send(
-                ImTopics.COMMAND_PRIVATE_TEXT,
+                "im.command.private-text",
                 conversationId,
                 new SendPrivateTextCommand("req-1", "c1", fromUserId, toUserId, conversationId, "hello", System.currentTimeMillis())
         );
 
         Map<String, ConsumerRecord<String, String>> records = pollForTopics(
                 consumer,
-                List.of(ImTopics.EVENT_PRIVATE_PERSISTED, ImTopics.EVENT_PRIVATE_COMMITTED),
+                List.of("im.event.private-persisted", "im.event.private-committed"),
                 Duration.ofSeconds(10)
         );
-        JsonNode eventJson = objectMapper.readTree(records.get(ImTopics.EVENT_PRIVATE_PERSISTED).value());
+        JsonNode eventJson = objectMapper.readTree(records.get("im.event.private-persisted").value());
 
         assertThat(eventJson.path("conversationId").asText("")).isEqualTo(conversationId);
         assertThat(eventJson.path("seq").asLong()).isEqualTo(1L);
@@ -188,7 +187,7 @@ class ImCoreKafkaIntegrationTest {
         assertThat(eventJson.has("requestId")).isFalse();
         assertThat(eventJson.has("clientMsgId")).isFalse();
 
-        JsonNode committedJson = objectMapper.readTree(records.get(ImTopics.EVENT_PRIVATE_COMMITTED).value());
+        JsonNode committedJson = objectMapper.readTree(records.get("im.event.private-committed").value());
         assertThat(committedJson.path("requestId").asText("")).isEqualTo("req-1");
         assertThat(committedJson.path("clientMsgId").asText("")).isEqualTo("c1");
         assertThat(committedJson.path("conversationId").asText("")).isEqualTo(conversationId);
@@ -206,7 +205,7 @@ class ImCoreKafkaIntegrationTest {
         UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
 
         consumer = newStringConsumer("im-core-it-room-member-changed");
-        consumer.subscribe(List.of(ImTopics.EVENT_ROOM_MEMBER_CHANGED));
+        consumer.subscribe(List.of("im.event.room-member-changed"));
         awaitAssignment(consumer, Duration.ofSeconds(5));
         consumer.seekToEnd(consumer.assignment());
         consumer.assignment().forEach(consumer::position);
@@ -215,7 +214,7 @@ class ImCoreKafkaIntegrationTest {
         roomApplicationService.joinRoom(member, roomId);
 
         ConsumerRecord<String, String> changedRecord =
-                pollForSingleRecord(consumer, ImTopics.EVENT_ROOM_MEMBER_CHANGED, Duration.ofSeconds(10));
+                pollForSingleRecord(consumer, "im.event.room-member-changed", Duration.ofSeconds(10));
         JsonNode eventJson = objectMapper.readTree(changedRecord.value());
 
         assertThat(changedRecord.key()).isEqualTo(roomId.toString());

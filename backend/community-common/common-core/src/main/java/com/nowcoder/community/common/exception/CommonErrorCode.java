@@ -6,6 +6,7 @@ public enum CommonErrorCode implements ErrorCode {
     UNAUTHORIZED(401, "未登录或登录已失效", ErrorKind.UNAUTHENTICATED),
     FORBIDDEN(403, "无权限访问", ErrorKind.FORBIDDEN),
     NOT_FOUND(404, "资源不存在", ErrorKind.NOT_FOUND),
+    CONFLICT(409, "请求冲突", ErrorKind.CONFLICT),
     TOO_MANY_REQUESTS(429, "请求过于频繁", ErrorKind.THROTTLED),
 
     SERVICE_UNAVAILABLE(503, "服务不可用", ErrorKind.UNAVAILABLE),

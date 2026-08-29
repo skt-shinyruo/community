@@ -1,8 +1,8 @@
 package com.nowcoder.community.drive.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssCompleteUploadRequest;
 import com.nowcoder.community.oss.client.model.OssLifecycleResponse;
 import com.nowcoder.community.oss.client.model.OssMetadataResponse;
@@ -17,9 +17,9 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.INTERNAL_E
 @Component
 public class OssDriveObjectStorageAdapter implements DriveObjectStoragePort {
 
-    private final CommunityOssClient ossClient;
+    private final HttpCommunityOssClient ossClient;
 
-    public OssDriveObjectStorageAdapter(CommunityOssClient ossClient) {
+    public OssDriveObjectStorageAdapter(HttpCommunityOssClient ossClient) {
         this.ossClient = ossClient;
     }
 

@@ -3,9 +3,7 @@ package com.nowcoder.community.user.infrastructure.event;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.user.application.UserEventDispatchApplicationService;
 import com.nowcoder.community.user.application.UserIntegrationEventDispatcher;
@@ -43,13 +41,13 @@ class OutboxUserPolicyEventPublisherTest {
 
     @Test
     void statusBasedPolicyChangeShouldWriteUserContractEnvelopeToOutbox() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID userId = uuid(7);
         Instant occurredAt = Instant.parse("2026-04-28T01:00:00Z");
         Instant muteUntil = occurredAt.plusSeconds(60);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -77,7 +75,7 @@ class OutboxUserPolicyEventPublisherTest {
 
     @Test
     void statusBasedPolicyOutboxPayloadShouldDispatchAsTypedKafkaContractEvent() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
         UUID userId = uuid(70);
@@ -115,12 +113,12 @@ class OutboxUserPolicyEventPublisherTest {
 
     @Test
     void userIdPolicyChangeShouldUsePositiveOwnerVersionInEventIdAndKey() throws Exception {
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID userId = uuid(8);
         Instant occurredAt = Instant.parse("2026-04-28T02:00:00Z");
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -146,7 +144,7 @@ class OutboxUserPolicyEventPublisherTest {
 
     @Test
     void userExistencePolicyOutboxPayloadShouldDispatchAsTypedKafkaContractEvent() {
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UserIntegrationEventDispatcher dispatcher = mock(UserIntegrationEventDispatcher.class);
         UUID userId = uuid(80);
@@ -186,7 +184,7 @@ class OutboxUserPolicyEventPublisherTest {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         UUID userId = uuid(9);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -206,7 +204,7 @@ class OutboxUserPolicyEventPublisherTest {
     void eventsWithoutUserIdShouldNotEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );
@@ -222,7 +220,7 @@ class OutboxUserPolicyEventPublisherTest {
     void invalidSourceMetadataShouldFailBeforeEnqueue() {
         JdbcOutboxEventStore store = mock(JdbcOutboxEventStore.class);
         OutboxUserPolicyEventPublisher publisher = new OutboxUserPolicyEventPublisher(
-                new JacksonUserContractEventCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new JacksonUserContractEventCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 store,
                 TOPIC
         );

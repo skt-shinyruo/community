@@ -7,7 +7,6 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
@@ -92,7 +91,7 @@ class ImWebSocketHandlerContractVersionTest {
         MessageCommandIngressService commandIngressService = mock(MessageCommandIngressService.class);
 
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 sessionTicketCodec(jwtProperties),
                 sessionProperties,
                 projectionSyncCoordinator,
@@ -139,7 +138,7 @@ class ImWebSocketHandlerContractVersionTest {
         doNothing().when(projectionSyncCoordinator).requireReady();
 
         ImWebSocketHandler handler = new ImWebSocketHandler(
-                new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard())),
+                new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 ticketCodec,
                 sessionProperties,
                 projectionSyncCoordinator,
@@ -183,7 +182,7 @@ class ImWebSocketHandlerContractVersionTest {
         WebSocketSession session = session(inbound, sentMessages);
         JwtProperties jwtProperties = jwtProperties();
         ImSessionProperties sessionProperties = sessionProperties();
-        ImFrameCodec frameCodec = new ImFrameCodec(new JacksonJsonCodec(JsonMappers.standard()));
+        ImFrameCodec frameCodec = new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper()));
         SessionTicketCodec ticketCodec = sessionTicketCodec(jwtProperties);
         ProjectionSyncCoordinator projectionSyncCoordinator = mock(ProjectionSyncCoordinator.class);
         doNothing().when(projectionSyncCoordinator).requireReady();

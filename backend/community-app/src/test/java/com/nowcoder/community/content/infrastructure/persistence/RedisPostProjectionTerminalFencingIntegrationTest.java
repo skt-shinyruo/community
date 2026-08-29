@@ -2,8 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.application.HotFeedProjectionGuard;
 import com.nowcoder.community.content.application.PostFeedCache;
@@ -60,7 +58,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         RedisPostSummaryCache summaryCache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
         RedisPostDetailCache detailCache = new RedisPostDetailCache(redisTemplate, jsonCodec);
         RedisHotFeedProjectionGuard guard = new RedisHotFeedProjectionGuard(redisTemplate);
@@ -143,7 +141,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         RedisPostSummaryCache summaryCache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
         RedisPostDetailCache detailCache = new RedisPostDetailCache(redisTemplate, jsonCodec);
         try {
@@ -174,7 +172,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
                 new FeedCursorCodec(new JacksonJsonCodec(new ObjectMapper())),
                 categoryRepository
         );
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         RedisPostSummaryCache summaryCache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
         RedisPostDetailCache detailCache = new RedisPostDetailCache(redisTemplate, jsonCodec);
         try {
@@ -285,7 +283,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
         UUID postId = UUID.randomUUID();
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         RedisPostSummaryCache summaryCache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
         try {
             summaryCache.putVersioned(List.of(
@@ -344,7 +342,7 @@ class RedisPostProjectionTerminalFencingIntegrationTest {
         LettuceConnectionFactory connectionFactory = connectionFactory();
         StringRedisTemplate redisTemplate = redisTemplate(connectionFactory);
         UUID postId = UUID.randomUUID();
-        JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         RedisPostSummaryCache summaryCache = new RedisPostSummaryCache(redisTemplate, jsonCodec);
         try {
             summaryCache.putVersioned(List.of(

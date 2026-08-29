@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.infrastructure.oss;
 
+import com.nowcoder.community.oss.client.HttpCommunityOssClient;
 import com.nowcoder.community.content.application.PostMediaReferenceQueryPort;
-import com.nowcoder.community.oss.client.CommunityOssClient;
 import com.nowcoder.community.oss.client.model.OssReferenceResponse;
 import org.springframework.stereotype.Component;
 
@@ -12,9 +12,9 @@ import java.util.UUID;
 @Component
 public class OssPostMediaReferenceQueryAdapter implements PostMediaReferenceQueryPort {
 
-    private final CommunityOssClient ossClient;
+    private final HttpCommunityOssClient ossClient;
 
-    public OssPostMediaReferenceQueryAdapter(CommunityOssClient ossClient) {
+    public OssPostMediaReferenceQueryAdapter(HttpCommunityOssClient ossClient) {
         this.ossClient = Objects.requireNonNull(ossClient, "ossClient must not be null");
     }
 

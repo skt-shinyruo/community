@@ -166,7 +166,7 @@ class MyBatisUsernameAuthenticationSubjectMySqlContractTest {
         );
 
         UserCredentialApplicationService.PreparedAuthentication preparation =
-                credentialService.prepareAuthentication("alice");
+                credentialService.prepare("alice");
 
         assertThat(preparation.user()).isNull();
         assertThat(preparation.storedHashUsable()).isFalse();

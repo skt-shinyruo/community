@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from 'vitest'
-import { getCatalogRouteNames } from './routeCatalog'
+import { ROUTES } from './routeCatalog'
 
 function stubRouterGlobals() {
   const historyStub = {
@@ -151,7 +151,7 @@ describe('router/index', () => {
       .map(String)
       .sort()
 
-    expect(registeredNames).toEqual([...getCatalogRouteNames()].sort())
+    expect(registeredNames).toEqual([...Object.keys(ROUTES)].sort())
   })
 
   it('should register authenticated drive route and public share route', async () => {

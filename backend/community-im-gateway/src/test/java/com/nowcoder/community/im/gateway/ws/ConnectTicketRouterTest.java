@@ -1,8 +1,6 @@
 package com.nowcoder.community.im.gateway.ws;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.gateway.shard.WorkerRegistry;
 import com.nowcoder.community.im.ticket.SessionTicketCodec;
@@ -18,7 +16,7 @@ class ConnectTicketRouterTest {
 
     @Test
     void route_shouldNotRetainTicketValidationCause() {
-        JsonCodec frameCodec = new JacksonJsonCodec(JsonMappers.standard());
+        JacksonJsonCodec frameCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
         SessionTicketCodec ticketCodec = mock(SessionTicketCodec.class);
         when(ticketCodec.decode("invalid-ticket")).thenThrow(new IllegalArgumentException("expired"));
         ConnectTicketRouter router = new ConnectTicketRouter(

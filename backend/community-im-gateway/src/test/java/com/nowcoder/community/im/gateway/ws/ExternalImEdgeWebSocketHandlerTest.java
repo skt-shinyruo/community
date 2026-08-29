@@ -1,6 +1,6 @@
 package com.nowcoder.community.im.gateway.ws;
 
-import com.nowcoder.community.common.json.JsonCodec;
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.im.gateway.observability.ImGatewayMetrics;
 import com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
@@ -29,7 +29,7 @@ class ExternalImEdgeWebSocketHandlerTest {
     void shouldRejectAnOversizedFirstTextFrameBeforeRouting() {
         ConnectTicketRouter router = mock(ConnectTicketRouter.class);
         InternalWorkerBridge bridge = mock(InternalWorkerBridge.class);
-        JsonCodec frameCodec = mock(JsonCodec.class);
+        JacksonJsonCodec frameCodec = mock(JacksonJsonCodec.class);
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
         properties.getWs().setMaxInboundChars(4);
         WebSocketSession session = sessionWithInbound(Flux.just(textFrame("12345")));
@@ -50,7 +50,7 @@ class ExternalImEdgeWebSocketHandlerTest {
     void shouldCloseInsteadOfBufferingAnUnboundedNumberOfFramesBeforeWorkerConsumes() {
         ConnectTicketRouter router = mock(ConnectTicketRouter.class);
         InternalWorkerBridge bridge = mock(InternalWorkerBridge.class);
-        JsonCodec frameCodec = mock(JsonCodec.class);
+        JacksonJsonCodec frameCodec = mock(JacksonJsonCodec.class);
         ImGatewaySessionProperties properties = new ImGatewaySessionProperties();
         properties.getWs().setMaxInboundBufferFrames(2);
         Flux<WebSocketMessage> inbound = Flux.concat(
@@ -81,7 +81,7 @@ class ExternalImEdgeWebSocketHandlerTest {
     private static ExternalImEdgeWebSocketHandler handler(
             ConnectTicketRouter router,
             InternalWorkerBridge bridge,
-            JsonCodec frameCodec,
+            JacksonJsonCodec frameCodec,
             ImGatewaySessionProperties properties
     ) {
         return handler(router, bridge, frameCodec, properties, new SimpleMeterRegistry());
@@ -90,7 +90,7 @@ class ExternalImEdgeWebSocketHandlerTest {
     private static ExternalImEdgeWebSocketHandler handler(
             ConnectTicketRouter router,
             InternalWorkerBridge bridge,
-            JsonCodec frameCodec,
+            JacksonJsonCodec frameCodec,
             ImGatewaySessionProperties properties,
             SimpleMeterRegistry registry
     ) {

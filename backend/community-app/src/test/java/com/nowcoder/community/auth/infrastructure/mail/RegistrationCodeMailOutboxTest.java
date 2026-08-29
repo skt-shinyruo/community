@@ -3,8 +3,6 @@ package com.nowcoder.community.auth.infrastructure.mail;
 import com.nowcoder.community.auth.application.RegistrationCodeMailDeliveryApplicationService;
 import com.nowcoder.community.auth.application.port.RegistrationCodeMailDispatcher;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxTerminalException;
@@ -23,7 +21,7 @@ import static org.mockito.Mockito.when;
 
 class RegistrationCodeMailOutboxTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
 
     @Test
     void dispatcherShouldPersistStableDeliveryMetadata() {

@@ -1,5 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
+import com.nowcoder.community.common.tx.TransactionCompletion;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.content.domain.service.PostHotnessDomainService;
@@ -14,7 +17,7 @@ import java.util.UUID;
 public class PostHotFeedProjectionApplicationService {
 
     private final PostContentRepository postContentRepository;
-    private final LikeQueryPort likeQueryPort;
+    private final SocialLikeQueryApi likeQueryApi;
     private final PostFeedCache postFeedCache;
     private final PostSummaryCache postSummaryCache;
     private final PostDetailCache postDetailCache;
@@ -22,12 +25,12 @@ public class PostHotFeedProjectionApplicationService {
     private final PostHotnessDomainService postHotnessDomainService;
     private final ContentFeedPolicyProperties policyProperties;
     private final HotFeedProjectionGuard projectionGuard;
-    private final HotFeedProjectionCompletion projectionCompletion;
+    private final TransactionCompletion projectionCompletion;
     private final PostHotFeedProjectionTransactionOperations transactionOperations;
 
     public PostHotFeedProjectionApplicationService(
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryApi,
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
             PostDetailCache postDetailCache,
@@ -36,11 +39,11 @@ public class PostHotFeedProjectionApplicationService {
             ContentFeedPolicyProperties policyProperties,
             HotFeedProjectionGuard projectionGuard,
             PostHotFeedProjectionTransactionOperations transactionOperations,
-            HotFeedProjectionCompletion projectionCompletion
+            TransactionCompletion projectionCompletion
     ) {
         this.postContentRepository = Objects.requireNonNull(
                 postContentRepository, "postContentRepository must not be null");
-        this.likeQueryPort = Objects.requireNonNull(likeQueryPort, "likeQueryPort must not be null");
+        this.likeQueryApi = Objects.requireNonNull(likeQueryApi, "likeQueryApi must not be null");
         this.postFeedCache = Objects.requireNonNull(postFeedCache, "postFeedCache must not be null");
         this.postSummaryCache = Objects.requireNonNull(postSummaryCache, "postSummaryCache must not be null");
         this.postDetailCache = Objects.requireNonNull(postDetailCache, "postDetailCache must not be null");
@@ -116,7 +119,7 @@ public class PostHotFeedProjectionApplicationService {
 
             UUID boardId = post.getCategoryId();
             long aggregateVersion = post.getAggregateVersion();
-            long likeCount = likeQueryPort.countPostLikes(postId);
+            long likeCount = likeQueryApi.count(EntityTypes.POST, postId);
             double score = postHotnessDomainService.recomputeScore(post, likeCount);
             if (!projectionGuard.isCurrent(attempt)) {
                 return;
@@ -153,10 +156,8 @@ public class PostHotFeedProjectionApplicationService {
     }
 
     private void commitAfterTransaction(HotFeedProjectionGuard.ProjectionAttempt attempt) {
-        projectionCompletion.afterTransaction(
-                () -> projectionGuard.commit(attempt),
-                () -> projectionGuard.abort(attempt)
-        );
+        projectionCompletion.afterCommit(() -> projectionGuard.commit(attempt));
+        projectionCompletion.afterRollback(() -> projectionGuard.abort(attempt));
     }
 
     public record ProjectPostHotFeedCommand(

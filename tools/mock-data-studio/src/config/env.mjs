@@ -1,6 +1,7 @@
 const DEFAULT_COMMUNITY_APP_BASE_URL = 'http://community-app:8080'
 const DEFAULT_SCENE_KEY = 'tech-community-hot-start'
 const DEFAULT_REINDEX_JWT_ISSUER = 'community-auth'
+const DEFAULT_REINDEX_JWT_TTL_SECONDS = 120
 
 function required(env, name) {
   const value = env[name]?.trim()
@@ -17,12 +18,6 @@ function nonNegativeInteger(value, fallback, name) {
   if (value == null || value === '') return fallback
   if (!/^\d+$/u.test(String(value).trim())) throw new Error(`${name} must be a non-negative integer`)
   return Number.parseInt(value, 10)
-}
-
-function positiveInteger(value, fallback, name) {
-  const parsed = nonNegativeInteger(value, fallback, name)
-  if (parsed < 1) throw new Error(`${name} must be a positive integer`)
-  return parsed
 }
 
 export function loadConfig(env = process.env) {
@@ -46,12 +41,8 @@ export function loadConfig(env = process.env) {
     },
     reindexAuth: {
       jwtHmacSecret: optional(env.MOCK_DATA_STUDIO_REINDEX_JWT_HMAC_SECRET, null),
-      jwtIssuer: optional(env.MOCK_DATA_STUDIO_REINDEX_JWT_ISSUER, DEFAULT_REINDEX_JWT_ISSUER),
-      jwtTtlSeconds: positiveInteger(
-        env.MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS,
-        120,
-        'MOCK_DATA_STUDIO_REINDEX_JWT_TTL_SECONDS'
-      )
+      jwtIssuer: DEFAULT_REINDEX_JWT_ISSUER,
+      jwtTtlSeconds: DEFAULT_REINDEX_JWT_TTL_SECONDS
     }
   }
 }

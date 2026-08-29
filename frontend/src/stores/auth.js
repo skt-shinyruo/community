@@ -1,5 +1,6 @@
 import { defineStore } from 'pinia'
-import { clearSessionHint, setSessionHint } from '../auth/sessionHint'
+
+const SESSION_HINT_KEY = 'community.session.hint'
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
@@ -37,7 +38,11 @@ export const useAuthStore = defineStore('auth', {
         this.me = me || null
         this.identityState = this.me ? 'resolved' : 'unresolved'
       }
-      setSessionHint()
+      try {
+        globalThis.localStorage?.setItem(SESSION_HINT_KEY, '1')
+      } catch {
+        // Best-effort only.
+      }
     },
     setMe(me) {
       this.me = me || null
@@ -51,7 +56,11 @@ export const useAuthStore = defineStore('auth', {
       if (hadSession) {
         this.tokenGeneration += 1
       }
-      clearSessionHint()
+      try {
+        globalThis.localStorage?.removeItem(SESSION_HINT_KEY)
+      } catch {
+        // Best-effort only.
+      }
     }
   }
 })

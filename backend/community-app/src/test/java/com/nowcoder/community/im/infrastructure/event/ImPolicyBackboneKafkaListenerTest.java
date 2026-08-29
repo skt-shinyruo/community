@@ -1,8 +1,6 @@
 package com.nowcoder.community.im.infrastructure.event;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService;
 import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectBlockRelationCommand;
 import com.nowcoder.community.im.application.ImPolicyProjectionApplicationService.ProjectUserPolicyCommand;
@@ -29,7 +27,7 @@ import static org.mockito.Mockito.verifyNoInteractions;
 
 class ImPolicyBackboneKafkaListenerTest {
 
-    private final JsonCodec jsonCodec = new JacksonJsonCodec(JsonMappers.standard());
+    private final JacksonJsonCodec jsonCodec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     private final UserContractEventCodec userContractEventCodec = new JacksonUserContractEventCodec(jsonCodec);
     private final SocialContractEventCodec socialContractEventCodec = new JacksonSocialContractEventCodec(jsonCodec);
 
@@ -139,10 +137,10 @@ class ImPolicyBackboneKafkaListenerTest {
         ImPolicyBackboneKafkaListener listener = listener(applicationService);
 
         listener.onUserEvent(new UserContractEvent(
-                "user-follow", "UserRegistered", JsonMappers.standard().createObjectNode()));
+                "user-follow", "UserRegistered", JacksonJsonCodec.standardMapper().createObjectNode()));
         listener.onSocialEvent(new SocialContractEvent(
                 "social-follow", null, null, SocialEventTypes.FOLLOW_CREATED,
-                Instant.EPOCH, 1L, JsonMappers.standard().createObjectNode()));
+                Instant.EPOCH, 1L, JacksonJsonCodec.standardMapper().createObjectNode()));
         listener.onUserEvent(null);
         listener.onSocialEvent(null);
 

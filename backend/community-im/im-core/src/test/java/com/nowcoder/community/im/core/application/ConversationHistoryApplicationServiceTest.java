@@ -3,7 +3,6 @@ package com.nowcoder.community.im.core.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.core.domain.model.PrivateMessageRecord;
@@ -168,7 +167,7 @@ class ConversationHistoryApplicationServiceTest {
                 mock(ConversationReadStateRepository.class),
                 conversationRepository,
                 mock(UserInboxRepository.class),
-                new ConversationCursorCodec(new JacksonJsonCodec(JsonMappers.standard()))
+                new ConversationCursorCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper()))
         );
 
         var history = applicationService.listMessageHistory(sender, conversationId, null, 50);

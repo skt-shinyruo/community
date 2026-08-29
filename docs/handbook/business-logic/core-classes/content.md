@@ -71,8 +71,6 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `content.infrastructure.api.PostReadQueryApiAdapter` | content read result 到 profile author activity view 的转换。 |
-| `content.infrastructure.api.SocialLikeQueryAdapter` | social owner query 到 content like query port，并提供空值策略。 |
 | `content.infrastructure.text.SensitiveFilter` | 敏感词 trie sanitizer 和 fail-fast 字典加载。 |
 | `content.infrastructure.oss.OssPostMediaStorageAdapter` | content 到 OSS 的媒体适配。 |
 | `content.infrastructure.event.OutboxContentEventPublisher` | content contract event 写 `eventbus.content`。 |

@@ -3,16 +3,13 @@ package com.nowcoder.community.im.core.outbox;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.json.JsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.kafka.trace.TraceKafkaHeaders;
 import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
 import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
 import com.nowcoder.community.common.trace.TraceHeaders;
-import com.nowcoder.community.im.common.ImTopics;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import io.opentelemetry.api.trace.SpanKind;
 import org.apache.kafka.clients.producer.ProducerRecord;
@@ -34,7 +31,7 @@ import static org.mockito.Mockito.when;
 
 class ImKafkaOutboxHandlerTest {
 
-    private final ObjectMapper objectMapper = JsonMappers.standard();
+    private final ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
 
     @Test
     void handleSendsEventPayloadWithoutLeaseOwnershipAndWaitsForSuccess() throws Exception {
@@ -53,9 +50,9 @@ class ImKafkaOutboxHandlerTest {
                 123L
         );
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
-                ImTopics.EVENT_PRIVATE_PERSISTED,
+                "im.event.private-persisted",
                 PrivateMessagePersistedEvent.class,
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                 kafkaTemplate
         );
 
@@ -79,7 +76,7 @@ class ImKafkaOutboxHandlerTest {
         ArgumentCaptor<ProducerRecord<String, Object>> recordCaptor = ArgumentCaptor.forClass(ProducerRecord.class);
         verify(kafkaTemplate).send(recordCaptor.capture());
         ProducerRecord<String, Object> record = recordCaptor.getValue();
-        assertThat(record.topic()).isEqualTo(ImTopics.EVENT_PRIVATE_PERSISTED);
+        assertThat(record.topic()).isEqualTo("im.event.private-persisted");
         assertThat(record.key()).isEqualTo("conv-1");
         assertThat(record.value()).isInstanceOf(PrivateMessagePersistedEvent.class);
         PrivateMessagePersistedEvent published = (PrivateMessagePersistedEvent) record.value();
@@ -128,9 +125,9 @@ class ImKafkaOutboxHandlerTest {
                 123L
         );
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
-                ImTopics.EVENT_PRIVATE_PERSISTED,
+                "im.event.private-persisted",
                 PrivateMessagePersistedEvent.class,
-                new JacksonJsonCodec(JsonMappers.standard()),
+                new JacksonJsonCodec(JacksonJsonCodec.standardMapper()),
                 kafkaTemplate
         );
 
@@ -149,11 +146,11 @@ class ImKafkaOutboxHandlerTest {
     void handleWrapsJsonCodecDeserializationFailure() {
         @SuppressWarnings("unchecked")
         KafkaTemplate<String, Object> kafkaTemplate = mock(KafkaTemplate.class);
-        JsonCodec jsonCodec = mock(JsonCodec.class);
+        JacksonJsonCodec jsonCodec = mock(JacksonJsonCodec.class);
         when(jsonCodec.fromJson(any(String.class), any(Class.class)))
                 .thenThrow(new JsonCodecException("deserialize json failed", new IllegalArgumentException("bad payload")));
         ImKafkaOutboxHandler<PrivateMessagePersistedEvent> handler = new ImKafkaOutboxHandler<>(
-                ImTopics.EVENT_PRIVATE_PERSISTED,
+                "im.event.private-persisted",
                 PrivateMessagePersistedEvent.class,
                 jsonCodec,
                 kafkaTemplate
@@ -167,7 +164,7 @@ class ImKafkaOutboxHandlerTest {
                 null
         )))
                 .isInstanceOf(IllegalStateException.class)
-                .hasMessage("IM outbox payload deserialization failed: " + ImTopics.EVENT_PRIVATE_PERSISTED)
+                .hasMessage("IM outbox payload deserialization failed: " + "im.event.private-persisted")
                 .hasCauseInstanceOf(JsonCodecException.class);
     }
 
@@ -175,7 +172,7 @@ class ImKafkaOutboxHandlerTest {
         return new OutboxEvent(
                 uuid(99),
                 eventId,
-                ImTopics.EVENT_PRIVATE_PERSISTED,
+                "im.event.private-persisted",
                 eventKey,
                 payload,
                 OutboxEventStatus.PENDING,

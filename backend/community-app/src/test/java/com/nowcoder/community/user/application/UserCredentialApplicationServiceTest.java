@@ -4,6 +4,7 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.user.application.port.UsernameAuthenticationSubjectPort;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
+import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
@@ -51,9 +52,9 @@ class UserCredentialApplicationServiceTest {
         when(usernameAuthenticationSubjectPort.resolve("Alice"))
                 .thenReturn("utf8mb4_unicode_ci:v1:abc123");
 
-        String subject = service.authenticationSubject(" Alice ");
+        UserCredentialQueryApi.AuthenticationSubject subject = service.authenticationSubject(" Alice ");
 
-        assertThat(subject).isEqualTo("utf8mb4_unicode_ci:v1:abc123");
+        assertThat(subject.value()).isEqualTo("utf8mb4_unicode_ci:v1:abc123");
         verify(usernameAuthenticationSubjectPort).resolve("Alice");
         verifyNoInteractions(userRepository);
     }
@@ -121,6 +122,31 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
+    void prepareAuthenticationShouldExposeStableIdAndConsumeCredentialSnapshotOnce() {
+        UserCredentialApplicationService service = service();
+        UUID userId = uuid(9);
+        UserAccount user = activeUser(userId, "coeur", new BCryptPasswordEncoder().encode("secret12"), "");
+        when(userRepository.findByUsername("cœur")).thenReturn(Optional.of(user));
+
+        UserCredentialQueryApi.AuthenticationChallenge challenge = service.prepareAuthentication("cœur");
+
+        assertThat(challenge.userId()).isEqualTo(userId);
+        assertThat(challenge.authenticate("secret12").authenticated()).isTrue();
+        assertThat(challenge.authenticate("secret12").authenticated()).isFalse();
+    }
+
+    @Test
+    void prepareAuthenticationShouldExposeNullUserIdForUnknownUser() {
+        UserCredentialApplicationService service = service();
+        when(userRepository.findByUsername("ghost")).thenReturn(Optional.empty());
+
+        UserCredentialQueryApi.AuthenticationChallenge challenge = service.prepareAuthentication("ghost");
+
+        assertThat(challenge.userId()).isNull();
+        assertThat(challenge.authenticate("secret12").authenticated()).isFalse();
+    }
+
+    @Test
     void authenticateShouldRejectActivelyBannedUser() {
         UserCredentialApplicationService service = service();
         UserAccount user = new UserAccount(
@@ -181,7 +207,7 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
         UserCredentialApplicationService.PreparedAuthentication preparation =
-                service.prepareAuthentication("alice");
+                service.prepare("alice");
 
         assertThat(preparation.storedHashUsable()).isFalse();
         assertThat(service.authenticate(preparation, "any-password").failure())
@@ -193,7 +219,7 @@ class UserCredentialApplicationServiceTest {
         UserCredentialApplicationService service = service();
 
         UserCredentialApplicationService.PreparedAuthentication preparation =
-                service.prepareAuthentication("alice\u200D");
+                service.prepare("alice\u200D");
 
         assertThat(preparation.user()).isNull();
         assertThat(preparation.storedHashUsable()).isFalse();
@@ -212,7 +238,7 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(unsafeStoredUser));
 
         UserCredentialApplicationService.PreparedAuthentication preparation =
-                service.prepareAuthentication("alice");
+                service.prepare("alice");
 
         assertThat(preparation.user()).isNull();
         assertThat(preparation.storedHashUsable()).isFalse();
@@ -265,15 +291,12 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void getByUserIdShouldRejectMissingUser() {
+    void getByUserIdShouldReturnNullWhenUserMissing() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(7);
         when(userRepository.findById(userId)).thenReturn(Optional.empty());
 
-        assertThatThrownBy(() -> service.getByUserId(userId))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(UserErrorCode.USER_NOT_FOUND);
+        assertThat(service.getByUserId(userId)).isNull();
     }
 
     @Test

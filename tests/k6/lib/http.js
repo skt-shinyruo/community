@@ -2,7 +2,6 @@ import http from 'k6/http'
 import { check, sleep } from 'k6'
 import { config } from './config.js'
 import { recordUnexpected } from './metrics.js'
-import { compactK6Params } from './request-params.js'
 
 export function jsonHeaders(extra = {}) {
   const headers = {
@@ -62,7 +61,7 @@ export function expectStatus(response, expected, name) {
 
 function requestOptions(path, params = {}, headers = undefined) {
   const requestParams = params || {}
-  return compactK6Params({
+  const merged = {
     headers: headers || requestParams.headers,
     tags: requestParams.tags || { type: 'api', endpoint: path },
     timeout: requestParams.timeout,
@@ -71,7 +70,8 @@ function requestOptions(path, params = {}, headers = undefined) {
     jar: requestParams.jar,
     compression: requestParams.compression,
     responseType: requestParams.responseType
-  })
+  }
+  return Object.fromEntries(Object.entries(merged).filter(([, value]) => value != null))
 }
 
 export function get(path, params = {}, expected = 200) {

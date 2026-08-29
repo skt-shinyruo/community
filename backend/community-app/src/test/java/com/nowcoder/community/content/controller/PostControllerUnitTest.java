@@ -1,9 +1,9 @@
 package com.nowcoder.community.content.controller;
 
+import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JsonMappers;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
@@ -361,7 +361,7 @@ class PostControllerUnitTest {
         UUID postId = uuid(11);
         UUID parentCommentId = uuid(31);
         UUID createdCommentId = uuid(32);
-        ObjectMapper objectMapper = JsonMappers.standard().copy()
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper().copy()
                 .configure(DeserializationFeature.FAIL_ON_UNKNOWN_PROPERTIES, false);
         CreateCommentRequest request = objectMapper.readValue("""
                 {
@@ -399,7 +399,7 @@ class PostControllerUnitTest {
         UUID userId = uuid(7);
         UUID categoryId = uuid(3);
         Date createTime = new Date(1_700_000_000_000L);
-        ObjectMapper objectMapper = JsonMappers.standard();
+        ObjectMapper objectMapper = JacksonJsonCodec.standardMapper();
 
         JsonNode create = objectMapper.valueToTree(new PostCreateResult(postId));
         JsonNode summary = objectMapper.valueToTree(postSummaryView(postId, userId, categoryId, createTime, "title"));

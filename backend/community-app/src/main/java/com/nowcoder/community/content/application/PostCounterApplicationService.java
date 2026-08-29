@@ -1,6 +1,8 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.content.domain.model.DiscussPost;
+import com.nowcoder.community.social.api.query.SocialLikeQueryApi;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -22,7 +24,7 @@ public class PostCounterApplicationService {
     private final PostCounterCache postCounterCache;
     private final PostCounterSnapshotRepository postCounterSnapshotRepository;
     private final PostContentRepository postContentRepository;
-    private final LikeQueryPort likeQueryPort;
+    private final SocialLikeQueryApi likeQueryApi;
     private final BookmarkRepository bookmarkRepository;
     private final BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort;
 
@@ -30,7 +32,7 @@ public class PostCounterApplicationService {
             PostCounterCache postCounterCache,
             PostCounterSnapshotRepository postCounterSnapshotRepository,
             PostContentRepository postContentRepository,
-            LikeQueryPort likeQueryPort,
+            SocialLikeQueryApi likeQueryApi,
             BookmarkRepository bookmarkRepository,
             BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort
     ) {
@@ -39,7 +41,7 @@ public class PostCounterApplicationService {
                 postCounterSnapshotRepository, "postCounterSnapshotRepository must not be null");
         this.postContentRepository = Objects.requireNonNull(
                 postContentRepository, "postContentRepository must not be null");
-        this.likeQueryPort = Objects.requireNonNull(likeQueryPort, "likeQueryPort must not be null");
+        this.likeQueryApi = Objects.requireNonNull(likeQueryApi, "likeQueryApi must not be null");
         this.bookmarkRepository = Objects.requireNonNull(bookmarkRepository, "bookmarkRepository must not be null");
         this.bookmarkCounterReconciliationPort = Objects.requireNonNull(
                 bookmarkCounterReconciliationPort, "bookmarkCounterReconciliationPort must not be null");
@@ -144,9 +146,9 @@ public class PostCounterApplicationService {
                 // A deleted/missing post can still have a persisted counter snapshot to flush.
             }
         }
-        if (likeQueryPort != null) {
+        if (likeQueryApi != null) {
             try {
-                likeCount = Math.max(0L, likeQueryPort.countPostLikes(postId));
+                likeCount = Math.max(0L, postId == null ? 0L : likeQueryApi.count(EntityTypes.POST, postId));
             } catch (RuntimeException exception) {
                 log.warn("[post-counter] like baseline read degraded postId={}", postId);
             }
@@ -186,9 +188,9 @@ public class PostCounterApplicationService {
                 log.warn("[post-counter] post fact read degraded postId={}", postId);
             }
         }
-        if (likeQueryPort != null) {
+        if (likeQueryApi != null) {
             try {
-                likeCount = Math.max(0L, likeQueryPort.countPostLikes(postId));
+                likeCount = Math.max(0L, postId == null ? 0L : likeQueryApi.count(EntityTypes.POST, postId));
             } catch (RuntimeException exception) {
                 log.warn("[post-counter] like fact read degraded postId={}", postId);
             }
@@ -341,8 +343,8 @@ public class PostCounterApplicationService {
                 score = Math.max(0.0, post.getScore());
             }
         }
-        if (likeQueryPort != null) {
-            likeCount = Math.max(0L, likeQueryPort.countPostLikes(postId));
+        if (likeQueryApi != null) {
+            likeCount = Math.max(0L, postId == null ? 0L : likeQueryApi.count(EntityTypes.POST, postId));
         }
         if (bookmarkRepository != null) {
             bookmarkCount = Math.max(0L, bookmarkRepository.countByPostId(postId));

@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.FeedCursorCodec;
 import com.nowcoder.community.content.application.PostFeedCache;
-import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 import com.nowcoder.community.content.domain.model.Category;
 import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import org.springframework.data.domain.Range;
@@ -223,11 +222,11 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     @Override
-    public HotFeedDegradationSignalResult readDegradationSignal() {
+    public PostFeedCache.DegradationSignal readDegradationSignal() {
         String degradedValue = redisTemplate.opsForValue().get(HOT_DEGRADATION_DEGRADED_KEY);
         String reason = redisTemplate.opsForValue().get(HOT_DEGRADATION_REASON_KEY);
         String updatedAt = redisTemplate.opsForValue().get(HOT_DEGRADATION_UPDATED_AT_KEY);
-        return new HotFeedDegradationSignalResult(
+        return new PostFeedCache.DegradationSignal(
                 Boolean.parseBoolean(degradedValue),
                 StringUtils.hasText(reason) ? reason : "",
                 parseInstant(updatedAt)
@@ -235,13 +234,13 @@ public class RedisPostFeedCache implements PostFeedCache {
     }
 
     @Override
-    public HotFeedDegradationSignalResult writeDegradationSignal(boolean degraded, String reason) {
+    public PostFeedCache.DegradationSignal writeDegradationSignal(boolean degraded, String reason) {
         Instant now = clock.instant();
         String normalizedReason = StringUtils.hasText(reason) ? reason.trim() : "";
         redisTemplate.opsForValue().set(HOT_DEGRADATION_DEGRADED_KEY, Boolean.toString(degraded));
         redisTemplate.opsForValue().set(HOT_DEGRADATION_REASON_KEY, degraded ? normalizedReason : "");
         redisTemplate.opsForValue().set(HOT_DEGRADATION_UPDATED_AT_KEY, now.toString());
-        return new HotFeedDegradationSignalResult(degraded, degraded ? normalizedReason : "", now);
+        return new PostFeedCache.DegradationSignal(degraded, degraded ? normalizedReason : "", now);
     }
 
     @Override

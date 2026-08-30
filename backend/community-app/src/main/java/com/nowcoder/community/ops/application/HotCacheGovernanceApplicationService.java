@@ -6,7 +6,7 @@ import com.nowcoder.community.content.api.action.HotFeedCacheGovernanceActionApi
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmRequest;
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmResultView;
 import com.nowcoder.community.content.api.model.HotFeedCacheStatusView;
-import com.nowcoder.community.content.api.model.HotFeedDegradationSignalView;
+import com.nowcoder.community.content.api.model.HotFeedDegradationSignal;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.api.query.HotFeedCacheGovernanceQueryApi;
 import com.nowcoder.community.ops.application.command.RecordGovernanceAuditCommand;
@@ -59,7 +59,7 @@ public class HotCacheGovernanceApplicationService {
     }
 
     public DegradationSignalResult getDegradationSignal() {
-        HotFeedDegradationSignalView view = hotFeedCacheGovernanceQueryApi.getDegradationSignal();
+        HotFeedDegradationSignal view = hotFeedCacheGovernanceQueryApi.getDegradationSignal();
         return new DegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
     }
 
@@ -101,7 +101,7 @@ public class HotCacheGovernanceApplicationService {
 
     public DegradationSignalResult updateDegradation(UpdateDegradationCommand command) {
         UpdateDegradationCommand c = validateDegradation(command);
-        HotFeedDegradationSignalView view = hotFeedCacheGovernanceActionApi.updateDegradationSignal(
+        HotFeedDegradationSignal view = hotFeedCacheGovernanceActionApi.updateDegradationSignal(
                 new UpdateHotFeedDegradationSignalRequest(c.degraded(), c.reason())
         );
         String result = view.degraded() ? GovernanceResult.DEGRADED.name() : GovernanceResult.ACCEPTED.name();

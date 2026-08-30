@@ -2,12 +2,11 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
 import com.nowcoder.community.content.api.action.HotFeedCacheGovernanceActionApi;
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmRequest;
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmResultView;
 import com.nowcoder.community.content.api.model.HotFeedCacheStatusView;
-import com.nowcoder.community.content.api.model.HotFeedDegradationSignalView;
+import com.nowcoder.community.content.api.model.HotFeedDegradationSignal;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.api.query.HotFeedCacheGovernanceQueryApi;
 import com.nowcoder.community.content.domain.model.DiscussPost;
@@ -50,7 +49,7 @@ public class HotFeedCacheGovernanceApplicationService
     @Override
     public HotFeedCacheStatusView getStatus(String scope, UUID boardId) {
         String normalizedScope = validateScope(scope, boardId);
-        HotFeedDegradationSignalResult signal = safeSignal();
+        HotFeedDegradationSignal signal = safeSignal();
         return new HotFeedCacheStatusView(
                 normalizedScope,
                 boardId,
@@ -64,8 +63,8 @@ public class HotFeedCacheGovernanceApplicationService
     }
 
     @Override
-    public HotFeedDegradationSignalView getDegradationSignal() {
-        return toView(safeSignal());
+    public HotFeedDegradationSignal getDegradationSignal() {
+        return safeSignal();
     }
 
     @Override
@@ -102,7 +101,7 @@ public class HotFeedCacheGovernanceApplicationService
         postFeedSummaryLoader.prewarmCurrentPosts(posts);
         Instant prewarmAt = clock.instant();
         postFeedCache.writeLastPrewarmAt(c.scope(), c.boardId(), prewarmAt);
-        HotFeedDegradationSignalResult signal = safeSignal();
+        HotFeedDegradationSignal signal = safeSignal();
         return new HotFeedCachePrewarmResultView(
                 c.scope(),
                 c.boardId(),
@@ -122,12 +121,14 @@ public class HotFeedCacheGovernanceApplicationService
     }
 
     @Override
-    public HotFeedDegradationSignalView updateDegradationSignal(UpdateHotFeedDegradationSignalRequest request) {
+    public HotFeedDegradationSignal updateDegradationSignal(UpdateHotFeedDegradationSignalRequest request) {
         if (request == null) {
             throw new BusinessException(CommonErrorCode.INVALID_ARGUMENT, "degradation command is required");
         }
         String reason = trim(request.reason());
-        return toView(postFeedCache.writeDegradationSignal(request.degraded(), request.degraded() ? reason : ""));
+        PostFeedCache.DegradationSignal signal = postFeedCache.writeDegradationSignal(
+                request.degraded(), request.degraded() ? reason : "");
+        return new HotFeedDegradationSignal(signal.degraded(), signal.reason(), signal.updatedAt());
     }
 
     private HotFeedCachePrewarmRequest validatePrewarm(HotFeedCachePrewarmRequest request) {
@@ -164,13 +165,12 @@ public class HotFeedCacheGovernanceApplicationService
         return normalized;
     }
 
-    private HotFeedDegradationSignalResult safeSignal() {
-        HotFeedDegradationSignalResult signal = postFeedCache.readDegradationSignal();
-        return signal == null ? new HotFeedDegradationSignalResult(false, "", null) : signal;
-    }
-
-    private HotFeedDegradationSignalView toView(HotFeedDegradationSignalResult signal) {
-        return new HotFeedDegradationSignalView(signal.degraded(), signal.reason(), signal.updatedAt());
+    private HotFeedDegradationSignal safeSignal() {
+        PostFeedCache.DegradationSignal signal = postFeedCache.readDegradationSignal();
+        if (signal == null) {
+            return new HotFeedDegradationSignal(false, "", null);
+        }
+        return new HotFeedDegradationSignal(signal.degraded(), signal.reason(), signal.updatedAt());
     }
 
     private String trim(String value) {

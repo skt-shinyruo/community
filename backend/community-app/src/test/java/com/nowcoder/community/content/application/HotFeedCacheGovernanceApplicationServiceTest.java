@@ -3,7 +3,7 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmRequest;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
-import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
+import com.nowcoder.community.content.api.model.HotFeedDegradationSignal;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
@@ -52,7 +52,7 @@ class HotFeedCacheGovernanceApplicationServiceTest {
         when(postFeedCache.readRankVersion()).thenReturn("hot-v9");
         when(postFeedCache.countGlobalHot()).thenReturn(12L);
         when(postFeedCache.readLastPrewarmAt("global", null)).thenReturn(prewarmAt);
-        when(postFeedCache.readDegradationSignal()).thenReturn(new HotFeedDegradationSignalResult(false, "", null));
+        when(postFeedCache.readDegradationSignal()).thenReturn(new PostFeedCache.DegradationSignal(false, "", null));
 
         var result = service.getStatus("global", null);
 
@@ -119,9 +119,9 @@ class HotFeedCacheGovernanceApplicationServiceTest {
     @Test
     void degradationSignalShouldBeSetAndCleared() {
         when(postFeedCache.writeDegradationSignal(true, "redis maintenance"))
-                .thenReturn(new HotFeedDegradationSignalResult(true, "redis maintenance", Instant.parse("2026-07-07T10:00:00Z")));
+                .thenReturn(new PostFeedCache.DegradationSignal(true, "redis maintenance", Instant.parse("2026-07-07T10:00:00Z")));
         when(postFeedCache.writeDegradationSignal(false, ""))
-                .thenReturn(new HotFeedDegradationSignalResult(false, "", Instant.parse("2026-07-07T10:01:00Z")));
+                .thenReturn(new PostFeedCache.DegradationSignal(false, "", Instant.parse("2026-07-07T10:01:00Z")));
 
         var degraded = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalRequest(true, "redis maintenance"));
         var cleared = service.updateDegradationSignal(new UpdateHotFeedDegradationSignalRequest(false, "clear"));

@@ -5,7 +5,7 @@ import com.nowcoder.community.content.api.action.HotFeedCacheGovernanceActionApi
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmRequest;
 import com.nowcoder.community.content.api.model.HotFeedCachePrewarmResultView;
 import com.nowcoder.community.content.api.model.HotFeedCacheStatusView;
-import com.nowcoder.community.content.api.model.HotFeedDegradationSignalView;
+import com.nowcoder.community.content.api.model.HotFeedDegradationSignal;
 import com.nowcoder.community.content.api.model.UpdateHotFeedDegradationSignalRequest;
 import com.nowcoder.community.content.api.query.HotFeedCacheGovernanceQueryApi;
 import com.nowcoder.community.ops.application.HotCacheGovernanceApplicationService.GetStatusCommand;
@@ -109,7 +109,7 @@ class HotCacheGovernanceApplicationServiceTest {
     void degradationUpdateShouldDelegateToContentActionApiAndAuditMetrics() {
         UUID actorId = uuid(99);
         Instant updatedAt = Instant.parse("2026-07-07T10:00:00Z");
-        when(actionApi.updateDegradationSignal(any())).thenReturn(new HotFeedDegradationSignalView(
+        when(actionApi.updateDegradationSignal(any())).thenReturn(new HotFeedDegradationSignal(
                 true,
                 "redis maintenance",
                 updatedAt

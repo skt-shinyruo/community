@@ -1,7 +1,5 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.content.application.result.HotFeedDegradationSignalResult;
-
 import java.time.Instant;
 import java.util.Date;
 import java.util.List;
@@ -36,9 +34,9 @@ public interface PostFeedCache {
 
     long countBoardHot(UUID boardId);
 
-    HotFeedDegradationSignalResult readDegradationSignal();
+    DegradationSignal readDegradationSignal();
 
-    HotFeedDegradationSignalResult writeDegradationSignal(boolean degraded, String reason);
+    DegradationSignal writeDegradationSignal(boolean degraded, String reason);
 
     Instant readLastPrewarmAt(String scope, UUID boardId);
 
@@ -81,5 +79,8 @@ public interface PostFeedCache {
         public Date createTime() {
             return createTime == null ? null : new Date(createTime.getTime());
         }
+    }
+
+    record DegradationSignal(boolean degraded, String reason, Instant updatedAt) {
     }
 }

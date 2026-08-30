@@ -1,6 +1,7 @@
 package com.nowcoder.community.social.infrastructure.event;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.event.JacksonEventPayloadSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.social.contracts.event.BlockPayload;
 import com.nowcoder.community.social.contracts.event.FollowPayload;
@@ -10,20 +11,18 @@ import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Objects;
-import java.util.UUID;
 
 @Component
 public class JacksonSocialContractEventCodec implements SocialContractEventCodec {
 
     private final JacksonJsonCodec jsonCodec;
+    private final JacksonEventPayloadSupport payloadSupport;
 
     public JacksonSocialContractEventCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
+        this.payloadSupport = new JacksonEventPayloadSupport(jsonCodec, "social");
     }
 
     @Override
@@ -36,7 +35,7 @@ public class JacksonSocialContractEventCodec implements SocialContractEventCodec
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(), type,
                     envelope.occurredAt(), envelope.version(), payload);
         }
-        requireObjectPayload(type, payload);
+        payloadSupport.requireObjectPayload(type, payload);
         return switch (type) {
             case SocialEventTypes.LIKE_CREATED -> new SocialTypedEvent.LikeCreated(
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(),
@@ -84,12 +83,12 @@ public class JacksonSocialContractEventCodec implements SocialContractEventCodec
     public SocialContractEvent deserialize(String json) {
         JsonNode root = jsonCodec.readTree(json);
         return new SocialContractEvent(
-                text(root, "eventId"),
-                uuid(root, "aggregateId"),
-                text(root, "aggregateType"),
-                text(root, "type"),
-                instant(root, "occurredAt"),
-                number(root, "version"),
+                payloadSupport.text(root, "eventId"),
+                payloadSupport.uuid(root, "aggregateId"),
+                payloadSupport.text(root, "aggregateType"),
+                payloadSupport.text(root, "type"),
+                payloadSupport.instant(root, "occurredAt"),
+                payloadSupport.number(root, "version"),
                 root == null ? null : root.get("payload")
         );
     }
@@ -106,56 +105,20 @@ public class JacksonSocialContractEventCodec implements SocialContractEventCodec
     }
 
     private LikePayload decodeLike(String type, JsonNode payload) {
-        requireUuid(type, payload, "actorUserId");
-        return convert(type, payload, LikePayload.class);
+        payloadSupport.requireUuid(type, payload, "actorUserId");
+        return payloadSupport.convert(type, payload, LikePayload.class);
     }
 
     private FollowPayload decodeFollow(String type, JsonNode payload) {
-        requireUuid(type, payload, "entityId");
-        return convert(type, payload, FollowPayload.class);
+        payloadSupport.requireUuid(type, payload, "entityId");
+        return payloadSupport.convert(type, payload, FollowPayload.class);
     }
 
     private BlockPayload decodeBlock(String type, JsonNode payload) {
-        requireUuid(type, payload, "blockerUserId");
-        requireUuid(type, payload, "blockedUserId");
-        requireBoolean(type, payload, "blocked");
-        return convert(type, payload, BlockPayload.class);
-    }
-
-    private <T> T convert(String type, JsonNode payload, Class<T> payloadType) {
-        try {
-            return jsonCodec.treeToValue(payload, payloadType);
-        } catch (RuntimeException error) {
-            throw malformed(type, "payload", error);
-        }
-    }
-
-    private void requireObjectPayload(String type, JsonNode payload) {
-        if (payload == null || payload.isNull()) {
-            throw new IllegalArgumentException("social event outbox payload missing payload: " + type);
-        }
-        if (!payload.isObject()) {
-            throw malformed(type, "payload", null);
-        }
-    }
-
-    private void requireUuid(String type, JsonNode payload, String fieldName) {
-        JsonNode value = payload.get(fieldName);
-        if (value == null || !value.isTextual() || !StringUtils.hasText(value.textValue())) {
-            throw malformed(type, fieldName, null);
-        }
-        try {
-            UUID.fromString(value.textValue());
-        } catch (IllegalArgumentException error) {
-            throw malformed(type, fieldName, error);
-        }
-    }
-
-    private void requireBoolean(String type, JsonNode payload, String fieldName) {
-        JsonNode value = payload.get(fieldName);
-        if (value == null || !value.isBoolean()) {
-            throw malformed(type, fieldName, null);
-        }
+        payloadSupport.requireUuid(type, payload, "blockerUserId");
+        payloadSupport.requireUuid(type, payload, "blockedUserId");
+        payloadSupport.requireBoolean(type, payload, "blocked");
+        return payloadSupport.convert(type, payload, BlockPayload.class);
     }
 
     private boolean isKnown(String type) {
@@ -165,48 +128,4 @@ public class JacksonSocialContractEventCodec implements SocialContractEventCodec
                 || SocialEventTypes.BLOCK_RELATION_CHANGED.equals(type);
     }
 
-    private String text(JsonNode node, String fieldName) {
-        if (node == null) {
-            return null;
-        }
-        JsonNode value = node.get(fieldName);
-        return value == null || value.isNull() ? null : value.asText(null);
-    }
-
-    private UUID uuid(JsonNode node, String fieldName) {
-        String value = text(node, fieldName);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException error) {
-            throw new IllegalStateException("social event outbox payload invalid " + fieldName, error);
-        }
-    }
-
-    private Instant instant(JsonNode node, String fieldName) {
-        String value = text(node, fieldName);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return Instant.parse(value);
-        } catch (DateTimeParseException error) {
-            throw new IllegalStateException("social event outbox payload invalid " + fieldName, error);
-        }
-    }
-
-    private long number(JsonNode node, String fieldName) {
-        if (node == null) {
-            return 0L;
-        }
-        JsonNode value = node.get(fieldName);
-        return value == null || value.isNull() ? 0L : value.asLong(0L);
-    }
-
-    private IllegalArgumentException malformed(String type, String fieldName, Throwable cause) {
-        String message = "invalid social event payload: type=" + type + ", field=" + fieldName;
-        return cause == null ? new IllegalArgumentException(message) : new IllegalArgumentException(message, cause);
-    }
 }

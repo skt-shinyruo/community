@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.json.event.JacksonEventPayloadSupport;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.contracts.event.ContentContractEvent;
@@ -11,20 +12,18 @@ import com.nowcoder.community.content.contracts.event.ModerationPayload;
 import com.nowcoder.community.content.contracts.event.PostPayload;
 import com.nowcoder.community.content.contracts.event.PostScorePayload;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 
-import java.time.Instant;
-import java.time.format.DateTimeParseException;
 import java.util.Objects;
-import java.util.UUID;
 
 @Component
 public class JacksonContentContractEventCodec implements ContentContractEventCodec {
 
     private final JacksonJsonCodec jsonCodec;
+    private final JacksonEventPayloadSupport payloadSupport;
 
     public JacksonContentContractEventCodec(JacksonJsonCodec jsonCodec) {
         this.jsonCodec = jsonCodec;
+        this.payloadSupport = new JacksonEventPayloadSupport(jsonCodec, "content");
     }
 
     @Override
@@ -37,7 +36,7 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(), type,
                     envelope.occurredAt(), envelope.version(), payload);
         }
-        requireObjectPayload(type, payload);
+        payloadSupport.requireObjectPayload(type, payload);
         return switch (type) {
             case ContentEventTypes.POST_PUBLISHED -> new ContentTypedEvent.PostPublished(
                     envelope.eventId(), envelope.aggregateId(), envelope.aggregateType(),
@@ -100,12 +99,12 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
     public ContentContractEvent deserialize(String json) {
         JsonNode root = jsonCodec.readTree(json);
         return new ContentContractEvent(
-                text(root, "eventId"),
-                uuid(root, "aggregateId"),
-                text(root, "aggregateType"),
-                text(root, "type"),
-                instant(root, "occurredAt"),
-                number(root, "version"),
+                payloadSupport.text(root, "eventId"),
+                payloadSupport.uuid(root, "aggregateId"),
+                payloadSupport.text(root, "aggregateType"),
+                payloadSupport.text(root, "type"),
+                payloadSupport.instant(root, "occurredAt"),
+                payloadSupport.number(root, "version"),
                 root == null ? null : root.get("payload")
         );
     }
@@ -122,52 +121,23 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
     }
 
     private PostPayload decodePost(String type, JsonNode payload) {
-        requireUuid(type, payload, "postId");
-        return convert(type, payload, PostPayload.class);
+        payloadSupport.requireUuid(type, payload, "postId");
+        return payloadSupport.convert(type, payload, PostPayload.class);
     }
 
     private PostScorePayload decodePostScore(String type, JsonNode payload) {
-        requireUuid(type, payload, "postId");
-        return convert(type, payload, PostScorePayload.class);
+        payloadSupport.requireUuid(type, payload, "postId");
+        return payloadSupport.convert(type, payload, PostScorePayload.class);
     }
 
     private CommentPayload decodeComment(String type, JsonNode payload) {
-        requireUuid(type, payload, "commentId");
-        return convert(type, payload, CommentPayload.class);
+        payloadSupport.requireUuid(type, payload, "commentId");
+        return payloadSupport.convert(type, payload, CommentPayload.class);
     }
 
     private ModerationPayload decodeModeration(String type, JsonNode payload) {
-        requireUuid(type, payload, "toUserId");
-        return convert(type, payload, ModerationPayload.class);
-    }
-
-    private <T> T convert(String type, JsonNode payload, Class<T> payloadType) {
-        try {
-            return jsonCodec.treeToValue(payload, payloadType);
-        } catch (RuntimeException error) {
-            throw malformed(type, "payload", error);
-        }
-    }
-
-    private void requireObjectPayload(String type, JsonNode payload) {
-        if (payload == null || payload.isNull()) {
-            throw new IllegalArgumentException("content event outbox payload missing payload: " + type);
-        }
-        if (!payload.isObject()) {
-            throw malformed(type, "payload", null);
-        }
-    }
-
-    private void requireUuid(String type, JsonNode payload, String fieldName) {
-        JsonNode value = payload.get(fieldName);
-        if (value == null || !value.isTextual() || !StringUtils.hasText(value.textValue())) {
-            throw malformed(type, fieldName, null);
-        }
-        try {
-            UUID.fromString(value.textValue());
-        } catch (IllegalArgumentException error) {
-            throw malformed(type, fieldName, error);
-        }
+        payloadSupport.requireUuid(type, payload, "toUserId");
+        return payloadSupport.convert(type, payload, ModerationPayload.class);
     }
 
     private boolean isKnown(String type) {
@@ -180,48 +150,4 @@ public class JacksonContentContractEventCodec implements ContentContractEventCod
                 || ContentEventTypes.MODERATION_ACTION_APPLIED.equals(type);
     }
 
-    private String text(JsonNode node, String fieldName) {
-        if (node == null) {
-            return null;
-        }
-        JsonNode value = node.get(fieldName);
-        return value == null || value.isNull() ? null : value.asText(null);
-    }
-
-    private UUID uuid(JsonNode node, String fieldName) {
-        String value = text(node, fieldName);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return UUID.fromString(value);
-        } catch (IllegalArgumentException error) {
-            throw new IllegalStateException("content event outbox payload invalid " + fieldName, error);
-        }
-    }
-
-    private Instant instant(JsonNode node, String fieldName) {
-        String value = text(node, fieldName);
-        if (!StringUtils.hasText(value)) {
-            return null;
-        }
-        try {
-            return Instant.parse(value);
-        } catch (DateTimeParseException error) {
-            throw new IllegalStateException("content event outbox payload invalid " + fieldName, error);
-        }
-    }
-
-    private long number(JsonNode node, String fieldName) {
-        if (node == null) {
-            return 0L;
-        }
-        JsonNode value = node.get(fieldName);
-        return value == null || value.isNull() ? 0L : value.asLong(0L);
-    }
-
-    private IllegalArgumentException malformed(String type, String fieldName, Throwable cause) {
-        String message = "invalid content event payload: type=" + type + ", field=" + fieldName;
-        return cause == null ? new IllegalArgumentException(message) : new IllegalArgumentException(message, cause);
-    }
 }

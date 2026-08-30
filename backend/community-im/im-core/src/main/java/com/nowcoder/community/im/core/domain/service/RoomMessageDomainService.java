@@ -4,7 +4,7 @@ import com.nowcoder.community.im.core.domain.model.RoomMessageRecord;
 import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomRepository;
-import com.nowcoder.community.im.core.support.IdGenerator;
+import com.nowcoder.community.common.id.UuidV7Generator;
 
 import java.time.Instant;
 import java.util.UUID;
@@ -16,7 +16,7 @@ public class RoomMessageDomainService {
     private final RoomMessageRepository roomMessageRepository;
     private final RoomReadStateRepository readStateRepository;
     private final SeqAllocator seqAllocator;
-    private final IdGenerator idGenerator;
+    private final UuidV7Generator idGenerator;
     private final int maxContentChars;
 
     public RoomMessageDomainService(
@@ -25,7 +25,7 @@ public class RoomMessageDomainService {
             RoomMessageRepository roomMessageRepository,
             RoomReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
-            IdGenerator idGenerator,
+            UuidV7Generator idGenerator,
             int maxContentChars
     ) {
         this.roomRepository = roomRepository;
@@ -68,7 +68,7 @@ public class RoomMessageDomainService {
         }
 
         long seq = seqAllocator.nextRoomSeq(roomId);
-        UUID messageId = idGenerator.nextId();
+        UUID messageId = idGenerator.next();
         Instant now = Instant.now();
 
         RoomMessageRecord message = new RoomMessageRecord(

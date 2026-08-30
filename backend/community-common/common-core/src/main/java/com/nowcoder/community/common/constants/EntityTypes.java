@@ -18,18 +18,5 @@ public final class EntityTypes {
     public static boolean isValid(int type) {
         return type == POST || type == COMMENT || type == USER;
     }
-
-    public static String nameOf(int type) {
-        if (type == POST) {
-            return "post";
-        }
-        if (type == COMMENT) {
-            return "comment";
-        }
-        if (type == USER) {
-            return "user";
-        }
-        return "unknown(" + type + ")";
-    }
 }
 

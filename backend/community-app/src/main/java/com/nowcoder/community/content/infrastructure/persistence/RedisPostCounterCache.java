@@ -2,6 +2,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.content.application.PostCounterCache;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.ZSetOperations;
@@ -9,15 +10,11 @@ import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Duration;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashSet;
-import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -586,20 +583,12 @@ public class RedisPostCounterCache implements PostCounterCache {
     }
 
     private static String viewerKey(UUID postId, String viewerKey) {
-        return VIEWER_KEY_PREFIX + hashTag(shard(postId)) + ":" + postId + ":" + sha256(viewerKey.trim());
+        return VIEWER_KEY_PREFIX + hashTag(shard(postId)) + ":" + postId + ":"
+                + RequestFingerprint.sha256(viewerKey.trim());
     }
 
     private static String hashTag(int shard) {
         String value = Integer.toHexString(shard);
         return "{post-counter-" + (value.length() == 1 ? "0" + value : value) + "}";
-    }
-
-    private static String sha256(String value) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(value.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException ex) {
-            throw new IllegalStateException("SHA-256 not available", ex);
-        }
     }
 }

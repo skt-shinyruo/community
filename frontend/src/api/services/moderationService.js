@@ -24,8 +24,7 @@ export async function takeAction({ reportId, action, reason, durationSeconds } =
   if (durationSeconds != null && Number(durationSeconds) > 0) payload.durationSeconds = Number(durationSeconds)
 
   const resp = await http.post('/api/moderation/actions', payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '执行处置动作')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '执行处置动作')
 }
 
 export async function listActions({ actorId, page = 0, size = 20 } = {}) {

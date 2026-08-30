@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.core.infrastructure;
 
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
@@ -12,13 +13,14 @@ import com.nowcoder.community.im.core.domain.service.PrivateMessageDomainService
 import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService;
 import com.nowcoder.community.im.core.domain.service.RoomMessageDomainService;
 import com.nowcoder.community.im.core.domain.service.SeqAllocator;
-import com.nowcoder.community.im.core.support.IdGenerator;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 
 @Configuration
 public class ImCoreDomainServiceConfiguration {
+
+    private final UuidV7Generator idGenerator = new UuidV7Generator();
 
     @Bean
     public SeqAllocator seqAllocator(RoomRepository roomRepository, ConversationRepository conversationRepository) {
@@ -31,7 +33,6 @@ public class ImCoreDomainServiceConfiguration {
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
-            IdGenerator idGenerator,
             @Value("${im.message.max-chars:10000}") int maxContentChars
     ) {
         return new PrivateMessageDomainService(
@@ -48,7 +49,6 @@ public class ImCoreDomainServiceConfiguration {
     public RoomMembershipDomainService roomMembershipDomainService(
             RoomRepository roomRepository,
             RoomMemberRepository roomMemberRepository,
-            IdGenerator idGenerator,
             @Value("${im.room.max-members:10000}") int maxMembersPerRoom
     ) {
         return new RoomMembershipDomainService(
@@ -66,7 +66,6 @@ public class ImCoreDomainServiceConfiguration {
             RoomMessageRepository roomMessageRepository,
             RoomReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
-            IdGenerator idGenerator,
             @Value("${im.message.max-chars:10000}") int maxContentChars
     ) {
         return new RoomMessageDomainService(

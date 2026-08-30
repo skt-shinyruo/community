@@ -8,8 +8,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.CompletionException;
-
 @Component
 public class ImPolicyEventKafkaSenderAdapter implements ImPolicyIntegrationEventDispatcher {
 
@@ -29,20 +27,11 @@ public class ImPolicyEventKafkaSenderAdapter implements ImPolicyIntegrationEvent
 
     @Override
     public void dispatchUserMessagingPolicyChanged(String eventKey, UserMessagingPolicyChanged event) {
-        send(userMessagingPolicyChangedTopic, eventKey, event);
+        TraceKafkaSender.sendSync(kafkaTemplate, userMessagingPolicyChangedTopic, eventKey, event, "im policy kafka publish failed");
     }
 
     @Override
     public void dispatchUserBlockRelationChanged(String eventKey, UserBlockRelationChanged event) {
-        send(userBlockRelationChangedTopic, eventKey, event);
-    }
-
-    private void send(String topic, String eventKey, Object event) {
-        try {
-            TraceKafkaSender.send(kafkaTemplate, topic, eventKey, event).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            throw new IllegalStateException("im policy kafka publish failed: " + topic, cause);
-        }
+        TraceKafkaSender.sendSync(kafkaTemplate, userBlockRelationChangedTopic, eventKey, event, "im policy kafka publish failed");
     }
 }

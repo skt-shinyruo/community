@@ -5,7 +5,7 @@ import com.nowcoder.community.im.core.domain.repository.ConversationReadStateRep
 import com.nowcoder.community.im.core.domain.repository.ConversationRepository;
 import com.nowcoder.community.im.core.domain.repository.PrivateMessageRepository;
 import com.nowcoder.community.im.common.support.ConversationIdSupport;
-import com.nowcoder.community.im.core.support.IdGenerator;
+import com.nowcoder.community.common.id.UuidV7Generator;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -17,7 +17,7 @@ public class PrivateMessageDomainService {
     private final PrivateMessageRepository privateMessageRepository;
     private final ConversationReadStateRepository readStateRepository;
     private final SeqAllocator seqAllocator;
-    private final IdGenerator idGenerator;
+    private final UuidV7Generator idGenerator;
     private final int maxContentChars;
 
     public PrivateMessageDomainService(
@@ -25,7 +25,7 @@ public class PrivateMessageDomainService {
             PrivateMessageRepository privateMessageRepository,
             ConversationReadStateRepository readStateRepository,
             SeqAllocator seqAllocator,
-            IdGenerator idGenerator,
+            UuidV7Generator idGenerator,
             int maxContentChars
     ) {
         this.conversationRepository = conversationRepository;
@@ -83,7 +83,7 @@ public class PrivateMessageDomainService {
         }
 
         long seq = seqAllocator.nextConversationSeq(draft.conversationId());
-        UUID messageId = idGenerator.nextId();
+        UUID messageId = idGenerator.next();
         Instant now = Instant.now();
 
         PrivateMessageRecord message = new PrivateMessageRecord(

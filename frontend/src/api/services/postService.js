@@ -36,8 +36,7 @@ export async function createPost({ title, blocks, categoryId, tags } = {}, { wri
   }
   if (Array.isArray(tags) && tags.length > 0) payload.tags = tags
   const resp = await http.post('/api/posts', payload, writeAttemptConfig(writeAttempt))
-  const { data, traceId } = unwrapResultBody(resp.data, '发帖')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '发帖')
 }
 
 export async function batchPostSummaries(postIds) {
@@ -49,8 +48,7 @@ export async function batchPostSummaries(postIds) {
 
 export async function getPostDetail(postId) {
   const resp = await http.get(`/api/posts/${postId}`)
-  const { data, traceId } = unwrapResultBody(resp.data, '获取帖子详情')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '获取帖子详情')
 }
 
 /**
@@ -127,8 +125,7 @@ export async function addComment(postId, { content, parentCommentId } = {}, { wr
     if (normalizedParentCommentId) payload.parentCommentId = normalizedParentCommentId
   }
   const resp = await http.post(`/api/posts/${pid}/comments`, payload, writeAttemptConfig(writeAttempt))
-  const { data, traceId } = unwrapResultBody(resp.data, '发表评论')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '发表评论')
 }
 
 /**

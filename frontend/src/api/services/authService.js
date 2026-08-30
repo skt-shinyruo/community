@@ -10,44 +10,37 @@ export async function login(username, password, { captchaId = '', captchaCode = 
     payload.captchaCode = captchaCode
   }
   const resp = await http.post('/api/auth/login', payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '登录')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '登录')
 }
 
 export async function me() {
   const resp = await http.get('/api/auth/me')
-  const { data, traceId } = unwrapResultBody(resp.data, '获取用户信息')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '获取用户信息')
 }
 
 export async function register({ username, password, email, captchaId = '', captchaCode = '' }) {
   const resp = await http.post('/api/auth/register', { username, password, email, captchaId, captchaCode })
-  const { data, traceId } = unwrapResultBody(resp.data, '注册')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '注册')
 }
 
 export async function resendRegisterCode(registrationToken, { captchaId = '', captchaCode = '' } = {}) {
   const resp = await http.post('/api/auth/register/code/resend', { registrationToken, captchaId, captchaCode })
-  const { data, traceId } = unwrapResultBody(resp.data, '重发注册验证码')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '重发注册验证码')
 }
 
 export async function verifyRegisterCode(registrationToken, code) {
   const resp = await http.post('/api/auth/register/code/verify', { registrationToken, code })
-  const { data, traceId } = unwrapResultBody(resp.data, '验证注册验证码')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '验证注册验证码')
 }
 
 export async function issueCaptcha() {
   const resp = await http.get('/api/auth/captcha')
-  const { data, traceId } = unwrapResultBody(resp.data, '获取验证码')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '获取验证码')
 }
 
 export async function requestPasswordReset(email, { captchaId = '', captchaCode = '' } = {}) {
   const resp = await http.post('/api/auth/password/reset/request', { email, captchaId, captchaCode })
-  const { data, traceId } = unwrapResultBody(resp.data, '找回密码')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '找回密码')
 }
 
 export async function confirmPasswordReset(resetToken, newPassword, { captchaId = '', captchaCode = '' } = {}) {

@@ -33,8 +33,7 @@ function scopedFollowKey(scope, entityType, entityId) {
 
 export async function setLike({ entityType, entityId, liked }) {
   const resp = await http.post('/api/likes', { entityType, entityId, liked })
-  const { data, traceId } = unwrapResultBody(resp.data, '点赞')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '点赞')
 }
 
 export async function followUser(entityType, entityId) {

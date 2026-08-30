@@ -5,13 +5,11 @@ import { unwrapResultBody } from '../result'
 
 export async function uv({ start, end }) {
   const resp = await http.get('/api/analytics/uv', { params: { start, end } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询 UV')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '查询 UV')
 }
 
 export async function dau({ start, end }) {
   const resp = await http.get('/api/analytics/dau', { params: { start, end } })
-  const { data, traceId } = unwrapResultBody(resp.data, '查询 DAU')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '查询 DAU')
 }
 

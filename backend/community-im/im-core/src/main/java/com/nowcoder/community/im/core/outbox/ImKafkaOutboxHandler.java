@@ -8,8 +8,6 @@ import com.nowcoder.community.common.outbox.OutboxHandler;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.util.StringUtils;
 
-import java.util.concurrent.CompletionException;
-
 public class ImKafkaOutboxHandler<T> implements OutboxHandler {
 
     private final String topic;
@@ -45,11 +43,6 @@ public class ImKafkaOutboxHandler<T> implements OutboxHandler {
         } catch (JsonCodecException e) {
             throw new IllegalStateException("IM outbox payload deserialization failed: " + topic, e);
         }
-        try {
-            TraceKafkaSender.send(kafkaTemplate, topic, event.eventKey(), payload).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            throw new IllegalStateException("IM outbox kafka publish failed: " + topic, cause);
-        }
+        TraceKafkaSender.sendSync(kafkaTemplate, topic, event.eventKey(), payload, "IM outbox kafka publish failed");
     }
 }

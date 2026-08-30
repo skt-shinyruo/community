@@ -7,8 +7,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Component;
 
-import java.util.concurrent.CompletionException;
-
 @Component
 public class SocialEventKafkaSenderAdapter implements SocialIntegrationEventDispatcher {
 
@@ -25,13 +23,6 @@ public class SocialEventKafkaSenderAdapter implements SocialIntegrationEventDisp
 
     @Override
     public void dispatch(String eventKey, SocialContractEvent event) {
-        try {
-            TraceKafkaSender.send(kafkaTemplate, kafkaTopic, eventKey, event).join();
-        } catch (CompletionException e) {
-            Throwable cause = e.getCause() == null ? e : e.getCause();
-            throw new IllegalStateException("social event kafka publish failed: " + kafkaTopic, cause);
-        } catch (RuntimeException e) {
-            throw new IllegalStateException("social event kafka publish failed: " + kafkaTopic, e);
-        }
+        TraceKafkaSender.sendSync(kafkaTemplate, kafkaTopic, eventKey, event, "social event kafka publish failed");
     }
 }

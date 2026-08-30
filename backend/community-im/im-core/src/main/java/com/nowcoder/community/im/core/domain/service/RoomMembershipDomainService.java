@@ -2,7 +2,7 @@ package com.nowcoder.community.im.core.domain.service;
 
 import com.nowcoder.community.im.core.domain.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomRepository;
-import com.nowcoder.community.im.core.support.IdGenerator;
+import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
 
@@ -16,13 +16,13 @@ public class RoomMembershipDomainService {
 
     private final RoomRepository roomRepository;
     private final RoomMemberRepository roomMemberRepository;
-    private final IdGenerator idGenerator;
+    private final UuidV7Generator idGenerator;
     private final int maxMembersPerRoom;
 
     public RoomMembershipDomainService(
             RoomRepository roomRepository,
             RoomMemberRepository roomMemberRepository,
-            IdGenerator idGenerator,
+            UuidV7Generator idGenerator,
             int maxMembersPerRoom
     ) {
         this.roomRepository = roomRepository;
@@ -32,7 +32,7 @@ public class RoomMembershipDomainService {
     }
 
     public MembershipChange createRoom(UUID creatorUserId, String name) {
-        UUID roomId = idGenerator.nextId();
+        UUID roomId = idGenerator.next();
         roomRepository.insertRoom(roomId, name == null ? null : name.trim());
         long version = roomMemberRepository.addMember(roomId, creatorUserId, ROLE_OWNER);
         return new MembershipChange(roomId, creatorUserId, version, true);

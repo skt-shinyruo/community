@@ -87,6 +87,7 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { topicSummary } from '../api/services/noticeService'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import UiCard from '../components/ui/UiCard.vue'
@@ -98,11 +99,7 @@ const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
 const items = ref([])
-const loadRequestTracker = createLatestRequestTracker()
-
-function currentIdentityScope() {
-  return `${auth.tokenGeneration}:${String(auth.userId || '')}`
-}
+const loadRequestTracker = createLatestRequestTracker({ getScope: () => identityScope(auth) })
 
 function getTopicTitle(topic) {
   const map = {
@@ -116,18 +113,17 @@ function getTopicTitle(topic) {
 
 async function load() {
   const token = loadRequestTracker.begin()
-  const identityScope = currentIdentityScope()
   error.value = ''
   loading.value = true
   try {
     const { data } = await topicSummary()
-    if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
+    if (!loadRequestTracker.isCurrent(token)) return
     items.value = Array.isArray(data) ? data : []
   } catch (e) {
-    if (!loadRequestTracker.isCurrent(token) || currentIdentityScope() !== identityScope) return
+    if (!loadRequestTracker.isCurrent(token)) return
     error.value = e?.message || '加载通知失败'
   } finally {
-    if (loadRequestTracker.isCurrent(token) && currentIdentityScope() === identityScope) {
+    if (loadRequestTracker.isCurrent(token)) {
       loading.value = false
     }
   }
@@ -141,7 +137,7 @@ function resetForIdentity() {
   if (auth.authed) load()
 }
 
-watch(currentIdentityScope, resetForIdentity)
+watch(() => identityScope(auth), resetForIdentity)
 onMounted(() => {
   if (auth.authed) load()
 })

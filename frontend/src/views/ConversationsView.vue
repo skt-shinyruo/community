@@ -74,6 +74,8 @@
 <script setup>
 import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { listImConversationPage } from '../api/services/imCoreChatService'
 import { mergeConversations } from './conversationDetailState'
 import { formatConversationTime as formatTimeShort } from '../utils/time'
@@ -90,15 +92,7 @@ const error = ref('')
 const items = ref([])
 const nextCursor = ref('')
 const hasMore = ref(false)
-let requestGeneration = 0
-
-function currentIdentityScope() {
-  return `${auth.tokenGeneration}:${String(auth.userId || '')}`
-}
-
-function isCurrentRequest(generation, identityScope) {
-  return generation === requestGeneration && currentIdentityScope() === identityScope
-}
+const requestTracker = createLatestRequestTracker({ getScope: () => identityScope(auth) })
 
 function shortParticipant(value) {
   const raw = String(value || '').trim()
@@ -107,22 +101,21 @@ function shortParticipant(value) {
 }
 
 async function load() {
-  const generation = ++requestGeneration
-  const identityScope = currentIdentityScope()
+  const requestHandle = requestTracker.begin()
   error.value = ''
   loadingMore.value = false
   loading.value = true
   try {
     const page = await listImConversationPage({ cursor: '', size: 20 })
-    if (!isCurrentRequest(generation, identityScope)) return
+    if (!requestTracker.isCurrent(requestHandle)) return
     items.value = mergeConversations([], Array.isArray(page?.items) ? page.items : [])
     nextCursor.value = String(page?.nextCursor || '')
     hasMore.value = Boolean(page?.hasMore && nextCursor.value)
   } catch (e) {
-    if (!isCurrentRequest(generation, identityScope)) return
+    if (!requestTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载会话失败'
   } finally {
-    if (isCurrentRequest(generation, identityScope)) {
+    if (requestTracker.isCurrent(requestHandle)) {
       loading.value = false
     }
   }
@@ -131,29 +124,28 @@ async function load() {
 async function loadMore() {
   if (loading.value || loadingMore.value || !hasMore.value || !nextCursor.value) return
 
-  const generation = ++requestGeneration
-  const identityScope = currentIdentityScope()
+  const requestHandle = requestTracker.begin()
   const cursor = nextCursor.value
   loadingMore.value = true
   error.value = ''
   try {
     const page = await listImConversationPage({ cursor, size: 20 })
-    if (!isCurrentRequest(generation, identityScope)) return
+    if (!requestTracker.isCurrent(requestHandle)) return
     items.value = mergeConversations(items.value, Array.isArray(page?.items) ? page.items : [])
     nextCursor.value = String(page?.nextCursor || '')
     hasMore.value = Boolean(page?.hasMore && nextCursor.value)
   } catch (e) {
-    if (!isCurrentRequest(generation, identityScope)) return
+    if (!requestTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载会话失败'
   } finally {
-    if (isCurrentRequest(generation, identityScope)) {
+    if (requestTracker.isCurrent(requestHandle)) {
       loadingMore.value = false
     }
   }
 }
 
 function resetForIdentity() {
-  requestGeneration += 1
+  requestTracker.invalidate()
   loading.value = false
   loadingMore.value = false
   error.value = ''
@@ -163,12 +155,12 @@ function resetForIdentity() {
   if (auth.authed) load()
 }
 
-watch(currentIdentityScope, resetForIdentity)
+watch(() => identityScope(auth), resetForIdentity)
 onMounted(() => {
   if (auth.authed) load()
 })
 onBeforeUnmount(() => {
-  requestGeneration += 1
+  requestTracker.invalidate()
 })
 </script>
 

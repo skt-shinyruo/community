@@ -5,16 +5,13 @@ import com.nowcoder.community.auth.domain.model.RefreshTokenSessionState;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.auth.infrastructure.persistence.dataobject.RefreshTokenSessionDataObject;
 import com.nowcoder.community.auth.infrastructure.persistence.mapper.RefreshTokenSessionMapper;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import org.springframework.dao.DuplicateKeyException;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.Objects;
 import java.util.UUID;
 
@@ -331,14 +328,6 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
 
     private String sha256Hex(String value) {
         String token = normalizedToken(value);
-        if (token.isEmpty()) {
-            return "";
-        }
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
+        return token.isEmpty() ? "" : RequestFingerprint.sha256(token);
     }
 }

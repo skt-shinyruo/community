@@ -1,19 +1,16 @@
 package com.nowcoder.community.auth.infrastructure.persistence;
 
 import com.nowcoder.community.auth.domain.repository.PasswordResetTokenRepository;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.data.redis.core.script.DefaultRedisScript;
 import org.springframework.data.redis.core.script.RedisScript;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
-import java.security.NoSuchAlgorithmException;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
-import java.util.HexFormat;
 import java.util.List;
 import java.util.Objects;
 import java.util.UUID;
@@ -350,12 +347,7 @@ public class RedisPasswordResetTokenRepository implements PasswordResetTokenRepo
     }
 
     private String tokenId(String token) {
-        try {
-            return HexFormat.of().formatHex(MessageDigest.getInstance("SHA-256")
-                    .digest(token.getBytes(StandardCharsets.UTF_8)));
-        } catch (NoSuchAlgorithmException e) {
-            throw new IllegalStateException("SHA-256 not available", e);
-        }
+        return RequestFingerprint.sha256(token);
     }
 
     private static <T> RedisScript<T> script(String scriptText, Class<T> resultType) {

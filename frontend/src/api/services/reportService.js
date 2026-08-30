@@ -13,6 +13,5 @@ export async function createReport({ targetType, targetId, reason, detail } = {}
   if (detail != null && String(detail).trim()) payload.detail = String(detail).trim()
 
   const resp = await http.post('/api/reports', payload)
-  const { data, traceId } = unwrapResultBody(resp.data, '提交举报')
-  return { data, traceId }
+  return unwrapResultBody(resp.data, '提交举报')
 }

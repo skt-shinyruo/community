@@ -2,7 +2,7 @@
 
 | 项目 | 值 |
 | --- | --- |
-| 状态 | 已批准，待按迁移波次实施 |
+| 状态 | 已批准，规划中（尚未实施） |
 | 日期 | 2026-08-31 |
 | 范围 | `frontend/` 的全部非管理前台页面 |
 | 视觉方向 | 现代社区 · Indigo |
@@ -18,10 +18,10 @@
 
 研究材料只提供决策依据，不是并列规范：
 
-- [现代社区向设计参考调研](../../research/modern-community-visual-language.md)
-- [组件库候选调研：引入 vs 自研补齐](../../research/component-libraries-vs-in-house.md)
-- [UI 迁移期视觉回归验证手段调研](../../research/visual-regression-testing.md)
-- [帖子流视觉小样](../../../frontend/prototype/posts-visual-directions.html)
+- [现代社区向设计参考调研](../research/modern-community-visual-language.md)
+- [组件库候选调研：引入 vs 自研补齐](../research/component-libraries-vs-in-house.md)
+- [UI 迁移期视觉回归验证手段调研](../research/visual-regression-testing.md)
+- [帖子流视觉小样](../../frontend/prototype/posts-visual-directions.html)
 
 ## 2. 目标与非目标
 

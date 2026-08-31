@@ -82,7 +82,7 @@ find backend -path '*/src/main/java/*' -name '*.java' | sort
 
 修复时可以为稳定运行时主题新增专题文档，但不要按类逐个建文档。专题文档放在 [core-logic/](core-logic/)，解释一组相关类共同形成的行为，再从 [core-logic-index.md](core-logic-index.md) 回链。专题可以扩散到初始缺口之外，但必须覆盖至少两个核心类或一个跨域 / 跨模块机制，补足只读领域文档会造成的误解，说明状态 / 失败 / 一致性 / 补偿，并且不是单类源码复述。
 
-handbook 行为文档使用中文说明，类名、状态名、topic、配置键和命令保留英文原文。`docs/superpowers/plans` 和 `docs/superpowers/specs` 可中英混用。
+handbook 行为文档使用中文说明，类名、状态名、topic、配置键和命令保留英文原文。未来设计和迁移文档必须明确标注其状态。
 
 ## 修复优先级
 

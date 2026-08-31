@@ -1,6 +1,7 @@
 # Issue tracker: GitHub
 
-Issues and specs for this repo live as GitHub issues. Use the `gh` CLI for all operations.
+GitHub issues are the canonical planning and triage record for this repo. Long-lived repository documentation lives in
+`docs/handbook`; use the `gh` CLI for issue operations.
 
 ## Conventions
 

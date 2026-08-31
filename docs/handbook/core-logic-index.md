@@ -473,4 +473,4 @@ When adding or changing core backend or frontend runtime behavior, update this i
 1. Add the new `ApplicationService`, domain service, listener, handler, enqueuer, job, gateway filter, WebSocket handler, IM service, shared guard/scheduler, typed client, or other core runtime entry.
 2. Link it to the exact handbook section that describes current behavior.
 3. Every candidate must end as `Covered`, `IndexOnly`, or an explicitly justified `Excluded` item in the audit; do not leave a `Partial` or unclassified state.
-4. Do not point current behavior only at `docs/superpowers/specs` or `docs/superpowers/plans`; those are design and migration history unless explicitly restated in handbook.
+4. Do not present planned design or migration behavior as current behavior; restate landed behavior in the owning handbook section.

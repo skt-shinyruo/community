@@ -10,11 +10,10 @@ These instructions apply to the whole repository.
   observability assets, and deployment contract tests.
 - `tools/mock-data-studio/`, `tests/k6/`, and `tests/playwright-single/` are independently tested Node-based tools or
   suites; do not assume the frontend dependency installation covers them.
-- `docs/handbook` is the source of truth for current project behavior. Root and subproject READMEs are concise entry
-  points, while `docs/superpowers/specs` and `docs/superpowers/plans` provide design history unless a document is
-  explicitly identified below as an active architecture contract.
-- Before changing behavior, read the owning module, its tests, and the relevant handbook page. Do not use an old spec
-  or plan to override current code and handbook behavior without explicitly reconciling them.
+- `docs/handbook` is the source of truth for current project behavior and the home of long-lived project documentation.
+  Root and subproject READMEs are concise entry points, while `docs/research` holds dated research notes.
+- Before changing behavior, read the owning module, its tests, and the relevant handbook page. A planned design or
+  migration document does not override current code and handbook behavior until the change lands.
 
 ## Architecture Style
 
@@ -207,16 +206,13 @@ Root and subproject READMEs remain navigational and operational entry points; th
 of becoming competing sources of truth. Update `README.md` when top-level modules, prerequisites, canonical startup
 commands, default ports, or primary document entry points change.
 
-Specs and implementation plans MUST live under:
-
-- `docs/superpowers/specs`
-- `docs/superpowers/plans`
+Future design and migration documents also live under `docs/handbook` and MUST clearly state that they describe planned
+behavior. Once implemented, fold the resulting behavior into the owning handbook page.
 
 Architecture documentation must stay aligned with this file:
 
 - `docs/handbook/architecture.md`
 - `docs/handbook/system-design.md`
-- `docs/superpowers/specs/2026-07-27-community-app-lightweight-domain-layering-design.md`
 
 Behavioral documentation must stay aligned with the owning code:
 

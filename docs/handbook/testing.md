@@ -198,11 +198,18 @@ npm --prefix tests/playwright-single install
 npm --prefix tests/playwright-single run typecheck
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression
+npm --prefix tests/playwright-single run test:visual
 ```
 
 `test` 是 `test:regression` 的别名。所有产品用例都使用成功语义；统一 fixture
 会审计 API 4xx/5xx、浏览器页面错误和应用控制台错误，除明确的匿名认证探针和
 后台授权断言外，发现任一错误都会使测试失败。
+
+`test:visual` 是独立的 `@visual` 套件，不参与 `@smoke` / `@regression` 筛选。
+固定矩阵在 1440×900、compact 密度下运行 Chromium light 的 18 个页面状态，
+并为登录、Posts、PostDetail、Settings 增加 dark project，共提交 22 张 PNG。
+CI 固定 Ubuntu 24.04、lockfile Chromium 和 Noto CJK；基线只允许通过
+`test:visual -- --update-snapshots` 有意更新并审查 PNG diff，默认截图阈值不放宽。
 
 状态会变化的用例会创建带时间戳的本地测试数据。当前套件不自动清空
 single 数据库、Redis、对象存储或 Elasticsearch。

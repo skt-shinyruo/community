@@ -30,7 +30,8 @@ tests/playwright-single/
 │   ├── 04-market.spec.ts         # 市场卖家、买家、订单和库存流程
 │   ├── 05-drive.spec.ts          # 网盘目录和公开分享流程
 │   ├── 06-admin.spec.ts          # 权限拦截和后台只读页面
-│   └── 07-im.spec.ts             # IM 会话列表流程
+│   ├── 07-im.spec.ts             # IM 会话列表流程
+│   └── 08-visual.spec.ts         # 迁移前视觉基线（18 个用例、22 张 PNG）
 ```
 
 `node_modules/`、`.auth/`、`test-results/` 和 `playwright-report/` 均被 Git 忽略。
@@ -79,13 +80,15 @@ npx --prefix tests/playwright-single playwright install chromium
 ```
 
 第一条命令安装 Node 依赖，第二条命令下载本套件使用的 Chromium 浏览器二进制。
-配置只运行 Playwright 的 `Desktop Chrome` 项目。
+视觉基线还要求 Linux 安装 Noto CJK；常规用例运行 `chromium` project，视觉用例
+运行隔离的 `chromium-light` / `chromium-dark` project。
 
 ## 推荐执行顺序
 
 ```bash
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression
+npm --prefix tests/playwright-single run test:visual
 ```
 
 先用冒烟测试确认浏览器和 Gateway 路径可用，再执行完整产品回归。
@@ -96,6 +99,7 @@ npm --prefix tests/playwright-single run test:regression
 | --- | --- |
 | `npm --prefix tests/playwright-single run test:smoke` | 只执行 `00-smoke.spec.ts`，快速验证部署可达、匿名访问、受保护路由跳转和登录。 |
 | `npm --prefix tests/playwright-single run test:regression` | 执行全部带 `@regression` 标签的产品回归。 |
+| `npm --prefix tests/playwright-single run test:visual` | 执行 Chromium light 的 18 个视觉用例和 dark 的 4 个核心用例，共比对 22 张 PNG。 |
 | `npm --prefix tests/playwright-single run test` | `test:regression` 的别名。 |
 | `npm --prefix tests/playwright-single run test:headed` | 以有界面模式运行常规回归，便于本地观察交互。 |
 | `npm --prefix tests/playwright-single run show-report` | 打开 Playwright HTML 报告 `playwright-report/`。 |
@@ -125,6 +129,7 @@ npm --prefix tests/playwright-single run test:regression
 | `05-drive.spec.ts` | `bbb` 创建、重命名、删除目录；生成带提取码的公开分享链接，刷新后确认分享仍存在并撤销。 | 网盘目录、回收站记录和已撤销分享记录。 |
 | `06-admin.spec.ts` | 普通用户访问用户管理会跳转 `403`；管理员可见治理菜单、统计、用户管理、钱包后台和争议裁定入口，并可打开统计和治理页面。 | 无预期业务数据写入。 |
 | `07-im.spec.ts` | `bbb` 打开消息页，验证 IM 会话分页接口返回成功并渲染空状态或会话列表。 | 无预期业务数据写入。 |
+| `08-visual.spec.ts` | 固定 1440×900、compact、light/dark 环境，覆盖登录、社区核心页、系统状态页、Account、Inbox、Drive、Wallet 和 Market 基线。动态时间、头像和列表数据通过稳定样式或浏览器边界 fixture 固定。 | 只执行 UI 登录，不写业务数据。 |
 
 `fixtures/test-data.ts` 会为会写入系统的数据附加时间戳，例如帖子标题、虚拟
 商品、订单库存和网盘目录。这样多次运行通常不会因名称冲突而失败，但不会清空
@@ -144,6 +149,10 @@ npm --prefix tests/playwright-single run test:regression
 - 默认单 worker 且关闭完全并行，降低本地共享账号和数据互相干扰的概率。
 - 失败时保留 trace、截图和视频，写入 `test-results/`。
 - 同时生成控制台列表和 `playwright-report/` HTML 报告。
+- 普通 `chromium` project 只承载既有 smoke/regression；`chromium-light` 和
+  `chromium-dark` 只承载 `@visual`，不会改变原有标签语义。
+- 视觉基线只在 Ubuntu 24.04、锁定的 Chromium 和 Noto CJK 环境生成；更新时使用
+  `npm --prefix tests/playwright-single run test:visual -- --update-snapshots` 并审查 PNG diff。
 
 ## 数据影响与排查建议
 

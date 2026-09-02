@@ -266,6 +266,11 @@ cd frontend
 npm run build
 ```
 
+迁移前视觉基线位于 `tests/playwright-single/tests/08-visual.spec.ts`。它复用 single
+套件的认证、路由和页面/API 错误审计 fixture，以 18 个页面状态、22 张 PNG 固定
+当前 compact 桌面 UI；登录、Posts、PostDetail 和 Settings 同时覆盖明暗主题。
+运行入口为 `npm --prefix tests/playwright-single run test:visual`。
+
 完整测试策略见 [testing.md](testing.md)。
 
 ## 维护清单

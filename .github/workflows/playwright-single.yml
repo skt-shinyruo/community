@@ -12,7 +12,7 @@ permissions:
 jobs:
   playwright-single:
     name: single ${{ github.event_name == 'pull_request' && 'smoke' || 'regression' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     env:
       PW_SUITE: ${{ github.event_name == 'pull_request' && 'smoke' || 'regression' }}
 
@@ -54,6 +54,10 @@ jobs:
             echo "NGINX_API_PORT=${nginx_api_port}"
             echo "FRONTEND_HOST_PORT=${frontend_host_port}"
             echo "MOCK_DATA_STUDIO_HOST_PORT=${mock_data_studio_host_port}"
+            echo "NACOS_HOST_PORT=$((13880 + port_offset))"
+            echo "MAILHOG_UI_HOST_PORT=$((14880 + port_offset))"
+            echo "ELASTICSEARCH_PORT=$((15880 + port_offset))"
+            echo "KIBANA_PORT=$((16880 + port_offset))"
             echo "SINGLE_API_BASE_URL=http://localhost:${nginx_api_port}"
             echo "SINGLE_WEB_BASE_URL=http://localhost:${frontend_host_port}"
             echo "FRONTEND_PUBLIC_ORIGIN=http://localhost:${frontend_host_port}"
@@ -71,15 +75,22 @@ jobs:
         working-directory: tests/playwright-single
         run: npm run typecheck
 
-      - name: Install Chromium
+      - name: Install Chromium and Noto CJK
         working-directory: tests/playwright-single
-        run: npx playwright install --with-deps chromium
+        run: |
+          npx playwright install --with-deps chromium
+          sudo apt-get update
+          sudo apt-get install -y fonts-noto-cjk
+          fc-match 'Noto Sans CJK SC' | grep -q 'NotoSansCJK'
 
       - name: Start isolated single topology
         run: ./deploy/deployment.sh up --stack single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" -- --wait --wait-timeout 120
 
       - name: Run Playwright suite
         run: npm --prefix tests/playwright-single run "test:${PW_SUITE}"
+
+      - name: Run visual baseline
+        run: npm --prefix tests/playwright-single run test:visual
 
       - name: Collect Compose diagnostics
         if: always()

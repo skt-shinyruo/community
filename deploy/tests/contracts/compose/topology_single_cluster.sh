@@ -614,6 +614,7 @@ grep -E '^  nacos-config-bootstrap:$' "${single_full}"
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F '/deploy/config/nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F 'target: /nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F 'read_only: true'
+test "$(service_environment_value "${single_full}" nacos-config-bootstrap CONFIG_DIR)" = "/nacos"
 for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   grep -A30 -E '^  nacos-config-bootstrap:$' "${single_full}" | grep -F "${variable}:"
 done
@@ -642,6 +643,7 @@ grep -E '^  nacos-config-bootstrap:$' "${cluster_full}"
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F '/deploy/config/nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'target: /nacos'
 grep -A36 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F 'read_only: true'
+test "$(service_environment_value "${cluster_full}" nacos-config-bootstrap CONFIG_DIR)" = "/nacos"
 for variable in BROWSER_ALLOWED_ORIGINS FRONTEND_PUBLIC_ORIGIN GATEWAY_PUBLIC_BASE_URL OSS_PUBLIC_BASE_URL IM_GATEWAY_PUBLIC_WS_URL; do
   grep -A30 -E '^  nacos-config-bootstrap:$' "${cluster_full}" | grep -F "${variable}:"
 done

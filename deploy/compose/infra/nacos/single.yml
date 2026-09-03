@@ -87,7 +87,7 @@ services:
     - GATEWAY_PUBLIC_BASE_URL=${GATEWAY_PUBLIC_BASE_URL:?GATEWAY_PUBLIC_BASE_URL is required}
     - OSS_PUBLIC_BASE_URL=${OSS_PUBLIC_BASE_URL:?OSS_PUBLIC_BASE_URL is required}
     - IM_GATEWAY_PUBLIC_WS_URL=${IM_GATEWAY_PUBLIC_WS_URL:?IM_GATEWAY_PUBLIC_WS_URL is required}
-    - CONFIG_DIR=/nacos/config
+    - CONFIG_DIR=/nacos
     volumes:
     - ../config/nacos:/nacos:ro
     depends_on:

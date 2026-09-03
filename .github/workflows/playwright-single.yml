@@ -86,6 +86,25 @@ jobs:
       - name: Start isolated single topology
         run: ./deploy/deployment.sh up --stack single --no-observability --project-name "$PW_PROJECT" --env-file "$PW_ENV_FILE" -- --wait --wait-timeout 120
 
+      - name: Wait for IM session edge route
+        shell: bash
+        run: |
+          set -euo pipefail
+          # community-gateway health can turn green before its Nacos discovery
+          # cache learns community-im-gateway; until then POST /api/im/sessions
+          # returns 503. Once the lb route resolves, the unauthenticated probe
+          # returns 401 instead.
+          for attempt in $(seq 1 30); do
+            status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${SINGLE_API_BASE_URL}/api/im/sessions" || true)"
+            if [[ "${status}" != "503" && "${status}" != "000" ]]; then
+              echo "im session edge route ready (HTTP ${status}) after ${attempt} probe(s)"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "im session edge route still not routable (last HTTP ${status})" >&2
+          exit 1
+
       - name: Run Playwright suite
         run: npm --prefix tests/playwright-single run "test:${PW_SUITE}"
 

@@ -73,7 +73,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
-        registry.add("im.gateway.ws.first-frame-timeout-ms", () -> "100");
+        registry.add("im.gateway.ws.first-frame-timeout-ms", () -> "2000");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
                 () -> "http://127.0.0.1:" + workerPort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId",

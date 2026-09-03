@@ -31,7 +31,9 @@ import static org.assertj.core.api.Assertions.assertThat;
         "im.session.worker-id=worker-a",
         "spring.cloud.nacos.discovery.enabled=false",
         "spring.cloud.nacos.config.enabled=false",
-        "spring.config.import="
+        "spring.config.import=",
+        "management.health.redis.enabled=false",
+        "management.health.kafka.enabled=false"
 })
 class ImRealtimeSecurityIntegrationTest {
 

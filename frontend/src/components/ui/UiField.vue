@@ -1,7 +1,7 @@
 <!-- 字段包装原语：label、帮助文本、错误文本与控件的可访问关联；校验只使用 required / pattern / :invalid 原生语义，不引入表单校验库。 -->
 <template>
   <div class="ui-field">
-    <label class="ui-field-label" :for="controlId">
+    <label :id="labelId" class="ui-field-label" :for="controlId">
       <span>{{ label }}</span>
       <span v-if="required" class="ui-field-required" aria-hidden="true">*</span>
     </label>
@@ -25,6 +25,7 @@ const props = defineProps({
 
 const uid = useId()
 const controlId = `ui-field-control-${uid}`
+const labelId = `ui-field-label-${uid}`
 const helpId = `ui-field-help-${uid}`
 const errorId = `ui-field-error-${uid}`
 
@@ -38,6 +39,7 @@ const describedBy = computed(() => {
 
 provide(uiFieldContextKey, {
   controlId,
+  labelId,
   describedBy,
   invalid: isInvalid,
   required: computed(() => props.required)

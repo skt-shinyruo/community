@@ -70,6 +70,13 @@ protected route
 `frontend/src/components/posts/FeedToolbar.vue`（分类 UiDropdown、可清除 tag chip、清空/刷新）和
 PostsView 内的 UiTabs（最新/最热）组成，帖子卡的分类 chip 与 `#标签` 纯文本可点击并回到同一过滤模型。
 
+`/bookmarks` 的收藏流与帖子流共享 8px 扁平列表语言（`--radius-md`、1px 边框、hover 只改描边/表面色），
+但保留自己的内容结构：整卡即「打开帖子」链接（`role="link"` + Enter 打开，嵌套的分类 chip 与 `#标签`
+链接继续跳回帖子流对应过滤视图），卡片不再裹一层容器卡片。首载使用 UiSkeleton（card variant），
+首屏失败由 UiState error 提供重试，空态由 UiState 给出「浏览帖子」下一步；追加失败保留已加载列表并内联
+报错，「加载更多」按钮即重试入口。页码分页、会话 scope 竞态丢弃和拉黑过滤由
+`frontend/src/views/useBookmarksFeed.js` 承载，事实语义未随迁移改变。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -206,6 +213,7 @@ connect(accessToken)
 | 文件 | 责任 |
 | --- | --- |
 | `posts/usePostsFeed.js` | 帖子页的会话、范围（`categoryId` / `tag` / `order` 统一查询）、列表、未读和发帖五组页面语义；游标 feed 与搜索栈双数据源、隐藏游标、页码追加、补水、请求竞态和发帖幂等尝试。 |
+| `useBookmarksFeed.js` | 收藏流的会话 scope、页码追加分页、请求竞态丢弃、拉黑过滤和打开帖子动作；组件只保留卡片渲染与键盘 Enter 守卫。 |
 | `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
@@ -257,7 +265,7 @@ connect(accessToken)
 
 表单原语为 `frontend/src/components/ui/UiInput.vue`、`UiTextarea.vue` 和 `UiField.vue`：`UiInput` / `UiTextarea` 提供 `v-model`（含 trim / number 修饰符）、原生属性透传和禁用状态，`UiInput` 另有 size（md / sm）与 variant（outline / ghost）；`UiField` 承载 label 关联、帮助 / 错误文本（`aria-describedby` / `aria-invalid` / `role=alert`）和 `required` / `pattern` / `invalid` 原生校验语义，不引入表单校验库。字段内的 `UiInput` / `UiTextarea` 自动继承关联与校验状态；其他控件使用默认 slot 的 `controlId` / `describedBy` / `invalid` / `required` 手动接线。`.input`、`.auth-field`、`.field-label`、`.auth-form` 是原语内部实现细节，视图不得新增使用，现状由 `tokens.test.js` 的基线守卫登记、随页面簇迁移只减不增。
 
-`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。
+`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。BookmarksView 已随波次 3 完成迁移：列表卡为 8px 扁平表面（无容器卡片嵌套），首载骨架、空/错态与尾部加载指示全部走 Ui 原语，裸「加载中」文本登记随之删除。
 
 所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm 已接入；ReportModal、EditContentModal 与 ModerationView 的旧 dialog 随所在页面簇迁移。
 

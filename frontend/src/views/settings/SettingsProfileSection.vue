@@ -2,11 +2,8 @@
   <UiCard class="settings-panel">
     <section class="settings-section">
       <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Public Identity</div>
-          <h2>公开资料</h2>
-          <p>你的头像和用户名会出现在帖子、评论与关注关系中。</p>
-        </div>
+        <h2>公开资料</h2>
+        <p>你的头像和用户名会出现在帖子、评论与关注关系中。</p>
       </div>
 
       <div class="settings-profile-card">
@@ -35,11 +32,8 @@
 
     <section class="settings-section">
       <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Workflow</div>
-          <h2>头像上传</h2>
-          <p>选择图片后直接使用 OSS 上传会话保存头像。</p>
-        </div>
+        <h2>头像上传</h2>
+        <p>选择图片后直接使用 OSS 上传会话保存头像。</p>
       </div>
 
       <div class="settings-upload-card">
@@ -58,46 +52,34 @@
           </div>
         </div>
 
-        <div class="upload-area">
-          <div class="settings-upload-note">
-            <span>图片会按 OSS 上传会话提交，保存后同步到公开资料。</span>
-          </div>
+        <div class="settings-upload-area">
+          <UiField label="头像文件" help="图片会按 OSS 上传会话提交，保存后同步到公开资料。">
+            <template #default="{ controlId, describedBy }">
+              <input
+                :id="controlId"
+                :aria-describedby="describedBy || undefined"
+                ref="avatarFileInput"
+                class="settings-avatar-file-input"
+                type="file"
+                name="avatar-file"
+                accept="image/*"
+                :disabled="loading"
+                @change="onAvatarFilePicked"
+              />
+            </template>
+          </UiField>
 
           <div class="settings-upload-actions">
-            <input
-              ref="avatarFileInput"
-              class="input settings-avatar-file-input"
-              type="file"
-              name="avatar-file"
-              accept="image/*"
-              :disabled="loading"
-              @change="onAvatarFilePicked"
-            />
-            <UiButton v-if="pickedFile" variant="ghost" :disabled="loading" @click="clearAvatarFile">清除</UiButton>
-            <UiButton @click="uploadAndUpdate" :disabled="loading || !pickedFile">
+            <UiButton :disabled="loading || !pickedFile" @click="uploadAndUpdate">
               {{ uploadActionText }}
             </UiButton>
+            <UiButton v-if="pickedFile" variant="ghost" :disabled="loading" @click="clearAvatarFile">清除</UiButton>
             <UiButton v-if="canCancelUpload" variant="secondary" @click="cancelUpload">取消上传</UiButton>
           </div>
+
+          <div v-if="error" class="error" role="alert">{{ error }}</div>
+          <div v-if="successMsg" class="success" role="status">{{ successMsg }}</div>
         </div>
-
-        <div v-if="error" class="error">{{ error }}</div>
-        <div v-if="successMsg" class="success">{{ successMsg }}</div>
-      </div>
-    </section>
-
-    <section class="settings-section">
-      <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Scope</div>
-          <h2>当前可用项</h2>
-          <p>当前可管理公开资料与头像；账号和隐私操作在可用前不会作为普通入口展示。</p>
-        </div>
-      </div>
-
-      <div class="settings-note-card">
-        <div class="settings-note-title">没有再保留占位式侧栏标签</div>
-        <p>未接入的账号、安全、隐私操作不会继续以伪导航方式出现，避免给人“功能已经可用”的错误预期。</p>
       </div>
     </section>
   </UiCard>
@@ -114,6 +96,7 @@ import { executeUploadSession, normalizeUploadSession } from '../../api/uploadSe
 import UiCard from '../../components/ui/UiCard.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
 import UiButton from '../../components/ui/UiButton.vue'
+import UiField from '../../components/ui/UiField.vue'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 
 const auth = useAuthStore()
@@ -291,21 +274,6 @@ onBeforeUnmount(() => {
 </script>
 
 <style scoped>
-.settings-section-head p,
-.settings-note-card p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.6;
-}
-
-.settings-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
-}
-
 .settings-panel {
   display: grid;
   gap: 0;
@@ -314,10 +282,10 @@ onBeforeUnmount(() => {
 }
 
 .settings-section {
-  padding: 24px;
+  padding: var(--space-6);
   border-bottom: 1px solid var(--border);
   display: grid;
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .settings-section:last-child {
@@ -325,35 +293,40 @@ onBeforeUnmount(() => {
 }
 
 .settings-section-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-end;
+  display: grid;
+  gap: var(--space-1);
 }
 
 .settings-section-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--line-tight);
+}
+
+.settings-section-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: var(--line-normal);
 }
 
 .settings-profile-card {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
-  padding: 20px;
+  padding: var(--space-5);
   display: grid;
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .settings-avatar-column {
   display: flex;
   align-items: center;
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .settings-avatar-caption {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .settings-profile-avatar {
@@ -361,92 +334,122 @@ onBeforeUnmount(() => {
 }
 
 .settings-profile-name {
-  font-size: 1.1rem;
-  font-weight: 800;
+  font-size: var(--text-lg);
+  font-weight: 700;
 }
 
 .settings-summary-grid,
 .settings-upload-meta {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .settings-summary-card,
 .settings-upload-meta-item {
-  padding: 16px;
+  padding: var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
   display: grid;
-  gap: 6px;
+  gap: var(--space-2);
 }
 
 .settings-summary-label,
 .settings-upload-label {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-3);
 }
 
 .settings-summary-value,
 .settings-upload-meta-item strong {
-  font-size: 15px;
+  font-size: var(--text-md);
   color: var(--text-1);
 }
 
 .settings-summary-text {
   color: var(--text-2);
-  line-height: 1.55;
+  line-height: var(--line-normal);
 }
 
 .settings-upload-card {
   border: 1px solid var(--border);
   border-radius: var(--radius-lg);
-  padding: 20px;
+  padding: var(--space-5);
   display: grid;
-  gap: 16px;
+  gap: var(--space-4);
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
 }
 
-.upload-area {
+.settings-upload-area {
   background: var(--surface);
-  padding: 16px;
+  padding: var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   display: grid;
-  gap: 12px;
-}
-
-.settings-upload-note,
-.settings-upload-empty {
-  color: var(--text-2);
-  line-height: 1.55;
+  gap: var(--space-3);
 }
 
 .settings-upload-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
   align-items: center;
 }
 
 .settings-avatar-file-input {
-  flex: 1 1 300px;
-  min-width: min(100%, 300px);
-}
-
-.settings-note-card {
-  border-radius: var(--radius-lg);
-  padding: 18px 20px;
-  border: 1px dashed color-mix(in srgb, var(--border) 72%, var(--text-3) 28%);
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
-  display: grid;
-  gap: 8px;
-}
-
-.settings-note-title {
-  font-weight: 700;
+  width: 100%;
+  padding: var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--bg);
   color: var(--text-1);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.settings-avatar-file-input::file-selector-button {
+  margin-right: var(--space-3);
+  padding: var(--space-1) var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  background: var(--surface);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.settings-avatar-file-input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.settings-avatar-file-input:hover:not(:disabled)::file-selector-button {
+  border-color: var(--border-strong);
+  background: var(--hover-bg);
+}
+
+.settings-avatar-file-input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.settings-avatar-file-input:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.settings-avatar-file-input:disabled::file-selector-button {
+  color: var(--muted);
+  cursor: not-allowed;
 }
 
 @media (max-width: 900px) {
@@ -458,19 +461,13 @@ onBeforeUnmount(() => {
   .settings-section,
   .settings-upload-card,
   .settings-profile-card {
-    padding: 18px;
+    padding: var(--space-5);
   }
 
-  .settings-section-head,
   .settings-avatar-column,
   .settings-upload-actions {
     flex-direction: column;
     align-items: flex-start;
-  }
-
-  .settings-avatar-file-input {
-    min-width: 0;
-    width: 100%;
   }
 }
 </style>

@@ -42,6 +42,7 @@
     "src/api/services/userService.js",
     "src/stores/postMetaCache.js",
     "src/stores/socialPrefs.js",
+    "src/stores/inboxUnread.js",
     "src/stores/taxonomy.js",
 
     // IM realtime protocol and conversation state

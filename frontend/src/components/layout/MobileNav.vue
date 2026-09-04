@@ -1,4 +1,4 @@
-<!-- MobileNav：移动端主导航（固定 Posts / Search / Notices / Messages / Me）。 -->
+<!-- MobileNav：移动端主导航（固定 Posts / Search / Notices / Messages / Me），承载未读角标。 -->
 <template>
   <nav class="mobile-nav" aria-label="移动端主导航">
     <RouterLink
@@ -7,98 +7,11 @@
       class="mobile-nav-item"
       :class="{ active: isNavItemActive(route, item) }"
       :to="item.to"
-      :aria-label="item.label"
+      :aria-label="navItemAriaLabel(item)"
     >
       <span class="mobile-nav-icon" aria-hidden="true">
-        <svg
-          v-if="item.icon === 'posts'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" />
-          <polyline points="9 22 9 12 15 12 15 22" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'search'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="11" cy="11" r="8" />
-          <line x1="21" y1="21" x2="16.65" y2="16.65" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'bell'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9" />
-          <path d="M13.73 21a2 2 0 0 1-3.46 0" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'messages' && item.key !== 'more'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'user'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
-          <circle cx="12" cy="7" r="4" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'sparkle' || item.key === 'market'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <path d="M12 2l2.2 6.8H21l-5.6 4.1 2.1 7-5.5-4-5.5 4 2.1-7L3 8.8h6.8z" />
-        </svg>
-
-        <svg
-          v-else-if="item.icon === 'more' || item.key === 'more'"
-          width="20"
-          height="20"
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          stroke-width="2"
-        >
-          <circle cx="5" cy="12" r="1.5" />
-          <circle cx="12" cy="12" r="1.5" />
-          <circle cx="19" cy="12" r="1.5" />
-        </svg>
+        <component :is="resolveNavIcon(item.icon)" v-if="resolveNavIcon(item.icon)" :size="20" />
+        <span v-if="navBadgeCount(item) > 0" class="mobile-nav-badge">{{ formatUnreadCount(navBadgeCount(item)) }}</span>
       </span>
 
       <span class="mobile-nav-text">{{ item.label }}</span>
@@ -110,7 +23,9 @@
 import { computed } from 'vue'
 import { useRoute } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { useInboxUnreadStore, formatUnreadCount } from '../../stores/inboxUnread'
 import { getMobileNavigation, isNavItemActive } from '../../router/navigation'
+import { resolveNavIcon } from './navIcons'
 
 defineProps({
   mode: { type: String, default: 'public' }
@@ -118,6 +33,7 @@ defineProps({
 
 const route = useRoute()
 const auth = useAuthStore()
+const inboxUnread = useInboxUnreadStore()
 
 const items = computed(() =>
   getMobileNavigation({
@@ -126,6 +42,18 @@ const items = computed(() =>
     roles: auth.authorities
   })
 )
+
+function navBadgeCount(item) {
+  if (item?.badge === 'notices') return inboxUnread.noticeUnread
+  if (item?.badge === 'messages') return inboxUnread.messageUnread
+  return 0
+}
+
+function navItemAriaLabel(item) {
+  const count = navBadgeCount(item)
+  if (count > 0) return `${item.label}，${formatUnreadCount(count)} 条未读`
+  return item.label
+}
 </script>
 
 <style scoped>
@@ -166,8 +94,33 @@ const items = computed(() =>
   }
 
   .mobile-nav-item.active {
-    color: var(--accent);
-    background: color-mix(in srgb, var(--accent) 12%, transparent);
+    color: var(--accent-text);
+    background: var(--accent-weak);
+  }
+
+  .mobile-nav-icon {
+    position: relative;
+    display: grid;
+    place-items: center;
+  }
+
+  .mobile-nav-badge {
+    position: absolute;
+    top: -6px;
+    left: calc(50% + 2px);
+    min-width: 16px;
+    height: 16px;
+    padding: 0 4px;
+    border-radius: var(--radius-full);
+    background: var(--accent-weak);
+    border: 1px solid color-mix(in srgb, var(--accent) 24%, var(--border) 76%);
+    color: var(--accent-text);
+    font-size: 10px;
+    font-weight: 700;
+    line-height: 1;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
   }
 
   .mobile-nav-text {

@@ -38,3 +38,15 @@ export async function markImConversationRead(conversationId, lastReadSeq) {
   const resp = await imCoreHttp.post(`/api/im/conversations/${cid}/read`, { lastReadSeq: Number(lastReadSeq || 0) })
   unwrapResultBody(resp?.data, '标记已读')
 }
+
+/**
+ * 私信/群聊未读摘要（壳层角标用）。后台刷新语义：失败静默，不弹全局错误 toast。
+ * @param {{ limit?: number }} [options]
+ * @returns {Promise<{ rooms?: Record<string, any>[], conversations?: Record<string, any>[] }>}
+ */
+export async function getImUnreadSummary({ limit = 500 } = {}) {
+  const config = { params: { limit }, skipGlobalErrorToast: true }
+  const resp = await imCoreHttp.get('/api/im/unread/summary', config)
+  const { data } = unwrapResultBody(resp?.data, '加载未读摘要')
+  return data || { rooms: [], conversations: [] }
+}

@@ -121,6 +121,7 @@
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { useInboxUnreadStore } from '../stores/inboxUnread'
 import { listNotices, markRead } from '../api/services/noticeService'
 import { safeJsonParse } from '../utils/safeJson'
 import { formatTime } from '../utils/time'
@@ -134,6 +135,7 @@ import UiState from '../components/ui/UiState.vue'
 
 const props = defineProps({ topic: String })
 const auth = useAuthStore()
+const inboxUnread = useInboxUnreadStore()
 
 const topic = computed(() => String(props.topic || ''))
 const page = ref(0)
@@ -236,6 +238,8 @@ async function markAllRead() {
     await markRead(ids)
     if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
     await load(requestedPage)
+    // 已读操作后刷新壳层未读角标（不依赖轮询）。
+    void inboxUnread.refresh()
   } catch (e) {
     if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
     error.value = e?.message || '标记已读失败'

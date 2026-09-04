@@ -129,7 +129,7 @@ npm --prefix tests/playwright-single run test:visual
 | `05-drive.spec.ts` | `bbb` 创建、重命名、删除目录；生成带提取码的公开分享链接，刷新后确认分享仍存在并撤销。 | 网盘目录、回收站记录和已撤销分享记录。 |
 | `06-admin.spec.ts` | 普通用户访问用户管理会跳转 `403`；管理员可见治理菜单、统计、用户管理、钱包后台和争议裁定入口，并可打开统计和治理页面。 | 无预期业务数据写入。 |
 | `07-im.spec.ts` | `bbb` 打开消息页，验证 IM 会话分页接口返回成功并渲染空状态或会话列表。 | 无预期业务数据写入。 |
-| `08-visual.spec.ts` | 固定 1440×900、compact、light/dark 环境，覆盖登录、社区核心页、系统状态页、Account、Inbox、Drive、Wallet 和 Market 基线。动态时间、头像和列表数据通过稳定样式或浏览器边界 fixture 固定。 | 只执行 UI 登录，不写业务数据。 |
+| `08-visual.spec.ts` | 固定 1440×900、compact、light/dark 环境，覆盖登录、社区核心页、系统状态页、Account、Inbox、Drive、Wallet 和 Market 基线。动态时间、头像、列表数据和壳层未读角标计数通过稳定样式或浏览器边界 fixture 固定。 | 只执行 UI 登录，不写业务数据。 |
 
 `fixtures/test-data.ts` 会为会写入系统的数据附加时间戳，例如帖子标题、虚拟
 商品、订单库存和网盘目录。这样多次运行通常不会因名称冲突而失败，但不会清空

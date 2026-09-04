@@ -4,18 +4,26 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listNotices, markRead } = vi.hoisted(() => ({
+const { listNotices, markRead, topicSummary, getImUnreadSummary } = vi.hoisted(() => ({
   listNotices: vi.fn(),
-  markRead: vi.fn()
+  markRead: vi.fn(),
+  topicSummary: vi.fn(),
+  getImUnreadSummary: vi.fn()
 }))
 
 vi.mock('../api/services/noticeService', () => ({
   listNotices,
-  markRead
+  markRead,
+  topicSummary
+}))
+
+vi.mock('../api/services/imCoreChatService', () => ({
+  getImUnreadSummary
 }))
 
 import NoticeDetailView from './NoticeDetailView.vue'
 import { useAuthStore } from '../stores/auth'
+import { useInboxUnreadStore } from '../stores/inboxUnread'
 
 const mountedWrappers = []
 
@@ -69,6 +77,8 @@ describe('NoticeDetailView', () => {
       traceId: 'trace-notices'
     })
     markRead.mockResolvedValue({ traceId: 'trace-mark-read' })
+    topicSummary.mockResolvedValue({ data: [] })
+    getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [] })
   })
 
   afterEach(() => {
@@ -86,6 +96,22 @@ describe('NoticeDetailView', () => {
       'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     ])
+  })
+
+  it('refreshes the shell unread badge after a successful mark-read', async () => {
+    topicSummary.mockResolvedValue({ data: [{ topic: 'like', unreadCount: 3 }] })
+    getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [{ conversationId: 'c1', unreadCount: 4 }] })
+
+    const wrapper = mountNoticeDetailView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === '标记本页已读').trigger('click')
+    await flushPromises()
+
+    const inboxUnread = useInboxUnreadStore()
+    expect(inboxUnread.noticeUnread).toBe(3)
+    expect(inboxUnread.messageUnread).toBe(4)
+    expect(topicSummary).toHaveBeenCalledWith({ silent: true })
   })
 
   it('does not advance the page when loading the next page fails', async () => {

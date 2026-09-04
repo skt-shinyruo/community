@@ -45,10 +45,10 @@ protected route
 
 `frontend/src/router/navigation.js` 是导航产品策略入口，包含：
 
-- Community / Trading / Personal / Admin / Account 工作区导航分组。
-- 侧边栏、移动端底栏和 shell search 的 route 级可见性。
+- 社区 / 市场 / 个人三个一级域导航分组，外加有权限用户的管理组和匿名访客的登录入口。
+- 侧边栏与移动端底栏的 route 级可见性（壳搜索在公开页常显，不做 route 级开关）。
 - 角色、登录态、用户 id 的前端可见性判断。
-- posts 列表的 `boardId` query 规范化和构造。
+- 通知 / 私信入口的未读角标绑定（`badge` key 对应 `stores/inboxUnread.js` 的计数）。
 
 `/settings` 通过 `?section=profile|appearance|addresses` 提供可深链的 section 合同（纯函数事实在
 `frontend/src/views/settingsSection.js`）：缺省或无效 section 一律回落到 `profile`，并由视图用
@@ -67,7 +67,11 @@ protected route
 
 ## 产品壳层和移动导航
 
-`frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染 route-aware scope、页面标题、账户控制和 shell search，`MobileNav.vue` 只承载高频移动入口：讨论、搜索、通知、私信和个人入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
+`frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell。`SidebarNav.vue` 收敛为社区（帖子、搜索、收藏、我的主页）、市场、个人（积分钱包、网盘、通知、私信、设置）三个一级域，管理组对有权限用户维持现状，匿名访客只看到社区 / 市场和登录入口；市场二级目的地（发布商品、我的出售、我的购买、出售订单）不再是侧边栏一级入口，改由市场页主操作进入，市场域内全部路由共用同一个侧边栏入口与选中态。账户区只保留在侧边栏底部：头像、姓名、角色徽章链接到我的主页，另有设置与登出；折叠态下两者以带 `aria-label` 的图标按钮呈现。`Topbar.vue` 只由折叠按钮、中文工作区 eyebrow（routeCatalog 的 workspace 标签：社区 / 市场 / 个人 / 运营 / 系统）、壳搜索和主题快捷按钮组成，不再渲染账户块、溢出菜单、页面标题或通知铃铛。壳搜索在公开页桌面宽度常显，`Cmd/Ctrl+K` 聚焦输入框，提交后跳转 `/search`（已在搜索页时 replace query）；市场页内搜索随市场波次交付。`MobileNav.vue` 保持讨论、搜索、通知、私信、我五个高频入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
+
+导航选中态使用 `--accent-weak` 背景、`--accent-text` 文字和 3px accent 左轨；壳层图标统一为 `lucide-vue-next` 按需命名导入，`components/layout/navIcons.js` 只做导航 icon key 到 lucide 组件的映射，不新增本地 path 表或包装层。
+
+侧边栏通知 / 私信入口和移动端对应入口显示未读角标（超过 99 显示 `99+`），计数由 `frontend/src/stores/inboxUnread.js` 聚合通知（`GET /api/notices/summary`）与私信（`GET /api/im/unread/summary`，群聊未读不计入私信角标）。角标在登录恢复 / 登出（身份变化）、窗口重新聚焦、通知已读操作（`NoticeDetailView`）、私信已读操作（会话详情 workflow）和 IM `privateMessage` 实时事件后刷新，不引入轮询；后台刷新通过 `skipGlobalErrorToast` 静默失败，身份切换时在途结果被丢弃。
 
 ## 主题、密度与设计令牌
 
@@ -220,6 +224,7 @@ connect(accessToken)
 | Taxonomy | `frontend/src/stores/taxonomy.js` | 分类和热门标签轻缓存。 |
 | Post Meta Cache | `frontend/src/stores/postMetaCache.js` | 用户摘要、点赞数、点赞状态 TTL 缓存。 |
 | Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑读侧状态。 |
+| Inbox Unread | `frontend/src/stores/inboxUnread.js` | 壳层通知 / 私信未读角标计数；按身份 scope 隔离，触发式刷新（身份变化、窗口聚焦、已读操作、IM 实时事件），不轮询。 |
 
 `postMetaCache` 的 TTL 约定：
 

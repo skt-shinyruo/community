@@ -176,6 +176,8 @@ npm test -- src/views/marketState.test.js src/views/walletState.test.js
 - `auth/session.test.js`：refresh、`me` 拉取、single-flight、anonymous / error 状态。
 - `api/*.test.js`：axios interceptor、endpoint 解析、Result unwrap、幂等 key 缓存。
 - `im/imRealtimeClient.test.js`：session bootstrap、WS connect ticket、重连和发送消息。
+- `stores/*.test.js`：UI 偏好（主题三态、密度、侧边栏）等 Pinia store 行为。
+- `styles/*.test.js`：设计令牌与全局样式静态守卫（令牌值、对比度、`var()` 引用、`data-theme` 覆盖、z-index、reduced-motion）。
 - `views/*State.test.js`：复杂页面纯状态转换。
 - `views/*View.test.js` / `components/**/*.test.js`：Vue 组件交互和用户可见状态。
 

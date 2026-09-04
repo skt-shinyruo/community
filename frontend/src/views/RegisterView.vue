@@ -344,7 +344,7 @@ onMounted(refreshCaptcha)
 
 .auth-link {
   font-weight: 700;
-  color: var(--accent);
+  color: var(--link-color);
 }
 
 .auth-link:hover {

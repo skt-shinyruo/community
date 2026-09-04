@@ -141,7 +141,7 @@ const items = computed(() =>
     left: 14px;
     right: 14px;
     bottom: 14px;
-    z-index: 60;
+    z-index: var(--z-nav);
     min-height: 64px;
     padding: 4px;
     padding-bottom: calc(4px + env(safe-area-inset-bottom, 0px));

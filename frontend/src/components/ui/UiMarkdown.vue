@@ -69,7 +69,7 @@ const rendered = computed(() => renderMarkdown(props.content))
 }
 
 :deep(a) {
-  color: var(--accent);
+  color: var(--link-color);
   text-decoration: none;
 }
 :deep(a):hover {

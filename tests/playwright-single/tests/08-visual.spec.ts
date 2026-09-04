@@ -33,16 +33,63 @@ test.describe('migration visual baseline @visual', () => {
       blocks: [{ type: 'paragraph', text: '用于审查帖子详情的稳定正文。' }],
       tags: ['visual'],
       likeCount: 7,
-      commentCount: 0,
+      commentCount: 2,
       createTime: '2026-08-31T08:00:00Z'
     })
-    await mockResult(page, `/api/posts/${visualIds.post}/comments*`, { items: [], nextCursor: '' })
+    // 先注册评论列表通配，再注册回复专用模式；Playwright 后注册的路由优先匹配回复请求。
+    await mockResult(page, `/api/posts/${visualIds.post}/comments*`, {
+      items: [
+        {
+          id: '66666666-6666-7666-8666-666666666666',
+          userId: accounts.aaa.userId,
+          content: '第一条固定评论，用于审查评论线程的视觉表现。',
+          createTime: '2026-08-31T08:30:00Z',
+          replyCount: 1
+        },
+        {
+          id: '77777777-7777-7777-8777-777777777777',
+          userId: accounts.bbb.userId,
+          content: '第二条固定评论，保持列表间距与分割线稳定。',
+          createTime: '2026-08-31T09:00:00Z',
+          replyCount: 0
+        }
+      ],
+      nextCursor: ''
+    })
+    await mockResult(
+      page,
+      `/api/posts/${visualIds.post}/comments/66666666-6666-7666-8666-666666666666/replies*`,
+      {
+        items: [
+          {
+            id: '88888888-8888-7888-8888-888888888888',
+            userId: accounts.bbb.userId,
+            replyToUserId: accounts.aaa.userId,
+            content: '固定回复内容，用于审查嵌套回复的视觉层级。',
+            createTime: '2026-08-31T09:30:00Z'
+          }
+        ],
+        nextCursor: ''
+      }
+    )
+    await mockResult(page, '/api/users/batch-summary', [
+      { id: accounts.aaa.userId, username: 'aaa', headerUrl: '' },
+      { id: accounts.bbb.userId, username: 'bbb', headerUrl: '' }
+    ])
+    await mockResult(page, '/api/likes/counts*', {
+      '66666666-6666-7666-8666-666666666666': 3,
+      '77777777-7777-7777-8777-777777777777': 1,
+      '88888888-8888-7888-8888-888888888888': 2
+    })
     await mockResult(page, `/api/users/${accounts.aaa.userId}`, {
       id: accounts.aaa.userId,
       username: 'aaa',
       headerUrl: ''
     })
     await openVisualPage(page, `/posts/${visualIds.post}`, '固定视觉基线帖子')
+    // 展开首条评论的回复线程，把嵌套回复样式纳入基线审查。
+    await page.getByRole('button', { name: '展开 1 条回复' }).click()
+    await expect(page.getByText('固定回复内容，用于审查嵌套回复的视觉层级。')).toBeVisible()
     await expectVisualSnapshot(page, 'post-detail')
   })
 

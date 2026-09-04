@@ -5,36 +5,34 @@
       <template #subtitle>回到讨论广场前，先确认你的身份与当前登录状态。</template>
     </UiPageHeader>
 
-    <form class="stack auth-form" @submit.prevent="onLogin">
-      <div class="auth-field">
-        <div class="field-label">用户名</div>
-        <input v-model.trim="form.username" class="input" placeholder="请输入用户名" autocomplete="username" />
-      </div>
+    <form class="stack login-form" @submit.prevent="onLogin">
+      <UiField label="用户名">
+        <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+      </UiField>
 
-      <div class="auth-field">
-        <div class="field-label">密码</div>
-        <input v-model="form.password" class="input" placeholder="请输入密码" type="password" autocomplete="current-password" />
-      </div>
+      <UiField label="密码">
+        <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="current-password" />
+      </UiField>
 
-      <div v-if="captchaRequired" class="auth-field">
-        <div class="field-label">验证码</div>
-        <div class="row captcha-row">
-          <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input captcha-input" />
-          <img
+      <UiField v-if="captchaRequired" label="验证码">
+        <div class="row">
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
+          <button
             v-if="captchaSrc"
-            :src="captchaSrc"
-            alt="验证码"
+            type="button"
+            class="captcha-refresh"
             title="点击刷新验证码"
-            class="captcha-img"
             @click="refreshCaptcha"
-          />
+          >
+            <img :src="captchaSrc" alt="验证码" class="captcha-img" />
+          </button>
         </div>
-      </div>
+      </UiField>
 
       <div v-if="error" class="error">{{ error }}</div>
 
       <div class="auth-secondary-row">
-        <RouterLink class="btn ghost" to="/auth/password/reset">忘记密码？</RouterLink>
+        <UiButton variant="ghost" to="/auth/password/reset">忘记密码？</UiButton>
       </div>
 
       <UiButton type="submit" :disabled="loading" class="auth-submit-btn">
@@ -60,6 +58,8 @@ import { backendErrorMessage, isCaptchaRejected } from '../api/backendError'
 import { login as apiLogin, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 
 const route = useRoute()
@@ -127,55 +127,56 @@ async function onLogin() {
 </script>
 
 <style scoped>
-.auth-form {
-  margin-top: 14px;
-  gap: 14px;
-}
-
-.auth-field {
-  display: grid;
-  gap: 8px;
-}
-
-.field-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-1);
+.login-form {
+  margin-top: var(--space-4);
+  gap: var(--space-4);
 }
 
 .captcha-input {
   flex: 1;
 }
 
-.captcha-row {
-  gap: 12px;
-  align-items: center;
+.captcha-refresh {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.captcha-refresh:hover {
+  border-color: var(--border-strong);
+}
+
+.captcha-refresh:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .captcha-img {
+  display: block;
   height: 40px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .auth-secondary-row {
   display: flex;
   justify-content: flex-end;
-  margin-top: 6px;
+  margin-top: var(--space-1);
 }
 
 .auth-submit-btn {
-  min-height: 44px;
-  font-size: 15px;
+  min-height: calc(var(--control-height) + var(--space-1));
+  font-size: var(--text-md);
 }
 
 .auth-links {
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  font-size: 13px;
-  margin-top: 2px;
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
 }
 
 .auth-link {

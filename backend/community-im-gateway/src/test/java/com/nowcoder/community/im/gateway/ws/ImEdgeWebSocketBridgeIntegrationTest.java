@@ -49,6 +49,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     private static final String SECRET = "im-gateway-ws-test-secret-please-change-123456";
     private static final String TICKET_SECRET = "im-gateway-ws-ticket-test-secret-distinct-1234567890";
+    // Positive frame expectations wait this long so CI scheduling jitter between
+    // session open, frame delivery, and worker round-trips cannot flake them.
+    private static final long RECEIVE_TIMEOUT_SECONDS = 30;
     private static volatile DisposableServer workerServer;
     private static volatile DisposableServer binaryWorkerServer;
     private static volatile Integer refusedWorkerPort;
@@ -139,8 +142,8 @@ class ImEdgeWebSocketBridgeIntegrationTest {
             outbound.tryEmitNext(ping);
             outbound.tryEmitComplete();
 
-            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
-            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + ping);
+            assertThat(received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
+            assertThat(received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo("worker-a:" + ping);
             assertThat(counterValue("community.im.gateway.bridge.opened")).isEqualTo(bridgeOpenedBefore + 1.0);
         } finally {
             handle.dispose();
@@ -236,7 +239,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                         .then())
                 .subscribe();
         try {
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             assertThat(reject).contains("\"reasonCode\":\"connect_timeout\"");
         } finally {
@@ -365,8 +368,8 @@ class ImEdgeWebSocketBridgeIntegrationTest {
             outbound.tryEmitNext(connect);
             outbound.tryEmitComplete();
 
-            assertThat(received.poll(5, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
-            assertThat(WORKER_HANDSHAKES.poll(5, TimeUnit.SECONDS))
+            assertThat(received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isEqualTo("worker-a:" + connect);
+            assertThat(WORKER_HANDSHAKES.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS))
                     .containsEntry("traceparent", traceparent);
         } finally {
             handle.dispose();

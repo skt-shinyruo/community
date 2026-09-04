@@ -49,8 +49,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     private static final String SECRET = "im-gateway-ws-test-secret-please-change-123456";
     private static final String TICKET_SECRET = "im-gateway-ws-ticket-test-secret-distinct-1234567890";
-    // Positive frame expectations wait this long so CI scheduling jitter between
-    // session open, frame delivery, and worker round-trips cannot flake them.
+    // Positive expectations (frames, rejects, counters) wait this long so CI
+    // scheduling jitter between session open, frame delivery, and worker
+    // round-trips cannot flake them.
     private static final long RECEIVE_TIMEOUT_SECONDS = 30;
     private static volatile DisposableServer workerServer;
     private static volatile DisposableServer binaryWorkerServer;
@@ -393,7 +394,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         try {
             outbound.tryEmitNext(firstFrame);
             outbound.tryEmitComplete();
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             return reject;
         } finally {
@@ -417,7 +418,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             return reject;
         } finally {
@@ -511,7 +512,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     }
 
     private void awaitCounterValue(String name, double expected, String... tags) throws InterruptedException {
-        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(5);
+        long deadline = System.nanoTime() + TimeUnit.SECONDS.toNanos(RECEIVE_TIMEOUT_SECONDS);
         while (System.nanoTime() < deadline) {
             if (counterValue(name, tags) == expected) {
                 return;

@@ -94,6 +94,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 class ImRealtimeWebSocketIntegrationTest {
 
     private static final ObjectMapper JSON = new ObjectMapper();
+    // Positive expectations (session open, frames, projection refresh, Kafka
+    // round-trips) wait this long so scheduling jitter on loaded CI runners
+    // cannot flake them; every awaited event is produced locally and must
+    // eventually arrive.
+    private static final Duration AWAIT_TIMEOUT = Duration.ofSeconds(30);
     private static final int APP_PORT = findAvailablePort();
     private static final String WORKER_ID = "worker-a";
     private static final String WS_PATH = "/internal/ws/im";
@@ -173,7 +178,7 @@ class ImRealtimeWebSocketIntegrationTest {
         ));
         BLOCK_ENTRIES.set(List.of());
 
-        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+        projectionSyncCoordinator.refreshNow().block(AWAIT_TIMEOUT);
 
         commandConsumer = newCommandStringConsumer("im-realtime-ws-it");
         commandConsumer.subscribe(List.of("im.command.private-text"));
@@ -191,29 +196,29 @@ class ImRealtimeWebSocketIntegrationTest {
 
         Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
         try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(connected.await(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)).isTrue();
 
             outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
 
-            JsonNode connectedFrame = awaitType(received, "connected", Duration.ofSeconds(5));
+            JsonNode connectedFrame = awaitType(received, "connected", AWAIT_TIMEOUT);
             assertThat(connectedFrame.path("sessionId").asText("")).isEqualTo(sessionData.sessionId());
 
             outbound.tryEmitNext(json(new SendPrivateTextFrame("sendPrivateText", "c-allow", allowedRecipientId, "hi")));
 
-            JsonNode ackFrame = awaitType(received, "ack", Duration.ofSeconds(5));
+            JsonNode ackFrame = awaitType(received, "ack", AWAIT_TIMEOUT);
             assertThat(ackFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
             assertThat(ackFrame.path("clientMsgId").asText("")).isEqualTo("c-allow");
             assertThat(ackFrame.path("requestId").asText("")).isNotBlank();
 
             ConsumerRecord<String, String> commandRecord =
-                    pollForSingleRecord(commandConsumer, "im.command.private-text", Duration.ofSeconds(10));
+                    pollForSingleRecord(commandConsumer, "im.command.private-text", AWAIT_TIMEOUT);
             JsonNode command = objectMapper.readTree(commandRecord.value());
             assertThat(command.path("fromUserId").asText("")).isEqualTo(senderUserId.toString());
             assertThat(command.path("toUserId").asText("")).isEqualTo(allowedRecipientId.toString());
             assertThat(command.path("content").asText("")).isEqualTo("hi");
             assertThat(command.path("clientMsgId").asText("")).isEqualTo("c-allow");
 
-            awaitRealtimeEventAssignments(Set.of("im.event.user-messaging-policy-changed"), Duration.ofSeconds(8));
+            awaitRealtimeEventAssignments(Set.of("im.event.user-messaging-policy-changed"), AWAIT_TIMEOUT);
 
             kafkaTemplate.send(
                     "im.event.user-messaging-policy-changed",
@@ -230,13 +235,13 @@ class ImRealtimeWebSocketIntegrationTest {
                             System.currentTimeMillis(),
                             2L
                     )
-            ).get(5, TimeUnit.SECONDS);
+            ).get(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS);
 
-            awaitPrivatePolicyDenied(senderUserId, deniedRecipientId, Duration.ofSeconds(5));
+            awaitPrivatePolicyDenied(senderUserId, deniedRecipientId, AWAIT_TIMEOUT);
 
             outbound.tryEmitNext(json(new SendPrivateTextFrame("sendPrivateText", "c-deny", deniedRecipientId, "blocked")));
 
-            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            JsonNode rejectFrame = awaitType(received, "reject", AWAIT_TIMEOUT);
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
             assertThat(rejectFrame.path("clientMsgId").asText("")).isEqualTo("c-deny");
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("policy_denied");
@@ -257,7 +262,7 @@ class ImRealtimeWebSocketIntegrationTest {
         POLICY_ENTRIES.set(List.of(policy(userId, true)));
         BLOCK_ENTRIES.set(List.of());
 
-        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+        projectionSyncCoordinator.refreshNow().block(AWAIT_TIMEOUT);
 
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
         Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
@@ -272,11 +277,11 @@ class ImRealtimeWebSocketIntegrationTest {
                 connected
         );
         try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(connected.await(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)).isTrue();
 
             outbound.tryEmitNext(json(new ConnectFrame("connect", accessToken(userId))));
 
-            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            JsonNode rejectFrame = awaitType(received, "reject", AWAIT_TIMEOUT);
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("connect");
             assertThat(rejectFrame.path("code").asInt()).isEqualTo(401);
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("invalid_ticket");
@@ -297,7 +302,7 @@ class ImRealtimeWebSocketIntegrationTest {
         POLICY_ENTRIES.set(List.of(policy(userId, true)));
         BLOCK_ENTRIES.set(List.of());
 
-        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+        projectionSyncCoordinator.refreshNow().block(AWAIT_TIMEOUT);
 
         OpenSessionData sessionData = newSession(userId, "worker-b");
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
@@ -307,11 +312,11 @@ class ImRealtimeWebSocketIntegrationTest {
 
         Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
         try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(connected.await(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)).isTrue();
 
             outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
 
-            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            JsonNode rejectFrame = awaitType(received, "reject", AWAIT_TIMEOUT);
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("connect");
             assertThat(rejectFrame.path("code").asInt()).isEqualTo(403);
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("wrong_worker");
@@ -331,7 +336,7 @@ class ImRealtimeWebSocketIntegrationTest {
         POLICY_ENTRIES.set(List.of(policy(userId, true)));
         BLOCK_ENTRIES.set(List.of());
 
-        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+        projectionSyncCoordinator.refreshNow().block(AWAIT_TIMEOUT);
 
         OpenSessionData sessionData = newSession(userId, WORKER_ID);
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
@@ -341,14 +346,14 @@ class ImRealtimeWebSocketIntegrationTest {
 
         Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
         try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(connected.await(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)).isTrue();
 
             outbound.tryEmitNext(JSON.writeValueAsString(Map.of(
                     "type", "connect",
                     "ticket", sessionData.ticket()
             )));
 
-            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            JsonNode rejectFrame = awaitType(received, "reject", AWAIT_TIMEOUT);
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("protocol");
             assertThat(rejectFrame.path("reasonCode").asText(""))
                     .isEqualTo("unsupported_schema_version");
@@ -369,7 +374,7 @@ class ImRealtimeWebSocketIntegrationTest {
         POLICY_ENTRIES.set(List.of(policy(userId, true), policy(uuid(302), true)));
         BLOCK_ENTRIES.set(List.of());
 
-        projectionSyncCoordinator.refreshNow().block(Duration.ofSeconds(5));
+        projectionSyncCoordinator.refreshNow().block(AWAIT_TIMEOUT);
 
         OpenSessionData sessionData = newSession(userId, WORKER_ID);
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
@@ -379,10 +384,10 @@ class ImRealtimeWebSocketIntegrationTest {
 
         Disposable websocket = openWebSocket(sessionData.wsUrl(), received, outbound, done, connected);
         try {
-            assertThat(connected.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(connected.await(AWAIT_TIMEOUT.toSeconds(), TimeUnit.SECONDS)).isTrue();
 
             outbound.tryEmitNext(json(new ConnectFrame("connect", sessionData.ticket())));
-            assertThat(awaitType(received, "connected", Duration.ofSeconds(5))
+            assertThat(awaitType(received, "connected", AWAIT_TIMEOUT)
                     .path("sessionId").asText("")).isEqualTo(sessionData.sessionId());
 
             outbound.tryEmitNext("""
@@ -395,7 +400,7 @@ class ImRealtimeWebSocketIntegrationTest {
                     }
                     """);
 
-            JsonNode rejectFrame = awaitType(received, "reject", Duration.ofSeconds(5));
+            JsonNode rejectFrame = awaitType(received, "reject", AWAIT_TIMEOUT);
             assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("protocol");
             assertThat(rejectFrame.path("code").asInt()).isEqualTo(400);
             assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("unsupported_schema_version");

@@ -14,9 +14,9 @@ export async function loginViaUi(page: Page, account: TestAccount): Promise<void
     await logoutButton.click()
   }
   await page.goto(appUrl('/auth/login'))
-  await expect(page.getByRole('textbox', { name: '请输入用户名' })).toBeVisible()
-  await page.getByRole('textbox', { name: '请输入用户名' }).fill(account.username)
-  await page.getByRole('textbox', { name: '请输入密码' }).fill(account.password)
+  await expect(page.getByRole('textbox', { name: '用户名', exact: true })).toBeVisible()
+  await page.getByRole('textbox', { name: '用户名', exact: true }).fill(account.username)
+  await page.getByRole('textbox', { name: '密码', exact: true }).fill(account.password)
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/#\/posts/)
   await expect(page.getByText(account.username).first()).toBeVisible()

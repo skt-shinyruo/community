@@ -5,37 +5,34 @@
       <template #subtitle>创建你的身份，加入一个以阅读和讨论为核心的社区空间。</template>
     </UiPageHeader>
 
-    <div class="stack auth-form">
+    <div class="stack register-form">
       <template v-if="flow.step === 'form'">
-        <div class="auth-field">
-          <div class="field-label">用户名</div>
-          <input v-model.trim="form.username" class="input" placeholder="请输入用户名" autocomplete="username" />
-        </div>
+        <UiField label="用户名">
+          <UiInput v-model.trim="form.username" placeholder="请输入用户名" autocomplete="username" />
+        </UiField>
 
-        <div class="auth-field">
-          <div class="field-label">邮箱</div>
-          <input v-model.trim="form.email" class="input" placeholder="name@example.com" autocomplete="email" />
-        </div>
+        <UiField label="邮箱">
+          <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+        </UiField>
 
-        <div class="auth-field">
-          <div class="field-label">密码</div>
-          <input v-model="form.password" class="input" placeholder="请输入密码" type="password" autocomplete="new-password" />
-        </div>
+        <UiField label="密码">
+          <UiInput v-model="form.password" placeholder="请输入密码" type="password" autocomplete="new-password" />
+        </UiField>
 
-        <div class="auth-field">
-          <div class="field-label">图形验证码</div>
-          <div class="row captcha-row">
-            <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input captcha-input" />
-            <img
+        <UiField label="图形验证码">
+          <div class="row">
+            <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="captcha-input" />
+            <button
               v-if="captchaSrc"
-              :src="captchaSrc"
-              alt="验证码"
+              type="button"
+              class="captcha-refresh"
               title="点击刷新验证码"
-              class="captcha-img"
               @click="refreshCaptcha"
-            />
+            >
+              <img :src="captchaSrc" alt="验证码" class="captcha-img" />
+            </button>
           </div>
-        </div>
+        </UiField>
       </template>
 
       <template v-else>
@@ -47,10 +44,9 @@
             </div>
           </div>
 
-          <div class="auth-field">
-            <div class="field-label">邮箱验证码</div>
-            <input v-model.trim="form.emailCode" class="input" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
-          </div>
+          <UiField label="邮箱验证码">
+            <UiInput v-model.trim="form.emailCode" placeholder="请输入邮箱验证码" autocomplete="one-time-code" />
+          </UiField>
 
           <UiButton @click="onVerifyCode" :disabled="loading" class="auth-submit-btn">
             {{ loading ? '验证中…' : '验证并登录' }}
@@ -65,20 +61,20 @@
             </div>
           </div>
 
-          <div class="auth-field">
-            <div class="field-label">图形验证码（重发用）</div>
-            <div class="row captcha-row">
-              <input v-model.trim="form.captcha" placeholder="请输入重发所需的图形验证码" autocomplete="off" class="input captcha-input" />
-              <img
+          <UiField label="图形验证码（重发用）">
+            <div class="row">
+              <UiInput v-model.trim="form.captcha" placeholder="请输入重发所需的图形验证码" autocomplete="off" class="captcha-input" />
+              <button
                 v-if="captchaSrc"
-                :src="captchaSrc"
-                alt="验证码"
+                type="button"
+                class="captcha-refresh"
                 title="点击刷新验证码"
-                class="captcha-img"
                 @click="refreshCaptcha"
-              />
+              >
+                <img :src="captchaSrc" alt="验证码" class="captcha-img" />
+              </button>
             </div>
-          </div>
+          </UiField>
 
           <UiButton variant="secondary" @click="onResendCode" :disabled="loading">
             {{ loading ? '发送中…' : '重新发送验证码' }}
@@ -122,6 +118,8 @@ import { buildRegisterFlowState, clearRegisterFlowState, persistRegisterFlowStat
 import { register as apiRegister, resendRegisterCode, verifyRegisterCode, issueCaptcha } from '../api/services/authService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiInput from '../components/ui/UiInput.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiState from '../components/ui/UiState.vue'
 
@@ -292,54 +290,55 @@ onMounted(refreshCaptcha)
 </script>
 
 <style scoped>
-.auth-form {
-  margin-top: 14px;
-  gap: 14px;
+.register-form {
+  margin-top: var(--space-4);
+  gap: var(--space-4);
 }
 
 .verify-main {
   display: grid;
-  gap: 12px;
-}
-
-.auth-field {
-  display: grid;
-  gap: 8px;
-}
-
-.field-label {
-  font-size: 13px;
-  font-weight: 700;
-  color: var(--text-1);
+  gap: var(--space-3);
 }
 
 .captcha-input {
   flex: 1;
 }
 
-.captcha-row {
-  gap: 12px;
-  align-items: center;
+.captcha-refresh {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.captcha-refresh:hover {
+  border-color: var(--border-strong);
+}
+
+.captcha-refresh:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .captcha-img {
+  display: block;
   height: 40px;
-  border-radius: 8px;
-  cursor: pointer;
-  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
 }
 
 .auth-submit-btn {
-  min-height: 44px;
-  font-size: 15px;
+  min-height: calc(var(--control-height) + var(--space-1));
+  font-size: var(--text-md);
 }
 
 .auth-links {
   justify-content: center;
-  gap: 6px;
+  gap: var(--space-2);
   flex-wrap: wrap;
-  font-size: 13px;
-  margin-top: 2px;
+  font-size: var(--text-sm);
+  margin-top: var(--space-1);
 }
 
 .auth-link {
@@ -353,7 +352,7 @@ onMounted(refreshCaptcha)
 
 .verify-block {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .verify-title {
@@ -362,18 +361,17 @@ onMounted(refreshCaptcha)
 
 .verify-resend {
   display: grid;
-  gap: 10px;
-  padding-top: 14px;
+  gap: var(--space-3);
+  padding-top: var(--space-4);
   border-top: 1px solid var(--border);
 }
 
 .verify-resend-head {
   display: grid;
-  gap: 8px;
+  gap: var(--space-2);
 }
 
 .verify-section-title {
   font-weight: 800;
 }
-
 </style>

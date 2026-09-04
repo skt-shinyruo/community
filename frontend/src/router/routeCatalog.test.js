@@ -16,19 +16,27 @@ describe('router/routeCatalog', () => {
   })
 
   it('owns stable workspace labels', () => {
-    expect(getRouteWorkspaceLabel('posts')).toBe('Community')
-    expect(getRouteWorkspaceLabel('messageDetail')).toBe('Inbox')
-    expect(getRouteWorkspaceLabel('marketOrderDetail')).toBe('Trade & Assets')
-    expect(getRouteWorkspaceLabel('driveShare')).toBe('Files')
-    expect(getRouteWorkspaceLabel('moderation')).toBe('Operations')
-    expect(getRouteWorkspaceLabel('unknown')).toBe('Community')
+    expect(getRouteWorkspaceLabel('posts')).toBe('社区')
+    expect(getRouteWorkspaceLabel('messageDetail')).toBe('个人')
+    expect(getRouteWorkspaceLabel('marketOrderDetail')).toBe('市场')
+    expect(getRouteWorkspaceLabel('driveShare')).toBe('个人')
+    expect(getRouteWorkspaceLabel('moderation')).toBe('运营')
+    expect(getRouteWorkspaceLabel('unknown')).toBe('社区')
   })
 
-  it('owns route families including legitimate multi-family detail routes', () => {
+  it('owns route families including the full market domain family', () => {
     expect(getRouteFamilyNames('posts')).toEqual(['posts', 'postDetail'])
     expect(getRouteFamilyNames('profile')).toEqual(['userProfile', 'followees', 'followers'])
-    expect(getRouteFamilyNames('marketBuying')).toEqual(['marketBuyingOrders', 'marketOrderDetail'])
-    expect(getRouteFamilyNames('marketSelling')).toEqual(['marketSellingOrders', 'marketOrderDetail'])
+    expect(getRouteFamilyNames('market')).toEqual([
+      'market',
+      'marketDetail',
+      'marketPublish',
+      'marketMyListings',
+      'marketInventory',
+      'marketBuyingOrders',
+      'marketSellingOrders',
+      'marketOrderDetail'
+    ])
   })
 
   it('owns stable breadcrumb projections while accepting dynamic params', () => {

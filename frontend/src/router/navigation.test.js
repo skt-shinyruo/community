@@ -22,27 +22,22 @@ describe('router/navigation', () => {
 
   it('getSidebarNavigation should group routes by product workspaces', () => {
     const anon = getSidebarNavigation({ authed: false })
-    expect(anon.map((g) => g.key)).toEqual(['community', 'trading', 'account'])
+    expect(anon.map((g) => g.key)).toEqual(['community', 'market', 'account'])
     expect(anon.find((g) => g.key === 'community')?.items.map((it) => it.key)).toEqual(['posts', 'search'])
-    expect(anon.find((g) => g.key === 'trading')?.items.map((it) => it.key)).toEqual(['market'])
+    expect(anon.find((g) => g.key === 'market')?.items.map((it) => it.key)).toEqual(['market'])
     expect(anon.find((g) => g.key === 'account')?.items.map((it) => it.key)).toEqual(['login'])
     expect(anon.flatMap((g) => g.items).find((it) => it.key === 'login')?.activeNames || []).not.toContain('activation')
 
     const authed = getSidebarNavigation({ authed: true, userId: 12, roles: ['ROLE_USER'] })
-    expect(authed.map((g) => g.key)).toEqual(['community', 'trading', 'personal'])
+    expect(authed.map((g) => g.key)).toEqual(['community', 'market', 'personal'])
     expect(authed.find((g) => g.key === 'community')?.items.map((it) => it.key)).toEqual([
       'posts',
       'search',
       'bookmarks',
       'profile'
     ])
-    expect(authed.find((g) => g.key === 'trading')?.items.map((it) => it.key)).toEqual([
-      'market',
-      'marketPublish',
-      'marketMyListings',
-      'marketBuying',
-      'marketSelling'
-    ])
+    // 市场是一级域：发布商品、我的出售、我的购买和出售订单进入市场页主操作，不再作为一级入口。
+    expect(authed.find((g) => g.key === 'market')?.items.map((it) => it.key)).toEqual(['market'])
     expect(authed.find((g) => g.key === 'personal')?.items.map((it) => it.key)).toEqual([
       'wallet',
       'drive',
@@ -53,6 +48,14 @@ describe('router/navigation', () => {
 
     const profile = authed.flatMap((g) => g.items).find((it) => it.key === 'profile')
     expect(profile?.to).toEqual({ name: 'userProfile', params: { userId: '12' } })
+  })
+
+  it('getSidebarNavigation should bind unread badge keys to the inbox entries', () => {
+    const authed = getSidebarNavigation({ authed: true, userId: 12, roles: ['ROLE_USER'] })
+    const items = authed.flatMap((g) => g.items)
+    expect(items.find((it) => it.key === 'notices')?.badge).toBe('notices')
+    expect(items.find((it) => it.key === 'messages')?.badge).toBe('messages')
+    expect(items.filter((it) => it.badge).map((it) => it.key)).toEqual(['notices', 'messages'])
   })
 
   it('getSidebarNavigation should expose admin workspace by role', () => {
@@ -80,9 +83,6 @@ describe('router/navigation', () => {
 
     const posts = allItems.find((it) => it.key === 'posts')
     const market = allItems.find((it) => it.key === 'market')
-    const marketMyListings = allItems.find((it) => it.key === 'marketMyListings')
-    const marketBuying = allItems.find((it) => it.key === 'marketBuying')
-    const marketSelling = allItems.find((it) => it.key === 'marketSelling')
     const wallet = allItems.find((it) => it.key === 'wallet')
     const notices = allItems.find((it) => it.key === 'notices')
     const messages = allItems.find((it) => it.key === 'messages')
@@ -93,30 +93,33 @@ describe('router/navigation', () => {
     expect(isNavItemActive({ name: 'posts', query: { type: 'top' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'posts', query: { subscribed: '1' } }, posts)).toBe(true)
     expect(isNavItemActive({ name: 'wallet' }, wallet)).toBe(true)
+    // 市场域内全部路由（含二级目的地）都高亮同一个市场入口。
     expect(isNavItemActive({ name: 'marketDetail' }, market)).toBe(true)
-    expect(isNavItemActive({ name: 'marketPublish' }, market)).toBe(false)
-    expect(isNavItemActive({ name: 'marketInventory' }, market)).toBe(false)
-    expect(isNavItemActive({ name: 'marketOrderDetail' }, market)).toBe(false)
-    expect(isNavItemActive({ name: 'marketInventory' }, marketMyListings)).toBe(true)
-    expect(isNavItemActive({ name: 'marketOrderDetail' }, marketBuying)).toBe(true)
-    expect(isNavItemActive({ name: 'marketOrderDetail' }, marketSelling)).toBe(true)
+    expect(isNavItemActive({ name: 'marketPublish' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'marketInventory' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'marketOrderDetail' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'marketBuyingOrders' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'marketSellingOrders' }, market)).toBe(true)
+    expect(isNavItemActive({ name: 'posts' }, market)).toBe(false)
     expect(isNavItemActive({ name: 'noticeDetail' }, notices)).toBe(true)
     expect(isNavItemActive({ name: 'messageDetail' }, messages)).toBe(true)
     expect(isNavItemActive({ name: 'followees' }, profile)).toBe(true)
     expect(isNavItemActive({ name: 'followers' }, profile)).toBe(true)
   })
 
-  it('getRouteWorkspaceLabel should describe route scope for the topbar', () => {
-    expect(getRouteWorkspaceLabel('posts')).toBe('Community')
-    expect(getRouteWorkspaceLabel('search')).toBe('Community')
-    expect(getRouteWorkspaceLabel('userProfile')).toBe('Community')
-    expect(getRouteWorkspaceLabel('notices')).toBe('Inbox')
-    expect(getRouteWorkspaceLabel('messageDetail')).toBe('Inbox')
-    expect(getRouteWorkspaceLabel('market')).toBe('Trade & Assets')
-    expect(getRouteWorkspaceLabel('wallet')).toBe('Trade & Assets')
-    expect(getRouteWorkspaceLabel('drive')).toBe('Files')
-    expect(getRouteWorkspaceLabel('settings')).toBe('Account')
-    expect(getRouteWorkspaceLabel('moderation')).toBe('Operations')
+  it('getRouteWorkspaceLabel should describe route scope for the topbar in Chinese', () => {
+    expect(getRouteWorkspaceLabel('posts')).toBe('社区')
+    expect(getRouteWorkspaceLabel('search')).toBe('社区')
+    expect(getRouteWorkspaceLabel('userProfile')).toBe('社区')
+    expect(getRouteWorkspaceLabel('notices')).toBe('个人')
+    expect(getRouteWorkspaceLabel('messageDetail')).toBe('个人')
+    expect(getRouteWorkspaceLabel('market')).toBe('市场')
+    expect(getRouteWorkspaceLabel('marketOrderDetail')).toBe('市场')
+    expect(getRouteWorkspaceLabel('wallet')).toBe('个人')
+    expect(getRouteWorkspaceLabel('drive')).toBe('个人')
+    expect(getRouteWorkspaceLabel('settings')).toBe('个人')
+    expect(getRouteWorkspaceLabel('moderation')).toBe('运营')
+    expect(getRouteWorkspaceLabel('unknown')).toBe('社区')
   })
 
   it('getMobileNavigation should prioritize community attention loops', () => {

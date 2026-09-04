@@ -5,6 +5,8 @@ import {
 } from './routeCatalog'
 
 // 导航配置 SSOT：定义侧边栏/移动端的分组、权限与路由映射。
+// 侧边栏收敛为社区、市场、个人三个一级域（管理与匿名登录入口除外）；
+// 市场二级目的地进入市场页主操作，收货地址收进 Settings addresses section。
 
 function normalizeRoles(roles) {
   return Array.isArray(roles) ? roles.filter(Boolean).map(String) : []
@@ -58,13 +60,8 @@ export function isNavItemActive(route, item) {
   return false
 }
 
-const SHELL_SEARCH_ROUTE_NAMES = Object.freeze(['posts', 'search', 'market'])
-
-export function routeSupportsShellSearch(routeName) {
-  return SHELL_SEARCH_ROUTE_NAMES.includes(String(routeName || ''))
-}
-
 // 导航 SSOT：侧边抽屉承载产品工作区，移动端底栏只承载高频入口。
+// badge 标记侧边栏/移动端入口挂接的未读角标计数（stores/inboxUnread）。
 const NAV_DEFS = Object.freeze([
   {
     key: 'community',
@@ -104,47 +101,15 @@ const NAV_DEFS = Object.freeze([
     ]
   },
   {
-    key: 'trading',
-    title: '交易',
+    key: 'market',
+    title: '市场',
     items: [
       {
         key: 'market',
         label: '市场',
-        icon: 'sparkle',
+        icon: 'store',
         to: () => ({ name: 'market' }),
         activeNames: getRouteFamilyNames('market')
-      },
-      {
-        key: 'marketPublish',
-        label: '发布商品',
-        icon: 'posts',
-        ...getRouteAccess('marketPublish'),
-        to: () => ({ name: 'marketPublish' }),
-        activeNames: getRouteFamilyNames('marketPublish')
-      },
-      {
-        key: 'marketMyListings',
-        label: '我的出售',
-        icon: 'analytics',
-        ...getRouteAccess('marketMyListings'),
-        to: () => ({ name: 'marketMyListings' }),
-        activeNames: getRouteFamilyNames('marketMyListings')
-      },
-      {
-        key: 'marketBuying',
-        label: '我的购买',
-        icon: 'bookmark',
-        ...getRouteAccess('marketBuyingOrders'),
-        to: () => ({ name: 'marketBuyingOrders' }),
-        activeNames: getRouteFamilyNames('marketBuying')
-      },
-      {
-        key: 'marketSelling',
-        label: '出售订单',
-        icon: 'analytics',
-        ...getRouteAccess('marketSellingOrders'),
-        to: () => ({ name: 'marketSellingOrders' }),
-        activeNames: getRouteFamilyNames('marketSelling')
       }
     ]
   },
@@ -155,7 +120,7 @@ const NAV_DEFS = Object.freeze([
       {
         key: 'wallet',
         label: '积分钱包',
-        icon: 'sparkle',
+        icon: 'wallet',
         ...getRouteAccess('wallet'),
         to: () => ({ name: 'wallet' }),
         activeNames: getRouteFamilyNames('wallet')
@@ -172,6 +137,7 @@ const NAV_DEFS = Object.freeze([
         key: 'notices',
         label: '通知',
         icon: 'bell',
+        badge: 'notices',
         ...getRouteAccess('notices'),
         to: () => ({ name: 'notices' }),
         activeNames: getRouteFamilyNames('notices')
@@ -180,6 +146,7 @@ const NAV_DEFS = Object.freeze([
         key: 'messages',
         label: '私信',
         icon: 'messages',
+        badge: 'messages',
         ...getRouteAccess('messages'),
         to: () => ({ name: 'messages' }),
         activeNames: getRouteFamilyNames('messages')
@@ -225,7 +192,7 @@ const NAV_DEFS = Object.freeze([
       {
         key: 'walletAdmin',
         label: '钱包后台',
-        icon: 'analytics',
+        icon: 'wallet',
         ...getRouteAccess('walletAdmin'),
         to: () => ({ name: 'walletAdmin' }),
         activeNames: getRouteFamilyNames('walletAdmin')
@@ -322,6 +289,7 @@ export function getMobileNavigation(ctx = {}) {
     key: 'notices',
     label: '通知',
     icon: 'bell',
+    badge: 'notices',
     to: login?.to || { name: 'login' },
     activeNames: getRouteFamilyNames('notices')
   }
@@ -329,6 +297,7 @@ export function getMobileNavigation(ctx = {}) {
     key: 'messages',
     label: '私信',
     icon: 'messages',
+    badge: 'messages',
     to: login?.to || { name: 'login' },
     activeNames: getRouteFamilyNames('messages')
   }

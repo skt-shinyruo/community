@@ -3,8 +3,13 @@
 import http from '../http'
 import { unwrapResultBody } from '../result'
 
-export async function topicSummary() {
-  const resp = await http.get('/api/notices/summary')
+/**
+ * @param {{ silent?: boolean }} [options] silent 时后台刷新不弹全局错误 toast。
+ */
+export async function topicSummary(options = {}) {
+  const silent = options?.silent === true
+  const config = /** @type {import('axios').AxiosRequestConfig} */ ({ skipGlobalErrorToast: silent })
+  const resp = await http.get('/api/notices/summary', config)
   const { data, traceId } = unwrapResultBody(resp.data, '查询通知汇总')
   return { data: Array.isArray(data) ? data : [], traceId }
 }

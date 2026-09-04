@@ -8,6 +8,8 @@ const {
   listImConversationHistory,
   listImConversationMessages,
   markImConversationRead,
+  getImUnreadSummary,
+  topicSummary,
   sendPrivateText,
   imRealtimeClient
 } = vi.hoisted(() => {
@@ -26,6 +28,8 @@ const {
     listImConversationHistory: vi.fn(),
     listImConversationMessages: vi.fn(),
     markImConversationRead: vi.fn(),
+    getImUnreadSummary: vi.fn(),
+    topicSummary: vi.fn(),
     sendPrivateText: client.sendPrivateText,
     imRealtimeClient: client
   }
@@ -34,7 +38,12 @@ const {
 vi.mock('../api/services/imCoreChatService', () => ({
   listImConversationHistory,
   listImConversationMessages,
-  markImConversationRead
+  markImConversationRead,
+  getImUnreadSummary
+}))
+
+vi.mock('../api/services/noticeService', () => ({
+  topicSummary
 }))
 
 vi.mock('../im/imRealtimeClient', () => ({
@@ -42,6 +51,7 @@ vi.mock('../im/imRealtimeClient', () => ({
 }))
 
 import { useAuthStore } from '../stores/auth'
+import { useInboxUnreadStore } from '../stores/inboxUnread'
 import ConversationDetailView from './ConversationDetailView.vue'
 
 function mountView(conversationId) {
@@ -118,6 +128,8 @@ describe('ConversationDetailView', () => {
     })
     listImConversationMessages.mockResolvedValue({ items: [] })
     markImConversationRead.mockResolvedValue({})
+    getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [] })
+    topicSummary.mockResolvedValue({ data: [] })
     sendPrivateText.mockClear()
   })
 
@@ -149,6 +161,23 @@ describe('ConversationDetailView', () => {
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: '继续聊'
     })
+  })
+
+  it('refreshes the shell unread badge after the loaded tail is marked read', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    topicSummary.mockResolvedValue({ data: [{ topic: 'comment', unreadCount: 2 }] })
+    getImUnreadSummary.mockResolvedValue({
+      rooms: [],
+      conversations: [{ conversationId: 'another-conversation', unreadCount: 6 }]
+    })
+
+    mountView(conversationId)
+    await flushPromises()
+
+    expect(markImConversationRead).toHaveBeenCalledWith(conversationId, 8)
+    const inboxUnread = useInboxUnreadStore()
+    expect(inboxUnread.noticeUnread).toBe(2)
+    expect(inboxUnread.messageUnread).toBe(6)
   })
 
   it('retains realtime messages that arrive while the latest history is loading', async () => {

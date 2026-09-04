@@ -1,63 +1,63 @@
 export const ROUTES = Object.freeze({
-  login: { workspace: 'Community', navGroup: 'auth' },
-  register: { workspace: 'Community', navGroup: 'auth' },
-  passwordReset: { workspace: 'Community', navGroup: 'auth' },
-  posts: { workspace: 'Community', navGroup: 'explore' },
-  postDetail: { workspace: 'Community', navGroup: 'explore' },
-  search: { workspace: 'Community', navGroup: 'explore' },
-  bookmarks: { workspace: 'Community', navGroup: 'me', requiresAuth: true },
-  userProfile: { workspace: 'Community', navGroup: 'me' },
-  followees: { workspace: 'Community', navGroup: 'me' },
-  followers: { workspace: 'Community', navGroup: 'me' },
-  notices: { workspace: 'Inbox', navGroup: 'me', requiresAuth: true },
-  noticeDetail: { workspace: 'Inbox', navGroup: 'me', requiresAuth: true },
-  messages: { workspace: 'Inbox', navGroup: 'me', requiresAuth: true },
-  messageDetail: { workspace: 'Inbox', navGroup: 'me', requiresAuth: true },
-  market: { workspace: 'Trade & Assets', navGroup: 'explore' },
-  marketDetail: { workspace: 'Trade & Assets', navGroup: 'explore' },
-  marketPublish: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketMyListings: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketInventory: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketBuyingOrders: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketSellingOrders: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketOrderDetail: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  marketAddresses: { workspace: 'Account', navGroup: 'me', requiresAuth: true },
-  wallet: { workspace: 'Trade & Assets', navGroup: 'me', requiresAuth: true },
-  drive: { workspace: 'Files', navGroup: 'me', requiresAuth: true },
-  driveShare: { workspace: 'Files', navGroup: 'public' },
-  settings: { workspace: 'Account', navGroup: 'me', requiresAuth: true },
+  login: { workspace: '社区', navGroup: 'auth' },
+  register: { workspace: '社区', navGroup: 'auth' },
+  passwordReset: { workspace: '社区', navGroup: 'auth' },
+  posts: { workspace: '社区', navGroup: 'explore' },
+  postDetail: { workspace: '社区', navGroup: 'explore' },
+  search: { workspace: '社区', navGroup: 'explore' },
+  bookmarks: { workspace: '社区', navGroup: 'me', requiresAuth: true },
+  userProfile: { workspace: '社区', navGroup: 'me' },
+  followees: { workspace: '社区', navGroup: 'me' },
+  followers: { workspace: '社区', navGroup: 'me' },
+  notices: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  noticeDetail: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  messages: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  messageDetail: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  market: { workspace: '市场', navGroup: 'explore' },
+  marketDetail: { workspace: '市场', navGroup: 'explore' },
+  marketPublish: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketMyListings: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketInventory: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketBuyingOrders: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketSellingOrders: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketOrderDetail: { workspace: '市场', navGroup: 'me', requiresAuth: true },
+  marketAddresses: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  wallet: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  drive: { workspace: '个人', navGroup: 'me', requiresAuth: true },
+  driveShare: { workspace: '个人', navGroup: 'public' },
+  settings: { workspace: '个人', navGroup: 'me', requiresAuth: true },
   analytics: {
-    workspace: 'Operations',
+    workspace: '运营',
     navGroup: 'admin',
     requiresAuth: true,
     roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
   },
   moderation: {
-    workspace: 'Operations',
+    workspace: '运营',
     navGroup: 'admin',
     requiresAuth: true,
     roles: ['ROLE_ADMIN', 'ROLE_MODERATOR']
   },
   userManagement: {
-    workspace: 'Operations',
+    workspace: '运营',
     navGroup: 'admin',
     requiresAuth: true,
     roles: ['ROLE_ADMIN']
   },
   walletAdmin: {
-    workspace: 'Operations',
+    workspace: '运营',
     navGroup: 'admin',
     requiresAuth: true,
     roles: ['ROLE_ADMIN']
   },
   adminMarketDisputes: {
-    workspace: 'Operations',
+    workspace: '运营',
     navGroup: 'admin',
     requiresAuth: true,
     roles: ['ROLE_ADMIN']
   },
-  forbidden: { workspace: 'System', navGroup: 'system' },
-  notFound: { workspace: 'System', navGroup: 'system' }
+  forbidden: { workspace: '系统', navGroup: 'system' },
+  notFound: { workspace: '系统', navGroup: 'system' }
 })
 
 const ROUTE_FAMILIES = Object.freeze({
@@ -65,11 +65,17 @@ const ROUTE_FAMILIES = Object.freeze({
   search: ['search'],
   bookmarks: ['bookmarks'],
   profile: ['userProfile', 'followees', 'followers'],
-  market: ['market', 'marketDetail'],
-  marketPublish: ['marketPublish'],
-  marketMyListings: ['marketMyListings', 'marketInventory'],
-  marketBuying: ['marketBuyingOrders', 'marketOrderDetail'],
-  marketSelling: ['marketSellingOrders', 'marketOrderDetail'],
+  // 市场是一级域：全部市场路由共用同一个侧边栏入口与选中态。
+  market: [
+    'market',
+    'marketDetail',
+    'marketPublish',
+    'marketMyListings',
+    'marketInventory',
+    'marketBuyingOrders',
+    'marketSellingOrders',
+    'marketOrderDetail'
+  ],
   wallet: ['wallet'],
   drive: ['drive'],
   notices: ['notices', 'noticeDetail'],
@@ -104,7 +110,7 @@ function routeEntry(routeName) {
 }
 
 export function getRouteWorkspaceLabel(routeName) {
-  return routeEntry(routeName)?.workspace || 'Community'
+  return routeEntry(routeName)?.workspace || '社区'
 }
 
 export function getRouteFamilyNames(familyKey) {

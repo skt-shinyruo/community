@@ -2,6 +2,7 @@ import { computed, nextTick, reactive, ref, unref, watch } from 'vue'
 import { listImConversationHistory, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { useAuthStore } from '../stores/auth'
+import { useInboxUnreadStore } from '../stores/inboxUnread'
 import { showToast } from '../ui/toastService'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -125,6 +126,14 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     return running
   }
 
+  /** 已读落库后刷新壳层未读角标；已读与角标失败都静默，不影响会话流程。 */
+  async function markConversationRead(conversationId, lastReadSeq) {
+    try {
+      await markImConversationRead(conversationId, lastReadSeq)
+      void useInboxUnreadStore().refresh()
+    } catch {}
+  }
+
   /** @param {ConversationViewContext} context */
   async function loadLatestHistory(context) {
     const token = loadRequestTracker.begin()
@@ -158,7 +167,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
 
       const maxSeq = findLatestConversationSeq(items.value)
       if (maxSeq > 0) {
-        try { await markImConversationRead(context.conversationId, maxSeq) } catch {}
+        await markConversationRead(context.conversationId, maxSeq)
       }
       if (isCurrentRequest(token, context)) scrollToBottom(context.scope)
     } catch (cause) {
@@ -287,7 +296,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     if (isNewTail) scrollToBottom(context.scope)
 
     if (isNewTail && seq === nextMaxSeq && sameOpaqueId(message.toId, context.meId)) {
-      try { await markImConversationRead(context.conversationId, seq) } catch {}
+      await markConversationRead(context.conversationId, seq)
     }
   }
 

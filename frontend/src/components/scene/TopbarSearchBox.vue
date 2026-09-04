@@ -2,10 +2,7 @@
   <div class="topbar-search">
     <div class="topbar-search-field">
       <span class="topbar-search-icon">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+        <Search :size="16" aria-hidden="true" />
       </span>
       <input
         id="topbar-global-search"
@@ -25,6 +22,7 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { Search } from 'lucide-vue-next'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },

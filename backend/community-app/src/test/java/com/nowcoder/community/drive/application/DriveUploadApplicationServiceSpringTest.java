@@ -232,16 +232,20 @@ class DriveUploadApplicationServiceSpringTest {
                     await(allowCancellation);
                     return new DriveObjectStoragePort.UploadCancellation(false, true);
                 });
-        // Both recovery passes must list the stale upload before either records
-        // its recovery attempt: recordRecoveryAttempt bumps updated_at past
-        // updatedBefore, so a late list sees an empty result and that thread
-        // never reaches cancelUpload (observed as rendezvous timeouts on CI).
+        // Both recovery passes must have finished listing the stale upload
+        // before either records its recovery attempt: recordRecoveryAttempt
+        // bumps updated_at past updatedBefore, so a query that runs after it
+        // sees an empty result and that thread never reaches cancelUpload.
+        // Count down only after the real query returns; entering this spy is
+        // not proof the list executed (observed as bothAtCancellation
+        // rendezvous timeouts on CI).
         CountDownLatch bothListed = new CountDownLatch(2);
         CountDownLatch allowRecoveryRecording = new CountDownLatch(1);
         doAnswer(invocation -> {
+            Object listed = invocation.callRealMethod();
             bothListed.countDown();
             await(allowRecoveryRecording);
-            return invocation.callRealMethod();
+            return listed;
         }).when(uploadRepository).listRecoverableBefore(any(Instant.class), anyInt());
         clearInvocations(spaceRepository, objectStoragePort);
 

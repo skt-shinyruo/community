@@ -2,11 +2,8 @@
   <UiCard class="settings-panel settings-appearance">
     <section class="settings-section">
       <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Theme</div>
-          <h2 id="settings-theme-heading">主题</h2>
-          <p>浅色、深色或跟随系统；偏好保存在当前设备上，刷新后保持。</p>
-        </div>
+        <h2 id="settings-theme-heading">主题</h2>
+        <p>浅色、深色或跟随系统；偏好保存在当前设备上，刷新后保持。</p>
       </div>
 
       <div class="settings-choice-group" role="radiogroup" aria-labelledby="settings-theme-heading">
@@ -36,11 +33,8 @@
 
     <section class="settings-section">
       <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Density</div>
-          <h2 id="settings-density-heading">密度</h2>
-          <p>密度只改变令牌与间距，组件和交互保持一致。</p>
-        </div>
+        <h2 id="settings-density-heading">密度</h2>
+        <p>密度只改变令牌与间距，组件和交互保持一致。</p>
       </div>
 
       <div class="settings-choice-group" role="radiogroup" aria-labelledby="settings-density-heading">
@@ -115,23 +109,21 @@ const densityPreference = computed({
   border-bottom: none;
 }
 
-.settings-section-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.6;
-}
-
-.settings-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
+.settings-section-head {
+  display: grid;
+  gap: var(--space-1);
 }
 
 .settings-section-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--line-tight);
+}
+
+.settings-section-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: var(--line-normal);
 }
 
 .settings-choice-group {

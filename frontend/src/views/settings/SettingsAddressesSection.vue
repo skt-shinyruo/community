@@ -1,63 +1,59 @@
 <template>
-  <UiCard class="settings-panel settings-addresses">
+  <UiCard class="settings-panel">
     <section class="settings-section">
       <div class="settings-section-head">
-        <div>
-          <div class="settings-eyebrow">Addresses</div>
-          <h2>收货地址</h2>
-          <p>实物订单下单前，先把地址簿整理好。订单使用地址快照；这里管理未来下单的默认收货信息。</p>
-        </div>
+        <h2>收货地址</h2>
+        <p>实物订单下单前，先把地址簿整理好。订单使用地址快照；这里管理未来下单的默认收货信息。</p>
       </div>
 
-      <UiState v-if="error" variant="error">{{ error }}</UiState>
-      <div v-else-if="loading" class="muted">正在加载地址簿…</div>
+      <UiState v-if="error" variant="error">
+        {{ error }}
+        <template #description>地址簿暂时无法读取，可重试加载。</template>
+        <template #actions>
+          <UiButton variant="secondary" @click="reload">重试</UiButton>
+        </template>
+      </UiState>
+      <UiSkeleton v-else-if="loading" variant="list" :rows="2" label="正在加载地址簿" />
 
       <div v-else class="settings-addresses-body">
-        <UiPageHeader>
-          <template #title>新增地址</template>
-          <template #subtitle>保存常用收货信息，实物商品下单时会使用地址快照。</template>
-        </UiPageHeader>
+        <div class="settings-block-head">
+          <h3>新增地址</h3>
+          <p>保存常用收货信息，实物商品下单时会使用地址快照。</p>
+        </div>
 
-        <div class="market-form-grid market-form-grid--wide">
-          <label class="market-field">
-            <span>收货人</span>
-            <input v-model="form.receiverName" class="input" />
-          </label>
-          <label class="market-field">
-            <span>手机号</span>
-            <input v-model="form.receiverPhone" class="input" />
-          </label>
-          <label class="market-field">
-            <span>省份</span>
-            <input v-model="form.province" class="input" />
-          </label>
-          <label class="market-field">
-            <span>城市</span>
-            <input v-model="form.city" class="input" />
-          </label>
-          <label class="market-field">
-            <span>区县</span>
-            <input v-model="form.district" class="input" />
-          </label>
-          <label class="market-field">
-            <span>详细地址</span>
-            <input v-model="form.detailAddress" class="input" />
-          </label>
-          <label class="market-field">
-            <span>邮编</span>
-            <input v-model="form.postalCode" class="input" />
-          </label>
-          <label class="market-field--inline ui-checkbox">
-            <input v-model="form.defaultAddress" class="ui-checkbox-input" type="checkbox" />
-            <span class="ui-checkbox-copy">设为默认地址</span>
+        <div class="settings-form-grid">
+          <UiField label="收货人">
+            <UiInput v-model="form.receiverName" name="address-receiver-name" autocomplete="off" />
+          </UiField>
+          <UiField label="手机号">
+            <UiInput v-model="form.receiverPhone" name="address-receiver-phone" autocomplete="off" />
+          </UiField>
+          <UiField label="省份">
+            <UiInput v-model="form.province" name="address-province" autocomplete="off" />
+          </UiField>
+          <UiField label="城市">
+            <UiInput v-model="form.city" name="address-city" autocomplete="off" />
+          </UiField>
+          <UiField label="区县">
+            <UiInput v-model="form.district" name="address-district" autocomplete="off" />
+          </UiField>
+          <UiField label="详细地址">
+            <UiInput v-model="form.detailAddress" name="address-detail" autocomplete="off" />
+          </UiField>
+          <UiField label="邮编">
+            <UiInput v-model="form.postalCode" name="address-postal-code" autocomplete="off" />
+          </UiField>
+          <label class="settings-checkbox">
+            <input v-model="form.defaultAddress" class="settings-checkbox-input" type="checkbox" />
+            <span class="settings-checkbox-copy">设为默认地址</span>
           </label>
         </div>
 
-        <div class="market-inline-actions">
+        <div class="settings-form-actions">
           <UiButton :disabled="submitting" @click="submitCreate">
             {{ submitting ? '保存中…' : '新增地址' }}
           </UiButton>
-          <span class="muted">{{ message }}</span>
+          <span class="muted" role="status">{{ message }}</span>
         </div>
 
         <UiState v-if="state.addresses.length === 0">
@@ -65,64 +61,57 @@
           <template #description>创建第一条地址后，实物商品详情页就可以直接选择它下单。</template>
         </UiState>
 
-        <div v-else class="market-admin-list">
-          <article v-for="item in state.addresses" :key="item.addressId" class="market-admin-row">
-            <div>
+        <div v-else class="settings-address-list">
+          <article v-for="item in state.addresses" :key="item.addressId" class="settings-address-row">
+            <div class="settings-address-main">
               <strong>{{ item.receiverName }}</strong>
               <p>{{ item.receiverPhone }} · {{ item.addressLine }}</p>
-              <p v-if="item.defaultLabel">{{ item.defaultLabel }}</p>
+              <p v-if="item.defaultLabel" class="settings-address-default">{{ item.defaultLabel }}</p>
             </div>
-            <div class="market-inline-actions">
+            <div class="settings-row-actions">
               <UiButton variant="secondary" :disabled="submitting" data-test="address-edit" @click="startEdit(item)">编辑</UiButton>
-              <UiButton :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
+              <UiButton variant="dangerSecondary" :disabled="submitting" @click="submitDelete(item.addressId)">删除</UiButton>
             </div>
             <form
               v-if="editingAddressId === item.addressId"
-              class="market-edit-form"
+              class="settings-address-edit"
               data-test="address-edit-form"
               @submit.prevent="submitUpdate"
             >
-              <UiPageHeader>
-                <template #title>编辑地址</template>
-                <template #subtitle>修改后的地址只会用于后续下单，已创建订单仍使用当时的地址快照。</template>
-              </UiPageHeader>
+              <div class="settings-block-head">
+                <h3>编辑地址</h3>
+                <p>修改后的地址只会用于后续下单，已创建订单仍使用当时的地址快照。</p>
+              </div>
 
-              <div class="market-form-grid market-form-grid--wide">
-                <label class="market-field">
-                  <span>收货人</span>
-                  <input v-model="editForm.receiverName" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>手机号</span>
-                  <input v-model="editForm.receiverPhone" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>省份</span>
-                  <input v-model="editForm.province" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>城市</span>
-                  <input v-model="editForm.city" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>区县</span>
-                  <input v-model="editForm.district" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>详细地址</span>
-                  <input v-model="editForm.detailAddress" class="input" />
-                </label>
-                <label class="market-field">
-                  <span>邮编</span>
-                  <input v-model="editForm.postalCode" class="input" />
-                </label>
-                <label class="market-field--inline ui-checkbox">
-                  <input v-model="editForm.defaultAddress" class="ui-checkbox-input" type="checkbox" />
-                  <span class="ui-checkbox-copy">设为默认地址</span>
+              <div class="settings-form-grid">
+                <UiField label="收货人">
+                  <UiInput v-model="editForm.receiverName" name="edit-address-receiver-name" autocomplete="off" />
+                </UiField>
+                <UiField label="手机号">
+                  <UiInput v-model="editForm.receiverPhone" name="edit-address-receiver-phone" autocomplete="off" />
+                </UiField>
+                <UiField label="省份">
+                  <UiInput v-model="editForm.province" name="edit-address-province" autocomplete="off" />
+                </UiField>
+                <UiField label="城市">
+                  <UiInput v-model="editForm.city" name="edit-address-city" autocomplete="off" />
+                </UiField>
+                <UiField label="区县">
+                  <UiInput v-model="editForm.district" name="edit-address-district" autocomplete="off" />
+                </UiField>
+                <UiField label="详细地址">
+                  <UiInput v-model="editForm.detailAddress" name="edit-address-detail" autocomplete="off" />
+                </UiField>
+                <UiField label="邮编">
+                  <UiInput v-model="editForm.postalCode" name="edit-address-postal-code" autocomplete="off" />
+                </UiField>
+                <label class="settings-checkbox">
+                  <input v-model="editForm.defaultAddress" class="settings-checkbox-input" type="checkbox" />
+                  <span class="settings-checkbox-copy">设为默认地址</span>
                 </label>
               </div>
 
-              <div class="market-inline-actions">
+              <div class="settings-form-actions">
                 <UiButton :disabled="submitting" type="submit" data-test="address-update-submit">
                   {{ submitting ? '保存中…' : '保存修改' }}
                 </UiButton>
@@ -140,8 +129,10 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
+import UiField from '../../components/ui/UiField.vue'
+import UiInput from '../../components/ui/UiInput.vue'
+import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import UiState from '../../components/ui/UiState.vue'
-import UiPageHeader from '../../components/ui/UiPageHeader.vue'
 import {
   createMarketAddress,
   deleteMarketAddress,
@@ -353,23 +344,21 @@ onBeforeUnmount(() => {
   gap: var(--space-5);
 }
 
-.settings-section-head p {
-  margin: 0;
-  color: var(--text-2);
-  line-height: 1.6;
-}
-
-.settings-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
+.settings-section-head {
+  display: grid;
+  gap: var(--space-1);
 }
 
 .settings-section-head h2 {
-  margin: 6px 0 4px;
-  font-size: 1.15rem;
+  margin: 0;
+  font-size: var(--text-lg);
+  line-height: var(--line-tight);
+}
+
+.settings-section-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: var(--line-normal);
 }
 
 .settings-addresses-body {
@@ -377,9 +366,126 @@ onBeforeUnmount(() => {
   gap: var(--space-4);
 }
 
+.settings-block-head {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.settings-block-head h3 {
+  margin: 0;
+  font-size: var(--text-md);
+  line-height: var(--line-tight);
+}
+
+.settings-block-head p {
+  margin: 0;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: var(--line-normal);
+}
+
+.settings-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-3);
+}
+
+.settings-checkbox {
+  display: flex;
+  align-items: center;
+  align-self: end;
+  gap: var(--space-2);
+  min-height: var(--control-height);
+  border-radius: var(--radius-sm);
+  font-size: var(--text-sm);
+  color: var(--text-1);
+  cursor: pointer;
+}
+
+.settings-checkbox-input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.settings-checkbox:has(.settings-checkbox-input:focus-visible) {
+  box-shadow: var(--focus-ring);
+}
+
+.settings-form-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+}
+
+.settings-address-list {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.settings-address-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: var(--space-4);
+  align-items: center;
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
+}
+
+.settings-address-row:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
+}
+
+.settings-address-main {
+  display: grid;
+  gap: var(--space-1);
+}
+
+.settings-address-main p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+.settings-address-default {
+  font-weight: 600;
+  color: var(--accent-text);
+}
+
+.settings-row-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  align-items: center;
+}
+
+.settings-address-edit {
+  grid-column: 1 / -1;
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface-2);
+}
+
 @media (max-width: 900px) {
   .settings-section {
     padding: var(--space-5);
+  }
+
+  .settings-form-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .settings-address-row {
+    grid-template-columns: 1fr;
   }
 }
 </style>

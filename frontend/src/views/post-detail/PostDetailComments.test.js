@@ -214,6 +214,48 @@ describe('PostDetailComments', () => {
     expect(wrapper.find('.report-modal-stub').attributes('data-target-id')).toBe('reply-1')
   })
 
+  it('marks post-author entries with OP badges and distinguishes reply error and tail loading states', async () => {
+    const opReply = {
+      id: 'reply-op',
+      userId: 'author-1',
+      user: { username: 'author' },
+      content: 'OP reply',
+      createTime: '2026-01-02T00:00:00Z',
+      ui: { like: { liked: false, count: 0, loading: false, error: '' } }
+    }
+    const opComment = rootComment({
+      id: 'comment-op',
+      userId: 'author-1',
+      user: { username: 'author' },
+      ui: {
+        replyEditor: { open: false },
+        replyList: createReplyList({ expanded: true, loaded: true, items: [opReply], loading: true, nextCursor: 'next' }),
+        like: { liked: false, count: 0, loading: false, error: '' }
+      }
+    })
+    const wrapper = mountComments(createDiscussion({ comments: [opComment], loading: true }))
+
+    expect(wrapper.findAll('.comment-op-badge').length).toBe(2)
+    expect(wrapper.text()).toContain('OP reply')
+    expect(wrapper.text()).toContain('正在加载…')
+
+    const failedComment = rootComment({
+      id: 'comment-failed',
+      ui: {
+        replyEditor: { open: false },
+        replyList: createReplyList({ expanded: true, error: 'replies unavailable' }),
+        like: { liked: false, count: 0, loading: false, error: '' }
+      }
+    })
+    const failed = createDiscussion({ comments: [failedComment] })
+    await wrapper.setProps({ discussion: failed })
+
+    expect(wrapper.text()).toContain('replies unavailable')
+    const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    await retry.trigger('click')
+    expect(failed.reloadReplies).toHaveBeenCalledWith(failedComment)
+  })
+
   it('hides content and interaction controls for blocked authors', () => {
     const comment = rootComment({
       id: 'comment-blocked',

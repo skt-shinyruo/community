@@ -1,7 +1,8 @@
 // 设计令牌与全局样式守卫：variables.css 是唯一令牌来源，本文件锁定规范批准的
 // Indigo 令牌、暗色表面、链接色、圆角、z-index 七阶与动效令牌，并对全部样式源做
 // 静态检查（未定义令牌、hex fallback、页面级 data-theme 覆盖、z-index 直写、
-// reduced-motion 守卫、WCAG 对比度）。规范见 docs/handbook/frontend-ui-optimization.md。
+// reduced-motion 守卫、WCAG 对比度、原语内部类视图基线与表单原语 focus ring）。
+// 规范见 docs/handbook/frontend-ui-optimization.md。
 
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -248,5 +249,90 @@ describe('global style guardrails', () => {
     expect(bootstrap).toContain('(prefers-color-scheme: dark)')
     expect(bootstrap).toContain("'system'")
     expect(bootstrap).toContain('localStorage.getItem(\'community.ui\')')
+  })
+})
+
+describe('primitive class guardrails', () => {
+  // .input / .auth-field / .field-label / .auth-form 是原语内部实现细节（规范 5.3），
+  // 视图随页面簇迁移收敛到 UiInput / UiTextarea / UiField。这里登记现状基线，只减不增：
+  // 新增使用或计数上升视为泄漏；完成迁移的视图应随迁移 PR 下调或移除基线条目。
+  const classBaseline = new Map([
+    ['src/views/AnalyticsView.vue', { input: 2 }],
+    ['src/views/DriveShareView.vue', { input: 1 }],
+    ['src/views/DriveView.vue', { input: 5 }],
+    ['src/views/LoginView.vue', { 'auth-field': 4, 'auth-form': 2, 'field-label': 4, input: 3 }],
+    ['src/views/MarketAddressesView.vue', { input: 14 }],
+    ['src/views/MarketDetailView.vue', { input: 1 }],
+    ['src/views/MarketOrderDetailView.vue', { input: 6 }],
+    ['src/views/MarketPublishView.vue', { input: 3 }],
+    ['src/views/ModerationView.vue', { input: 5 }],
+    ['src/views/PasswordResetView.vue', { input: 3 }],
+    ['src/views/PostsView.vue', { input: 2 }],
+    ['src/views/RegisterView.vue', { 'auth-field': 7, 'auth-form': 2, 'field-label': 7, input: 6 }],
+    ['src/views/SearchView.vue', { input: 2 }],
+    ['src/views/SettingsView.vue', { input: 1 }],
+    ['src/views/UserManagementView.vue', { 'field-label': 3, input: 5 }],
+    ['src/views/WalletAdminView.vue', { input: 4 }],
+    ['src/views/WalletView.vue', { input: 4 }],
+    ['src/views/post-detail/PostDetailComments.vue', { input: 1 }],
+    ['src/views/post-detail/PostDetailComposer.vue', { input: 1 }]
+  ])
+
+  function collectViewClassUsage() {
+    const root = resolve(process.cwd(), 'src/views')
+    const files = []
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = resolve(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+        } else if (entry.name.endsWith('.vue')) {
+          files.push(full)
+        }
+      }
+    }
+    walk(root)
+    const usage = new Map()
+    for (const full of files) {
+      const raw = readFileSync(full, 'utf8')
+      const rel = `src/views/${full.slice(root.length + 1)}`
+      const counts = {}
+      let input = 0
+      for (const match of raw.matchAll(/class="([^"]*)"/g)) {
+        input += match[1].split(/\s+/).filter((token) => token === 'input').length
+      }
+      if (input) counts.input = input
+      for (const name of ['auth-field', 'field-label', 'auth-form']) {
+        const found = raw.match(new RegExp(`\\b${name}\\b`, 'g'))
+        if (found) counts[name] = found.length
+      }
+      if (Object.keys(counts).length) usage.set(rel, counts)
+    }
+    return usage
+  }
+
+  it('does not spread primitive-internal classes into more views', () => {
+    const usage = collectViewClassUsage()
+    const problems = []
+    for (const [path, counts] of usage) {
+      const baseline = classBaseline.get(path) || {}
+      for (const [name, count] of Object.entries(counts)) {
+        const allowed = baseline[name] || 0
+        if (count > allowed) {
+          problems.push(`${path}: .${name} ${allowed} -> ${count}`)
+        }
+      }
+    }
+    expect(problems).toEqual([])
+  })
+
+  it('keeps a visible focus ring on the form primitives through the --focus-ring token', () => {
+    const sources = collectStyleSources()
+    for (const path of ['src/components/ui/UiInput.vue', 'src/components/ui/UiTextarea.vue']) {
+      const source = sources.find((item) => item.path === path)
+      expect(source, path).toBeTruthy()
+      expect(source.css, `${path} :focus-visible`).toContain(':focus-visible')
+      expect(source.css, `${path} --focus-ring`).toContain('var(--focus-ring)')
+    }
   })
 })

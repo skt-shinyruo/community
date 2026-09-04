@@ -1,30 +1,35 @@
 <!-- 404 页面：未知路由兜底。 -->
 <template>
   <div class="page reading">
-    <UiCard class="system-state-card">
-      <UiPageHeader>
-        <template #title>404 页面不存在</template>
-        <template #subtitle>当前地址没有对应内容。你可以返回讨论区，重新进入有效页面。</template>
-      </UiPageHeader>
-      <div class="system-state-actions">
-        <RouterLink class="btn secondary" to="/posts">返回帖子列表</RouterLink>
-      </div>
-    </UiCard>
+    <UiState
+      ref="stateRegion"
+      variant="error"
+      class="system-state"
+      title="404 页面不存在"
+      description="当前地址没有对应内容。你可以返回讨论区，重新进入有效页面。"
+      tabindex="-1"
+    >
+      <template #actions>
+        <UiButton variant="secondary" to="/posts">返回帖子列表</UiButton>
+      </template>
+    </UiState>
   </div>
 </template>
 
 <script setup>
-import UiCard from '../components/ui/UiCard.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { onMounted, ref } from 'vue'
+import UiButton from '../components/ui/UiButton.vue'
+import UiState from '../components/ui/UiState.vue'
+
+const stateRegion = ref(null)
+
+onMounted(() => {
+  stateRegion.value?.$el?.focus()
+})
 </script>
 
 <style scoped>
-.system-state-card {
-  display: grid;
-  gap: 12px;
-}
-
-.system-state-actions {
-  margin-top: 12px;
+.system-state:focus {
+  outline: none;
 }
 </style>

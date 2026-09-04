@@ -230,6 +230,8 @@ connect(accessToken)
 
 表单原语为 `frontend/src/components/ui/UiInput.vue`、`UiTextarea.vue` 和 `UiField.vue`：`UiInput` / `UiTextarea` 提供 `v-model`（含 trim / number 修饰符）、原生属性透传和禁用状态，`UiInput` 另有 size（md / sm）与 variant（outline / ghost）；`UiField` 承载 label 关联、帮助 / 错误文本（`aria-describedby` / `aria-invalid` / `role=alert`）和 `required` / `pattern` / `invalid` 原生校验语义，不引入表单校验库。字段内的 `UiInput` / `UiTextarea` 自动继承关联与校验状态；其他控件使用默认 slot 的 `controlId` / `describedBy` / `invalid` / `required` 手动接线。`.input`、`.auth-field`、`.field-label`、`.auth-form` 是原语内部实现细节，视图不得新增使用，现状由 `tokens.test.js` 的基线守卫登记、随页面簇迁移只减不增。
 
+`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。
+
 所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm 已接入；ReportModal、EditContentModal 与 ModerationView 的旧 dialog 随所在页面簇迁移。
 
 页面需要展示调试辅助信息时，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。正式 router 不注册独立开发入口。

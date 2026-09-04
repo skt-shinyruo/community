@@ -28,6 +28,6 @@ test.describe('single smoke @smoke @regression', () => {
   test('login page is directly reachable @smoke @regression', async ({ page }) => {
     await page.goto(appUrl('/auth/login'))
     await expect(page.getByText('登录').first()).toBeVisible()
-    await expect(page.getByRole('textbox', { name: '请输入用户名' })).toBeVisible()
+    await expect(page.getByRole('textbox', { name: '用户名', exact: true })).toBeVisible()
   })
 })

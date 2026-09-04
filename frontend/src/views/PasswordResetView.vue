@@ -7,7 +7,7 @@
         <span v-else>输入邮箱后发送重置链接（为避免用户枚举，响应不会区分邮箱是否存在）</span>
       </template>
       <template #actions>
-        <RouterLink class="btn secondary" to="/auth/login">去登录</RouterLink>
+        <UiButton variant="secondary" to="/auth/login" class="reset-login-link">去登录</UiButton>
       </template>
     </UiPageHeader>
 
@@ -15,38 +15,32 @@
       <div v-if="error" class="error">{{ error }}</div>
       <div v-if="successMsg" class="muted">{{ successMsg }}</div>
 
-      <div v-if="mode === 'request'" class="reset-stack">
-        <div class="reset-field">
-          <div class="reset-label">邮箱</div>
-          <input v-model.trim="form.email" class="input" placeholder="name@example.com" autocomplete="email" />
-        </div>
-      </div>
+      <UiField v-if="mode === 'request'" label="邮箱">
+        <UiInput v-model.trim="form.email" placeholder="name@example.com" autocomplete="email" />
+      </UiField>
 
-      <div v-else class="reset-stack">
-        <div class="reset-field">
-          <div class="reset-label">新密码</div>
-          <input v-model="form.newPassword" class="input" placeholder="请输入新密码" type="password" autocomplete="new-password" />
-        </div>
+      <template v-else>
+        <UiField label="新密码">
+          <UiInput v-model="form.newPassword" placeholder="请输入新密码" type="password" autocomplete="new-password" />
+        </UiField>
         <div class="muted reset-token-note">resetToken：{{ shortToken }}</div>
-      </div>
+      </template>
 
-      <div class="reset-stack">
-        <div class="reset-row">
-          <div class="reset-label">验证码</div>
+      <UiField label="验证码">
+        <div class="reset-captcha-row">
+          <UiInput v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="reset-captcha-input" />
+          <button
+            v-if="captchaSrc"
+            type="button"
+            class="captcha-refresh"
+            title="点击刷新验证码"
+            @click="refreshCaptcha"
+          >
+            <img :src="captchaSrc" alt="验证码" class="reset-captcha-img" />
+          </button>
           <UiButton variant="secondary" @click="refreshCaptcha" :disabled="loading">刷新</UiButton>
         </div>
-        <div class="reset-captcha-row">
-          <input v-model.trim="form.captcha" placeholder="请输入验证码" autocomplete="off" class="input reset-captcha-input" />
-          <img
-            v-if="captchaSrc"
-            :src="captchaSrc"
-            alt="验证码"
-            title="点击刷新验证码"
-            class="reset-captcha-img"
-            @click="refreshCaptcha"
-          />
-        </div>
-      </div>
+      </UiField>
 
       <div class="reset-actions">
         <div class="reset-primary-actions">
@@ -57,7 +51,7 @@
             {{ loading ? '重置中…' : '重置密码' }}
           </UiButton>
         </div>
-        <RouterLink class="btn ghost" to="/posts">返回社区</RouterLink>
+        <UiButton variant="ghost" to="/posts">返回社区</UiButton>
       </div>
 
       <UiState
@@ -82,6 +76,8 @@ import { issueCaptcha, requestPasswordReset, confirmPasswordReset } from '../api
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiInput from '../components/ui/UiInput.vue'
 import UiState from '../components/ui/UiState.vue'
 
 const route = useRoute()
@@ -211,50 +207,63 @@ onMounted(refreshCaptcha)
 <style scoped>
 .reset-card {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
-.reset-form,
-.reset-stack,
-.reset-field,
 .reset-form {
-  margin-top: 12px;
+  margin-top: var(--space-3);
+  display: grid;
+  gap: var(--space-3);
 }
 
-.reset-label,
-.reset-token-note,
-.reset-debug-note {
-  font-size: 12px;
+.reset-token-note {
+  font-size: var(--text-xs);
 }
 
-.reset-row,
+.reset-login-link {
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
 .reset-captcha-row,
 .reset-actions,
 .reset-primary-actions {
   display: flex;
-  gap: 10px;
+  gap: var(--space-3);
   flex-wrap: wrap;
   align-items: center;
-}
-
-.reset-row {
-  justify-content: space-between;
 }
 
 .reset-captcha-input {
   max-width: 180px;
 }
 
+.captcha-refresh {
+  padding: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: transparent;
+  cursor: pointer;
+  line-height: 0;
+}
+
+.captcha-refresh:hover {
+  border-color: var(--border-strong);
+}
+
+.captcha-refresh:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
 .reset-captcha-img {
+  display: block;
   height: 40px;
   width: 120px;
-  cursor: pointer;
-  border: 1px solid var(--border);
-  border-radius: 10px;
+  border-radius: var(--radius-md);
 }
 
 .reset-actions {
   justify-content: space-between;
 }
-
 </style>

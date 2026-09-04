@@ -90,6 +90,18 @@ busy 禁关）。
 报错，「加载更多」按钮即重试入口。页码分页、会话 scope 竞态丢弃和拉黑过滤由
 `frontend/src/views/useBookmarksFeed.js` 承载，事实语义未随迁移改变。
 
+`/search` 承接壳搜索往返：Topbar 壳搜索提交后跳转 `/search?q=…`（已在搜索页时 replace query），搜索页把
+`q` / `categoryId` / `tag` 路由 query 解析为搜索条件并响应地址栏变化（解析与序列化事实在
+`frontend/src/views/search/useSearchPageState.js`）。筛选区由关键词 UiInput、分类 UiSelect（APG
+combobox/listbox 键盘语义、可清除）和标签 UiAutosuggestInput 组成，「清空筛选」复位分类与标签；结果卡片
+的分类 chip 与 `#标签` 按钮可点击并回写同一过滤模型，卡片自身以 `role="link"` + Enter 打开帖子详情
+（Enter 只响应卡片自身焦点）。结果使用「加载更多」追加式分页：`GET /api/search/posts` 的页码 + size 调用
+语义不变，命中后经 `POST /api/posts/batch-summary` 与作者 / 点赞计数补水合并；追加失败保留已加载列表并
+内联报错，「加载更多」按钮即重试入口；首载骨架使用 UiSkeleton（card variant），空态与首载错态使用
+UiState（错态带重试）。搜索结果来自 ES 投影、最终一致，页面以固定文案说明发帖 / 编辑后结果可能延迟数秒
+到数十秒；标题与摘要高亮只放行后端返回的 `<em>` 标记（其余标签全部转义），匹配度分数按原值展示，不由
+视觉层推断或伪造。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -237,7 +249,7 @@ connect(accessToken)
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
 | `useUserProfilePage.js` | 用户主页的 route/session scope、并发加载、部分成功、关注/拉黑动作和生命周期隔离。 |
 | `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要和时间线的纯展示投影。 |
-| `search/useSearchPageState.js` | 搜索条件、路由解析与序列化、分页、请求竞态和结果 hydration 生命周期。 |
+| `search/useSearchPageState.js` | 搜索条件、路由解析与序列化、追加式分页（加载更多与失败重试）、请求竞态和结果 hydration 生命周期。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
 | `settingsSection.js` | Settings 的 section query 深链合同（`profile` / `appearance` / `addresses`）与缺省、无效值回落。 |
 
@@ -278,9 +290,9 @@ connect(accessToken)
 
 表单原语为 `frontend/src/components/ui/UiInput.vue`、`UiTextarea.vue` 和 `UiField.vue`：`UiInput` / `UiTextarea` 提供 `v-model`（含 trim / number 修饰符）、原生属性透传和禁用状态，`UiInput` 另有 size（md / sm）与 variant（outline / ghost）；`UiField` 承载 label 关联、帮助 / 错误文本（`aria-describedby` / `aria-invalid` / `role=alert`）和 `required` / `pattern` / `invalid` 原生校验语义，不引入表单校验库。字段内的 `UiInput` / `UiTextarea` 自动继承关联与校验状态；其他控件使用默认 slot 的 `controlId` / `describedBy` / `invalid` / `required` 手动接线。`.input`、`.auth-field`、`.field-label`、`.auth-form` 是原语内部实现细节，视图不得新增使用，现状由 `tokens.test.js` 的基线守卫登记、随页面簇迁移只减不增。
 
-`frontend/src/components/ui/UiSelect.vue` 是单选下拉原语，承担搜索与其他筛选场景的单选控件：受控 `v-model`（`modelValue` + `update:modelValue`），选中已选值时不再重复发事件。它实现 APG select-only combobox/listbox 语义：触发按钮带 `role="combobox"`、`aria-haspopup="listbox"`、`aria-expanded` 与打开时的 `aria-controls`，可访问名称按「label + 当前值」经 `aria-labelledby` 组合（UiField 内由字段 label 提供并自动继承 `aria-describedby` / `aria-invalid`，`required` 映射为 `aria-required`；独立使用时由 `label` 属性提供隐藏标签）；DOM 焦点始终留在 combobox 上，打开后以 `aria-activedescendant` 指向活动选项，listbox 行带 `aria-selected` / `aria-disabled`。click 与 Enter / Space / ↓ / ↑ 打开（↓ 定位已选或首个可用项，无已选时 ↑ 定位末项），打开后 ↑/↓ 移动活动项（跳过禁用项、首尾不循环）、Home/End 跳转首尾、Enter/Space 选中并关闭；Escape 关闭且不改动选中，Tab 关闭并把焦点让给自然顺序，选中、Escape 与清除后焦点回到 combobox。typeahead 沿用原生 select 语义而不提供搜索输入框：关闭态键入字符按标签前缀直接选中匹配项（连续同字符循环、停顿后重新匹配、整串无匹配退化为最新字符），打开态键入只移动活动项，禁用项不参与匹配。`clearable` 提供带 `aria-label`（`clearLabel` 可配）的清除按钮并把值重置为 `''`；`loading` 打开时以 `role="status"` 状态行加 `aria-busy` listbox 播报并挂起导航与选中；空选项渲染禁用的「暂无可选项」行。默认 slot 自定义触发区内容，`option` slot 自定义选项行（scope 含 `option` / `active` / `selected`）。浮层 teleport 到 body，与 UiDropdown 同一定位策略（`placement` bottom / top，视口空间不足自动翻转并夹取在视口内，`--z-popover`），浮层内 mousedown 被拦截以保住 combobox 焦点。不支持多选，SearchView 的接入随搜索波次页面迁移落地。
+`frontend/src/components/ui/UiSelect.vue` 是单选下拉原语，承担搜索与其他筛选场景的单选控件：受控 `v-model`（`modelValue` + `update:modelValue`），选中已选值时不再重复发事件。它实现 APG select-only combobox/listbox 语义：触发按钮带 `role="combobox"`、`aria-haspopup="listbox"`、`aria-expanded` 与打开时的 `aria-controls`，可访问名称按「label + 当前值」经 `aria-labelledby` 组合（UiField 内由字段 label 提供并自动继承 `aria-describedby` / `aria-invalid`，`required` 映射为 `aria-required`；独立使用时由 `label` 属性提供隐藏标签）；DOM 焦点始终留在 combobox 上，打开后以 `aria-activedescendant` 指向活动选项，listbox 行带 `aria-selected` / `aria-disabled`。click 与 Enter / Space / ↓ / ↑ 打开（↓ 定位已选或首个可用项，无已选时 ↑ 定位末项），打开后 ↑/↓ 移动活动项（跳过禁用项、首尾不循环）、Home/End 跳转首尾、Enter/Space 选中并关闭；Escape 关闭且不改动选中，Tab 关闭并把焦点让给自然顺序，选中、Escape 与清除后焦点回到 combobox。typeahead 沿用原生 select 语义而不提供搜索输入框：关闭态键入字符按标签前缀直接选中匹配项（连续同字符循环、停顿后重新匹配、整串无匹配退化为最新字符），打开态键入只移动活动项，禁用项不参与匹配。`clearable` 提供带 `aria-label`（`clearLabel` 可配）的清除按钮并把值重置为 `''`；`loading` 打开时以 `role="status"` 状态行加 `aria-busy` listbox 播报并挂起导航与选中；空选项渲染禁用的「暂无可选项」行。默认 slot 自定义触发区内容，`option` slot 自定义选项行（scope 含 `option` / `active` / `selected`）。浮层 teleport 到 body，与 UiDropdown 同一定位策略（`placement` bottom / top，视口空间不足自动翻转并夹取在视口内，`--z-popover`），浮层内 mousedown 被拦截以保住 combobox 焦点。不支持多选。SearchView 的分类筛选是它的首个生产接入（随搜索波次迁移落地）。
 
-`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。BookmarksView 已随波次 3 完成迁移：列表卡为 8px 扁平表面（无容器卡片嵌套），首载骨架、空/错态与尾部加载指示全部走 Ui 原语，裸「加载中」文本登记随之删除。PostDetailView 与评论 / 回复组件已完成波次 3 迁移：详情、评论区和回复编辑器全部使用 Ui 原语与 scoped 样式（`frontend/src/views/post-detail/*.css`），令牌取自 `variables.css`。
+`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。BookmarksView 已随波次 3 完成迁移：列表卡为 8px 扁平表面（无容器卡片嵌套），首载骨架、空/错态与尾部加载指示全部走 Ui 原语，裸「加载中」文本登记随之删除。PostDetailView 与评论 / 回复组件已完成波次 3 迁移：详情、评论区和回复编辑器全部使用 Ui 原语与 scoped 样式（`frontend/src/views/post-detail/*.css`），令牌取自 `variables.css`。SearchView 已随波次 4 完成迁移：关键词、分类与标签筛选收敛到 UiInput / UiSelect / UiAutosuggestInput，结果卡片使用 8px 扁平列表语言，首载骨架、空 / 错态与「加载更多」尾部指示全部走 Ui 原语，页面级暗色覆盖与原语内部类使用清零。
 
 所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm / ReportModal / EditContentModal 已接入；ModerationView 的旧 dialog 随治理页面收尾迁移。
 

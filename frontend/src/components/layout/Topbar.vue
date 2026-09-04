@@ -52,10 +52,10 @@
             <UiButton
               class="topbar-overflow-item"
               variant="ghost"
-              :aria-label="ui.theme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
+              :aria-label="ui.effectiveTheme === 'dark' ? '切换到浅色主题' : '切换到深色主题'"
               @click="toggleTheme"
             >
-              {{ ui.theme === 'dark' ? '切换为浅色主题' : '切换为深色主题' }}
+              {{ ui.effectiveTheme === 'dark' ? '切换为浅色主题' : '切换为深色主题' }}
             </UiButton>
           </div>
         </div>

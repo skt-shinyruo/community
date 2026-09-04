@@ -309,10 +309,10 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 }
 
 .drive-stat {
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 12px 14px;
-  background: var(--panel-bg, rgba(255, 255, 255, 0.6));
+  background: var(--surface);
   display: flex;
   flex-direction: column;
   gap: 6px;
@@ -321,7 +321,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 
 .drive-stat span {
   font-size: 12px;
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-stat strong {
@@ -332,7 +332,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 }
 
 .drive-banner {
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
   border-radius: 8px;
   padding: 10px 12px;
   background: rgba(59, 130, 246, 0.08);
@@ -375,7 +375,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 }
 
 .drive-tab {
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
   background: transparent;
   color: inherit;
   border-radius: 8px;
@@ -420,7 +420,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 
 .drive-field span {
   font-size: 12px;
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-breadcrumb {
@@ -455,7 +455,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
   align-items: center;
   padding: 12px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
   cursor: pointer;
 }
 
@@ -484,7 +484,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 
 .drive-entry-subtitle,
 .drive-entry-meta {
-  color: var(--muted, #667085);
+  color: var(--muted);
   font-size: 12px;
 }
 
@@ -508,7 +508,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 
 .drive-detail-grid dt {
   font-size: 12px;
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-detail-grid dd {
@@ -526,7 +526,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
 }
 
 .drive-share-note {
-  color: var(--muted, #667085);
+  color: var(--muted);
   font-size: 13px;
 }
 
@@ -548,7 +548,7 @@ const { page, workspace, entries, upload, shares } = useDrivePageState()
   gap: 10px;
   padding: 12px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
 }
 
 .drive-share-item-main {

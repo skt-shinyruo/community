@@ -344,12 +344,12 @@ onBeforeUnmount(() => {
   gap: 6px;
   padding: 12px 14px;
   border-radius: 8px;
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
 }
 
 .drive-share-summary-item span {
   font-size: 12px;
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-share-form,
@@ -368,7 +368,7 @@ onBeforeUnmount(() => {
 
 .drive-field span {
   font-size: 12px;
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-share-message,
@@ -392,14 +392,14 @@ onBeforeUnmount(() => {
 .drive-share-breadcrumb-item {
   border: 0;
   background: transparent;
-  color: var(--link-color, #2563eb);
+  color: var(--link-color);
   cursor: pointer;
   padding: 0;
   font: inherit;
 }
 
 .drive-share-breadcrumb-separator {
-  color: var(--muted, #667085);
+  color: var(--muted);
 }
 
 .drive-share-entry-list {
@@ -417,7 +417,7 @@ onBeforeUnmount(() => {
   align-items: center;
   gap: 12px;
   padding: 10px 12px;
-  border: 1px solid var(--border-color, rgba(120, 130, 150, 0.22));
+  border: 1px solid var(--border);
   border-radius: 8px;
 }
 
@@ -429,7 +429,7 @@ onBeforeUnmount(() => {
 .drive-share-entry-folder {
   border: 0;
   background: transparent;
-  color: var(--link-color, #2563eb);
+  color: var(--link-color);
   cursor: pointer;
   padding: 0;
   text-align: left;
@@ -437,7 +437,7 @@ onBeforeUnmount(() => {
 }
 
 .drive-share-entry-meta {
-  color: var(--muted, #667085);
+  color: var(--muted);
   font-size: 12px;
   white-space: nowrap;
 }

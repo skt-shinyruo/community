@@ -61,6 +61,14 @@ protected route
 
 `frontend/src/components/layout/AppShell.vue` 负责桌面 workspace shell，`SidebarNav.vue` 渲染工作区分组，`Topbar.vue` 渲染 route-aware scope、页面标题、账户控制和 shell search，`MobileNav.vue` 只承载高频移动入口：讨论、搜索、通知、私信和个人入口。移动端 sidebar drawer 状态与桌面 collapsed 偏好分离，避免 sidebar 和 bottom nav 同时作为持久导航出现。
 
+## 主题、密度与设计令牌
+
+`frontend/src/styles/variables.css` 是唯一令牌来源：Radix Indigo accent（含 `--accent-text` / `--accent-contrast`）、独立链接令牌 `--link-color`、暗色冷相表面 `#0D0E12`–`#23262E`、七阶语义 z-index（`--z-raised` 到 `--z-toast`）、70/110/150/240/400ms 五档动效时长与 ease 曲线；页面和组件不得重复定义这些令牌。
+
+主题偏好是 `light` / `dark` / `system` 三态，由 `frontend/src/stores/ui.js` 持久化到 localStorage（`community.ui`）。`system` 表示跟随系统：store 通过 `matchMedia('(prefers-color-scheme: dark)')` 监听系统偏好并实时切换 `data-theme`；显式偏好不受系统变化影响。`public/theme-bootstrap.js` 在应用挂载前按同一合同解析生效主题与密度，避免首屏闪烁。Topbar 与 AuthShell 的快捷按钮继续在浅色 / 深色间切换：偏好为 `system` 时按当前生效主题切到相反主题，并保存为显式偏好。
+
+密度只有 `compact` / `comfortable` 两档，`compact` 是默认值；两档共享组件 API，仅通过 `html[data-density='compact']` 令牌覆盖区分。`styles/base.css` 提供 `prefers-reduced-motion` 全局守卫，关闭非必要过渡与动画。
+
 ## 会话恢复
 
 前端 access token 只保存在 Pinia 内存 store：`frontend/src/stores/auth.js`。refresh token 由后端 HttpOnly cookie 承载，浏览器脚本不可读。
@@ -199,7 +207,7 @@ connect(accessToken)
 | Store | 文件 | 语义 |
 | --- | --- | --- |
 | Auth | `frontend/src/stores/auth.js` | access token、`me`、authorities、session hint 写入 / 清理。 |
-| UI | `frontend/src/stores/ui.js` | theme、density、桌面 sidebar collapsed 偏好、移动 sidebar drawer 临时状态。 |
+| UI | `frontend/src/stores/ui.js` | theme（light/dark/system 三态偏好与系统主题监听）、density、桌面 sidebar collapsed 偏好、移动 sidebar drawer 临时状态。 |
 | Taxonomy | `frontend/src/stores/taxonomy.js` | 分类和热门标签轻缓存。 |
 | Post Meta Cache | `frontend/src/stores/postMetaCache.js` | 用户摘要、点赞数、点赞状态 TTL 缓存。 |
 | Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑读侧状态。 |
@@ -222,7 +230,7 @@ connect(accessToken)
 
 页面需要展示调试辅助信息时，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。正式 router 不注册独立开发入口。
 
-这些约定由 `frontend/src/styles/productTokens.test.js` 和 `frontend/src/views/viewComplexity.test.js` 约束，新增全局样式时不要绕过这些 guardrail。
+全局样式与令牌约定由 `frontend/src/styles/tokens.test.js` 约束：它锁定规范批准的令牌值、对比度阈值、`var()` 引用与 hex fallback、页面级 `data-theme` 覆盖、z-index 语义令牌和 reduced-motion 守卫；新增全局样式时不要绕过这些 guardrail。
 
 ## 用户可见一致性语义
 
@@ -283,3 +291,4 @@ npm run build
 | 修改前端幂等或高风险写提交方式 | 本文档、[reliability.md](reliability.md)、[integration-contracts.md](integration-contracts.md)。 |
 | 修改 IM session bootstrap、WS 协议或 backfill 行为 | 本文档、[business-flows.md](business-flows.md)、[integration-contracts.md](integration-contracts.md)。 |
 | 新增复杂页面状态纯函数 | 本文档、同名 `*.test.js`。 |
+| 修改主题三态、密度或全局令牌 | 本文档、`frontend/src/stores/ui.test.js`、`frontend/src/styles/tokens.test.js`。 |

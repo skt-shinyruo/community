@@ -44,7 +44,7 @@ onUnmounted(() => {
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  z-index: 100;
+  z-index: var(--z-nav);
   /* transform/filter 走悬停动效；opacity 保留 0.3s 显隐节奏（作用域规则优先级高于全局 .fade-*） */
   transition: transform 0.2s, filter 0.2s, opacity 0.3s;
 }

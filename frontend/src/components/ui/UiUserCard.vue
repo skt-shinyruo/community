@@ -235,7 +235,7 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-md);
   padding: 16px;
   width: 280px;
-  z-index: 1000;
+  z-index: var(--z-popover);
 }
 
 .stat-item b {

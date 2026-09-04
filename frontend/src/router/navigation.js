@@ -145,14 +145,6 @@ const NAV_DEFS = Object.freeze([
         ...getRouteAccess('marketSellingOrders'),
         to: () => ({ name: 'marketSellingOrders' }),
         activeNames: getRouteFamilyNames('marketSelling')
-      },
-      {
-        key: 'marketAddresses',
-        label: '收货地址',
-        icon: 'bookmark',
-        ...getRouteAccess('marketAddresses'),
-        to: () => ({ name: 'marketAddresses' }),
-        activeNames: getRouteFamilyNames('marketAddresses')
       }
     ]
   },

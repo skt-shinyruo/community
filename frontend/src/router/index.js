@@ -16,7 +16,6 @@ const MarketMyListingsView = () => import('../views/MarketMyListingsView.vue')
 const MarketInventoryView = () => import('../views/MarketInventoryView.vue')
 const MarketOrderListView = () => import('../views/MarketOrderListView.vue')
 const MarketOrderDetailView = () => import('../views/MarketOrderDetailView.vue')
-const MarketAddressesView = () => import('../views/MarketAddressesView.vue')
 const WalletView = () => import('../views/WalletView.vue')
 const DriveView = () => import('../views/DriveView.vue')
 const DriveShareView = () => import('../views/DriveShareView.vue')
@@ -139,9 +138,10 @@ const router = createRouter({
       meta: routeMeta('marketOrderDetail', { title: '订单详情', subtitle: '查看当前订单的托管、交付和争议状态。' })
     },
     {
+      // 兼容入口：地址管理收进 Settings addresses section，不保留双入口。
       path: '/market/addresses',
       name: 'marketAddresses',
-      component: MarketAddressesView,
+      redirect: { name: 'settings', query: { section: 'addresses' } },
       meta: routeMeta('marketAddresses', { title: '收货地址', subtitle: '管理实物商品订单使用的收货地址。' })
     },
     {

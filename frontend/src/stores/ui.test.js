@@ -181,6 +181,15 @@ describe('stores/ui', () => {
     expect(explicitStore.effectiveTheme).toBe('dark')
   })
 
+  it('restores the stored density after a reload', () => {
+    installWindow(1200, { theme: 'light', density: 'comfortable' })
+    const store = useUiStore()
+    store.init()
+
+    expect(store.density).toBe('comfortable')
+    expect(document.documentElement.dataset.density).toBe('comfortable')
+  })
+
   it('setTheme accepts system and resumes following the OS preference', () => {
     const { dataset, setSystemDark } = installWindow(1200, { theme: 'dark', density: 'compact' }, { systemDark: false })
     const store = useUiStore()

@@ -118,6 +118,24 @@ describe('router/index', () => {
     expect(routeNames).not.toContain('leaderboard')
   })
 
+  it('redirects the legacy market addresses entry into the settings addresses section', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+
+    await router.push('/market/addresses')
+    expect(router.currentRoute.value.name).toBe('settings')
+    expect(router.currentRoute.value.fullPath).toBe('/settings?section=addresses')
+
+    await router.push({ name: 'marketAddresses' })
+    expect(router.currentRoute.value.name).toBe('settings')
+    expect(router.currentRoute.value.fullPath).toBe('/settings?section=addresses')
+  })
+
   it('passes list variants through route props', async () => {
     vi.doMock('./authGuard', () => ({ authGuard: () => true }))
     stubRouterGlobals()

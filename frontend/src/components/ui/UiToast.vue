@@ -56,7 +56,7 @@ defineExpose({ show })
   position: fixed;
   bottom: 24px;
   right: 24px;
-  z-index: 1000;
+  z-index: var(--z-toast);
   display: flex;
   flex-direction: column;
   gap: 12px;

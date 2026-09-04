@@ -17,10 +17,29 @@
 
   /* radius */
   --radius-sm: 6px;
-  --radius-md: 12px;
+  --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 16px;
   --radius-full: 9999px;
+
+  /* z-index - seven semantic tiers, no raw numeric layers elsewhere */
+  --z-raised: 1;
+  --z-sticky: 40;
+  --z-nav: 60;
+  --z-overlay: 100;
+  --z-popover: 200;
+  --z-modal: 300;
+  --z-toast: 1000;
+
+  /* motion - fixed duration scale with ease-out curves */
+  --duration-instant: 70ms;
+  --duration-fast: 110ms;
+  --duration-base: 150ms;
+  --duration-slow: 240ms;
+  --duration-slower: 400ms;
+  --ease-standard: cubic-bezier(0.4, 0, 0.2, 1);
+  --ease-enter: cubic-bezier(0, 0, 0.38, 0.9);
+  --ease-exit: cubic-bezier(0.2, 0, 1, 0.9);
 
   /* shadows - restrained product depth */
   --shadow-sm: 0 1px 2px rgba(15, 23, 42, 0.06);
@@ -60,20 +79,22 @@
   --surface: #ffffff;
   --surface-2: #f3f3f3;
   --surface-3: #e5e5e5;
-  
+
   --text-1: #0d0d0d;
   --text-2: #2d2d2d;
-  --text-3: #737373;
-  --muted: #c7c7c7;
-  
+  --text-3: #666666;
+  --muted: #6b6b6b;
+
   --border: #d8d8d8;
   --border-strong: #8d8d8d;
-  
-  /* Brand Colors */
-  --accent: #111111;
-  --accent-hover: #000000;
-  --accent-weak: #f1f1f1;
+
+  /* Brand Colors - Radix Indigo */
+  --accent: #3e63dd;
+  --accent-hover: #3358d4;
+  --accent-weak: #edf2fe;
+  --accent-text: #3a5bc7;
   --accent-contrast: #ffffff;
+  --link-color: #2563eb;
   
   --danger: #ef4444; /* Red-500 */
   --danger-hover: #dc2626; /* Red-600 */
@@ -90,7 +111,7 @@
   
   --highlight-bg: #ececec;
 
-  --focus-ring: 0 0 0 4px rgba(17, 17, 17, 0.14);
+  --focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 22%, transparent);
 
   /* interactive surfaces */
   --hover-bg: color-mix(in srgb, var(--text-1) 6%, transparent 94%);
@@ -133,23 +154,25 @@
 }
 
 html[data-theme='dark'] {
-  --bg: #000000;
-  --surface: #0b0b0b;
-  --surface-2: #121212;
-  --surface-3: #1d1d1d;
-  
+  --bg: #0d0e12;
+  --surface: #131418;
+  --surface-2: #1a1c22;
+  --surface-3: #23262e;
+
   --text-1: #f5f5f5;
   --text-2: #d0d0d0;
   --text-3: #8f8f8f;
-  --muted: #4a4a4a;
-  
-  --border: #262626;
-  --border-strong: #3b3b3b;
-  
-  --accent: #ffffff;
-  --accent-hover: #ececec;
-  --accent-weak: rgba(255, 255, 255, 0.12);
-  --accent-contrast: #000000;
+  --muted: #8a8a8a;
+
+  --border: #2a2d36;
+  --border-strong: #5d6373;
+
+  --accent: #3e63dd;
+  --accent-hover: #5472e4;
+  --accent-weak: #182449;
+  --accent-text: #9eb1ff;
+  --accent-contrast: #ffffff;
+  --link-color: #4a86ff;
   
   --danger: #ef4444;
   --danger-hover: #f87171;
@@ -167,11 +190,12 @@ html[data-theme='dark'] {
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.34);
   --shadow-md: 0 8px 18px rgba(0, 0, 0, 0.3);
   --shadow-lg: 0 16px 32px rgba(0, 0, 0, 0.36);
-  
-  --focus-ring: 0 0 0 4px rgba(255, 255, 255, 0.16);
+  --shadow-xl: 0 24px 48px rgba(0, 0, 0, 0.42);
+
+  --focus-ring: 0 0 0 4px color-mix(in srgb, var(--accent) 32%, transparent);
   --hover-bg: color-mix(in srgb, var(--text-1) 10%, transparent 90%);
   --active-bg: color-mix(in srgb, var(--text-1) 16%, transparent 84%);
-  --topbar-bg: rgba(0, 0, 0, 0.84);
+  --topbar-bg: rgba(13, 14, 18, 0.84);
 
   --public-sidebar-bg: var(--surface);
   --public-sidebar-surface: var(--surface);
@@ -180,7 +204,7 @@ html[data-theme='dark'] {
   --public-sidebar-muted: var(--text-3);
   --public-sidebar-border: var(--border);
   --public-sidebar-active: var(--accent);
-  --public-sidebar-active-text: #000000;
+  --public-sidebar-active-text: #ffffff;
   --editorial-paper: var(--bg);
   --editorial-paper-2: var(--bg);
   --editorial-paper-3: var(--surface-2);

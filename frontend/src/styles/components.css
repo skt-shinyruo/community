@@ -251,7 +251,7 @@
   display: grid;
   place-items: center;
   padding: var(--space-4);
-  z-index: 100;
+  z-index: var(--z-modal);
 }
 
 .modal-mask::backdrop {
@@ -352,7 +352,7 @@
 .badge-accent {
   background: var(--accent-weak);
   border-color: color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
-  color: var(--accent);
+  color: var(--accent-text);
 }
 
 .badge-danger {

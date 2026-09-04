@@ -14,7 +14,7 @@
           {{ ui.density === 'compact' ? '舒适' : '紧凑' }}
         </UiButton>
         <UiButton variant="secondary" class="auth-shell-btn" @click="ui.toggleTheme">
-          {{ ui.theme === 'dark' ? '浅色' : '深色' }}
+          {{ ui.effectiveTheme === 'dark' ? '浅色' : '深色' }}
         </UiButton>
       </div>
     </div>

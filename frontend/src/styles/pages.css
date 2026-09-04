@@ -7,69 +7,6 @@
   font-weight: 700;
 }
 
-.topic-new-hint {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 12px;
-  border: 1px solid color-mix(in srgb, var(--accent) 22%, var(--border) 78%);
-  background: color-mix(in srgb, var(--accent) 8%, var(--surface) 92%);
-  border-radius: var(--radius-md);
-  box-shadow: var(--shadow-sm);
-}
-
-.topic-new-hint-left {
-  font-size: 13px;
-  color: var(--text-1);
-  font-weight: 650;
-}
-
-.topic-new-hint-num {
-  color: var(--accent);
-  font-weight: 800;
-}
-
-.topic-new-hint-actions {
-  display: inline-flex;
-  gap: 8px;
-}
-
-/* Composer tags: removable pills */
-.tag-btn {
-  height: 26px;
-  padding: 0 10px;
-  border-radius: 999px;
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-2);
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  transition: all 0.15s ease-out;
-}
-
-.tag-btn:hover {
-  background: var(--surface-2);
-  border-color: var(--border-strong);
-  color: var(--text-1);
-}
-
-.tag-btn:focus-visible {
-  box-shadow: var(--focus-ring);
-}
-
-.tag-btn-x {
-  opacity: 0.65;
-  font-size: 14px;
-  line-height: 1;
-}
-
-.tag-btn:hover .tag-btn-x {
-  opacity: 0.95;
-}
-
 .market-page {
   display: flex;
   flex-direction: column;

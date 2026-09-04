@@ -2,12 +2,16 @@ import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
-import { listBoardFeed, listGlobalFeed, createPost as apiCreatePost } from '../../api/services/postService'
+import { listBoardFeed, listGlobalFeed, createPost as apiCreatePost, batchPostSummaries } from '../../api/services/postService'
+import { searchPosts as apiSearchPosts } from '../../api/services/searchService'
 import { setLike } from '../../api/services/socialService'
 import { suggestTags as apiSuggestTags } from '../../api/services/taxonomyService'
 import {
   collectPostsHydrationIds,
-  commitComposerTagDraft
+  commitComposerTagDraft,
+  parsePostsRouteQuery,
+  resolvePostsFeedPlan,
+  serializePostsRouteQuery
 } from '../postsViewState'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../../utils/readTracker'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
@@ -68,7 +72,10 @@ export function usePostsFeed() {
   const readIdentityId = computed(() => normalizeOpaqueId(auth.userId) || 'anonymous')
   const postMetaCache = usePostMetaCacheStore()
 
-  const boardId = computed(() => normalizeOpaqueId(route.query?.boardId))
+  const routeQuery = computed(() => parsePostsRouteQuery(route.query))
+  const categoryId = computed(() => routeQuery.value.categoryId)
+  const order = computed(() => routeQuery.value.order)
+  const tag = computed(() => routeQuery.value.tag)
 
   const taxonomy = useTaxonomyStore()
   const categories = computed(() => (Array.isArray(taxonomy.categories) ? taxonomy.categories : []))
@@ -81,7 +88,7 @@ export function usePostsFeed() {
     return c?.name || `分类#${cid}`
   }
 
-  const showClear = computed(() => !!boardId.value)
+  const showClear = computed(() => !!(categoryId.value || tag.value) || order.value !== 'latest')
 
   const socialPrefs = useSocialPrefsStore()
   const blockedSet = computed(() => socialPrefs.blockedSet)
@@ -91,27 +98,32 @@ export function usePostsFeed() {
     router.push({ name: 'login', query: { redirect: route.fullPath || '/posts' } })
   }
 
-  function replaceQuery(partial) {
-    const next = { ...(route.query || {}) }
-
-    if (Object.prototype.hasOwnProperty.call(partial, 'boardId')) {
-      const nextBoardId = normalizeOpaqueId(partial.boardId)
-      if (!nextBoardId) delete next.boardId
-      else next.boardId = String(nextBoardId)
-    }
-
-    router.replace({ name: 'posts', query: next })
+  function replaceQuery(changes) {
+    router.replace({ name: 'posts', query: serializePostsRouteQuery(route.query, changes) })
   }
 
-  function setBoardId(v) {
-    replaceQuery({ boardId: v })
+  function setOrder(v) {
+    replaceQuery({ order: v })
+  }
+
+  function setCategoryId(v) {
+    replaceQuery({ categoryId: v })
+  }
+
+  function setTag(v) {
+    replaceQuery({ tag: v })
+  }
+
+  function clearTag() {
+    replaceQuery({ tag: '' })
   }
 
   function clearQuery() {
-    replaceQuery({ boardId: '' })
+    replaceQuery({ categoryId: '', tag: '', order: 'latest' })
   }
 
   const nextCursor = ref('')
+  const searchPage = ref(0)
   const pageSize = 10
   const items = ref([])
   const hasNext = ref(true)
@@ -270,16 +282,16 @@ export function usePostsFeed() {
 
   watch(isPublishFocused, (v) => {
     if (!v) return
-    // 在分类页发帖时，默认带上当前分类
-    if (!newCategoryId.value && boardId.value) {
-      newCategoryId.value = String(boardId.value)
+    // 在分类筛选视图发帖时，默认带上当前分类
+    if (!newCategoryId.value && categoryId.value) {
+      newCategoryId.value = String(categoryId.value)
     }
   })
 
   const lastSeenDividerRef = ref(null)
   const newHintDismissed = ref(false)
 
-  const isDefaultLatestFeed = computed(() => !boardId.value)
+  const isDefaultLatestFeed = computed(() => order.value === 'latest' && !categoryId.value && !tag.value)
 
   const newSinceLastSeenCount = computed(() => {
     if (!isDefaultLatestFeed.value) return 0
@@ -403,7 +415,25 @@ export function usePostsFeed() {
     }, 0)
   }
 
-  async function loadFromCursor(cursor = '') {
+  async function ensureBlockedReady() {
+    if (authed.value) {
+      try {
+        await socialPrefs.ensureBlocked()
+      } catch {
+        // ignore：拉黑列表失败不阻塞列表查询
+      }
+    } else {
+      socialPrefs.clear()
+    }
+  }
+
+  function applyBlockedFilter(base) {
+    const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
+    blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
+    return afterBlocked
+  }
+
+  async function loadFeedStack(cursor = '') {
     const append = !!cursor
     if (append && loading.value) return false
 
@@ -411,18 +441,10 @@ export function usePostsFeed() {
     if (!append) error.value = ''
     loading.value = true
     try {
-      if (authed.value) {
-        try {
-          await socialPrefs.ensureBlocked()
-        } catch {
-          // ignore：拉黑列表失败不阻塞列表查询
-        }
-      } else {
-        socialPrefs.clear()
-      }
+      await ensureBlockedReady()
 
-      const resp = boardId.value
-        ? await listBoardFeed(boardId.value, { cursor, size: pageSize })
+      const resp = categoryId.value
+        ? await listBoardFeed(categoryId.value, { cursor, size: pageSize })
         : await listGlobalFeed({ cursor, size: pageSize })
       if (token !== lastLoadToken) return
 
@@ -434,9 +456,7 @@ export function usePostsFeed() {
         likeCount: Number(p?.likeCount || 0)
       }))
 
-      const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
-      blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
-      const newItems = afterBlocked
+      const newItems = applyBlockedFilter(base)
 
       const responseNextCursor = String(pageData.nextCursor || '')
       hasNext.value = !!responseNextCursor
@@ -463,13 +483,109 @@ export function usePostsFeed() {
     }
   }
 
+  // tag 过滤走搜索栈（最终一致）：搜索结果只携带瘦投影，按命中顺序批量
+  // 回补完整摘要，再与 feed 栈共用作者/点赞补水和拉黑过滤。
+  async function loadSearchStack({ append = false } = {}) {
+    if (append && loading.value) return false
+
+    const token = ++lastLoadToken
+    const requestedPage = append ? searchPage.value + 1 : 0
+    if (!append) error.value = ''
+    loading.value = true
+    try {
+      await ensureBlockedReady()
+
+      const resp = await apiSearchPosts({
+        categoryId: categoryId.value || undefined,
+        tag: tag.value,
+        page: requestedPage,
+        size: pageSize
+      })
+      if (token !== lastLoadToken) return
+
+      const hits = Array.isArray(resp?.data) ? resp.data : []
+      const hitIds = hits.map((hit) => normalizeOpaqueId(hit?.postId)).filter(Boolean)
+      let summaries = []
+      if (hitIds.length > 0) {
+        try {
+          const summaryResp = await batchPostSummaries(hitIds)
+          summaries = Array.isArray(summaryResp?.data) ? summaryResp.data : []
+        } catch {
+          summaries = []
+        }
+      }
+      if (token !== lastLoadToken) return
+
+      const summaryById = new Map()
+      for (const summary of summaries) {
+        const id = normalizeOpaqueId(summary?.id)
+        if (id) summaryById.set(id, summary)
+      }
+      const base = hits
+        .map((hit) => {
+          const hitId = normalizeOpaqueId(hit?.postId)
+          const source = summaryById.get(hitId) || {
+            id: hitId,
+            userId: hit?.userId,
+            title: hit?.title,
+            createTime: hit?.createTime,
+            categoryId: hit?.categoryId,
+            tags: hit?.tags
+          }
+          return {
+            ...source,
+            author: source?.author || null,
+            liked: !!source?.liked,
+            likeCount: Number(source?.likeCount || 0)
+          }
+        })
+        .filter((p) => normalizeOpaqueId(p?.id))
+
+      const newItems = applyBlockedFilter(base)
+
+      hasNext.value = hits.length >= pageSize
+      searchPage.value = requestedPage
+      nextCursor.value = ''
+
+      if (append) {
+        items.value = [...items.value, ...newItems]
+      } else {
+        items.value = newItems
+      }
+
+      scheduleHydrate(newItems, token)
+      return true
+    } catch (e) {
+      if (token !== lastLoadToken) return
+      if (!append) error.value = e?.message || '加载失败'
+      else showErrorToast(e, { type: 'error', text: '加载更多失败' }, showToast)
+      return false
+    } finally {
+      if (token === lastLoadToken) {
+        loading.value = false
+      }
+    }
+  }
+
+  function feedPlan() {
+    return resolvePostsFeedPlan({ categoryId: categoryId.value, tag: tag.value })
+  }
+
   async function loadMore() {
-    if (!nextCursor.value || loading.value) return
-    await loadFromCursor(nextCursor.value)
+    if (loading.value || !hasNext.value) return
+    if (feedPlan().source === 'search') {
+      await loadSearchStack({ append: true })
+      return
+    }
+    await loadFeedStack(nextCursor.value)
   }
 
   async function reload() {
-    await loadFromCursor('')
+    if (feedPlan().source === 'search') {
+      await loadSearchStack({ append: false })
+      return
+    }
+    await loadFeedStack('')
   }
 
   async function togglePostLike(p) {
@@ -573,7 +689,7 @@ export function usePostsFeed() {
     { deep: true }
   )
 
-  watch(boardId, () => {
+  watch([categoryId, tag, order], () => {
     newHintDismissed.value = false
     reload()
   })
@@ -581,6 +697,10 @@ export function usePostsFeed() {
   onMounted(() => {
     taxonomy.ensureCategories()
     taxonomy.ensureHotTags(12)
+    // 旧 boardId 链接归一为 categoryId；序列化不触发查询值变化，不会二次加载。
+    if (route.query?.boardId !== undefined) {
+      router.replace({ name: 'posts', query: serializePostsRouteQuery(route.query, {}) })
+    }
     seenBaselineAt.value = getPostsListBaselineAt({ identityId: readIdentityId.value })
     if (isDefaultLatestFeed.value && touchedLatestIdentity !== readIdentityId.value) {
       touchedLatestIdentity = readIdentityId.value
@@ -598,11 +718,16 @@ export function usePostsFeed() {
 
   const session = { authed, me, goLogin }
   const scope = {
-    boardId,
+    categoryId,
+    order,
+    tag,
     categories,
     categoryLabel,
     showClear,
-    setBoardId,
+    setOrder,
+    setCategoryId,
+    setTag,
+    clearTag,
     clearQuery
   }
   const feed = {

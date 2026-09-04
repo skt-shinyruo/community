@@ -58,6 +58,18 @@ protected route
 路由重定向到 `/settings?section=addresses`，不保留双入口。section 导航当前是可键盘操作的分区链接
 （`aria-current` 标记当前 section），UiTabs 交付后由 Account 波次替换。
 
+`/posts` 的帖子流 query 合同统一为 `categoryId`、`tag`、`order=latest|hot`（纯函数事实在
+`frontend/src/views/postsViewState.js`）：`order` 缺省为 `latest` 且无效值回落，`order=latest`
+不写回地址栏；已退役的 `boardId` 旧链接在读取和写回时都归一为 `categoryId`，并由视图用
+`router.replace` 规范化。数据源映射：无 `tag` 的视图走游标 feed（无分类时 `GET /api/feed/global`，
+带 `categoryId` 时 `GET /api/boards/{categoryId}/feed`）；带 `tag` 的视图走搜索栈
+（`GET /api/search/posts?tag=&categoryId=`，页码式加载更多，命中后由 `POST /api/posts/batch-summary`
+回补完整摘要），与搜索页同为最终一致。后端当前只暴露单一热度 rank feed，`order=latest|hot`
+两个 tab 解析到同一端点，排序切换只重写 query 契约。未读定位（新增计数、「上次看到这里」分隔线
+和跳转提示）只属于默认最新视图（`order=latest` 且无分类/标签过滤）。工具栏由
+`frontend/src/components/posts/FeedToolbar.vue`（分类 UiDropdown、可清除 tag chip、清空/刷新）和
+PostsView 内的 UiTabs（最新/最热）组成，帖子卡的分类 chip 与 `#标签` 纯文本可点击并回到同一过滤模型。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -193,9 +205,8 @@ connect(accessToken)
 
 | 文件 | 责任 |
 | --- | --- |
-| `postsFeedState.js` | 最新流默认视图判断、上次阅读分隔线、新内容跳转提示、分页推进。 |
-| `posts/usePostsFeed.js` | 帖子页的会话、范围、列表、未读和发帖五组页面语义；隐藏游标、补水、请求竞态和发帖幂等尝试。 |
-| `postsViewState.js` | 发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
+| `posts/usePostsFeed.js` | 帖子页的会话、范围（`categoryId` / `tag` / `order` 统一查询）、列表、未读和发帖五组页面语义；游标 feed 与搜索栈双数据源、隐藏游标、页码追加、补水、请求竞态和发帖幂等尝试。 |
+| `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
@@ -240,13 +251,13 @@ connect(accessToken)
 
 `frontend/src/components/ui/UiState.vue` 只承担 empty / error / development 三种结果状态：empty 给出主要下一步，error 提供重试，development 标记未上线功能；不承担 loading。首载加载使用 `frontend/src/components/ui/UiSkeleton.vue`（list / card / detail 三档结构占位，`role="status"` 加 sr-only 标签向辅助技术播报），分页加载使用尾部指示，操作中状态使用按钮 loading；裸「加载中」文本由 `frontend/src/components/ui/loading-states.test.js` 按文件登记冻结，随页面迁移波次递减清零、不得新增。
 
-浮层原语：`frontend/src/components/ui/UiModal.vue` 是统一的原生 `<dialog>` 外壳，提供 title、sm/md/lg 尺寸与 header/body/footer slots；Escape、backdrop 点击与关闭按钮只发出 close 请求，由使用方决定卸载时机，busy 期间禁止关闭。`frontend/src/components/ui/UiModalConfirm.vue` 已收敛到该外壳并保持既有确认语义（取消/确认文案、danger 变体），新增可选 busy 在异步确认期间禁用按钮与关闭路径。`frontend/src/components/ui/UiTooltip.vue` 提供 hover/focus 文字提示，自动做视口翻转与边界夹取，仅通过 `aria-describedby` 补充说明，trigger 保留自己的可访问名称，任何操作不依赖 tooltip 才能完成。`frontend/src/components/ui/UiDropdown.vue` 承载关注 / 举报 / 屏蔽等低频动作菜单：menu / menuitem 语义，trigger 携带 `aria-haspopup="menu"`、`aria-expanded` 与打开时的 `aria-controls`；click 与 Enter / Space / ↓ 打开并聚焦首个可用项（↑ 聚焦末项），菜单内 ↑/↓ 循环跳过禁用项、Home/End 跳转、Enter/Space 激活并经 `select` 事件交出被选项；Escape、选中、trigger 再点击与外部 pointerdown 关闭，Escape 与选中关闭后焦点返回 trigger。浮层 teleport 到 body，默认从 trigger 下缘对齐展开，视口空间不足时翻到上方并整体夹取在视口内（`--z-popover`、`--radius-lg`），危险动作以 `danger` 项标记；菜单只承载动作，不提供搜索或多选。
+浮层原语：`frontend/src/components/ui/UiModal.vue` 是统一的原生 `<dialog>` 外壳，提供 title、sm/md/lg 尺寸与 header/body/footer slots；Escape、backdrop 点击与关闭按钮只发出 close 请求，由使用方决定卸载时机，busy 期间禁止关闭。`frontend/src/components/ui/UiModalConfirm.vue` 已收敛到该外壳并保持既有确认语义（取消/确认文案、danger 变体），新增可选 busy 在异步确认期间禁用按钮与关闭路径。`frontend/src/components/ui/UiTooltip.vue` 提供 hover/focus 文字提示，自动做视口翻转与边界夹取，仅通过 `aria-describedby` 补充说明，trigger 保留自己的可访问名称，任何操作不依赖 tooltip 才能完成。`frontend/src/components/ui/UiDropdown.vue` 承载低频动作与入口菜单（关注 / 举报 / 屏蔽等治理动作，PostsView 工具栏的分类入口）：menu / menuitem 语义，trigger 携带 `aria-haspopup="menu"`、`aria-expanded` 与打开时的 `aria-controls`；click 与 Enter / Space / ↓ 打开并聚焦首个可用项（↑ 聚焦末项），菜单内 ↑/↓ 循环跳过禁用项、Home/End 跳转、Enter/Space 激活并经 `select` 事件交出被选项；Escape、选中、trigger 再点击与外部 pointerdown 关闭，Escape 与选中关闭后焦点返回 trigger。浮层 teleport 到 body，默认从 trigger 下缘对齐展开，视口空间不足时翻到上方并整体夹取在视口内（`--z-popover`、`--radius-lg`），危险动作以 `danger` 项标记；菜单只承载动作，不提供搜索或多选。
 
-`frontend/src/components/ui/UiTabs.vue` 是深链可接入的选项卡原语：tablist / tab / tabpanel 语义与 `aria-controls` / `aria-labelledby` 双向关联，左右方向键自动激活并循环、Home/End 跳转，禁用 tab 被跳过且不可选；漫游 tabindex 只把选中 tab 留在 Tab 序列，面板一次性渲染并随选中切换可见性，重内容可用 panel slot 的 `active` 标志懒挂载。它只提供受控 `v-model`（`modelValue` + `update:modelValue`）：调用方把选中值映射到路由 query 即获得深链形态（如 Settings 的 `?section=`，临时 section 导航由 Account 波次替换为 UiTabs）；modelValue 缺失或指向禁用 / 不存在的 tab 时回退展示第一个可用 tab，但不代调用方发事件。tablist 横向溢出时滚动收缩（`overflow-x: auto`），桌面与移动视口均不撑破布局。
+`frontend/src/components/ui/UiTabs.vue` 是深链可接入的选项卡原语：tablist / tab / tabpanel 语义与 `aria-controls` / `aria-labelledby` 双向关联，左右方向键自动激活并循环、Home/End 跳转，禁用 tab 被跳过且不可选；漫游 tabindex 只把选中 tab 留在 Tab 序列，面板一次性渲染并随选中切换可见性，重内容可用 panel slot 的 `active` 标志懒挂载。它只提供受控 `v-model`（`modelValue` + `update:modelValue`）：调用方把选中值映射到路由 query 即获得深链形态（PostsView 的最新/最热排序是首个生产接入；Settings 的 `?section=` 临时 section 导航由 Account 波次替换为 UiTabs）；modelValue 缺失或指向禁用 / 不存在的 tab 时回退展示第一个可用 tab，但不代调用方发事件。tablist 横向溢出时滚动收缩（`overflow-x: auto`），桌面与移动视口均不撑破布局。
 
 表单原语为 `frontend/src/components/ui/UiInput.vue`、`UiTextarea.vue` 和 `UiField.vue`：`UiInput` / `UiTextarea` 提供 `v-model`（含 trim / number 修饰符）、原生属性透传和禁用状态，`UiInput` 另有 size（md / sm）与 variant（outline / ghost）；`UiField` 承载 label 关联、帮助 / 错误文本（`aria-describedby` / `aria-invalid` / `role=alert`）和 `required` / `pattern` / `invalid` 原生校验语义，不引入表单校验库。字段内的 `UiInput` / `UiTextarea` 自动继承关联与校验状态；其他控件使用默认 slot 的 `controlId` / `describedBy` / `invalid` / `required` 手动接线。`.input`、`.auth-field`、`.field-label`、`.auth-form` 是原语内部实现细节，视图不得新增使用，现状由 `tokens.test.js` 的基线守卫登记、随页面簇迁移只减不增。
 
-`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。
+`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。
 
 所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm 已接入；ReportModal、EditContentModal 与 ModerationView 的旧 dialog 随所在页面簇迁移。
 

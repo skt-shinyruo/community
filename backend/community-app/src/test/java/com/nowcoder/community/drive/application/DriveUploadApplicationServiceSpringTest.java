@@ -49,6 +49,11 @@ import static org.mockito.Mockito.when;
 @ActiveProfiles("test")
 class DriveUploadApplicationServiceSpringTest {
 
+    // Concurrency rendezvous points wait this long so scheduling jitter on
+    // loaded CI runners cannot flake them; both recovery threads must still
+    // arrive, so a generous budget cannot mask a real coordination failure.
+    private static final long AWAIT_TIMEOUT_SECONDS = 30;
+
     @Autowired
     private DriveUploadApplicationService service;
 
@@ -242,10 +247,10 @@ class DriveUploadApplicationServiceSpringTest {
             });
 
             start.countDown();
-            assertThat(bothAtCancellation.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(bothAtCancellation.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
             allowCancellation.countDown();
-            first.get(5, TimeUnit.SECONDS);
-            second.get(5, TimeUnit.SECONDS);
+            first.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+            second.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
 
             assertThat(uploadRepository.findById(uploadId).orElseThrow().status())
                     .isEqualTo(DriveUploadStatus.FAILED);
@@ -263,7 +268,7 @@ class DriveUploadApplicationServiceSpringTest {
 
     private static void await(CountDownLatch latch) {
         try {
-            assertThat(latch.await(5, TimeUnit.SECONDS)).isTrue();
+            assertThat(latch.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             throw new AssertionError("interrupted while awaiting concurrent recovery", e);

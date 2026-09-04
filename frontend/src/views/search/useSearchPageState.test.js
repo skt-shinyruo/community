@@ -78,7 +78,6 @@ describe('useSearchPageState', () => {
     routerState.replace.mockClear()
     searchPosts.mockReset()
     searchPosts.mockResolvedValue({ data: [] })
-    vi.spyOn(window, 'scrollTo').mockImplementation(() => {})
   })
 
   it('parses and serializes the public search query fields without private delimiters', () => {
@@ -119,7 +118,7 @@ describe('useSearchPageState', () => {
     expect(state.items.value).toEqual([])
   })
 
-  it('commits full pages in order and keeps the last page when the next page is empty', async () => {
+  it('appends full pages in order and keeps loaded results when the next page is empty', async () => {
     routerState.route.query = { q: 'paging' }
     const firstPage = Array.from({ length: 10 }, (_, index) =>
       searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `first-${index}`)
@@ -134,15 +133,59 @@ describe('useSearchPageState', () => {
     const { state } = mountState()
     await flushPromises()
 
-    await state.loadNextPage()
+    await state.loadMore()
     expect(state.page.value).toBe(1)
-    expect(state.items.value[0].title).toBe('second-0')
+    expect(state.items.value).toHaveLength(20)
+    expect(state.items.value[0].title).toBe('first-0')
+    expect(state.items.value[10].title).toBe('second-0')
 
-    await state.loadNextPage()
+    await state.loadMore()
     expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 2])
     expect(state.page.value).toBe(1)
-    expect(state.items.value[0].title).toBe('second-0')
+    expect(state.items.value).toHaveLength(20)
     expect(state.hasNext.value).toBe(false)
+  })
+
+  it('keeps appended results and surfaces pageError when loading more fails', async () => {
+    routerState.route.query = { q: 'paging' }
+    const firstPage = Array.from({ length: 10 }, (_, index) =>
+      searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `first-${index}`)
+    )
+    searchPosts
+      .mockResolvedValueOnce({ data: firstPage })
+      .mockRejectedValueOnce(new Error('temporary search failure'))
+      .mockResolvedValueOnce({ data: [searchItem('22222222-2222-7222-8222-222222222222', 'second-0')] })
+    const { state } = mountState()
+    await flushPromises()
+
+    await state.loadMore()
+    expect(state.items.value).toHaveLength(10)
+    expect(state.page.value).toBe(0)
+    expect(state.pageError.value).toBe('temporary search failure')
+    expect(state.error.value).toBe('')
+
+    await state.loadMore()
+    expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])
+    expect(state.pageError.value).toBe('')
+    expect(state.page.value).toBe(1)
+    expect(state.items.value).toHaveLength(11)
+    expect(state.items.value[10].title).toBe('second-0')
+  })
+
+  it('refuses to load more while a request is running or no next page exists', async () => {
+    routerState.route.query = { q: 'guarded' }
+    searchPosts.mockResolvedValue({ data: [] })
+    const { state } = mountState()
+    await flushPromises()
+
+    expect(state.hasNext.value).toBe(false)
+    await state.loadMore()
+    expect(searchPosts).toHaveBeenCalledTimes(1)
+
+    state.hasNext.value = true
+    state.loadingMore.value = true
+    await state.loadMore()
+    expect(searchPosts).toHaveBeenCalledTimes(1)
   })
 
   it('keeps committed results and page state when a new request fails', async () => {

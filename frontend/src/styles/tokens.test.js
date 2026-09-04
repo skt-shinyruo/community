@@ -205,11 +205,9 @@ describe('global style guardrails', () => {
   })
 
   it('keeps data-theme / data-density overrides out of migrated pages', () => {
-    // 迁移债：波次 4 收敛 SearchView 的页面级暗色覆盖。
     const allowed = new Set([
       'src/styles/variables.css',
-      'src/styles/base.css',
-      'src/views/SearchView.vue'
+      'src/styles/base.css'
     ])
     const offenders = sources
       .filter(({ css }) => /\[data-(theme|density)/.test(css))
@@ -263,7 +261,6 @@ describe('primitive class guardrails', () => {
     ['src/views/MarketOrderDetailView.vue', { input: 6 }],
     ['src/views/MarketPublishView.vue', { input: 3 }],
     ['src/views/ModerationView.vue', { input: 5 }],
-    ['src/views/SearchView.vue', { input: 2 }],
     ['src/views/UserManagementView.vue', { 'field-label': 3, input: 5 }],
     ['src/views/WalletAdminView.vue', { input: 4 }],
     ['src/views/WalletView.vue', { input: 4 }],

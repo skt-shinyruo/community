@@ -66,6 +66,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     @Autowired
     MeterRegistry meterRegistry;
 
+    @Autowired
+    com.nowcoder.community.im.gateway.session.ImGatewaySessionProperties sessionProperties;
+
     @DynamicPropertySource
     static void properties(DynamicPropertyRegistry registry) {
         registry.add("security.jwt.access-public-key", TestJwtKeys::publicKey);
@@ -73,7 +76,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         registry.add("im.session-ticket.hmac-secret", () -> TICKET_SECRET);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
-        registry.add("im.gateway.ws.first-frame-timeout-ms", () -> "2000");
+        registry.add("im.gateway.ws.first-frame-timeout-ms", () -> "10000");
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].uri",
                 () -> "http://127.0.0.1:" + workerPort());
         registry.add("spring.cloud.discovery.client.simple.instances.im-realtime-worker[0].metadata.workerId",
@@ -221,6 +224,10 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     @Test
     void shouldRejectWhenFirstFrameTimesOut() throws Exception {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        // Keep the timeout probe fast by shrinking the window for this session
+        // only; the class-wide default is generous so the other tests are not
+        // exposed to CI scheduling jitter between session open and first frame.
+        sessionProperties.getWs().setFirstFrameTimeoutMs(100);
 
         Disposable handle = client.execute(externalUri(), session -> session.receive()
                         .map(WebSocketMessage::getPayloadAsText)
@@ -234,6 +241,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
             assertThat(reject).contains("\"reasonCode\":\"connect_timeout\"");
         } finally {
             handle.dispose();
+            sessionProperties.getWs().setFirstFrameTimeoutMs(10000);
         }
     }
 

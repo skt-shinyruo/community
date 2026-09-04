@@ -224,9 +224,11 @@ connect(accessToken)
 
 `frontend/src/styles/variables.css`、`components.css` 和 `layout.css` 提供克制的产品默认样式。通用 `.card` 默认不带装饰性 hover lift 或大阴影。
 
-`frontend/src/components/ui/UiState.vue` 是 empty / loading / error / forbidden / unavailable / pending / development-only 的共享状态块；页面空态、错误态和开发态都直接使用它。
+`frontend/src/components/ui/UiState.vue` 只承担 empty / error / development 三种结果状态：empty 给出主要下一步，error 提供重试，development 标记未上线功能；不承担 loading。首载加载使用 `frontend/src/components/ui/UiSkeleton.vue`（list / card / detail 三档结构占位，`role="status"` 加 sr-only 标签向辅助技术播报），分页加载使用尾部指示，操作中状态使用按钮 loading；裸「加载中」文本由 `frontend/src/components/ui/loading-states.test.js` 按文件登记冻结，随页面迁移波次递减清零、不得新增。
 
-所有 dialog 使用 `useModalFocus.js`：打开后聚焦首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。
+浮层原语：`frontend/src/components/ui/UiModal.vue` 是统一的原生 `<dialog>` 外壳，提供 title、sm/md/lg 尺寸与 header/body/footer slots；Escape、backdrop 点击与关闭按钮只发出 close 请求，由使用方决定卸载时机，busy 期间禁止关闭。`frontend/src/components/ui/UiModalConfirm.vue` 已收敛到该外壳并保持既有确认语义（取消/确认文案、danger 变体），新增可选 busy 在异步确认期间禁用按钮与关闭路径。`frontend/src/components/ui/UiTooltip.vue` 提供 hover/focus 文字提示，自动做视口翻转与边界夹取，仅通过 `aria-describedby` 补充说明，trigger 保留自己的可访问名称，任何操作不依赖 tooltip 才能完成。
+
+所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm 已接入；ReportModal、EditContentModal 与 ModerationView 的旧 dialog 随所在页面簇迁移。
 
 页面需要展示调试辅助信息时，应使用 `UiState` 的 `development` variant 显式标记，而不是把它伪装成普通业务内容。正式 router 不注册独立开发入口。
 

@@ -168,6 +168,7 @@ npm test -- src/im/imRealtimeClient.test.js
 npm test -- src/views/postsViewState.test.js src/views/postDetailState.test.js
 npm test -- src/views/conversationDetailState.test.js
 npm test -- src/views/marketState.test.js src/views/walletState.test.js
+npm test -- src/components/ui/UiModal.test.js src/components/ui/UiModalConfirm.test.js src/components/ui/UiTooltip.test.js src/components/ui/UiSkeleton.test.js src/components/ui/loading-states.test.js
 ```
 
 前端测试分工：
@@ -178,6 +179,7 @@ npm test -- src/views/marketState.test.js src/views/walletState.test.js
 - `im/imRealtimeClient.test.js`：session bootstrap、WS connect ticket、重连和发送消息。
 - `stores/*.test.js`：UI 偏好（主题三态、密度、侧边栏）等 Pinia store 行为。
 - `styles/*.test.js`：设计令牌与全局样式静态守卫（令牌值、对比度、`var()` 引用、`data-theme` 覆盖、z-index、reduced-motion）。
+- `components/ui/loading-states.test.js`：加载态静态守卫（裸「加载中」按文件登记、UiState 限定 empty / error / development、加载可访问名称统一由 UiSkeleton 提供）。
 - `views/*State.test.js`：复杂页面纯状态转换。
 - `views/*View.test.js` / `components/**/*.test.js`：Vue 组件交互和用户可见状态。
 

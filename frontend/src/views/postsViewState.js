@@ -1,5 +1,89 @@
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
+/** @typedef {'latest' | 'hot'} PostsOrder */
+
+export const POSTS_ORDER_LATEST = 'latest'
+export const POSTS_ORDER_HOT = 'hot'
+const POSTS_ORDERS = [POSTS_ORDER_LATEST, POSTS_ORDER_HOT]
+
+/**
+ * @param {unknown} value
+ * @returns {PostsOrder}
+ */
+export function normalizePostsOrder(value) {
+  const order = String(value || '').trim().toLowerCase()
+  return /** @type {PostsOrder} */ (POSTS_ORDERS.includes(order) ? order : POSTS_ORDER_LATEST)
+}
+
+/**
+ * @param {unknown} value
+ * @returns {string}
+ */
+export function normalizePostsTag(value) {
+  let tag = String(value || '').trim()
+  if (tag.startsWith('#')) tag = tag.slice(1).trim()
+  return tag
+}
+
+// 帖子流路由 query 是唯一事实源：categoryId / tag / order=latest|hot。
+// boardId 已退役，旧链接的 boardId 在读取时归一为 categoryId。
+/**
+ * @param {Record<string, any>} [query]
+ * @returns {{ categoryId: string, tag: string, order: PostsOrder }}
+ */
+export function parsePostsRouteQuery(query = {}) {
+  return {
+    categoryId: normalizeOpaqueId(query?.categoryId) || normalizeOpaqueId(query?.boardId),
+    tag: normalizePostsTag(query?.tag),
+    order: normalizePostsOrder(query?.order)
+  }
+}
+
+/**
+ * @param {Record<string, any>} [currentQuery]
+ * @param {{ categoryId?: unknown, tag?: unknown, order?: unknown }} [changes]
+ * @returns {Record<string, any>}
+ */
+export function serializePostsRouteQuery(currentQuery = {}, changes = {}) {
+  const next = /** @type {Record<string, any>} */ ({ ...(currentQuery || {}) })
+  const legacyBoardId = normalizeOpaqueId(next.boardId)
+  delete next.boardId
+
+  if (Object.prototype.hasOwnProperty.call(changes, 'categoryId')) {
+    const categoryId = normalizeOpaqueId(changes.categoryId)
+    if (categoryId) next.categoryId = String(categoryId)
+    else delete next.categoryId
+  } else if (legacyBoardId && next.categoryId === undefined) {
+    next.categoryId = legacyBoardId
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, 'tag')) {
+    const tag = normalizePostsTag(changes.tag)
+    if (tag) next.tag = tag
+    else delete next.tag
+  }
+  if (Object.prototype.hasOwnProperty.call(changes, 'order')) {
+    const order = normalizePostsOrder(changes.order)
+    if (order === POSTS_ORDER_LATEST) delete next.order
+    else next.order = order
+  }
+
+  return next
+}
+
+// 数据源映射：tag 过滤只有搜索栈支持（最终一致）；其余视图走游标 feed。
+// 后端当前只暴露单一热度 rank feed，order=latest|hot 共用同一端点（见 handbook）。
+/**
+ * @param {{ categoryId?: unknown, tag?: unknown }} [query]
+ * @returns {{ source: 'feed', scope: 'global' | 'category' } | { source: 'search' }}
+ */
+export function resolvePostsFeedPlan({ categoryId = '', tag = '' } = {}) {
+  if (normalizePostsTag(tag)) return { source: 'search' }
+  return {
+    source: 'feed',
+    scope: normalizeOpaqueId(categoryId) ? 'category' : 'global'
+  }
+}
+
 const TAG_MAX = 5
 const TAG_MAX_LEN = 20
 const TAG_PATTERN = /^[\p{L}\p{N}_-]{1,20}$/u

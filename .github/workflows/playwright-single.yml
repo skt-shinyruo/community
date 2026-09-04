@@ -88,21 +88,40 @@ jobs:
 
       - name: Wait for IM session edge route
         shell: bash
+        env:
+          SINGLE_USER_A_USERNAME: ${{ vars.SINGLE_USER_A_USERNAME || 'aaa' }}
+          SINGLE_USER_A_PASSWORD: ${{ vars.SINGLE_USER_A_PASSWORD || 'aaa' }}
         run: |
           set -euo pipefail
-          # community-gateway health can turn green before its Nacos discovery
-          # cache learns community-im-gateway; until then POST /api/im/sessions
-          # returns 503. Once the lb route resolves, the unauthenticated probe
-          # returns 401 instead.
-          for attempt in $(seq 1 30); do
-            status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${SINGLE_API_BASE_URL}/api/im/sessions" || true)"
-            if [[ "${status}" != "503" && "${status}" != "000" ]]; then
-              echo "im session edge route ready (HTTP ${status}) after ${attempt} probe(s)"
-              exit 0
+          # Container health turns green before every Nacos discovery
+          # subscription on the session path has resolved. Two lazy hops race
+          # the first login: community-gateway -> lb://community-im-gateway and
+          # community-im-gateway -> lb://community-app (token freshness check)
+          # plus the im-realtime-worker selection. An unauthenticated probe
+          # only warms the first hop, so drive a real session creation with
+          # the seeded smoke account until the whole chain returns 200.
+          token=""
+          for attempt in $(seq 1 40); do
+            if [[ -z "${token}" ]]; then
+              login_body="$(curl -s -X POST "${SINGLE_API_BASE_URL}/api/auth/login" \
+                -H 'Content-Type: application/json' \
+                -d "{\"username\":\"${SINGLE_USER_A_USERNAME}\",\"password\":\"${SINGLE_USER_A_PASSWORD}\"}" || true)"
+              token="$(printf '%s' "${login_body}" | sed -n 's/.*"accessToken":"\([^"]*\)".*/\1/p')"
+            fi
+            if [[ -n "${token}" ]]; then
+              status="$(curl -s -o /dev/null -w '%{http_code}' -X POST "${SINGLE_API_BASE_URL}/api/im/sessions" \
+                -H "Authorization: Bearer ${token}" || true)"
+              if [[ "${status}" == "200" ]]; then
+                echo "im session chain ready after ${attempt} probe(s)"
+                exit 0
+              fi
+              echo "probe ${attempt}: im sessions returned HTTP ${status}, retrying"
+            else
+              echo "probe ${attempt}: login did not yield an access token yet, retrying"
             fi
             sleep 2
           done
-          echo "im session edge route still not routable (last HTTP ${status})" >&2
+          echo "im session chain still not ready after 40 probes (last HTTP ${status:-none})" >&2
           exit 1
 
       - name: Run Playwright suite

@@ -30,13 +30,6 @@ function mountOptions() {
         UiCard: {
           template: '<section><slot /></section>'
         },
-        UiPageHeader: {
-          template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>'
-        },
-        UiState: {
-          props: ['type'],
-          template: '<div><slot /><slot name="description" /></div>'
-        },
         UiButton: {
           props: ['disabled', 'variant'],
           emits: ['click'],
@@ -178,6 +171,28 @@ describe('SettingsAddressesSection', () => {
       detailAddress: '陆家嘴 200 号',
       defaultAddress: true
     }))
+  })
+
+  it('offers a retry when the address book fails to load', async () => {
+    listMarketAddresses.mockRejectedValueOnce(new Error('网络错误'))
+
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('网络错误')
+    expect(wrapper.find('[data-test="address-edit"]').exists()).toBe(false)
+    const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    expect(retry).toBeTruthy()
+
+    listMarketAddresses.mockResolvedValueOnce({
+      data: [{ addressId: 41, receiverName: '张三', city: '上海市', detailAddress: '世纪大道 100 号' }],
+      traceId: 'trace-retry'
+    })
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(listMarketAddresses).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('张三')
   })
 
   it('discards address rows returned for a previous authenticated identity', async () => {

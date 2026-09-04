@@ -379,10 +379,11 @@ class ImEdgeWebSocketBridgeIntegrationTest {
 
     private String exchangeTextUntilReject(String firstFrame) throws InterruptedException {
         LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
-        Sinks.Many<String> outbound = Sinks.many().unicast().onBackpressureBuffer();
 
+        // 首帧在会话建立后由 send 管道自身发出，避免测试线程在订阅建立前向
+        // Sinks 投递的竞态（与 exchangeBinaryFirstFrameUntilReject 同一模式）。
         Disposable handle = client.execute(externalUri(), session -> {
-                    Mono<Void> send = session.send(outbound.asFlux().map(session::textMessage));
+                    Mono<Void> send = session.send(Flux.just(session.textMessage(firstFrame)));
                     Mono<Void> receive = session.receive()
                             .map(WebSocketMessage::getPayloadAsText)
                             .doOnNext(received::offer)
@@ -392,8 +393,6 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            outbound.tryEmitNext(firstFrame);
-            outbound.tryEmitComplete();
             String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             return reject;

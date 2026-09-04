@@ -444,43 +444,6 @@
   border-style: dashed;
 }
 
-.ui-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 10px 0;
-}
-
-.ui-toolbar-leading,
-.ui-toolbar-filters,
-.ui-toolbar-actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  min-width: 0;
-}
-
-.ui-toolbar-filters {
-  flex: 1;
-  flex-wrap: wrap;
-}
-
-.ui-toolbar-actions {
-  flex-shrink: 0;
-}
-
-@media (max-width: 768px) {
-  .ui-toolbar {
-    align-items: stretch;
-    flex-direction: column;
-  }
-
-  .ui-toolbar-actions {
-    justify-content: flex-start;
-  }
-}
-
 .tag {
   display: inline-flex;
   align-items: center;

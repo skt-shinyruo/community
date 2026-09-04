@@ -63,7 +63,9 @@ export function useSearchPageState() {
   const page = ref(0)
   const pageSize = 10
   const loading = ref(false)
+  const loadingMore = ref(false)
   const error = ref('')
+  const pageError = ref('')
   const items = ref([])
   const hasNext = ref(false)
 
@@ -123,11 +125,18 @@ export function useSearchPageState() {
     return applySearchHydration(merged, { users, likeCounts })
   }
 
-  async function loadSearchPage(targetPage = page.value) {
+  // 追加式分页：fresh 加载（搜索/筛选/重试）替换整份结果，append 加载把下一页
+  // 接到已有结果尾部；append 失败只记 pageError，保留已加载列表并由「加载更多」重试。
+  async function loadSearchPage(targetPage = page.value, { append = false } = {}) {
     const token = searchRequestTracker.begin()
     const requestedPage = Math.max(0, Number(targetPage || 0))
-    error.value = ''
-    loading.value = true
+    if (append) {
+      pageError.value = ''
+      loadingMore.value = true
+    } else {
+      error.value = ''
+      loading.value = true
+    }
     try {
       const { data } = await searchPosts({
         keyword: keyword.value,
@@ -144,14 +153,18 @@ export function useSearchPageState() {
       hasNext.value = rawItems.length >= pageSize
       if (requestedPage > page.value && rawItems.length === 0) return false
       page.value = requestedPage
-      items.value = nextItems
+      items.value = append ? [...items.value, ...nextItems] : nextItems
       return true
     } catch (cause) {
       if (!searchRequestTracker.isCurrent(token)) return false
-      error.value = cause?.message || '搜索失败'
+      if (append) pageError.value = cause?.message || '加载更多失败'
+      else error.value = cause?.message || '搜索失败'
       return false
     } finally {
-      if (searchRequestTracker.isCurrent(token)) loading.value = false
+      if (searchRequestTracker.isCurrent(token)) {
+        loading.value = false
+        loadingMore.value = false
+      }
     }
   }
 
@@ -194,7 +207,9 @@ export function useSearchPageState() {
     items.value = []
     hasNext.value = false
     error.value = ''
+    pageError.value = ''
     loading.value = false
+    loadingMore.value = false
   }
 
   function clearSearch() {
@@ -202,17 +217,13 @@ export function useSearchPageState() {
     router.replace({ name: 'search', query: {} })
   }
 
-  async function loadNextPage() {
-    if (!hasNext.value) return
-    const previousPage = page.value
-    await loadSearchPage(previousPage + 1)
-    if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
+  async function reload() {
+    await loadSearchPage(0)
   }
 
-  async function loadPreviousPage() {
-    const previousPage = page.value
-    await loadSearchPage(Math.max(0, previousPage - 1))
-    if (page.value !== previousPage) window.scrollTo({ top: 0, behavior: 'smooth' })
+  async function loadMore() {
+    if (loading.value || loadingMore.value || !hasNext.value) return
+    await loadSearchPage(page.value + 1, { append: true })
   }
 
   function applyRouteSearch() {
@@ -251,7 +262,9 @@ export function useSearchPageState() {
     categoryLabel,
     page,
     loading,
+    loadingMore,
     error,
+    pageError,
     items,
     hasNext,
     submitSearch,
@@ -259,8 +272,8 @@ export function useSearchPageState() {
     commitTag,
     clearFilters,
     clearSearch,
-    loadNextPage,
-    loadPreviousPage,
+    reload,
+    loadMore,
     applyRouteSearch
   }
 }

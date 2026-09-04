@@ -207,14 +207,14 @@ class ImCoreKafkaIntegrationTest {
         consumer = newStringConsumer("im-core-it-room-member-changed");
         consumer.subscribe(List.of("im.event.room-member-changed"));
         awaitAssignment(consumer, Duration.ofSeconds(5));
-        consumer.seekToEnd(consumer.assignment());
-        consumer.assignment().forEach(consumer::position);
 
         long beforeJoin = System.currentTimeMillis();
         roomApplicationService.joinRoom(member, roomId);
 
+        // createRoom queues the owner's JOINED event via the after-commit publisher; it can
+        // land before or after any seek, so wait specifically for this member's JOINED record.
         ConsumerRecord<String, String> changedRecord =
-                pollForSingleRecord(consumer, "im.event.room-member-changed", Duration.ofSeconds(10));
+                pollForJoinedRecord(consumer, member, Duration.ofSeconds(30));
         JsonNode eventJson = objectMapper.readTree(changedRecord.value());
 
         assertThat(changedRecord.key()).isEqualTo(roomId.toString());
@@ -244,9 +244,9 @@ class ImCoreKafkaIntegrationTest {
         throw new AssertionError("Timed out waiting for consumer assignment");
     }
 
-    private static ConsumerRecord<String, String> pollForSingleRecord(
+    private ConsumerRecord<String, String> pollForJoinedRecord(
             Consumer<String, String> consumer,
-            String topic,
+            UUID member,
             Duration timeout
     ) {
         Instant deadline = Instant.now().plus(timeout);
@@ -255,14 +255,19 @@ class ImCoreKafkaIntegrationTest {
             if (records == null || records.isEmpty()) {
                 continue;
             }
-            Iterable<ConsumerRecord<String, String>> iterable = records.records(topic);
-            if (iterable != null) {
-                for (ConsumerRecord<String, String> r : iterable) {
-                    return r;
+            for (ConsumerRecord<String, String> r : records.records("im.event.room-member-changed")) {
+                try {
+                    JsonNode json = objectMapper.readTree(r.value());
+                    if (member.toString().equals(json.path("userId").asText(""))
+                            && "JOINED".equals(json.path("action").asText(""))) {
+                        return r;
+                    }
+                } catch (Exception ignore) {
+                    // 继续等待目标记录；非 JSON 内容与本测试无关。
                 }
             }
         }
-        throw new AssertionError("Timed out waiting for record on topic " + topic);
+        throw new AssertionError("Timed out waiting for JOINED record for member " + member);
     }
 
     private static Map<String, ConsumerRecord<String, String>> pollForTopics(

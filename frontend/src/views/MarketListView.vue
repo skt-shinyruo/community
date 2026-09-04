@@ -6,8 +6,9 @@
       <template #title>统一市场</template>
       <template #subtitle>通过钱包托管购买虚拟商品和实物商品，按履约方式跟进订单。</template>
       <template #actions>
+        <RouterLink class="btn secondary" :to="{ name: 'marketMyListings' }">我的出售</RouterLink>
+        <RouterLink class="btn secondary" :to="{ name: 'marketSellingOrders' }">出售订单</RouterLink>
         <RouterLink class="btn secondary" :to="{ name: 'marketBuyingOrders' }">我的购买</RouterLink>
-        <RouterLink class="btn secondary" :to="{ name: 'marketSellingOrders' }">我的出售</RouterLink>
         <RouterLink class="btn" :to="{ name: 'marketPublish' }">发布商品</RouterLink>
       </template>
     </UiPageHeader>

@@ -246,6 +246,13 @@ describe('http', () => {
     expect(toast).not.toHaveBeenCalled()
   })
 
+  it('should suppress the IM client global error toast when request opts out', async () => {
+    imMock.onGet('/api/im/unread/summary').replyOnce(500, { code: 500, message: 'IM 服务异常', traceId: 'trace-im-1' })
+
+    await expect(imCoreHttp.get('/api/im/unread/summary', { skipGlobalErrorToast: true })).rejects.toBeTruthy()
+    expect(toast).not.toHaveBeenCalled()
+  })
+
   it('should not attempt refresh for any auth endpoint 401 response', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 'old-token' })

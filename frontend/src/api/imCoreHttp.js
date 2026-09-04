@@ -20,11 +20,13 @@ imCoreHttp.interceptors.response.use(
   (response) => response,
   async (error) => {
     const status = error?.response?.status
+    const original = error?.config || {}
+    const skipGlobalErrorToast = !!original?.skipGlobalErrorToast
     const result = error?.response?.data
     const msg = typeof result?.message === 'string' ? result.message : (error?.message || '请求失败')
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
 
-    if (status >= 400) {
+    if (!skipGlobalErrorToast && status >= 400) {
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
       showErrorToast(error, {
         type: 'error',

@@ -1,4 +1,4 @@
-import { test } from '../fixtures/test'
+import { expect, test } from '../fixtures/test'
 import {
   authenticateVisualPage,
   expectVisualSnapshot,
@@ -96,9 +96,18 @@ test.describe('migration visual baseline @visual', () => {
   })
 
   test('conversation list empty state', async ({ page }) => {
-    await authenticateVisualPage(page)
+    // 固定非零未读，让侧边栏通知/私信角标进入基线审查。
+    await authenticateVisualPage(page, {
+      noticeSummary: [{ topic: 'comment', unreadCount: 3, noticeCount: 5 }],
+      imUnreadSummary: {
+        rooms: [],
+        conversations: [{ conversationId: 'visual-badge', lastSeq: 3, lastReadSeq: 1, unreadCount: 2 }]
+      }
+    })
     await mockResult(page, '/api/im/conversations/page*', { items: [], nextCursor: null, hasMore: false })
     await openVisualPage(page, '/messages', '暂无会话')
+    await expect(page.getByRole('link', { name: '通知，3 条未读' })).toBeVisible()
+    await expect(page.getByRole('link', { name: '私信，2 条未读' })).toBeVisible()
     await expectVisualSnapshot(page, 'conversations')
   })
 

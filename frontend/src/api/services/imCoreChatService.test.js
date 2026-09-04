@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import imCoreHttp from '../imCoreHttp'
 import { BusinessError } from '../result'
 import {
+  getImUnreadSummary,
   listImConversationHistory,
   listImConversationMessages,
   listImConversationPage,
@@ -111,5 +112,37 @@ describe('api/services/imCoreChatService', () => {
     imCoreHttp.post.mockResolvedValue({ data: {} })
 
     await expect(markImConversationRead('c1', 8)).rejects.toBeInstanceOf(BusinessError)
+  })
+
+  it('getImUnreadSummary should request the unread summary silently and unwrap Result data', async () => {
+    imCoreHttp.get.mockResolvedValue({
+      data: {
+        code: 0,
+        message: '',
+        data: { rooms: [{ roomId: 'r1', unreadCount: 2 }], conversations: [{ conversationId: 'c1', unreadCount: 3 }] },
+        traceId: 'trace-unread'
+      }
+    })
+
+    await expect(getImUnreadSummary()).resolves.toEqual({
+      rooms: [{ roomId: 'r1', unreadCount: 2 }],
+      conversations: [{ conversationId: 'c1', unreadCount: 3 }]
+    })
+    expect(imCoreHttp.get).toHaveBeenCalledWith('/api/im/unread/summary', {
+      params: { limit: 500 },
+      skipGlobalErrorToast: true
+    })
+  })
+
+  it('getImUnreadSummary should fall back to empty collections when data is missing', async () => {
+    imCoreHttp.get.mockResolvedValue({
+      data: { code: 0, message: '', data: null, traceId: 'trace-unread-empty' }
+    })
+
+    await expect(getImUnreadSummary({ limit: 50 })).resolves.toEqual({ rooms: [], conversations: [] })
+    expect(imCoreHttp.get).toHaveBeenCalledWith('/api/im/unread/summary', {
+      params: { limit: 50 },
+      skipGlobalErrorToast: true
+    })
   })
 })

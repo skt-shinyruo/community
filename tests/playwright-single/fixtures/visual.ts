@@ -27,7 +27,10 @@ export async function prepareVisualPage(page: Page, testInfo: TestInfo): Promise
   await mockResult(page, '/api/tags/hot*', [])
 }
 
-export async function authenticateVisualPage(page: Page): Promise<void> {
+export async function authenticateVisualPage(
+  page: Page,
+  overrides: { noticeSummary?: unknown; imUnreadSummary?: unknown } = {}
+): Promise<void> {
   await mockResult(page, '/api/auth/login', { accessToken: 'visual-access-token' })
   await mockResult(page, '/api/auth/me', {
     userId: accounts.aaa.userId,
@@ -38,6 +41,9 @@ export async function authenticateVisualPage(page: Page): Promise<void> {
   await mockResult(page, '/api/blocks', [])
   await mockResult(page, '/api/feed/global*', { items: [], nextCursor: '', rankVersion: 'visual' })
   await mockResult(page, '/api/im/sessions', {})
+  // 壳层未读角标的固定数据源：默认零未读，需要角标覆盖的用例通过 overrides 固定计数。
+  await mockResult(page, '/api/notices/summary', overrides.noticeSummary ?? [])
+  await mockResult(page, '/api/im/unread/summary*', overrides.imUnreadSummary ?? { rooms: [], conversations: [] })
   await loginViaUi(page, accounts.aaa)
 }
 

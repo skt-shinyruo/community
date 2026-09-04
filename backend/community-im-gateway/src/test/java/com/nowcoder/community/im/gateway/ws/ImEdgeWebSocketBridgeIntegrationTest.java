@@ -53,6 +53,9 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     // scheduling jitter between session open, frame delivery, and worker
     // round-trips cannot flake them.
     private static final long RECEIVE_TIMEOUT_SECONDS = 30;
+    // A probe that saw no frame at all within the window is retried on a fresh
+    // connection; reject content assertions stay single-shot and strict.
+    private static final int REJECT_PROBE_ATTEMPTS = 3;
     private static volatile DisposableServer workerServer;
     private static volatile DisposableServer binaryWorkerServer;
     private static volatile Integer refusedWorkerPort;
@@ -378,51 +381,74 @@ class ImEdgeWebSocketBridgeIntegrationTest {
     }
 
     private String exchangeTextUntilReject(String firstFrame) throws InterruptedException {
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        return probeRejectWithRetry(() -> {
+            LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
 
-        // 首帧在会话建立后由 send 管道自身发出，避免测试线程在订阅建立前向
-        // Sinks 投递的竞态（与 exchangeBinaryFirstFrameUntilReject 同一模式）。
-        Disposable handle = client.execute(externalUri(), session -> {
-                    Mono<Void> send = session.send(Flux.just(session.textMessage(firstFrame)));
-                    Mono<Void> receive = session.receive()
-                            .map(WebSocketMessage::getPayloadAsText)
-                            .doOnNext(received::offer)
-                            .take(1)
-                            .then();
-                    return Mono.when(send, receive);
-                })
-                .subscribe();
-        try {
-            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            assertThat(reject).isNotNull();
-            return reject;
-        } finally {
-            handle.dispose();
-        }
+            // 首帧在会话建立后由 send 管道自身发出，避免测试线程在订阅建立前向
+            // Sinks 投递的竞态（与 exchangeBinaryFirstFrameUntilReject 同一模式）。
+            Disposable handle = client.execute(externalUri(), session -> {
+                        Mono<Void> send = session.send(Flux.just(session.textMessage(firstFrame)));
+                        Mono<Void> receive = session.receive()
+                                .map(WebSocketMessage::getPayloadAsText)
+                                .doOnNext(received::offer)
+                                .take(1)
+                                .then();
+                        return Mono.when(send, receive);
+                    })
+                    .subscribe();
+            try {
+                String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                assertThat(reject).isNotNull();
+                return reject;
+            } finally {
+                handle.dispose();
+            }
+        });
     }
 
     private String exchangeBinaryFirstFrameUntilReject() throws InterruptedException {
-        LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
+        return probeRejectWithRetry(() -> {
+            LinkedBlockingQueue<String> received = new LinkedBlockingQueue<>();
 
-        Disposable handle = client.execute(externalUri(), session -> {
-                    Mono<Void> send = session.send(Flux.just(
-                            session.binaryMessage(factory -> factory.wrap(new byte[]{1, 2, 3}))
-                    ));
-                    Mono<Void> receive = session.receive()
-                            .map(WebSocketMessage::getPayloadAsText)
-                            .doOnNext(received::offer)
-                            .take(1)
-                            .then();
-                    return Mono.when(send, receive);
-                })
-                .subscribe();
-        try {
-            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
-            assertThat(reject).isNotNull();
-            return reject;
-        } finally {
-            handle.dispose();
+            Disposable handle = client.execute(externalUri(), session -> {
+                        Mono<Void> send = session.send(Flux.just(
+                                session.binaryMessage(factory -> factory.wrap(new byte[]{1, 2, 3}))
+                        ));
+                        Mono<Void> receive = session.receive()
+                                .map(WebSocketMessage::getPayloadAsText)
+                                .doOnNext(received::offer)
+                                .take(1)
+                                .then();
+                        return Mono.when(send, receive);
+                    })
+                    .subscribe();
+            try {
+                String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
+                assertThat(reject).isNotNull();
+                return reject;
+            } finally {
+                handle.dispose();
+            }
+        });
+    }
+
+    // CI 调度抖动可能让单次探测在接收窗口内一帧都收不到；只在完全没收到帧时
+    // 重开一次全新连接重试，reject 内容断言（在各测试方法里）不受影响。
+    private String probeRejectWithRetry(RejectProbe probe) throws InterruptedException {
+        AssertionError noFrame = null;
+        for (int attempt = 0; attempt < REJECT_PROBE_ATTEMPTS; attempt++) {
+            try {
+                return probe.run();
+            } catch (AssertionError ex) {
+                noFrame = ex;
+            }
         }
+        throw noFrame;
+    }
+
+    @FunctionalInterface
+    private interface RejectProbe {
+        String run() throws InterruptedException;
     }
 
     private URI externalUri() {

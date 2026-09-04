@@ -5,7 +5,9 @@ import { computed, inject } from 'vue'
 export const uiFieldContextKey = Symbol('ui-field-context')
 
 // 合并字段上下文与调用方显式传入的原生属性：显式传入的属性优先于字段上下文。
-export function useFieldControlAttrs(attrs) {
+// nativeRequired 为 false 时把 required 映射为 aria-required（用于 UiSelect 的 combobox
+// 按钮等不支持原生 required 属性的控件）。
+export function useFieldControlAttrs(attrs, { nativeRequired = true } = {}) {
   const field = inject(uiFieldContextKey, null)
 
   return computed(() => {
@@ -15,7 +17,13 @@ export function useFieldControlAttrs(attrs) {
     const describedby = [field.describedBy.value, merged['aria-describedby']].filter(Boolean).join(' ')
     if (describedby) merged['aria-describedby'] = describedby
     if (field.invalid.value && merged['aria-invalid'] === undefined) merged['aria-invalid'] = 'true'
-    if (field.required.value && merged.required === undefined) merged.required = true
+    if (field.required.value) {
+      if (nativeRequired) {
+        if (merged.required === undefined) merged.required = true
+      } else if (merged['aria-required'] === undefined) {
+        merged['aria-required'] = 'true'
+      }
+    }
     return merged
   })
 }

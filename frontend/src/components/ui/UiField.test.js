@@ -22,6 +22,7 @@ describe('UiField', () => {
     const input = wrapper.get('input')
 
     expect(label.text()).toContain('用户名')
+    expect(label.attributes('id')).toBeTruthy()
     expect(input.attributes('id')).toBeTruthy()
     expect(label.attributes('for')).toBe(input.attributes('id'))
     expect(input.attributes('aria-describedby')).toBeUndefined()

@@ -21,6 +21,10 @@ import {
   hydrateReplyItem
 } from '../postDetailState'
 
+// 深链定位时最多自动追加的页数：commentId / replyId 不在首屏时按“加载更多”逐页补齐，
+// 有界兜底避免无限翻页。
+const MAX_DEEP_LINK_LOADS = 10
+
 function normalizeCommentCursorPage(raw) {
   const page = raw && typeof raw === 'object' ? raw : {}
   return {
@@ -111,10 +115,8 @@ export function usePostDetailDiscussion({
   }
 
   const comments = ref(/** @type {Array<Record<string, any>>} */ ([]))
-  const commentsPage = ref(0)
   const commentsSize = 10
   const commentsNextCursor = ref('')
-  const commentsCursorHistory = ref([''])
   const commentsLoading = ref(false)
   const commentsError = ref('')
   const commentsHasNext = computed(() => !!commentsNextCursor.value)
@@ -174,19 +176,51 @@ export function usePostDetailDiscussion({
     return prefs.blockedSet.has(normalizeOpaqueId(userId))
   }
 
-  function resetCommentsCursorPaging() {
-    commentsPage.value = 0
-    commentsNextCursor.value = ''
-    commentsCursorHistory.value = ['']
+  function canReport(entry) {
+    if (!authed.value) return false
+    const userId = normalizeOpaqueId(entry?.userId)
+    return !!userId && !sameOpaqueId(userId, meUserId.value)
   }
 
-  function currentCommentsCursor(targetPage = commentsPage.value) {
-    return String(commentsCursorHistory.value[targetPage] || '')
+  function findComment(commentId) {
+    return comments.value.find((item) => sameOpaqueId(item?.id, commentId)) || null
   }
 
-  function currentRepliesCursor(comment, targetPage = comment?.ui.replyList.page) {
-    if (!Array.isArray(comment?.ui.replyList.cursorHistory)) return ''
-    return String(comment.ui.replyList.cursorHistory[targetPage] || '')
+  function findReply(comment, replyId) {
+    if (!comment) return null
+    return comment.ui.replyList.items.find((item) => sameOpaqueId(item?.id, replyId)) || null
+  }
+
+  async function hydrateThreadPage(raw, { includeReplyToUserId = false } = {}) {
+    const { userIds, entityIds } = collectThreadHydrationIds(raw, { includeReplyToUserId })
+    const hydrationTasks = [
+      postMetaCache.ensureUserSummaries(userIds),
+      postMetaCache.ensureLikeCounts(2, entityIds)
+    ]
+    if (authed.value) hydrationTasks.push(postMetaCache.ensureLikeStatuses(2, entityIds))
+    const [usersResult, countsResult, statusesResult] = await Promise.allSettled(hydrationTasks)
+    return {
+      users: usersResult?.status === 'fulfilled' ? (usersResult.value || {}) : {},
+      counts: countsResult?.status === 'fulfilled' ? (countsResult.value || {}) : {},
+      statuses: statusesResult?.status === 'fulfilled' ? (statusesResult.value || {}) : {}
+    }
+  }
+
+  function mergeAppended(existing, fresh) {
+    const seen = new Set(existing.map((item) => normalizeOpaqueId(item?.id)))
+    const additions = fresh.filter((item) => {
+      const id = normalizeOpaqueId(item?.id)
+      if (!id || seen.has(id)) return false
+      seen.add(id)
+      return true
+    })
+    return [...existing, ...additions]
+  }
+
+  function mergePrepended(existing, fresh) {
+    const freshIds = new Set(fresh.map((item) => normalizeOpaqueId(item?.id)))
+    const rest = existing.filter((item) => !freshIds.has(normalizeOpaqueId(item?.id)))
+    return [...fresh, ...rest]
   }
 
   async function maybeScrollFromRoute() {
@@ -201,57 +235,57 @@ export function usePostDetailDiscussion({
     const replyId = normalizeOpaqueId(route.query?.replyId)
     if (!commentId) return
 
-    await nextTick()
-    scrollToAnchor(commentAnchorId(commentId))
-
-    if (!replyId) return
-    const comment = comments.value.find((item) => sameOpaqueId(item?.id, commentId))
+    // 追加分页下，深链目标不在已加载页时自动继续加载，直到命中或读完。
+    let comment = findComment(commentId)
+    let loads = 0
+    while (!comment && commentsHasNext.value && loads < MAX_DEEP_LINK_LOADS) {
+      loads += 1
+      await loadComments({ append: true })
+      comment = findComment(commentId)
+    }
     if (!comment) return
 
+    await nextTick()
+    scrollToAnchor(commentAnchorId(commentId))
+    if (!replyId) return
+
     if (!comment.ui.replyList.expanded) comment.ui.replyList.expanded = true
-    if (comment.ui.replyList.items.length === 0) {
-      await loadReplies(comment, 0, { reset: true })
+    if (!comment.ui.replyList.loaded && !comment.ui.replyList.loading) {
+      await loadReplies(comment, { reset: true })
     }
+    let reply = findReply(comment, replyId)
+    loads = 0
+    while (!reply && repliesHasNext(comment) && loads < MAX_DEEP_LINK_LOADS) {
+      loads += 1
+      await loadReplies(comment, { append: true })
+      reply = findReply(comment, replyId)
+    }
+    if (!reply) return
 
     await nextTick()
     scrollToAnchor(replyAnchorId(replyId))
   }
 
-  async function loadComments(targetPage = commentsPage.value, { reset = false } = {}) {
+  async function loadComments({ append = false, reset = false } = {}) {
     const token = commentsRequestTracker.begin()
-    const requestedPage = Math.max(0, Number(targetPage || 0))
+    const cursor = append && !reset ? commentsNextCursor.value : ''
     commentsError.value = ''
     commentsLoading.value = true
     try {
-      const cursor = reset ? '' : currentCommentsCursor(requestedPage)
       const resp = await apiListComments(postId.value, { cursor, size: commentsSize })
       if (!commentsRequestTracker.isCurrent(token)) return
       const page = normalizeCommentCursorPage(resp?.data)
-      const raw = page.items
-      if (requestedPage > commentsPage.value && raw.length === 0) {
-        commentsCursorHistory.value = commentsCursorHistory.value.slice(0, commentsPage.value + 1)
-        commentsNextCursor.value = ''
-        return
-      }
-      const { userIds, entityIds: commentIds } = collectThreadHydrationIds(raw)
-      const hydrationTasks = [
-        postMetaCache.ensureUserSummaries(userIds),
-        postMetaCache.ensureLikeCounts(2, commentIds)
-      ]
-      if (authed.value) hydrationTasks.push(postMetaCache.ensureLikeStatuses(2, commentIds))
-      const [usersResult, countsResult, statusesResult] = await Promise.allSettled(hydrationTasks)
+      const { users, counts, statuses } = await hydrateThreadPage(page.items)
       if (!commentsRequestTracker.isCurrent(token)) return
 
-      const users = usersResult?.status === 'fulfilled' ? (usersResult.value || {}) : {}
-      const counts = countsResult?.status === 'fulfilled' ? (countsResult.value || {}) : {}
-      const statuses = statusesResult?.status === 'fulfilled' ? (statusesResult.value || {}) : {}
-      const history = (reset ? [''] : commentsCursorHistory.value).slice(0, requestedPage + 1)
-      if (page.nextCursor) history[requestedPage + 1] = page.nextCursor
-      commentsCursorHistory.value = history
+      const fresh = page.items.map((comment) => hydrateCommentItem(comment, { users, counts, statuses }))
+      if (append && !reset) {
+        comments.value = mergeAppended(comments.value, fresh)
+      } else {
+        comments.value = fresh
+      }
       commentsNextCursor.value = page.nextCursor
-      commentsPage.value = requestedPage
-      comments.value = raw.map((comment) => hydrateCommentItem(comment, { users, counts, statuses }))
-      await maybeScrollFromRoute()
+      if (!append || reset) await maybeScrollFromRoute()
     } catch (error) {
       if (!commentsRequestTracker.isCurrent(token)) return
       commentsError.value = error?.message || '加载评论失败'
@@ -260,48 +294,60 @@ export function usePostDetailDiscussion({
     }
   }
 
+  // 发布评论后的静默插入：重新读取第一页并按 id 归并到现有列表头部，
+  // 不清空用户已追加加载的页，然后把视图定位到新评论。
+  async function prependLatestComments({ revealId = '' } = {}) {
+    const token = commentsRequestTracker.begin()
+    try {
+      const resp = await apiListComments(postId.value, { cursor: '', size: commentsSize })
+      if (!commentsRequestTracker.isCurrent(token)) return
+      const page = normalizeCommentCursorPage(resp?.data)
+      const { users, counts, statuses } = await hydrateThreadPage(page.items)
+      if (!commentsRequestTracker.isCurrent(token)) return
+
+      const fresh = page.items.map((comment) => hydrateCommentItem(comment, { users, counts, statuses }))
+      const hadItems = comments.value.length > 0
+      comments.value = mergePrepended(comments.value, fresh)
+      if (!hadItems) commentsNextCursor.value = page.nextCursor
+
+      const targetId = normalizeOpaqueId(revealId)
+      if (targetId && fresh.some((item) => sameOpaqueId(item?.id, targetId))) {
+        await nextTick()
+        scrollToAnchor(commentAnchorId(targetId))
+      }
+    } catch (error) {
+      if (commentsRequestTracker.isCurrent(token)) {
+        commentsError.value = error?.message || '加载评论失败'
+      }
+    }
+  }
+
   function repliesHasNext(comment) {
     return !!String(comment?.ui.replyList.nextCursor || '')
   }
 
-  async function loadReplies(comment, targetPage = comment?.ui.replyList.page, { reset = false } = {}) {
+  async function loadReplies(comment, { append = false, reset = false } = {}) {
     if (!comment) return
     const replyList = comment.ui.replyList
     const scope = captureViewScope()
-    const requestedPage = Math.max(0, Number(targetPage || 0))
+    const cursor = append && !reset ? String(replyList.nextCursor || '') : ''
     replyList.error = ''
     replyList.loading = true
     try {
-      const cursor = reset ? '' : currentRepliesCursor(comment, requestedPage)
       const resp = await apiListReplies(postId.value, comment.id, { cursor, size: replyList.size })
       if (!isCurrentViewScope(scope)) return
       const page = normalizeCommentCursorPage(resp?.data)
-      const raw = page.items
-      if (requestedPage > replyList.page && raw.length === 0) {
-        replyList.cursorHistory = replyList.cursorHistory.slice(0, replyList.page + 1)
-        replyList.nextCursor = ''
-        return
-      }
-      const { userIds, entityIds: replyIds } = collectThreadHydrationIds(raw, { includeReplyToUserId: true })
-      const hydrationTasks = [
-        postMetaCache.ensureUserSummaries(userIds),
-        postMetaCache.ensureLikeCounts(2, replyIds)
-      ]
-      if (authed.value) hydrationTasks.push(postMetaCache.ensureLikeStatuses(2, replyIds))
-      const [usersResult, countsResult, statusesResult] = await Promise.allSettled(hydrationTasks)
+      const { users, counts, statuses } = await hydrateThreadPage(page.items, { includeReplyToUserId: true })
       if (!isCurrentViewScope(scope)) return
 
-      const users = usersResult?.status === 'fulfilled' ? (usersResult.value || {}) : {}
-      const counts = countsResult?.status === 'fulfilled' ? (countsResult.value || {}) : {}
-      const statuses = statusesResult?.status === 'fulfilled' ? (statusesResult.value || {}) : {}
-      const history = (reset || !Array.isArray(replyList.cursorHistory)
-        ? ['']
-        : replyList.cursorHistory).slice(0, requestedPage + 1)
-      if (page.nextCursor) history[requestedPage + 1] = page.nextCursor
-      replyList.cursorHistory = history
+      const fresh = page.items.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
+      if (append && !reset) {
+        replyList.items = mergeAppended(replyList.items, fresh)
+      } else {
+        replyList.items = fresh
+      }
       replyList.nextCursor = page.nextCursor
-      replyList.page = requestedPage
-      replyList.items = raw.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
+      replyList.loaded = true
     } catch (error) {
       if (isCurrentViewScope(scope)) replyList.error = error?.message || '加载回复失败'
     } finally {
@@ -309,23 +355,51 @@ export function usePostDetailDiscussion({
     }
   }
 
+  // 发布回复后的静默插入：与评论同样的头部归并，定位到新回复。
+  async function prependLatestReplies(comment, { revealId = '' } = {}) {
+    if (!comment) return
+    const replyList = comment.ui.replyList
+    const scope = captureViewScope()
+    try {
+      const resp = await apiListReplies(postId.value, comment.id, { cursor: '', size: replyList.size })
+      if (!isCurrentViewScope(scope)) return
+      const page = normalizeCommentCursorPage(resp?.data)
+      const { users, counts, statuses } = await hydrateThreadPage(page.items, { includeReplyToUserId: true })
+      if (!isCurrentViewScope(scope)) return
+
+      const fresh = page.items.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
+      const hadItems = replyList.items.length > 0
+      replyList.items = mergePrepended(replyList.items, fresh)
+      replyList.loaded = true
+      if (!hadItems) replyList.nextCursor = page.nextCursor
+
+      const targetId = normalizeOpaqueId(revealId)
+      if (targetId && fresh.some((item) => sameOpaqueId(item?.id, targetId))) {
+        await nextTick()
+        scrollToAnchor(replyAnchorId(targetId))
+      }
+    } catch (error) {
+      if (isCurrentViewScope(scope)) replyList.error = error?.message || '加载回复失败'
+    }
+  }
+
   async function toggleReplies(comment) {
     if (!comment) return
     const replyList = comment.ui.replyList
     replyList.expanded = !replyList.expanded
-    if (replyList.expanded && replyList.items.length === 0) {
-      await loadReplies(comment, 0, { reset: true })
+    if (replyList.expanded && !replyList.loaded && !replyList.loading) {
+      await loadReplies(comment, { reset: true })
     }
   }
 
-  async function nextRepliesPage(comment) {
-    if (!comment || comment.ui.replyList.loading || !repliesHasNext(comment)) return
-    await loadReplies(comment, comment.ui.replyList.page + 1)
+  async function loadMoreComments() {
+    if (!commentsHasNext.value || commentsLoading.value) return
+    await loadComments({ append: true })
   }
 
-  async function prevRepliesPage(comment) {
-    if (!comment || comment.ui.replyList.loading) return
-    await loadReplies(comment, Math.max(0, comment.ui.replyList.page - 1))
+  async function loadMoreReplies(comment) {
+    if (!comment || comment.ui.replyList.loading || !repliesHasNext(comment)) return
+    await loadReplies(comment, { append: true })
   }
 
   function startReply(comment, reply) {
@@ -376,7 +450,7 @@ export function usePostDetailDiscussion({
     try {
       const record = replyAttemptRecord(comment)
       const attempt = bindReplyAttempt(comment, content, parentCommentId)
-      await apiAddComment(scope.postId, { content, parentCommentId }, { writeAttempt: attempt })
+      const resp = await apiAddComment(scope.postId, { content, parentCommentId }, { writeAttempt: attempt })
       if (!isCurrentViewScope(scope)) return
       editor.draft = ''
       attempt.succeed()
@@ -387,7 +461,8 @@ export function usePostDetailDiscussion({
       editor.quote = null
       if (post.value) post.value.commentCount = Number(post.value.commentCount || 0) + 1
       if (!comment.ui.replyList.expanded) comment.ui.replyList.expanded = true
-      await loadReplies(comment, 0, { reset: true })
+      const newReplyId = normalizeOpaqueId(/** @type {Record<string, any>} */ (resp?.data)?.commentId)
+      await prependLatestReplies(comment, { revealId: newReplyId })
     } catch (error) {
       if (!isCurrentViewScope(scope)) return
       editor.error = error?.message || '回复失败'
@@ -478,11 +553,12 @@ export function usePostDetailDiscussion({
     const content = String(newComment.value)
     commenting.value = true
     try {
-      await apiAddComment(scope.postId, { content }, { writeAttempt: commentAttempt })
+      const resp = await apiAddComment(scope.postId, { content }, { writeAttempt: commentAttempt })
       if (!isCurrentViewScope(scope)) return
       setNewComment('')
       commentAttempt.succeed()
-      await loadComments(0, { reset: true })
+      const newCommentId = normalizeOpaqueId(/** @type {Record<string, any>} */ (resp?.data)?.commentId)
+      await prependLatestComments({ revealId: newCommentId })
       await refreshPost()
     } catch (error) {
       if (!isCurrentViewScope(scope)) return
@@ -492,18 +568,32 @@ export function usePostDetailDiscussion({
     }
   }
 
-  async function nextCommentsPage() {
-    if (!commentsHasNext.value || commentsLoading.value) return
-    await loadComments(commentsPage.value + 1)
-  }
-
-  async function prevCommentsPage() {
-    if (commentsLoading.value) return
-    await loadComments(Math.max(0, commentsPage.value - 1))
-  }
-
   async function reloadComments() {
-    await loadComments(0, { reset: true })
+    await loadComments({ reset: true })
+  }
+
+  // 评论/回复编辑保存后的静默更新：直接在已加载列表中原位替换内容，
+  // 不触发整页刷新，也不弹成功 toast（结果在当前屏幕可见）。
+  function applyCommentEdit(commentId, content) {
+    const targetId = normalizeOpaqueId(commentId)
+    if (!targetId) return false
+    const apply = (entry) => {
+      entry.content = String(content || '')
+      entry.editCount = Number(entry.editCount || 0) + 1
+    }
+    for (const comment of comments.value) {
+      if (sameOpaqueId(comment.id, targetId)) {
+        apply(comment)
+        return true
+      }
+      for (const reply of comment.ui.replyList.items) {
+        if (sameOpaqueId(reply.id, targetId)) {
+          apply(reply)
+          return true
+        }
+      }
+    }
+    return false
   }
 
   function restoreDraft() {
@@ -539,7 +629,7 @@ export function usePostDetailDiscussion({
     cancelReplyAttempts()
     commentsRequestTracker.invalidate()
     comments.value = []
-    resetCommentsCursorPaging()
+    commentsNextCursor.value = ''
     commenting.value = false
     commentError.value = ''
     restoreDraft()
@@ -561,23 +651,23 @@ export function usePostDetailDiscussion({
 
   const model = reactive({
     comments,
-    page: commentsPage,
     hasNext: commentsHasNext,
     loading: commentsLoading,
     error: commentsError,
     composer,
     reload: reloadComments,
-    nextPage: nextCommentsPage,
-    prevPage: prevCommentsPage,
+    loadMore: loadMoreComments,
     commentAnchorId,
     replyAnchorId,
     clearReplyQuote,
     setReplyDraft,
     isBlockedUser,
+    canReport,
+    applyCommentEdit,
     repliesHasNext,
     toggleReplies,
-    nextRepliesPage,
-    prevRepliesPage,
+    loadMoreReplies,
+    reloadReplies: (comment) => loadReplies(comment, { reset: true }),
     startReply,
     cancelReply,
     submitReply,
@@ -595,7 +685,7 @@ export function usePostDetailDiscussion({
 
   return {
     model,
-    load: loadComments,
+    load: () => loadComments({ reset: true }),
     restoreDraft,
     resetForIdentity,
     resetForPost,

@@ -1,6 +1,6 @@
 // @ts-check
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
-import { useRoute } from 'vue-router'
+import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { useTaxonomyStore } from '../../stores/taxonomy'
@@ -14,6 +14,7 @@ import { usePostDetailDiscussion } from './usePostDetailDiscussion'
 
 export function usePostDetailLoader() {
   const route = useRoute()
+  const router = useRouter()
   const auth = useAuthStore()
   const prefs = useSocialPrefsStore()
   const taxonomy = useTaxonomyStore()
@@ -108,9 +109,13 @@ export function usePostDetailLoader() {
     captureViewScope,
     isCurrentViewScope,
     refreshPost: loadPost,
-    refreshComments: discussion.load,
+    applyCommentEdit: discussion.model.applyCommentEdit,
     reloadPage: reload
   })
+
+  function goLogin() {
+    router.push({ name: 'login', query: { redirect: route.fullPath || `/posts/${postId.value || ''}` } })
+  }
 
   const page = reactive({
     authed,
@@ -120,7 +125,8 @@ export function usePostDetailLoader() {
     loading,
     error,
     categoryLabel,
-    reload
+    reload,
+    goLogin
   })
 
   watch(

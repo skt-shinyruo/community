@@ -1,61 +1,43 @@
-<!-- 编辑弹窗：用于帖子/评论的窗口内编辑。 -->
+<!-- 编辑弹窗：用于帖子/评论的窗口内编辑。外壳与焦点行为收敛到 UiModal。 -->
 <template>
-  <dialog
-    ref="dialogRef"
-    class="modal-mask"
-    role="dialog"
-    aria-modal="true"
-    :aria-labelledby="titleId"
-    @click.self="$emit('close')"
-    @cancel.prevent="$emit('close')"
-  >
-    <div
-      class="modal-card card"
-      style="max-width: 720px"
-    >
-      <div class="stack" style="padding: 16px; gap: 12px">
-        <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-          <div :id="titleId" style="font-weight: 800">{{ headerTitle }}</div>
-          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
-        </div>
+  <UiModal :title="headerTitle" size="lg" :busy="loading" @close="$emit('close')">
+    <div class="edit-content-modal-body">
+      <UiField v-if="mode === 'post'" label="标题">
+        <UiInput v-model.trim="title" placeholder="标题" :disabled="loading" />
+      </UiField>
 
-        <div v-if="mode === 'post'" class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">标题</div>
-          <input v-model.trim="title" class="input" placeholder="标题" :disabled="loading" />
-        </div>
+      <UiField label="内容">
+        <PostBlockEditor
+          v-if="mode === 'post'"
+          v-model="blocks"
+          :disabled="loading"
+        />
+        <UiTextarea
+          v-else
+          v-model.trim="content"
+          :rows="6"
+          placeholder="支持 Markdown"
+          :disabled="loading"
+        />
+      </UiField>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">内容</div>
-          <PostBlockEditor
-            v-if="mode === 'post'"
-            v-model="blocks"
-            :disabled="loading"
-          />
-          <textarea
-            v-else
-            v-model.trim="content"
-            :rows="6"
-            placeholder="支持 Markdown"
-            :disabled="loading"
-            class="input multiline"
-          />
-        </div>
-
-        <div v-if="error" class="error" style="font-size: 12px">{{ error }}</div>
-
-        <div class="row" style="justify-content: flex-end; gap: 10px">
-          <UiButton variant="secondary" :disabled="loading" @click="$emit('close')">取消</UiButton>
-          <UiButton :disabled="loading" @click="submit">{{ loading ? '保存中…' : '保存' }}</UiButton>
-        </div>
-      </div>
+      <p v-if="error" class="error edit-content-modal-error" role="alert">{{ error }}</p>
     </div>
-  </dialog>
+
+    <template #footer>
+      <UiButton variant="secondary" :disabled="loading" @click="$emit('close')">取消</UiButton>
+      <UiButton :disabled="loading" @click="submit">{{ loading ? '保存中…' : '保存' }}</UiButton>
+    </template>
+  </UiModal>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { computed, ref, watch } from 'vue'
 import UiButton from '../ui/UiButton.vue'
-import UiIconButton from '../ui/UiIconButton.vue'
+import UiField from '../ui/UiField.vue'
+import UiInput from '../ui/UiInput.vue'
+import UiModal from '../ui/UiModal.vue'
+import UiTextarea from '../ui/UiTextarea.vue'
 import PostBlockEditor from '../posts/PostBlockEditor.vue'
 
 const props = defineProps({
@@ -67,10 +49,6 @@ const props = defineProps({
 })
 
 const emit = defineEmits(['close', 'submit'])
-const titleId = `edit-content-modal-title-${useId()}`
-const dialogRef = ref(null)
-onMounted(() => dialogRef.value?.showModal?.())
-onBeforeUnmount(() => dialogRef.value?.close?.())
 
 const title = ref(String(props.initialTitle || ''))
 const content = ref(String(props.initialContent || ''))
@@ -180,3 +158,15 @@ function publishableBlocks(value) {
     })
 }
 </script>
+
+<style scoped>
+.edit-content-modal-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.edit-content-modal-error {
+  margin: 0;
+  font-size: var(--text-xs);
+}
+</style>

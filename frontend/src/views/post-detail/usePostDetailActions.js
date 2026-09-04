@@ -50,7 +50,7 @@ export function usePostDetailActions({
   captureViewScope,
   isCurrentViewScope,
   refreshPost,
-  refreshComments,
+  applyCommentEdit,
   reloadPage
 }) {
   const router = useRouter()
@@ -61,6 +61,7 @@ export function usePostDetailActions({
   const loading = ref(false)
   const followStatus = ref(null)
   const reportOpen = ref(false)
+  const sharing = ref(false)
 
   const isOwner = computed(() => sameOpaqueId(post.value?.userId, meUserId.value))
   const isBlockedAuthor = computed(() => {
@@ -193,6 +194,27 @@ export function usePostDetailActions({
 
   function closeReport() {
     reportOpen.value = false
+  }
+
+  // 分享：复制帖子链接后通过 toast 反馈（复制结果在屏幕上不可见）。
+  async function sharePost() {
+    if (!post.value || sharing.value) return
+    const id = normalizeOpaqueId(post.value.id || postId.value)
+    if (!id || typeof window === 'undefined') return
+    sharing.value = true
+    try {
+      const shareUrl = `${window.location.origin}${window.location.pathname}#/posts/${id}`
+      if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
+        await navigator.clipboard.writeText(shareUrl)
+        showToast({ type: 'success', text: '链接已复制' })
+      } else {
+        showToast({ type: 'error', text: '复制失败，请手动复制地址栏链接' })
+      }
+    } catch {
+      showToast({ type: 'error', text: '复制失败，请手动复制地址栏链接' })
+    } finally {
+      sharing.value = false
+    }
   }
 
   async function toggleBlockAuthor() {
@@ -336,9 +358,9 @@ export function usePostDetailActions({
           content: String(payload?.content || '').trim()
         })
         if (!isCurrentViewScope(scope)) return
-        showToast({ type: 'success', text: '已保存' })
+        // 评论编辑保存静默更新：内容在屏幕原位可见，不弹成功 toast。
+        applyCommentEdit?.(targetCommentId, String(payload?.content || '').trim())
         closeEditor()
-        await refreshComments()
       }
     } catch (cause) {
       if (isCurrentViewScope(scope)) {
@@ -410,6 +432,7 @@ export function usePostDetailActions({
     isBlockedAuthor,
     canEditPost,
     canModerate: computed(() => auth.isAdminOrModerator),
+    sharing,
     confirmation,
     editor,
     report,
@@ -417,6 +440,7 @@ export function usePostDetailActions({
     toggleLike,
     follow,
     toggleBookmark,
+    sharePost,
     toggleBlockAuthor,
     confirmModeration,
     confirmAuthorDelete,

@@ -1,36 +1,16 @@
-<!-- 举报弹窗：用于帖子/评论/用户的举报提交。 -->
+<!-- 举报弹窗：用于帖子/评论/用户的举报提交。外壳与焦点行为收敛到 UiModal。 -->
 <template>
-  <dialog
-    ref="dialogRef"
-    class="modal-mask"
-    role="dialog"
-    aria-modal="true"
-    :aria-labelledby="titleId"
-    :aria-describedby="descriptionId"
-    @click.self="$emit('close')"
-    @cancel.prevent="$emit('close')"
-  >
-    <div
-      class="modal-card card"
-      style="max-width: 560px"
-    >
-      <div class="stack" style="padding: 16px">
-        <div class="row" style="justify-content: space-between; gap: 12px; align-items: center">
-          <div :id="titleId" style="font-weight: 800">举报</div>
-          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="$emit('close')">×</UiIconButton>
-        </div>
+  <UiModal title="举报" size="md" :busy="submitting" @close="$emit('close')">
+    <div class="report-modal-body">
+      <p class="report-modal-target">目标：{{ targetTypeLabel }} #{{ normalizeOpaqueId(targetId) || '-' }}</p>
 
-        <div :id="descriptionId" class="muted" style="font-size: 12px">
-          目标：{{ targetTypeLabel }} #{{ normalizeOpaqueId(targetId) || '-' }}
-        </div>
-
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">原因</div>
+      <UiField label="原因">
+        <template #default="{ controlId }">
           <select
+            :id="controlId"
             v-model="reason"
             name="report-reason"
-            class="input report-reason-select"
-            aria-label="举报原因"
+            class="report-reason-select"
             :disabled="submitting"
           >
             <option
@@ -42,38 +22,38 @@
               {{ option.label }}
             </option>
           </select>
-        </div>
+        </template>
+      </UiField>
 
-        <div class="stack" style="gap: 8px">
-          <div class="muted" style="font-size: 12px">补充说明（可选）</div>
-          <textarea
-            v-model.trim="detail"
-            name="report-detail"
-            :rows="4"
-            placeholder="请描述具体情况（例如：违规内容位置、截图说明等）"
-            :disabled="submitting"
-            class="input multiline"
-          />
-        </div>
+      <UiField label="补充说明（可选）">
+        <UiTextarea
+          v-model.trim="detail"
+          name="report-detail"
+          :rows="4"
+          placeholder="请描述具体情况（例如：违规内容位置、截图说明等）"
+          :disabled="submitting"
+        />
+      </UiField>
 
-        <div v-if="error" class="error" style="font-size: 12px">{{ error }}</div>
-
-        <div class="row" style="justify-content: flex-end; gap: 10px">
-          <UiButton variant="secondary" :disabled="submitting" @click="$emit('close')">取消</UiButton>
-          <UiButton :disabled="submitting || !reason" @click="submit">
-            {{ submitting ? '提交中…' : '提交举报' }}
-          </UiButton>
-        </div>
-      </div>
+      <p v-if="error" class="error report-modal-error" role="alert">{{ error }}</p>
     </div>
-  </dialog>
+
+    <template #footer>
+      <UiButton variant="secondary" :disabled="submitting" @click="$emit('close')">取消</UiButton>
+      <UiButton :disabled="submitting || !reason" @click="submit">
+        {{ submitting ? '提交中…' : '提交举报' }}
+      </UiButton>
+    </template>
+  </UiModal>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, useId, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import UiButton from '../ui/UiButton.vue'
-import UiIconButton from '../ui/UiIconButton.vue'
+import UiField from '../ui/UiField.vue'
+import UiModal from '../ui/UiModal.vue'
+import UiTextarea from '../ui/UiTextarea.vue'
 import { createReport } from '../../api/services/reportService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { showToast } from '../../ui/toastService'
@@ -85,11 +65,6 @@ const props = defineProps({
 
 const emit = defineEmits(['close', 'submitted'])
 const auth = useAuthStore()
-const uid = useId()
-const titleId = `report-modal-title-${uid}`
-const descriptionId = `report-modal-description-${uid}`
-const dialogRef = ref(null)
-onMounted(() => dialogRef.value?.showModal?.())
 
 const reasonOptions = [
   { label: '垃圾广告', value: '垃圾广告' },
@@ -174,14 +149,55 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  dialogRef.value?.close?.()
   disposed = true
   operationId += 1
 })
 </script>
 
 <style scoped>
+.report-modal-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.report-modal-target {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-xs);
+}
+
 .report-reason-select {
   width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.report-reason-select:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.report-reason-select:focus-visible {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
+}
+
+.report-reason-select:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+
+.report-modal-error {
+  margin: 0;
+  font-size: var(--text-xs);
 }
 </style>

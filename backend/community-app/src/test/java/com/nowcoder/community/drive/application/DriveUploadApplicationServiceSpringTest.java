@@ -34,6 +34,7 @@ import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.atLeastOnce;
 import static org.mockito.Mockito.clearInvocations;
@@ -60,7 +61,7 @@ class DriveUploadApplicationServiceSpringTest {
     @MockitoSpyBean
     private DriveSpaceRepository spaceRepository;
 
-    @Autowired
+    @MockitoSpyBean
     private DriveUploadRepository uploadRepository;
 
     @Autowired
@@ -231,6 +232,17 @@ class DriveUploadApplicationServiceSpringTest {
                     await(allowCancellation);
                     return new DriveObjectStoragePort.UploadCancellation(false, true);
                 });
+        // Both recovery passes must list the stale upload before either records
+        // its recovery attempt: recordRecoveryAttempt bumps updated_at past
+        // updatedBefore, so a late list sees an empty result and that thread
+        // never reaches cancelUpload (observed as rendezvous timeouts on CI).
+        CountDownLatch bothListed = new CountDownLatch(2);
+        CountDownLatch allowRecoveryRecording = new CountDownLatch(1);
+        doAnswer(invocation -> {
+            bothListed.countDown();
+            await(allowRecoveryRecording);
+            return invocation.callRealMethod();
+        }).when(uploadRepository).listRecoverableBefore(any(Instant.class), anyInt());
         clearInvocations(spaceRepository, objectStoragePort);
 
         CountDownLatch start = new CountDownLatch(1);
@@ -247,6 +259,8 @@ class DriveUploadApplicationServiceSpringTest {
             });
 
             start.countDown();
+            assertThat(bothListed.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
+            allowRecoveryRecording.countDown();
             assertThat(bothAtCancellation.await(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS)).isTrue();
             allowCancellation.countDown();
             first.get(AWAIT_TIMEOUT_SECONDS, TimeUnit.SECONDS);
@@ -261,6 +275,7 @@ class DriveUploadApplicationServiceSpringTest {
                     .releaseReserved(eq(prepared.spaceId()), eq(uploadSize), any(Instant.class));
             verify(objectStoragePort, atLeastOnce()).deleteObject(prepared.objectId(), userId.toString());
         } finally {
+            allowRecoveryRecording.countDown();
             allowCancellation.countDown();
             executor.shutdownNow();
         }

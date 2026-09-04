@@ -146,9 +146,6 @@ describe('PostDetailView', () => {
         stubs: {
           RouterLink: { template: '<a><slot /></a>' },
           PostBlockRenderer: { template: '<div data-test="post-blocks" />' }
-        },
-        mocks: {
-          $router: { back: vi.fn() }
         }
       }
     })
@@ -317,11 +314,10 @@ describe('PostDetailView', () => {
       ui: {
         replyList: {
           expanded: false,
-          page: 0,
           size: 5,
           items: [],
           nextCursor: '',
-          cursorHistory: [''],
+          loaded: false,
           loading: false,
           error: ''
         }
@@ -335,7 +331,7 @@ describe('PostDetailView', () => {
     )
   })
 
-  it('keeps the current comment page and retries the same cursor after failure', async () => {
+  it('appends comment pages and retries the same cursor after failure', async () => {
     const firstComment = {
       id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
       userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -355,20 +351,21 @@ describe('PostDetailView', () => {
     await flushPromises()
     await flushPromises()
 
-    await wrapper.vm.discussion.nextPage()
-    expect(wrapper.vm.discussion.page).toBe(0)
-    expect(wrapper.vm.discussion.comments[0].content).toBe('first page comment')
+    await wrapper.vm.discussion.loadMore()
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content)).toEqual(['first page comment'])
     expect(wrapper.vm.discussion.error).toBe('temporary comment failure')
+    expect(wrapper.vm.discussion.hasNext).toBe(true)
 
-    await wrapper.vm.discussion.nextPage()
+    await wrapper.vm.discussion.loadMore()
 
     expect(listComments.mock.calls.map(([, request]) => request.cursor))
       .toEqual(['', 'cursor-page-2', 'cursor-page-2'])
-    expect(wrapper.vm.discussion.page).toBe(1)
-    expect(wrapper.vm.discussion.comments[0].content).toBe('second page comment')
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['first page comment', 'second page comment'])
+    expect(wrapper.vm.discussion.hasNext).toBe(false)
   })
 
-  it('keeps the current comment page when resetting to the first page fails', async () => {
+  it('keeps the appended comments when a refresh fails, and replaces them on the next refresh', async () => {
     const firstComment = {
       id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
       userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -392,11 +389,11 @@ describe('PostDetailView', () => {
     const wrapper = mountLoader()
     await flushPromises()
     await flushPromises()
-    await wrapper.vm.discussion.nextPage()
+    await wrapper.vm.discussion.loadMore()
 
     await wrapper.vm.discussion.reload()
-    expect(wrapper.vm.discussion.page).toBe(1)
-    expect(wrapper.vm.discussion.comments[0].content).toBe('second page comment')
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['first page comment', 'second page comment'])
     expect(wrapper.vm.discussion.error).toBe('temporary refresh failure')
 
     await wrapper.vm.discussion.reload()
@@ -406,11 +403,11 @@ describe('PostDetailView', () => {
       '',
       ''
     ])
-    expect(wrapper.vm.discussion.page).toBe(0)
-    expect(wrapper.vm.discussion.comments[0].content).toBe('refreshed first page comment')
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['refreshed first page comment'])
   })
 
-  it('keeps the current reply page when a submitted reply cannot refresh the thread', async () => {
+  it('keeps existing replies when the refresh after a submitted reply fails', async () => {
     const firstReply = {
       id: '11111111-1111-7111-8111-111111111111',
       userId: '22222222-2222-7222-8222-222222222222',
@@ -425,19 +422,19 @@ describe('PostDetailView', () => {
       .mockResolvedValueOnce({ data: { items: [firstReply], nextCursor: 'reply-cursor-2' } })
       .mockResolvedValueOnce({ data: { items: [secondReply], nextCursor: '' } })
       .mockRejectedValueOnce(new Error('temporary reply refresh failure'))
-      .mockResolvedValueOnce({ data: { items: [firstReply], nextCursor: '' } })
+      .mockResolvedValueOnce({ data: { items: [firstReply, secondReply], nextCursor: '' } })
 
     const wrapper = mountLoader()
     await flushPromises()
     const root = replyableRootComment()
     await wrapper.vm.discussion.toggleReplies(root)
-    await wrapper.vm.discussion.nextRepliesPage(root)
+    await wrapper.vm.discussion.loadMoreReplies(root)
+    expect(root.ui.replyList.items.map((reply) => reply.content)).toEqual(['first page reply', 'second page reply'])
 
     wrapper.vm.discussion.startReply(root)
     root.ui.replyEditor.draft = 'new reply'
     await wrapper.vm.discussion.submitReply(root)
-    expect(root.ui.replyList.page).toBe(1)
-    expect(root.ui.replyList.items[0].content).toBe('second page reply')
+    expect(root.ui.replyList.items.map((reply) => reply.content)).toEqual(['first page reply', 'second page reply'])
     expect(root.ui.replyList.error).toBe('temporary reply refresh failure')
 
     wrapper.vm.discussion.startReply(root)
@@ -449,8 +446,7 @@ describe('PostDetailView', () => {
       '',
       ''
     ])
-    expect(root.ui.replyList.page).toBe(0)
-    expect(root.ui.replyList.items[0].content).toBe('first page reply')
+    expect(root.ui.replyList.items.map((reply) => reply.content)).toEqual(['first page reply', 'second page reply'])
   })
 
   it('keeps the reply editor and reply page intact when submission fails', async () => {
@@ -617,6 +613,96 @@ describe('PostDetailView', () => {
     expect(keys[1]).toBe(keys[0])
   })
 
+  it('silently inserts a posted comment at the head without dropping appended pages', async () => {
+    const firstComment = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'first page comment'
+    }
+    const secondComment = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      content: 'second page comment'
+    }
+    const postedComment = {
+      id: 'ffffffff-ffff-7fff-8fff-ffffffffffff',
+      userId: 'user-me',
+      content: 'brand new comment'
+    }
+    listComments
+      .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
+      .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
+      .mockResolvedValueOnce({ data: { items: [postedComment, firstComment], nextCursor: 'cursor-page-2' } })
+    addComment.mockResolvedValueOnce({ data: { commentId: postedComment.id }, traceId: 'trace-add' })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    await wrapper.vm.discussion.loadMore()
+
+    wrapper.vm.discussion.composer.setDraft('brand new comment')
+    await wrapper.vm.discussion.composer.submit()
+
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['brand new comment', 'first page comment', 'second page comment'])
+    expect(wrapper.vm.discussion.composer.draft).toBe('')
+    expect(wrapper.vm.discussion.hasNext).toBe(false)
+  })
+
+  it('auto-loads appended comment pages until a deep-linked comment is found', async () => {
+    const firstComment = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'first page comment'
+    }
+    const deepComment = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      content: 'deep linked comment'
+    }
+    routeState.query = { commentId: deepComment.id }
+    listComments
+      .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
+      .mockResolvedValueOnce({ data: { items: [deepComment], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+
+    expect(listComments.mock.calls.map(([, request]) => request.cursor)).toEqual(['', 'cursor-page-2'])
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['first page comment', 'deep linked comment'])
+  })
+
+  it('applies comment and reply edits in place without a success toast surface', async () => {
+    const reply = {
+      id: '11111111-1111-7111-8111-111111111111',
+      userId: '22222222-2222-7222-8222-222222222222',
+      content: 'reply before edit'
+    }
+    const rootComment = {
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      content: 'comment before edit',
+      editCount: 0
+    }
+    listComments.mockResolvedValue({ data: { items: [rootComment], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    const comment = wrapper.vm.discussion.comments[0]
+    comment.ui.replyList.items = [reply]
+
+    expect(wrapper.vm.discussion.applyCommentEdit(comment.id, 'comment after edit')).toBe(true)
+    expect(comment.content).toBe('comment after edit')
+    expect(comment.editCount).toBe(1)
+
+    expect(wrapper.vm.discussion.applyCommentEdit(reply.id, 'reply after edit')).toBe(true)
+    expect(reply.content).toBe('reply after edit')
+    expect(wrapper.vm.discussion.applyCommentEdit('99999999-9999-7999-8999-999999999999', 'missing')).toBe(false)
+  })
+
   function replyableRootComment() {
     return {
       id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -635,10 +721,9 @@ describe('PostDetailView', () => {
         replyList: {
           expanded: false,
           items: [],
-          page: 0,
           size: 5,
           nextCursor: '',
-          cursorHistory: [''],
+          loaded: false,
           loading: false,
           error: ''
         },

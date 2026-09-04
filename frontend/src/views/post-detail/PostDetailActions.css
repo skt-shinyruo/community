@@ -1,25 +1,6 @@
 .post-article-actions {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: var(--space-2);
   flex-wrap: wrap;
-}
-
-.post-article-action-group {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  flex-wrap: wrap;
-}
-
-.post-article-action-group--moderation {
-  padding-left: 4px;
-  border-left: 1px solid color-mix(in srgb, var(--border) 82%, transparent 18%);
-}
-
-@media (max-width: 768px) {
-  .post-article-action-group--moderation {
-    padding-left: 0;
-    border-left: none;
-  }
 }

@@ -72,7 +72,7 @@ describe('usePostDetailActions', () => {
     })
     const error = ref('')
     const refreshPost = vi.fn().mockResolvedValue(undefined)
-    const refreshComments = vi.fn().mockResolvedValue(undefined)
+    const applyCommentEdit = vi.fn(() => true)
     const reloadPage = vi.fn().mockResolvedValue(undefined)
     const actions = usePostDetailActions({
       auth,
@@ -84,10 +84,10 @@ describe('usePostDetailActions', () => {
       captureViewScope: vi.fn(() => ({ generation: auth.tokenGeneration })),
       isCurrentViewScope: vi.fn(() => current),
       refreshPost,
-      refreshComments,
+      applyCommentEdit,
       reloadPage
     })
-    return { auth, post, error, refreshPost, refreshComments, reloadPage, ...actions }
+    return { auth, post, error, refreshPost, applyCommentEdit, reloadPage, ...actions }
   }
 
   beforeEach(() => {
@@ -200,7 +200,9 @@ describe('usePostDetailActions', () => {
     expect(owner.model.editor).toMatchObject({ open: true, mode: 'comment', initialContent: 'Old comment' })
     await owner.model.editor.submit({ content: ' Updated comment ' })
     expect(updateComment).toHaveBeenCalledWith(POST_ID, COMMENT_ID, { content: 'Updated comment' })
-    expect(owner.refreshComments).toHaveBeenCalledTimes(1)
+    // 评论编辑保存静默更新：原位替换内容，不弹成功 toast，也不整树刷新。
+    expect(owner.applyCommentEdit).toHaveBeenCalledWith(COMMENT_ID, 'Updated comment')
+    expect(toasts.showToast).toHaveBeenCalledTimes(1)
   })
 
   it('runs moderator and author confirmations with their distinct outcomes', async () => {
@@ -243,6 +245,24 @@ describe('usePostDetailActions', () => {
       expect.objectContaining({ message: 'save unavailable' }),
       expect.objectContaining({ text: 'save unavailable' })
     )
+  })
+
+  it('copies the share link and reports through toast feedback', async () => {
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const originalClipboard = navigator.clipboard
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    try {
+      const subject = createSubject()
+      await subject.model.sharePost()
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining(`#/posts/${POST_ID}`))
+      expect(toasts.showToast).toHaveBeenCalledWith({ type: 'success', text: '链接已复制' })
+
+      writeText.mockRejectedValueOnce(new Error('denied'))
+      await subject.model.sharePost()
+      expect(toasts.showToast).toHaveBeenCalledWith({ type: 'error', text: '复制失败，请手动复制地址栏链接' })
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, configurable: true })
+    }
   })
 
   it('resets identity-specific overlays and closes transient surfaces', () => {

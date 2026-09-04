@@ -54,10 +54,9 @@ describe('postDetailState', () => {
       replyList: {
         expanded: false,
         items: [],
-        page: 0,
         size: 5,
         nextCursor: '',
-        cursorHistory: [''],
+        loaded: false,
         loading: false,
         error: ''
       },

@@ -1,43 +1,48 @@
 <template>
   <UiCard v-if="authed" class="comment-composer-card">
-    <UiPageHeader>
-      <template #title>发表评论</template>
-      <template #subtitle>参与讨论 · 支持回复树</template>
-      <template #actions>
-        <UiButton :disabled="composer.submitting" @click="composer.submit">
-          {{ composer.submitting ? '提交中…' : '提交' }}
-        </UiButton>
-      </template>
-    </UiPageHeader>
-
-    <div class="stack comment-composer">
-      <textarea
-        :value="composer.draft"
-        placeholder="写下你的观点…（支持 Markdown）"
-        :rows="4"
-        class="input multiline"
-        @input="composer.setDraft($event.target.value.trim())"
-      />
-      <div v-if="composer.error" class="error">{{ composer.error }}</div>
+    <div class="comment-composer-head">
+      <h2 class="comment-composer-title">发表评论</h2>
+      <UiButton :disabled="composer.submitting" class="comment-composer-submit" @click="composer.submit">
+        {{ composer.submitting ? '提交中…' : '提交' }}
+      </UiButton>
     </div>
+
+    <UiTextarea
+      :model-value="composer.draft"
+      placeholder="写下你的观点…（支持 Markdown）"
+      aria-label="评论内容"
+      :rows="4"
+      :disabled="composer.submitting"
+      @update:modelValue="composer.setDraft($event)"
+    />
+    <div v-if="composer.error" class="error comment-composer-error" role="alert">{{ composer.error }}</div>
   </UiCard>
 
-  <UiCard v-else>
-    <UiState>登录后可点赞、评论、回复与关注。</UiState>
+  <UiCard v-else class="comment-composer-card">
+    <UiState>
+      登录后可点赞、评论、回复与关注。
+      <template #actions>
+        <UiButton @click="goLogin">去登录</UiButton>
+      </template>
+    </UiState>
   </UiCard>
 </template>
 
 <script setup>
 import UiButton from '../../components/ui/UiButton.vue'
 import UiCard from '../../components/ui/UiCard.vue'
-import UiPageHeader from '../../components/ui/UiPageHeader.vue'
 import UiState from '../../components/ui/UiState.vue'
+import UiTextarea from '../../components/ui/UiTextarea.vue'
 
 defineProps({
   authed: Boolean,
   composer: {
     type: Object,
     required: true
+  },
+  goLogin: {
+    type: Function,
+    default: () => {}
   }
 })
 </script>

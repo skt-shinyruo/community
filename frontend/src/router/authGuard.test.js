@@ -28,6 +28,16 @@ describe('authGuard', () => {
     expect(ensureSessionReady).toHaveBeenCalledTimes(1)
   })
 
+  it('keeps the settings section deep link in the login redirect for anonymous visits', async () => {
+    const auth = useAuthStore()
+    auth.clear()
+    ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
+
+    const to = { name: 'settings', fullPath: '/settings?section=addresses', meta: { requiresAuth: true } }
+    const result = await authGuard(to)
+    expect(result).toEqual({ name: 'login', query: { redirect: '/settings?section=addresses' } })
+  })
+
   it('should attempt session restore for protected routes when a previous session hint exists', async () => {
     const auth = useAuthStore()
     auth.clear()

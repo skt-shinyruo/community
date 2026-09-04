@@ -44,7 +44,7 @@
 | --- | --- |
 | 认证 | `/auth/login`、`/auth/register`、`/auth/password/reset` 对应登录、注册、找回密码页面。 |
 | 社区内容 | `/posts`、`/posts/:postId`、`/search`、`/users/:userId`、`/users/:userId/followees`、`/users/:userId/followers`、`/bookmarks` 映射帖子流、详情、搜索、成员主页、关系和收藏能力。 |
-| 交易与资产 | `/market`、`/market/listings/:listingId`、`/market/publish`、`/market/my-listings`、`/market/my-listings/:listingId/inventory`、`/market/orders/buying`、`/market/orders/selling`、`/market/orders/:orderId`、`/market/addresses`、`/wallet` 映射市场、订单、库存、地址和钱包能力。 |
+| 交易与资产 | `/market`、`/market/listings/:listingId`、`/market/publish`、`/market/my-listings`、`/market/my-listings/:listingId/inventory`、`/market/orders/buying`、`/market/orders/selling`、`/market/orders/:orderId`、`/wallet` 映射市场、订单、库存和钱包能力；旧 `/market/addresses` 重定向到 `/settings?section=addresses`。 |
 | 文件 | `/drive` 需要登录，映射私有网盘；`/drive/s/:shareToken` 是公有分享访问入口。 |
 | 收件箱 | `/messages`、`/messages/:conversationId`、`/notices`、`/notices/:topic` 映射 IM 会话和通知主题。 |
 | 运营 | `/moderation`、`/analytics` 需要 `ROLE_ADMIN` 或 `ROLE_MODERATOR`；`/admin/users`、`/admin/wallet`、`/admin/market/disputes` 需要 `ROLE_ADMIN`。 |

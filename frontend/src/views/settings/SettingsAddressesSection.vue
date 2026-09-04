@@ -1,17 +1,18 @@
 <template>
-  <div class="page market-page">
-    <UiBreadcrumb />
+  <UiCard class="settings-panel settings-addresses">
+    <section class="settings-section">
+      <div class="settings-section-head">
+        <div>
+          <div class="settings-eyebrow">Addresses</div>
+          <h2>收货地址</h2>
+          <p>实物订单下单前，先把地址簿整理好。订单使用地址快照；这里管理未来下单的默认收货信息。</p>
+        </div>
+      </div>
 
-    <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-else-if="loading" class="muted">正在加载地址簿…</div>
+      <UiState v-if="error" variant="error">{{ error }}</UiState>
+      <div v-else-if="loading" class="muted">正在加载地址簿…</div>
 
-    <template v-else>
-      <UiPageHeader>
-        <template #title>收货地址</template>
-        <template #subtitle>实物订单下单前，先把地址簿整理好。订单使用地址快照；这里管理未来下单的默认收货信息。</template>
-      </UiPageHeader>
-
-      <UiCard class="market-panel">
+      <div v-else class="settings-addresses-body">
         <UiPageHeader>
           <template #title>新增地址</template>
           <template #subtitle>保存常用收货信息，实物商品下单时会使用地址快照。</template>
@@ -130,27 +131,26 @@
             </form>
           </article>
         </div>
-      </UiCard>
-    </template>
-  </div>
+      </div>
+    </section>
+  </UiCard>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiButton from '../components/ui/UiButton.vue'
-import UiCard from '../components/ui/UiCard.vue'
-import UiState from '../components/ui/UiState.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiButton from '../../components/ui/UiButton.vue'
+import UiCard from '../../components/ui/UiCard.vue'
+import UiState from '../../components/ui/UiState.vue'
+import UiPageHeader from '../../components/ui/UiPageHeader.vue'
 import {
   createMarketAddress,
   deleteMarketAddress,
   listMarketAddresses,
   updateMarketAddress
-} from '../api/services/marketService'
-import { useAuthStore } from '../stores/auth'
-import { normalizeOpaqueId } from '../utils/opaqueId'
-import { buildMarketState } from './marketState'
+} from '../../api/services/marketService'
+import { useAuthStore } from '../../stores/auth'
+import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { buildMarketState } from '../marketState'
 
 const auth = useAuthStore()
 const loading = ref(false)
@@ -338,3 +338,48 @@ onBeforeUnmount(() => {
   actionGeneration += 1
 })
 </script>
+
+<style scoped>
+.settings-panel {
+  display: grid;
+  gap: 0;
+  padding: 0;
+  overflow: hidden;
+}
+
+.settings-section {
+  padding: var(--space-6);
+  display: grid;
+  gap: var(--space-5);
+}
+
+.settings-section-head p {
+  margin: 0;
+  color: var(--text-2);
+  line-height: 1.6;
+}
+
+.settings-eyebrow {
+  font-size: 11px;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--text-3);
+  font-weight: 700;
+}
+
+.settings-section-head h2 {
+  margin: 6px 0 4px;
+  font-size: 1.15rem;
+}
+
+.settings-addresses-body {
+  display: grid;
+  gap: var(--space-4);
+}
+
+@media (max-width: 900px) {
+  .settings-section {
+    padding: var(--space-5);
+  }
+}
+</style>

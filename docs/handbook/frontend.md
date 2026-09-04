@@ -50,6 +50,14 @@ protected route
 - 角色、登录态、用户 id 的前端可见性判断。
 - posts 列表的 `boardId` query 规范化和构造。
 
+`/settings` 通过 `?section=profile|appearance|addresses` 提供可深链的 section 合同（纯函数事实在
+`frontend/src/views/settingsSection.js`）：缺省或无效 section 一律回落到 `profile`，并由视图用
+`router.replace` 规范化 URL，保证地址栏与实际展示的 section 一致；Settings 仍是
+`requiresAuth` 路由，匿名访问按现有守卫跳转登录并在 `redirect` query 中保留完整 section 深链。
+收货地址管理收进 Settings 的 addresses section；侧边栏不再保留独立入口，旧 `/market/addresses`
+路由重定向到 `/settings?section=addresses`，不保留双入口。section 导航当前是可键盘操作的分区链接
+（`aria-current` 标记当前 section），UiTabs 交付后由 Account 波次替换。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -65,7 +73,7 @@ protected route
 
 `frontend/src/styles/variables.css` 是唯一令牌来源：Radix Indigo accent（含 `--accent-text` / `--accent-contrast`）、独立链接令牌 `--link-color`、暗色冷相表面 `#0D0E12`–`#23262E`、七阶语义 z-index（`--z-raised` 到 `--z-toast`）、70/110/150/240/400ms 五档动效时长与 ease 曲线；页面和组件不得重复定义这些令牌。
 
-主题偏好是 `light` / `dark` / `system` 三态，由 `frontend/src/stores/ui.js` 持久化到 localStorage（`community.ui`）。`system` 表示跟随系统：store 通过 `matchMedia('(prefers-color-scheme: dark)')` 监听系统偏好并实时切换 `data-theme`；显式偏好不受系统变化影响。`public/theme-bootstrap.js` 在应用挂载前按同一合同解析生效主题与密度，避免首屏闪烁。Topbar 与 AuthShell 的快捷按钮继续在浅色 / 深色间切换：偏好为 `system` 时按当前生效主题切到相反主题，并保存为显式偏好。
+主题偏好是 `light` / `dark` / `system` 三态，由 `frontend/src/stores/ui.js` 持久化到 localStorage（`community.ui`）。`system` 表示跟随系统：store 通过 `matchMedia('(prefers-color-scheme: dark)')` 监听系统偏好并实时切换 `data-theme`；显式偏好不受系统变化影响。`public/theme-bootstrap.js` 在应用挂载前按同一合同解析生效主题与密度，避免首屏闪烁。Topbar 与 AuthShell 的快捷按钮继续在浅色 / 深色间切换：偏好为 `system` 时按当前生效主题切到相反主题，并保存为显式偏好。完整的三态主题与密度设置位于 Settings 外观区（`/settings?section=appearance`），读写同一份 store 偏好，刷新后保持。
 
 密度只有 `compact` / `comfortable` 两档，`compact` 是默认值；两档共享组件 API，仅通过 `html[data-density='compact']` 令牌覆盖区分。`styles/base.css` 提供 `prefers-reduced-motion` 全局守卫，关闭非必要过渡与动画。
 
@@ -195,6 +203,7 @@ connect(accessToken)
 | `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要和时间线的纯展示投影。 |
 | `search/useSearchPageState.js` | 搜索条件、路由解析与序列化、分页、请求竞态和结果 hydration 生命周期。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
+| `settingsSection.js` | Settings 的 section query 深链合同（`profile` / `appearance` / `addresses`）与缺省、无效值回落。 |
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
 

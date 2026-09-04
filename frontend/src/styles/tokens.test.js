@@ -260,19 +260,19 @@ describe('primitive class guardrails', () => {
     ['src/views/AnalyticsView.vue', { input: 2 }],
     ['src/views/DriveShareView.vue', { input: 1 }],
     ['src/views/DriveView.vue', { input: 5 }],
-    ['src/views/MarketAddressesView.vue', { input: 14 }],
     ['src/views/MarketDetailView.vue', { input: 1 }],
     ['src/views/MarketOrderDetailView.vue', { input: 6 }],
     ['src/views/MarketPublishView.vue', { input: 3 }],
     ['src/views/ModerationView.vue', { input: 5 }],
     ['src/views/PostsView.vue', { input: 2 }],
     ['src/views/SearchView.vue', { input: 2 }],
-    ['src/views/SettingsView.vue', { input: 1 }],
     ['src/views/UserManagementView.vue', { 'field-label': 3, input: 5 }],
     ['src/views/WalletAdminView.vue', { input: 4 }],
     ['src/views/WalletView.vue', { input: 4 }],
     ['src/views/post-detail/PostDetailComments.vue', { input: 1 }],
-    ['src/views/post-detail/PostDetailComposer.vue', { input: 1 }]
+    ['src/views/post-detail/PostDetailComposer.vue', { input: 1 }],
+    ['src/views/settings/SettingsAddressesSection.vue', { input: 14 }],
+    ['src/views/settings/SettingsProfileSection.vue', { input: 1 }]
   ])
 
   function collectViewClassUsage() {

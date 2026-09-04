@@ -3,22 +3,22 @@
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { useAuthStore } from '../stores/auth'
+import { useAuthStore } from '../../stores/auth'
 
-vi.mock('../api/services/marketService', () => ({
+vi.mock('../../api/services/marketService', () => ({
   listMarketAddresses: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-list' }),
   createMarketAddress: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-create' }),
   updateMarketAddress: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-update' }),
   deleteMarketAddress: vi.fn().mockResolvedValue({ data: {}, traceId: 'trace-delete' })
 }))
 
-import MarketAddressesView from './MarketAddressesView.vue'
+import SettingsAddressesSection from './SettingsAddressesSection.vue'
 import {
   createMarketAddress,
   deleteMarketAddress,
   listMarketAddresses,
   updateMarketAddress
-} from '../api/services/marketService'
+} from '../../api/services/marketService'
 
 let pinia
 
@@ -27,9 +27,6 @@ function mountOptions() {
     global: {
       plugins: [pinia],
       stubs: {
-        UiBreadcrumb: {
-          template: '<div><slot /></div>'
-        },
         UiCard: {
           template: '<section><slot /></section>'
         },
@@ -50,7 +47,7 @@ function mountOptions() {
   }
 }
 
-describe('MarketAddressesView', () => {
+describe('SettingsAddressesSection', () => {
   beforeEach(() => {
     pinia = createPinia()
     setActivePinia(pinia)
@@ -78,7 +75,7 @@ describe('MarketAddressesView', () => {
       traceId: 'trace-list'
     })
 
-    const wrapper = mount(MarketAddressesView, mountOptions())
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
 
     expect(listMarketAddresses).toHaveBeenCalledTimes(1)
@@ -107,7 +104,7 @@ describe('MarketAddressesView', () => {
       traceId: 'trace-list'
     })
 
-    const wrapper = mount(MarketAddressesView, mountOptions())
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
 
     const inputs = wrapper.findAll('input')
@@ -159,7 +156,7 @@ describe('MarketAddressesView', () => {
       traceId: 'trace-list'
     })
 
-    const wrapper = mount(MarketAddressesView, mountOptions())
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
 
     await wrapper.find('[data-test="address-edit"]').trigger('click')
@@ -191,7 +188,7 @@ describe('MarketAddressesView', () => {
         data: [{ addressId: 52, receiverName: 'B 用户', city: '北京', detailAddress: 'B 地址' }]
       })
 
-    const wrapper = mount(MarketAddressesView, mountOptions())
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
     authenticate('buyer-b', 'token-b')
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(2))
@@ -210,7 +207,7 @@ describe('MarketAddressesView', () => {
     const oldCreate = deferred()
     createMarketAddress.mockReturnValueOnce(oldCreate.promise)
 
-    const wrapper = mount(MarketAddressesView, mountOptions())
+    const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
     await wrapper.findAll('input')[0].setValue('A 草稿')
     await wrapper.findAll('button')[0].trigger('click')

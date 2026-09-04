@@ -49,7 +49,7 @@
 | `NoticesView.vue`, `NoticeDetailView.vue` | notice 通知摘要、列表、已读。 |
 | `UserProfileView.vue` | user 资料聚合、content 最近内容、social 关注/拉黑。 |
 | `FollowRelationListView.vue` | social 关注/粉丝。 |
-| `SettingsView.vue` | user 头像上传/更新。 |
+| `SettingsView.vue` | Settings section 壳与 `?section=` 深链；`settings/SettingsProfileSection.vue` 承载 user 头像上传/更新，`settings/SettingsAppearanceSection.vue` 承载主题三态与密度，`settings/SettingsAddressesSection.vue` 承载 market 收货地址。 |
 | `ModerationView.vue` | content 举报和审核、user 处罚联动。 |
 | `AnalyticsView.vue` | analytics UV/DAU 查询。 |
 | `WalletView.vue` | wallet 余额、测试积分领取/销毁能力、转账。 |
@@ -59,7 +59,6 @@
 | `MarketListView.vue`, `MarketDetailView.vue` | market 商品列表和详情。 |
 | `MarketPublishView.vue`, `MarketMyListingsView.vue` | market 卖家商品管理。 |
 | `MarketInventoryView.vue` | market 预加载库存。 |
-| `MarketAddressesView.vue` | market 收货地址。 |
 | `MarketOrderListView.vue`, `MarketOrderDetailView.vue` | market 订单、交付、发货、确认、取消、纠纷。 |
 | `AdminMarketDisputesView.vue` | market 管理员纠纷裁决。 |
 | `ConversationsView.vue`, `ConversationDetailView.vue` | IM 会话、历史、WebSocket 发送、已读。 |

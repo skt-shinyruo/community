@@ -41,8 +41,7 @@ describe('router/navigation', () => {
       'marketPublish',
       'marketMyListings',
       'marketBuying',
-      'marketSelling',
-      'marketAddresses'
+      'marketSelling'
     ])
     expect(authed.find((g) => g.key === 'personal')?.items.map((it) => it.key)).toEqual([
       'wallet',

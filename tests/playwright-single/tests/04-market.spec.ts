@@ -38,7 +38,9 @@ test.describe.serial('market product flow @regression', () => {
     })
 
     await test.step('buyer creates an address', async () => {
+      // 旧市场地址入口重定向到 Settings addresses section，地址簿交互语义不变。
       await gotoHash(page, '/market/addresses')
+      await expect(page).toHaveURL(/#\/settings\?section=addresses$/)
       await page.getByRole('textbox', { name: '收货人' }).fill(data.addressReceiver)
       await page.getByRole('textbox', { name: '手机号' }).fill(data.addressPhone)
       await page.getByRole('textbox', { name: '省份' }).fill('北京')

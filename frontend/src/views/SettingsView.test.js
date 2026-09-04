@@ -1,306 +1,182 @@
 // @vitest-environment jsdom
 
-import { nextTick } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
+import { createMemoryHistory, createRouter } from 'vue-router'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '../stores/auth'
-import UiButton from '../components/ui/UiButton.vue'
+import { useUiStore } from '../stores/ui'
 
-const { apiMe, invalidateUserProfile, uploadTransport } = vi.hoisted(() => ({
-  apiMe: vi.fn(),
-  invalidateUserProfile: vi.fn(),
-  uploadTransport: { upload: vi.fn() }
+vi.mock('../api/services/marketService', () => ({
+  listMarketAddresses: vi.fn().mockResolvedValue({ data: [], traceId: 'trace-list' }),
+  createMarketAddress: vi.fn(),
+  updateMarketAddress: vi.fn(),
+  deleteMarketAddress: vi.fn()
 }))
-
-vi.mock('../api/http', () => ({
-  default: {
-    defaults: { baseURL: '' },
-    get: vi.fn(),
-    post: vi.fn(),
-    put: vi.fn()
-  }
-}))
-
-vi.mock('../api/services/authService', () => ({
-  me: apiMe
-}))
-
-vi.mock('../api/services/userService', () => ({ invalidateUserProfile }))
-
-vi.mock('../api/uploadTransport', () => ({ uploadTransport }))
 
 import SettingsView from './SettingsView.vue'
-import http from '../api/http'
+import { listMarketAddresses } from '../api/services/marketService'
 
-function okResult(data, traceId = 'trace-ok') {
-  return {
-    data: {
-      code: 0,
-      message: '',
-      data,
-      traceId
-    }
-  }
-}
-
-function deferred() {
-  let resolve
-  const promise = new Promise((resolvePromise) => {
-    resolve = resolvePromise
+function createTestRouter() {
+  return createRouter({
+    history: createMemoryHistory(),
+    routes: [
+      { path: '/settings', name: 'settings', component: SettingsView },
+      { path: '/:pathMatch(.*)*', name: 'notFound', component: { template: '<div />' } }
+    ]
   })
-  return { promise, resolve }
 }
 
-async function selectFile(wrapper, file) {
-  const input = wrapper.get('input[type="file"]')
-  Object.defineProperty(input.element, 'files', { configurable: true, value: [file] })
-  await input.trigger('change')
-  return input
+function sectionLinks(wrapper) {
+  return wrapper.findAll('.settings-sections a')
 }
 
-describe('SettingsView', () => {
-  function uploadSession(overrides = {}) {
-    return {
-      uploadId: 'session-1',
-      objectId: '00000000-0000-7000-8000-000000000050',
-      versionId: '00000000-0000-7000-8000-000000000051',
-      upload: {
-        url: '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete',
-        method: 'POST',
-        fileField: 'file',
-        fields: {
-          sessionId: 'session-1',
-          versionId: '00000000-0000-7000-8000-000000000051'
-        },
-        headers: {},
-        ...(overrides.upload || {})
-      },
-      constraints: {
-        maxBytes: 256000,
-        mimeTypes: ['image/png', 'image/jpeg'],
-        ...(overrides.constraints || {})
-      },
-      expiresAt: '2026-05-08T12:00:00Z',
-      ...overrides
-    }
-  }
+function activeSectionLink(wrapper) {
+  return sectionLinks(wrapper).find((link) => link.attributes('aria-current') === 'true')
+}
 
-  function mountView() {
-    const pinia = createPinia()
-    setActivePinia(pinia)
+describe('SettingsView section contract', () => {
+  let pinia
+  let router
 
-    const auth = useAuthStore()
-    auth.installSession({ accessToken: 'token' })
-    auth.setMe({
-      userId: 7,
-      username: 'aaa',
-      headerUrl: '/files/current-avatar.png',
-      authorities: []
-    })
-
-    return mount(SettingsView, {
+  async function mountAt(path) {
+    await router.push(path)
+    await router.isReady()
+    const wrapper = mount(SettingsView, {
       global: {
-        plugins: [pinia]
+        plugins: [pinia, router]
       }
     })
-  }
-
-  function findUiButton(wrapper, text) {
-    const button = wrapper.findAllComponents(UiButton).find((candidate) => candidate.text().includes(text))
-    if (!button) throw new Error(`Button not found: ${text}`)
-    return button
+    await flushPromises()
+    return wrapper
   }
 
   beforeEach(() => {
-    http.get.mockReset()
-    http.post.mockReset()
-    http.put.mockReset()
+    pinia = createPinia()
+    setActivePinia(pinia)
+    useAuthStore().installSession({
+      accessToken: 'token',
+      me: { userId: 7, username: 'aaa', headerUrl: '', authorities: [] }
+    })
     window.localStorage.clear()
-    apiMe.mockReset()
-    invalidateUserProfile.mockReset()
-    uploadTransport.upload.mockReset()
-    uploadTransport.upload.mockResolvedValue(okResult({
-      objectId: '00000000-0000-7000-8000-000000000050'
-    }, 'trace-upload'))
-    apiMe.mockResolvedValue({
-      data: {
-        userId: 7,
-        username: 'aaa',
-        headerUrl: '/files/avatar-updated.png',
-        authorities: []
-      },
-      traceId: 'trace-me'
-    })
-
-    http.post.mockImplementation((url) => {
-      if (url === '/api/users/7/avatar/upload-sessions') {
-        return Promise.resolve(okResult(uploadSession(), 'trace-session'))
-      }
-      if (url === '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete') {
-        return Promise.resolve(okResult({ objectId: '00000000-0000-7000-8000-000000000050' }, 'trace-upload'))
-      }
-      return Promise.resolve(okResult({}, 'trace-post'))
-    })
-    http.put.mockResolvedValue(okResult({}, 'trace-update'))
+    vi.clearAllMocks()
+    listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-list' })
+    router = createTestRouter()
   })
 
-  it('keeps upload disabled until a file is selected', async () => {
-    const wrapper = mountView()
+  it('exposes keyboard-operable section navigation with correct aria state', async () => {
+    const wrapper = await mountAt('/settings?section=appearance')
 
-    const uploadButton = findUiButton(wrapper, '上传并保存')
-    const fileInput = wrapper.get('input[type="file"]')
-    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
+    const nav = wrapper.get('nav.settings-sections')
+    expect(nav.attributes('aria-label')).toBe('设置分区')
 
-    expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
-    expect(fileInput.exists()).toBe(true)
-    expect(wrapper.text()).not.toContain('OSS 服务')
-    expect(wrapper.text()).not.toContain('Cloudflare R2')
-    expect(wrapper.text()).not.toContain('本地文件')
-    expect(wrapper.text()).not.toContain('排行榜')
-
-    await selectFile(wrapper, file)
-    await nextTick()
-
-    expect(uploadButton.get('button').attributes('disabled')).toBeUndefined()
-    expect(fileInput.element.files[0]).toBe(file)
-
-    await findUiButton(wrapper, '清除').trigger('click')
-    expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
+    const links = sectionLinks(wrapper)
+    expect(links.map((link) => link.text())).toEqual(['公开资料', '外观', '收货地址'])
+    for (const link of links) {
+      expect(link.attributes('href')).toMatch(/^\/settings\?section=(profile|appearance|addresses)$/)
+    }
+    expect(activeSectionLink(wrapper)?.text()).toBe('外观')
   })
 
-  it('passes the selected File through the existing upload flow', async () => {
-    const wrapper = mountView()
+  it('defaults to the profile section and canonicalizes a missing section query', async () => {
+    const wrapper = await mountAt('/settings')
 
-    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await selectFile(wrapper, file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-    await flushPromises()
-
-    expect(http.post).toHaveBeenCalledWith('/api/users/7/avatar/upload-sessions', {
-      fileName: 'picked-avatar.png',
-      contentType: 'image/png',
-      contentLength: 6,
-      checksumSha256: ''
-    }, expect.objectContaining({ signal: expect.any(Object) }))
-    expect(uploadTransport.upload).toHaveBeenCalledWith(expect.objectContaining({
-      url: '/api/oss/objects/00000000-0000-7000-8000-000000000050/complete',
-      method: 'POST',
-      data: expect.any(FormData),
-      headers: {}
-    }))
-    const form = uploadTransport.upload.mock.calls[0][0].data
-    expect(form.get('file')).toBe(file)
-    expect(form.get('sessionId')).toBe('session-1')
-    expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
-    expect(http.put).toHaveBeenCalledWith('/api/users/7/avatar', { objectId: '00000000-0000-7000-8000-000000000050' })
-    expect(invalidateUserProfile).toHaveBeenCalledWith('7')
+    expect(wrapper.text()).toContain('头像上传')
+    expect(activeSectionLink(wrapper)?.text()).toBe('公开资料')
+    expect(router.currentRoute.value.query).toEqual({ section: 'profile' })
   })
 
-  it('shows upload progress and aborts the active request when cancelled', async () => {
-    const pendingUpload = deferred()
-    uploadTransport.upload.mockImplementation((config) => {
-      config.onProgress({ loaded: 42, total: 100, percent: 42 })
-      return pendingUpload.promise
-    })
-    const wrapper = mountView()
-    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await selectFile(wrapper, file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-    await vi.waitFor(() => expect(uploadTransport.upload).toHaveBeenCalledTimes(1))
+  it('falls back to the profile section and canonicalizes an invalid section query', async () => {
+    const wrapper = await mountAt('/settings?section=bogus')
 
-    const signal = uploadTransport.upload.mock.calls[0][0].signal
-    expect(wrapper.text()).toContain('上传中 42%')
-    await findUiButton(wrapper, '取消上传').trigger('click')
-
-    expect(signal.aborted).toBe(true)
-    expect(wrapper.text()).toContain('上传已取消')
-    pendingUpload.resolve(okResult({ objectId: 'ignored' }))
-    await flushPromises()
-    expect(http.put).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('头像上传')
+    expect(wrapper.text()).not.toContain('正在加载地址簿')
+    expect(activeSectionLink(wrapper)?.text()).toBe('公开资料')
+    expect(router.currentRoute.value.query).toEqual({ section: 'profile' })
   })
 
-  it('switches to a non-cancellable saving state after the file upload completes', async () => {
-    const pendingUpdate = deferred()
-    http.put.mockReturnValue(pendingUpdate.promise)
-    const wrapper = mountView()
-    const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
-    await selectFile(wrapper, file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-    await vi.waitFor(() => expect(http.put).toHaveBeenCalledTimes(1))
-
-    expect(wrapper.text()).toContain('保存中…')
-    expect(wrapper.findAllComponents(UiButton).some((button) => button.text().includes('取消上传'))).toBe(false)
-
-    pendingUpdate.resolve(okResult({}, 'trace-update'))
-    await flushPromises()
-    expect(wrapper.text()).toContain('头像已更新。')
-  })
-
-  it('does not expose retired leaderboard copy', () => {
-    const wrapper = mountView()
-
-    expect(wrapper.text()).not.toContain('排行榜')
-  })
-
-  it('stops an old upload session before uploading or updating the new identity', async () => {
-    const pendingSession = deferred()
-    http.post.mockImplementation((url) => {
-      if (url === '/api/users/7/avatar/upload-sessions') return pendingSession.promise
-      return Promise.resolve(okResult({}, 'unexpected-upload'))
-    })
-    const wrapper = mountView()
-    const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
-    await selectFile(wrapper, file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-
-    const auth = useAuthStore()
-    auth.installSession({
-      accessToken: 'new-token',
-      me: { userId: 8, username: 'bbb', headerUrl: '/files/new-user.png', authorities: [] }
-    })
-    await nextTick()
-    pendingSession.resolve(okResult(uploadSession(), 'trace-old-session'))
-    await flushPromises()
-
-    expect(http.post).toHaveBeenCalledTimes(1)
-    expect(http.put).not.toHaveBeenCalled()
-    expect(findUiButton(wrapper, '上传并保存').get('button').attributes('disabled')).toBeDefined()
-    expect(wrapper.text()).not.toContain('头像已更新。')
-    expect(wrapper.text()).not.toContain('已获取上传参数')
-  })
-
-  it('does not let an old me response overwrite the newly installed identity', async () => {
-    const pendingMe = deferred()
-    apiMe.mockReturnValue(pendingMe.promise)
-    const wrapper = mountView()
-    const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
-    await selectFile(wrapper, file)
-    await nextTick()
-    await findUiButton(wrapper, '上传并保存').trigger('click')
-    await flushPromises()
-    expect(apiMe).toHaveBeenCalledTimes(1)
-
-    const auth = useAuthStore()
-    auth.installSession({
-      accessToken: 'new-token',
-      me: { userId: 8, username: 'bbb', headerUrl: '/files/new-user.png', authorities: [] }
-    })
-    pendingMe.resolve({
-      data: { userId: 7, username: 'aaa', headerUrl: '/files/old-user-updated.png', authorities: [] },
-      traceId: 'trace-old-me'
+  it('keeps the profile section for a repeated (array) section query', async () => {
+    await router.push('/settings?section=appearance&section=addresses')
+    await router.isReady()
+    const wrapper = mount(SettingsView, {
+      global: { plugins: [pinia, router] }
     })
     await flushPromises()
 
-    expect(auth.userId).toBe(8)
-    expect(auth.username).toBe('bbb')
-    expect(auth.me.headerUrl).toBe('/files/new-user.png')
-    expect(wrapper.text()).not.toContain('头像已更新。')
+    expect(wrapper.text()).toContain('头像上传')
+    expect(router.currentRoute.value.query).toEqual({ section: 'profile' })
   })
 
+  it('renders the appearance section for its deep link and preserves the query', async () => {
+    const wrapper = await mountAt('/settings?section=appearance')
+
+    expect(wrapper.text()).toContain('主题')
+    expect(wrapper.text()).toContain('密度')
+    expect(wrapper.text()).not.toContain('头像上传')
+    expect(router.currentRoute.value.query).toEqual({ section: 'appearance' })
+    expect(listMarketAddresses).not.toHaveBeenCalled()
+  })
+
+  it('renders the addresses section for its deep link and loads the address book', async () => {
+    const wrapper = await mountAt('/settings?section=addresses')
+
+    expect(listMarketAddresses).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('收货地址')
+    expect(wrapper.text()).not.toContain('头像上传')
+    expect(activeSectionLink(wrapper)?.text()).toBe('收货地址')
+    expect(router.currentRoute.value.query).toEqual({ section: 'addresses' })
+  })
+
+  it('switches sections through the navigation links and updates the URL', async () => {
+    const wrapper = await mountAt('/settings?section=profile')
+
+    const appearanceLink = sectionLinks(wrapper).find((link) => link.text() === '外观')
+    await appearanceLink.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query).toEqual({ section: 'appearance' })
+    expect(wrapper.text()).toContain('跟随系统')
+    expect(activeSectionLink(wrapper)?.text()).toBe('外观')
+
+    const addressesLink = sectionLinks(wrapper).find((link) => link.text() === '收货地址')
+    await addressesLink.trigger('click')
+    await flushPromises()
+
+    expect(router.currentRoute.value.query).toEqual({ section: 'addresses' })
+    expect(listMarketAddresses).toHaveBeenCalledTimes(1)
+    expect(activeSectionLink(wrapper)?.text()).toBe('收货地址')
+  })
+
+  it('reads and writes the three-state theme through the appearance section', async () => {
+    const wrapper = await mountAt('/settings?section=appearance')
+    const ui = useUiStore()
+    expect(ui.theme).toBe('system')
+    expect(wrapper.text()).toContain('正在跟随系统')
+
+    await wrapper.get('input[name="settings-theme"][value="dark"]').setValue(true)
+    expect(ui.theme).toBe('dark')
+    expect(document.documentElement.dataset.theme).toBe('dark')
+    expect(JSON.parse(window.localStorage.getItem('community.ui')).theme).toBe('dark')
+    expect(wrapper.text()).not.toContain('正在跟随系统')
+
+    await wrapper.get('input[name="settings-theme"][value="system"]').setValue(true)
+    expect(ui.theme).toBe('system')
+    expect(JSON.parse(window.localStorage.getItem('community.ui')).theme).toBe('system')
+  })
+
+  it('reads and writes the density through the appearance section', async () => {
+    const wrapper = await mountAt('/settings?section=appearance')
+    const ui = useUiStore()
+    expect(ui.density).toBe('compact')
+
+    await wrapper.get('input[name="settings-density"][value="comfortable"]').setValue(true)
+    expect(ui.density).toBe('comfortable')
+    expect(document.documentElement.dataset.density).toBe('comfortable')
+    expect(JSON.parse(window.localStorage.getItem('community.ui')).density).toBe('comfortable')
+
+    await wrapper.get('input[name="settings-density"][value="compact"]').setValue(true)
+    expect(ui.density).toBe('compact')
+    expect(document.documentElement.dataset.density).toBe('compact')
+  })
 })

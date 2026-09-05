@@ -255,7 +255,6 @@ describe('primitive class guardrails', () => {
   // 新增使用或计数上升视为泄漏；完成迁移的视图应随迁移 PR 下调或移除基线条目。
   const classBaseline = new Map([
     ['src/views/AnalyticsView.vue', { input: 2 }],
-    ['src/views/DriveShareView.vue', { input: 1 }],
     ['src/views/MarketDetailView.vue', { input: 1 }],
     ['src/views/MarketOrderDetailView.vue', { input: 6 }],
     ['src/views/MarketPublishView.vue', { input: 3 }],

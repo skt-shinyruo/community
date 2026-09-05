@@ -19,16 +19,14 @@
       :disabled="submitDisabled"
       @click="emitSubmit"
     >
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <line x1="22" y1="2" x2="11" y2="13"></line>
-        <polygon points="22 2 15 22 11 13 2 9 22 2"></polygon>
-      </svg>
+      <SendHorizontal :size="20" aria-hidden="true" />
     </UiIconButton>
   </div>
 </template>
 
 <script setup>
 import { computed } from 'vue'
+import { SendHorizontal } from 'lucide-vue-next'
 
 import UiIconButton from '../ui/UiIconButton.vue'
 
@@ -54,31 +52,34 @@ function emitSubmit() {
 
 <style scoped>
 .chat-input-area {
-  padding: 12px;
-  background: color-mix(in srgb, var(--surface) 75%, var(--bg) 25%);
+  padding: var(--space-3);
+  background: var(--surface-2);
   border: 1px solid var(--border);
-  border-radius: 24px;
+  border-radius: var(--radius-lg);
   display: flex;
-  gap: 12px;
+  gap: var(--space-3);
   align-items: flex-end;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.chat-input-area:focus-within {
+  border-color: var(--accent);
+  box-shadow: var(--focus-ring);
 }
 
 .chat-input {
   flex: 1;
   background: transparent;
   border: none;
-  border-radius: 16px;
-  padding: 10px 12px;
+  padding: var(--space-2) var(--space-3);
   font-family: inherit;
-  font-size: 15px;
-  line-height: 1.5;
+  font-size: var(--text-md);
+  line-height: var(--line-normal);
   outline: none;
   resize: none;
-  min-height: 48px;
-}
-
-.chat-input:focus {
-  box-shadow: none;
+  min-height: var(--space-9);
 }
 
 .chat-input:disabled {
@@ -86,13 +87,16 @@ function emitSubmit() {
 }
 
 .send-btn {
-  width: 48px;
-  height: 48px;
-  border-radius: 50%;
+  width: var(--space-9);
+  height: var(--space-9);
+  border-radius: var(--radius-full);
   background: var(--accent);
   color: var(--accent-contrast);
   border: none;
-  transition: transform 0.12s ease, opacity 0.12s ease;
+  transition:
+    transform var(--duration-fast) var(--ease-standard),
+    opacity var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
 }
 
 .send-btn:hover {
@@ -107,11 +111,5 @@ function emitSubmit() {
   opacity: 0.5;
   cursor: default;
   background: var(--accent);
-}
-
-@media (max-width: 768px) {
-  .chat-input-area {
-    border-radius: 20px;
-  }
 }
 </style>

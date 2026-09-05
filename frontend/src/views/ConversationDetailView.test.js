@@ -434,6 +434,118 @@ describe('ConversationDetailView', () => {
     expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 8, limit: 100 })
   })
 
+  it('marks a rejected send failed and retries it with the same clientMsgId without duplicating the message', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('待重试的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('待重试的消息')
+    expect(wrapper.text()).toContain('发送中')
+
+    listeners.sendRejected({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      message: '发送频率过高',
+      traceId: 'trace-reject-1'
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('发送失败')
+    expect(wrapper.text()).toContain('发送频率过高')
+    expect(wrapper.text()).not.toContain('发送中')
+    const retryButton = wrapper.get('.message-retry')
+    expect(retryButton.attributes('disabled')).toBeUndefined()
+
+    sendPrivateText.mockClear()
+    await retryButton.trigger('click')
+    await flushPromises()
+
+    // 同一写尝试的重试复用原 clientMsgId，不生成新 key。
+    expect(sendPrivateText).toHaveBeenCalledTimes(1)
+    expect(sendPrivateText).toHaveBeenCalledWith({
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: '待重试的消息',
+      clientMsgId: 'client-msg-1'
+    })
+    expect(wrapper.text()).toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+    expect(wrapper.text()).not.toContain('发送频率过高')
+
+    listeners.sendCommitted({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: '99999999-9999-7999-8999-999999999999',
+      seq: 9,
+      requestId: 'req-retry-1'
+    })
+    await flushPromises()
+
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).toContain('待重试的消息')
+    expect(wrapper.text()).not.toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+  })
+
+  it('keeps a failed send retryable only when realtime is ready and never resends while offline', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('断网后重试')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+
+    listeners.sendRejected({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1', message: '发送失败' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送失败')
+
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    await flushPromises()
+
+    sendPrivateText.mockClear()
+    const retryButton = wrapper.get('.message-retry')
+    expect(retryButton.attributes('disabled')).toBeDefined()
+    await retryButton.trigger('click')
+    await flushPromises()
+    expect(sendPrivateText).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('发送失败')
+  })
+
+  it('ignores a retry for a message that is no longer failed', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('只重试一次')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    listeners.sendRejected({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1', message: '发送失败' })
+    await flushPromises()
+
+    sendPrivateText.mockClear()
+    await wrapper.get('.message-retry').trigger('click')
+    await flushPromises()
+    expect(sendPrivateText).toHaveBeenCalledTimes(1)
+
+    // 消息回到 pending 后重试入口随即消失，同一写尝试不会被重复提交。
+    expect(wrapper.find('.message-retry').exists()).toBe(false)
+    expect(wrapper.text()).toContain('发送中')
+
+    listeners.sendRejected({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-unknown', message: '无关失败' })
+    await flushPromises()
+    expect(wrapper.find('.message-retry').exists()).toBe(false)
+    expect(wrapper.text()).toContain('发送中')
+  })
+
   it('shows a pending send and replaces it with HTTP backfill on reconnect', async () => {
     imRealtimeClient.state.connected = true
     imRealtimeClient.state.authed = true
@@ -679,6 +791,32 @@ describe('ConversationDetailView', () => {
 
     expect(listImConversationMessages).toHaveBeenCalledTimes(1)
     expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 80, limit: 100 })
+  })
+
+  it('renders realtime private messages carrying the production createdAtEpochMillis field', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    const chatArea = wrapper.get('.chat-area').element
+    Object.defineProperty(chatArea, 'scrollHeight', { configurable: true, value: 640 })
+    await flushPromises()
+
+    // 生产 WS privateMessage 帧的时间戳字段是 createdAtEpochMillis（与 HTTP history 不同名）。
+    await listeners.privateMessage({
+      type: 'privateMessage',
+      conversationId,
+      seq: 9,
+      messageId: '99999999-9999-7999-8999-999999999999',
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '实时帧时间戳字段',
+      createdAtEpochMillis: 1774060187920
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('实时帧时间戳字段')
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(chatArea.scrollTop).toBe(640)
+    expect(markImConversationRead).toHaveBeenLastCalledWith(conversationId, 9)
   })
 
   it('rejects realtime private messages that miss persisted timestamps', async () => {

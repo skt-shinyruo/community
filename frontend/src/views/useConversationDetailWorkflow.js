@@ -13,8 +13,10 @@ import {
   failPendingConversationMessage,
   findLatestConversationSeq,
   mapConversationMessage,
+  mapRealtimeConversationMessage,
   mergeConversationMessages,
-  parseConversationTargetId
+  parseConversationTargetId,
+  retryFailedConversationMessage
 } from './conversationDetailState'
 import {
   createConversationHistoryBackfill,
@@ -239,6 +241,39 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     }
   }
 
+  /**
+   * 重试失败消息是同一个写尝试：复用原 clientMsgId 作为幂等键，不生成新 key，
+   * 服务端按发送者作用域的 clientMsgId 去重，已落库的尝试不会因重试产生重复消息。
+   * @param {unknown} clientMsgId
+   */
+  function retrySend(clientMsgId) {
+    const id = String(clientMsgId || '').trim()
+    if (!id) return
+    const failed = items.value.find((item) =>
+      item.clientMsgId === id && item.deliveryState === 'failed' && sameOpaqueId(item.fromId, meId.value)
+    )
+    if (!failed) return
+    try {
+      if (!realtimeState.value.connected) throw new Error('IM 未连接')
+      if (!realtimeState.value.authed) throw new Error('IM 正在认证，请稍后重试')
+      imRealtimeClient.sendPrivateText({
+        toUserId: failed.toId,
+        content: failed.content,
+        clientMsgId: id
+      })
+      pendingClientMsgIds.add(id)
+      items.value = items.value.map((item) =>
+        item.clientMsgId === id && sameOpaqueId(item.fromId, meId.value)
+          ? retryFailedConversationMessage(item)
+          : item
+      )
+      error.value = ''
+      scrollToBottom()
+    } catch (cause) {
+      error.value = cause?.message || '发送失败'
+    }
+  }
+
   function resetForViewScope() {
     loadRequestTracker.invalidate()
     resetHistoryFlow()
@@ -278,7 +313,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     const context = captureViewContext()
     if (!auth.authed || !context.targetId || !rawMessage || rawMessage.conversationId !== context.conversationId) return
     const seq = Number(rawMessage?.seq || 0)
-    const message = mapConversationMessage(rawMessage)
+    const message = mapRealtimeConversationMessage(rawMessage)
     const belongsToCurrentParticipants =
       (sameOpaqueId(message.fromId, context.meId) && sameOpaqueId(message.toId, context.targetId)) ||
       (sameOpaqueId(message.fromId, context.targetId) && sameOpaqueId(message.toId, context.meId))
@@ -387,7 +422,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     sending,
     canSend
   })
-  const actions = { refresh, loadEarlier, send }
+  const actions = { refresh, loadEarlier, send, retrySend }
   const lifecycle = { mount, unmount }
 
   return { model, actions, lifecycle }

@@ -5,11 +5,14 @@ import {
   advanceConversationSeqWaterline,
   commitPendingConversationMessage,
   createPendingConversationMessage,
+  failPendingConversationMessage,
   findLatestConversationSeq,
   mapConversationMessage,
+  mapRealtimeConversationMessage,
   mergeConversations,
   mergeConversationMessages,
-  parseConversationTargetId
+  parseConversationTargetId,
+  retryFailedConversationMessage
 } from './conversationDetailState'
 
 describe('conversationDetailState', () => {
@@ -61,8 +64,32 @@ describe('conversationDetailState', () => {
     })
   })
 
-  it('rejects conversation messages that violate the API identity contract', () => {
-    const valid = {
+  it('maps realtime privateMessage frames whose timestamp field is createdAtEpochMillis', () => {
+    expect(mapRealtimeConversationMessage({
+      type: 'privateMessage',
+      conversationId: '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222',
+      seq: 13,
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      fromUserId: '11111111-1111-7111-8111-111111111111',
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: 'realtime hello',
+      createdAtEpochMillis: 123456789
+    })).toMatchObject({
+      id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      seq: 13,
+      content: 'realtime hello',
+      createTime: 123456789
+    })
+
+    expect(() => mapRealtimeConversationMessage({
+      seq: 13,
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      fromUserId: '11111111-1111-7111-8111-111111111111',
+      toUserId: '22222222-2222-7222-8222-222222222222'
+    })).toThrow('createdAtEpochMs 非法')
+  })
+
+  it('rejects conversation messages that violate the API identity contract', () => {    const valid = {
       seq: 12,
       messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       fromUserId: '11111111-1111-7111-8111-111111111111',
@@ -252,6 +279,37 @@ describe('conversationDetailState', () => {
         requestIds: ['request-pending'],
         sequences: [9]
       }
+    }])
+  })
+
+  it('returns a failed send to pending while keeping its identity aliases for the retry', () => {
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-retry',
+      fromId: '11111111-1111-7111-8111-111111111111',
+      toId: '22222222-2222-7222-8222-222222222222',
+      content: 'retry me',
+      createTime: 100
+    })
+    const failed = failPendingConversationMessage(pending)
+    expect(failed.deliveryState).toBe('failed')
+
+    const retried = retryFailedConversationMessage(failed)
+    expect(retried.deliveryState).toBe('pending')
+    expect(retried.id).toBe('pending:client-retry')
+    expect(retried.clientMsgId).toBe('client-retry')
+    expect(retried.messageIdentity).toEqual(pending.messageIdentity)
+
+    // 重试后的 pending 仍与同 clientMsgId 的 committed 回执合并为同一条消息。
+    const committed = commitPendingConversationMessage(retried, {
+      clientMsgId: 'client-retry',
+      requestId: 'request-retry',
+      messageId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      seq: 13
+    })
+    expect(mergeConversationMessages([retried], [committed])).toMatchObject([{
+      id: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      seq: 13,
+      deliveryState: 'committed'
     }])
   })
 

@@ -126,7 +126,20 @@ UiState（错态带重试）。搜索结果来自 ES 投影、最终一致，页
 focus ring 可见），未读会话只用 3px accent 左轨和弱色未读 chip 表达，不使用整卡高饱和底色。列表首载 /
 刷新成功后触发 `inboxUnread.refresh()`，让侧边栏 / 移动端私信入口角标与列表已读语义收敛到同一份服务端
 事实。页面流程由 `frontend/src/views/useConversationsFeed.js` 承载（会话 scope 竞态丢弃、游标去重合并），
-组件只保留渲染与格式化。会话详情与 IM 恢复链路的迁移属于后续波次，不在本页范围。
+组件只保留渲染与格式化。
+
+`/messages/:conversationId` 聚焦会话随波次 6 完成迁移：整页是单张 UiCard（头部 / 时间线 / 输入区三段，
+分隔线隔开），返回入口收敛为 ghost UiButton 链接（lucide ArrowLeft，不再手写 SVG），标题区复用
+UiPageHeader，实时状态 pill 用 accent-weak/accent-text 表达已就绪、surface-2/text-3 表达未连接或认证中。
+首载使用 UiSkeleton（list variant），空态与首载错态使用 UiState（错态带重试），裸「加载中」文本清零；
+「加载更早消息」在途时按钮内 spinner 并禁用，滚动锚定语义不变。消息气泡收敛为扁平令牌表面：对方
+surface + 1px border，我方 accent + accent-contrast，不再叠加阴影或白色 color-mix。deliveryState 三态
+在视图层可区分：pending 显示「发送中…」，failed 显示「发送失败」并提供重试按钮（实时未就绪时禁用），
+committed 不附加标记。失败重试是同一个写尝试：`retrySend` 复用原 clientMsgId 重新下发同一条
+sendPrivateText command（IM 幂等键语义，不生成新 key），committed 回执与 HTTP backfill 仍经
+`messageIdentity` 别名合并，重试不产生重复消息。视图不承载 IM 协议或状态机：会话 bootstrap
+（`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，页面流程继续由
+`useConversationDetailWorkflow.js` 的 `model/actions/lifecycle`（新增 `retrySend`）承载。
 
 新增页面时必须同步以下四处：
 
@@ -251,10 +264,10 @@ connect(accessToken)
 
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
-- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。
+- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。
 - 会话详情流程集中在 `frontend/src/views/useConversationDetailWorkflow.js`，只向组件公开 `model/actions/lifecycle`；HTTP/WS transport、请求竞态、订阅清理和滚动锚定不由组件直接管理。一个 `historyFlow` 统一记录 scope generation、基线阶段与轮次、连续 `seq` waterline、重连请求/完成轮次和实际补拉轮次；scope 切换会推进 generation，使旧异步执行失效。该流程先等待首次 `limit=50` history 建立基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
 - backfill 按会话 scope 单飞串行执行；每次重连上升沿推进请求轮次，当前执行按开始时覆盖的最新轮次完成，期间任意多次重连合并为下一轮，从最新水位继续补；空页同样完成其覆盖轮次，不能吞掉后续恢复请求。
-- pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。
+- pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`（HTTP history 响应是 `createdAtEpochMs`），由 `conversationDetailState.js` 的 `mapRealtimeConversationMessage` 归一后再走同一份消息映射与校验。
 - 每条内部消息通过可枚举的 `messageIdentity` 记录显式保留 `serverMessageIds`、发送者作用域的 `clientMessageIds`、`requestIds` 和 `sequences` 别名。消息合并和排序逻辑在 `frontend/src/views/conversationDetailState.js`，任一别名命中都更新同一条消息，排序仍优先使用 `seq`，再回退到时间 / id；身份元数据不进入组件渲染模型。
 
 ## 页面状态模块
@@ -267,9 +280,9 @@ connect(accessToken)
 | `useBookmarksFeed.js` | 收藏流的会话 scope、页码追加分页、请求竞态丢弃、拉黑过滤和打开帖子动作；组件只保留卡片渲染与键盘 Enter 守卫。 |
 | `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
-| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
+| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、去重和排序。 |
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
-| `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
+| `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
 | `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |

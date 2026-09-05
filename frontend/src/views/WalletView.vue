@@ -1,7 +1,5 @@
 <template>
   <div class="page wallet-page">
-    <UiBreadcrumb />
-
     <UiPageHeader>
       <template #title>钱包</template>
       <template #subtitle>{{ state.hero.statusText }}</template>
@@ -150,7 +148,6 @@ import {
   getWalletTransactions
 } from '../api/services/walletService'
 import { createWriteAttempt } from '../api/writeAttempt'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiField from '../components/ui/UiField.vue'

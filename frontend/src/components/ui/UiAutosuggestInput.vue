@@ -1,15 +1,15 @@
 <template>
-  <input
-    class="input"
+  <UiInput
     :id="id || undefined"
     :name="name || undefined"
     :list="listId"
     :placeholder="placeholder"
     :autocomplete="autocomplete"
     :disabled="disabled"
-    :value="modelValue"
+    :model-value="modelValue"
+    :model-modifiers="modelModifiers"
+    @update:model-value="onModelUpdate"
     @blur="onBlur"
-    @input="onInput"
     @keydown="onKeydown"
   />
   <datalist :id="listId">
@@ -19,6 +19,7 @@
 
 <script setup>
 import { computed, useId } from 'vue'
+import UiInput from './UiInput.vue'
 
 const props = defineProps({
   modelValue: { type: String, default: '' },
@@ -47,14 +48,14 @@ function normalizeValue(value) {
   return next
 }
 
+function onModelUpdate(value) {
+  if (props.disabled) return
+  emit('update:modelValue', normalizeValue(value))
+}
+
 function onBlur(event) {
   if (props.disabled) return
   if (props.commitOnBlur) emit('commit', normalizeValue(event?.target?.value ?? props.modelValue))
-}
-
-function onInput(event) {
-  if (props.disabled) return
-  emit('update:modelValue', normalizeValue(event?.target?.value ?? ''))
 }
 
 function onKeydown(event) {

@@ -1,14 +1,12 @@
 <template>
   <div class="page market-page">
-    <UiBreadcrumb />
-
     <UiPageHeader>
       <template #title>争议裁定</template>
       <template #subtitle>管理员只处理最终裁定，不处理普通卖家动作。这里专门承接卖家拒绝后的争议收口。</template>
     </UiPageHeader>
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-else-if="loading" class="muted">正在加载争议…</div>
+    <UiSkeleton v-else-if="loading" variant="list" :rows="3" label="正在加载争议" />
 
     <UiState v-else-if="state.disputes.length === 0">
       暂无待处理争议
@@ -38,8 +36,8 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'

@@ -23,14 +23,14 @@
               </div>
 
               <div class="row" style="gap: 8px; margin-top: 12px; flex-wrap: wrap">
-                <RouterLink
+                <UiButton
                   v-if="resolvedUserId"
-                  class="btn secondary"
+                  variant="secondary"
                   style="height: 32px; padding: 0 12px; font-size: 12px"
                   :to="{ name: 'userProfile', params: { userId: String(resolvedUserId) } }"
                 >
                   查看主页
-                </RouterLink>
+                </UiButton>
 
                 <template v-if="canInteract">
                   <UiButton
@@ -247,7 +247,7 @@ onBeforeUnmount(() => {
 
 .pop-enter-active,
 .pop-leave-active {
-  transition: all 0.2s;
+  transition: opacity 0.2s, transform 0.2s;
 }
 .pop-enter-from,
 .pop-leave-to {

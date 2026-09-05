@@ -70,7 +70,7 @@
 
 文档应描述当前代码真实行为。未来设计和迁移说明也放在本目录，并明确标注状态；落地后必须把当前行为同步到对应 handbook 页面。
 
-计划中的前台 UI 迁移以 [frontend-ui-optimization.md](frontend-ui-optimization.md) 为施工规范；尚未落地的行为不覆盖 [frontend.md](frontend.md) 记录的当前状态。
+前台 UI 迁移（波次 0–10）已全部落地，[frontend-ui-optimization.md](frontend-ui-optimization.md) 转为设计历史；当前前台行为以 [frontend.md](frontend.md) 为准。
 
 新增或修改 backend 架构规则时，还必须同步：
 

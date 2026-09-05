@@ -141,7 +141,7 @@ sendPrivateText command（IM 幂等键语义，不生成新 key），committed �
 （`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，页面流程继续由
 `useConversationDetailWorkflow.js` 的 `model/actions/lifecycle`（新增 `retrySend`）承载。
 
-`/market` 商品目录与 `/market/listings/:listingId` 商品详情随波次 9 完成迁移（卖家发布 / 库存与订单路由属
+`/market` 商品目录与 `/market/listings/:listingId` 商品详情随波次 9 完成迁移（卖家发布 / 库存路由属
 后续票，页面合同不变）。目录页是市场域内操作的入口：「我的出售 / 出售订单 / 我的购买 / 发布商品」收敛为
 页头主操作（`UiButton` 链接形态），收货地址不作为市场一级入口（地址簿在 Settings addresses section）。
 页内搜索是市场自己的（壳搜索只覆盖帖子 / 标签 / 用户）：后端列表接口只有页码参数，关键词在已加载的商品
@@ -157,6 +157,26 @@ UiState 空态给出「清除搜索」下一步。商品卡是 8px 扁平列表�
 placeholder 提示，空地址给出「到设置添加」链接，加载失败与「请选择收货地址」校验都内联在字段错误）；
 下单失败不再整页替换为错态，改为下单区内联 alert，写重试继续复用同一 WriteAttempt 幂等键；首载
 UiSkeleton（detail variant）、可重试的 UiState 错态齐备。
+
+`/market/orders/buying`、`/market/orders/selling` 与 `/market/orders/:orderId` 订单路由已随波次 9 完成
+迁移（页面合同与 `allowedActions` 权限语义不变）。买入 / 卖出是域内 UiTabs（tablist/tab/tabpanel 与
+方向键 / Home/End 语义），tab 切换深链到既有两条列表路由、不新增路由或 query；两条路由复用同一组件实例，
+`useMarketOrderList` 把 `side` 并入会话 scope，切换时 reset 并按新 scope 重取，在途旧响应按 scope 丢弃，
+buying / selling 状态互不串扰。订单卡为 8px 扁平列表语言：虚拟 / 实物用文字 chip、订单状态用 UiBadge 变体
+（已完成 success、争议与托管失败 danger、托管 / 放款 / 退款 / 取消处理中 pending、履约进行中 accent、
+取消 / 退款等中性终态与未知状态 default，来自投影的 `statusVariant`，`badge-pending` 补齐了 UiBadge 文档
+已声明但缺样式的变体），资金 / 履约 / 下一步为文本行，不靠颜色单独表达；首载 UiSkeleton（list variant）、
+可重试 UiState 错态、带主要下一步的空态（去市场逛逛 / 查看我的出售）与「加载更多」尾部（在途 spinner、
+到底结束标记、失败内联 alert）齐备，只显示「首页」的空面包屑按规则移除。详情页层级由角色感知的 ghost
+返回链接承担（买家 → 我的购买，卖家 → 出售订单，不再渲染空面包屑），摘要区用文字 chip 明示「我是买家 /
+我是卖家」；交付 / 发货 / 申诉表单收敛到 UiField + UiInput / UiTextarea，动作失败内联 alert；确认完成 /
+收货（放款给卖家）与取消订单（中止履约并触发退款）作为资损动作先经 UiModalConfirm 复述托管金额与不可
+撤销后果（文案由 `marketState.js` 的 `marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`
+生成，danger 变体），路由或身份变化时关闭未决确认，确认后仍走原提交流程与详情重取；发起申诉的权限与
+业务语义不变。两个视图样式全部位于 `<style scoped>` 并只使用 variables.css 令牌；`pages.css` 中仅订单
+视图使用的 `market-lifecycle*` / `market-bullets` 样式块与已无引用的 `market-edit-form` 随之删除（其余
+`market-*` 全局样式留给卖家票与 pages.css 退役票收尾），`tokens.test.js` 的 MarketOrderDetailView `.input`
+基线登记与 `loading-states.test.js` 的 MarketOrderListView 裸加载文本登记随之移除。
 
 新增页面时必须同步以下四处：
 
@@ -300,7 +320,7 @@ connect(accessToken)
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、去重和排序。 |
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
-| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影另含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）。 |
+| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增与到底判定）和资损确认文案。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |

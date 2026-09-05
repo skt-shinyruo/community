@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMarketState, filterMarketListings } from './marketState'
+import { buildMarketState, filterMarketListings, marketOrderCancelConfirmation, marketOrderConfirmConfirmation } from './marketState'
 
 describe('views/marketState', () => {
   it('should derive type labels and mixed fulfillment labels from goodsType', () => {
@@ -221,5 +221,71 @@ describe('views/marketState', () => {
     expect(state.disputes[0]).not.toHaveProperty('disputeId')
     expect(state.addresses[0]).not.toHaveProperty('addressId')
     expect(state.inventory[0]).not.toHaveProperty('inventoryUnitId')
+  })
+
+  it('maps order status to distinguishable badge variants, with processing states as pending', () => {
+    const state = buildMarketState({
+      orders: [
+        { orderId: '1', status: 'COMPLETED' },
+        { orderId: '2', status: 'DISPUTED' },
+        { orderId: '3', status: 'DISPUTE_REFUND_PENDING' },
+        { orderId: '4', status: 'ESCROW_FAILED' },
+        { orderId: '5', status: 'ESCROW_PENDING' },
+        { orderId: '6', status: 'RELEASE_PENDING' },
+        { orderId: '7', status: 'REFUND_PENDING' },
+        { orderId: '8', status: 'ESCROW_CANCEL_PENDING' },
+        { orderId: '9', status: 'ESCROWED' },
+        { orderId: '10', status: 'DELIVERED' },
+        { orderId: '11', status: 'SHIPPED' },
+        { orderId: '12', status: 'CANCELLED' },
+        { orderId: '13', status: 'REFUNDED' },
+        { orderId: '14', status: 'FUTURE_STATUS' }
+      ]
+    })
+
+    expect(state.orders.map((item) => item.statusVariant)).toEqual([
+      'success',
+      'danger',
+      'danger',
+      'danger',
+      'pending',
+      'pending',
+      'pending',
+      'pending',
+      'accent',
+      'accent',
+      'accent',
+      'default',
+      'default',
+      'default'
+    ])
+    // 未知状态继续保守回落：文字仍承担状态语义，不给可误读的颜色。
+    expect(state.orders[13].statusLabel).toBe('状态待确认')
+  })
+
+  it('builds capital-loss confirmation copy that restates the escrowed amount and consequence', () => {
+    const confirm = marketOrderConfirmConfirmation({ totalAmountText: '12900 积分', confirmButtonText: '确认收货' })
+    expect(confirm).toMatchObject({
+      title: '确认收货',
+      confirmText: '确认收货',
+      variant: 'danger'
+    })
+    expect(confirm.message).toContain('12900 积分')
+    expect(confirm.message).toContain('放款给卖家')
+    expect(confirm.message).toContain('不可撤销')
+
+    const fallback = marketOrderConfirmConfirmation({})
+    expect(fallback.title).toBe('确认完成')
+    expect(fallback.message).toContain('托管资金')
+
+    const cancel = marketOrderCancelConfirmation({ totalAmountText: '500 积分' })
+    expect(cancel).toMatchObject({
+      title: '取消订单',
+      confirmText: '取消订单',
+      variant: 'danger'
+    })
+    expect(cancel.message).toContain('500 积分')
+    expect(cancel.message).toContain('退回')
+    expect(cancel.message).toContain('不可撤销')
   })
 })

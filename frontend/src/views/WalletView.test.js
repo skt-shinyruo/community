@@ -46,6 +46,12 @@ function mountWalletView() {
       stubs: {
         UiBreadcrumb: true,
         UiCard: { template: '<section><slot /></section>' },
+        UiInput: {
+          props: ['modelValue', 'disabled', 'type', 'placeholder'],
+          emits: ['update:modelValue'],
+          template: '<input :value="modelValue" :disabled="disabled" :type="type" :placeholder="placeholder" @input="$emit(\'update:modelValue\', $event.target.value)" />'
+        },
+        UiSkeleton: { template: '<div data-test="wallet-skeleton"><slot /></div>' },
         UiState: { template: '<div><slot /><slot name="description" /></div>' },
         UiPageHeader: { template: '<header><slot /><slot name="title" /><slot name="subtitle" /></header>' },
         UiButton: {

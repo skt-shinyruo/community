@@ -1,147 +1,98 @@
 <template>
   <div class="page notices-page">
-    <div v-if="error && items.length > 0" class="error notices-banner">{{ error }}</div>
+    <UiPageHeader>
+      <template #title>通知</template>
+      <template #subtitle>查看评论、点赞、关注和治理提醒。</template>
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading" @click="reload">刷新</UiButton>
+      </template>
+    </UiPageHeader>
 
-    <UiCard class="notices-shell">
-      <div class="notices-shell-head">
-        <UiPageHeader>
-          <template #title>通知</template>
-          <template #subtitle>查看评论、点赞、关注和治理提醒。</template>
-          <template #actions>
-            <UiButton variant="secondary" @click="load" :disabled="loading">{{ loading ? '刷新中…' : '刷新' }}</UiButton>
-          </template>
-        </UiPageHeader>
-        <div class="muted notices-head-meta">
-          {{ items.filter((it) => Number(it?.unreadCount || 0) > 0).length }} 个主题需要处理
-        </div>
+    <div class="notices-feed">
+      <div v-if="loading && items.length === 0" class="notices-skeletons">
+        <UiSkeleton variant="list" :rows="4" />
       </div>
 
-      <UiState v-if="error && items.length === 0" variant="error" class="notices-state">{{ error }}</UiState>
-      <UiState v-else-if="items.length === 0 && !loading" class="notices-state">
+      <UiState v-if="error && items.length === 0" variant="error" :title="error">
+        <template #description>通知汇总加载失败，可以重试或稍后再来。</template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">重试</UiButton>
+        </template>
+      </UiState>
+      <div v-else-if="error" class="error notices-inline-error" role="alert">{{ error }}</div>
+
+      <UiState v-if="!loading && !error && items.length === 0">
         暂无通知
         <template #description>当有人与你互动，或系统需要提醒你时，这里会按主题出现新的通知流。</template>
+        <template #actions>
+          <UiButton :to="{ name: 'posts' }">浏览帖子</UiButton>
+        </template>
       </UiState>
-      <div v-else-if="loading && items.length === 0" class="muted notices-state">正在同步通知…</div>
 
-      <div v-else class="inbox-list">
-        <RouterLink v-for="it in items" :key="it.topic" :to="`/notices/${it.topic}`" class="inbox-item" :class="{ unread: it.unreadCount > 0 }">
-          <div class="inbox-icon" :class="it.topic" aria-hidden="true">
-              <svg v-if="it.topic === 'like'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path
-                  d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"
-                ></path>
-              </svg>
-              <svg v-else-if="it.topic === 'comment'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path
-                  d="M21 11.5a8.38 8.38 0 0 1-.9 3.8 8.5 8.5 0 0 1-7.6 4.7 8.38 8.38 0 0 1-3.8-.9L3 21l1.9-5.7a8.38 8.38 0 0 1-.9-3.8 8.5 8.5 0 0 1 4.7-7.6 8.38 8.38 0 0 1 3.8-.9h.5a8.48 8.48 0 0 1 8 8v.5z"
-                ></path>
-              </svg>
-              <svg v-else-if="it.topic === 'follow'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"></path>
-                <circle cx="8.5" cy="7" r="4"></circle>
-                <line x1="20" y1="8" x2="20" y2="14"></line>
-                <line x1="23" y1="11" x2="17" y2="11"></line>
-              </svg>
-              <svg v-else-if="it.topic === 'moderation'" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-                <path d="M12 2l7 4v6c0 5-3 9-7 10-4-1-7-5-7-10V6l7-4z"></path>
-              </svg>
-              <span v-else class="inbox-icon-fallback">#</span>
+      <template v-if="items.length > 0">
+        <p class="notices-list-meta">{{ pendingTopicCount }} 个主题需要处理</p>
+        <div class="notices-list">
+          <RouterLink
+            v-for="it in items"
+            :key="it.topic"
+            :to="`/notices/${it.topic}`"
+            class="notice-topic-card"
+            :class="{ unread: noticeUnreadCount(it) > 0 }"
+          >
+            <div class="notice-topic-icon" :class="`topic-${topicIconKey(it.topic)}`" aria-hidden="true">
+              <component :is="topicIcon(it.topic)" :size="20" />
             </div>
 
-            <div class="inbox-content">
-              <div class="inbox-top">
-                <div class="inbox-title-row">
-                  <div class="inbox-title">{{ getTopicTitle(it.topic) }}</div>
-                  <span v-if="it.unreadCount > 0" class="inbox-badge">需要处理</span>
-                </div>
-                <div class="inbox-sub">
-                  {{
-                    it.topic === 'comment'
-                      ? '有人回复了你的帖子或评论。'
-                      : it.topic === 'like'
-                        ? '有人对你的内容表达了认可。'
-                        : it.topic === 'follow'
-                          ? '有人开始关注你的公开动态。'
-                          : it.topic === 'moderation'
-                            ? '治理状态或处理结果发生了更新。'
-                            : '查看这一类通知的最新动态。'
-                  }}
-                </div>
+            <div class="notice-topic-copy">
+              <div class="notice-topic-title-row">
+                <span class="notice-topic-title">{{ noticeTopicPresentation(it.topic).title }}</span>
+                <UiBadge v-if="noticeUnreadCount(it) > 0" variant="accent">未读 {{ noticeUnreadCount(it) }}</UiBadge>
               </div>
-              <div class="inbox-meta">
-                <span>共 {{ it.noticeCount }} 条</span>
-                <span :class="{ 'unread-text': it.unreadCount > 0 }">未读 {{ it.unreadCount }}</span>
-              </div>
+              <div class="notice-topic-sub">{{ noticeTopicPresentation(it.topic).description }}</div>
+              <div class="notice-topic-meta">共 {{ Number(it?.noticeCount || 0) }} 条</div>
             </div>
 
-            <div class="inbox-tail" aria-hidden="true">
-              <span v-if="it.unreadCount > 0">{{ it.unreadCount }}</span>
-              <span class="inbox-open-copy">打开通知</span>
+            <div class="notice-topic-tail" aria-hidden="true">
+              <span class="notice-topic-open">打开通知</span>
+              <ChevronRight :size="16" />
             </div>
           </RouterLink>
-      </div>
-    </UiCard>
+        </div>
+      </template>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useAuthStore } from '../stores/auth'
-import { identityScope } from '../stores/identityScope'
-import { topicSummary } from '../api/services/noticeService'
-import { createLatestRequestTracker } from '../utils/latestRequest'
-import UiCard from '../components/ui/UiCard.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { Bell, ChevronRight, Heart, MessageCircle, Shield, UserPlus } from 'lucide-vue-next'
+import UiBadge from '../components/ui/UiBadge.vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
+import {
+  noticeTopicPresentation,
+  noticeUnreadCount,
+  useNoticesSummaryState
+} from './notices/useNoticesSummaryState'
 
-const auth = useAuthStore()
-const loading = ref(false)
-const error = ref('')
-const items = ref([])
-const loadRequestTracker = createLatestRequestTracker({ getScope: () => identityScope(auth) })
+const { items, loading, error, pendingTopicCount, reload } = useNoticesSummaryState()
 
-function getTopicTitle(topic) {
-  const map = {
-    like: '点赞',
-    comment: '评论',
-    follow: '关注',
-    moderation: '治理'
-  }
-  return map[topic] || topic
+const TOPIC_ICONS = {
+  like: Heart,
+  comment: MessageCircle,
+  follow: UserPlus,
+  moderation: Shield
 }
 
-async function load() {
-  const token = loadRequestTracker.begin()
-  error.value = ''
-  loading.value = true
-  try {
-    const { data } = await topicSummary()
-    if (!loadRequestTracker.isCurrent(token)) return
-    items.value = Array.isArray(data) ? data : []
-  } catch (e) {
-    if (!loadRequestTracker.isCurrent(token)) return
-    error.value = e?.message || '加载通知失败'
-  } finally {
-    if (loadRequestTracker.isCurrent(token)) {
-      loading.value = false
-    }
-  }
+function topicIconKey(topic) {
+  const key = String(topic || '')
+  return TOPIC_ICONS[key] ? key : 'fallback'
 }
 
-function resetForIdentity() {
-  loadRequestTracker.invalidate()
-  loading.value = false
-  error.value = ''
-  items.value = []
-  if (auth.authed) load()
+function topicIcon(topic) {
+  return TOPIC_ICONS[topicIconKey(topic)] || Bell
 }
-
-watch(() => identityScope(auth), resetForIdentity)
-onMounted(() => {
-  if (auth.authed) load()
-})
-onBeforeUnmount(() => loadRequestTracker.invalidate())
 </script>
 
 <style scoped>
@@ -151,182 +102,147 @@ onBeforeUnmount(() => loadRequestTracker.invalidate())
   gap: var(--space-5);
 }
 
-.notices-shell {
-  padding: 0;
-  overflow: hidden;
+.notices-feed {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.notices-banner {
-  margin-top: -6px;
+.notices-skeletons {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.notices-shell-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 16px;
-  align-items: flex-end;
-  padding: 22px 24px 18px;
-  border-bottom: 1px solid var(--border);
-  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+.notices-inline-error {
+  font-size: var(--text-sm);
 }
 
-.notices-shell-head :deep(.page-header) {
-  gap: 0;
+.notices-list-meta {
+  margin: 0;
+  font-size: 13px;
+  color: var(--text-3);
 }
 
-.notices-shell-head :deep(.page-header-subtitle) {
-  margin: 4px 0 0;
+.notices-list {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.notices-head-meta {
-  white-space: nowrap;
-}
-
-.notices-state {
-  padding: 48px 24px;
-}
-
-.inbox-list {
-  display: flex;
-  flex-direction: column;
-}
-
-.inbox-item {
+.notice-topic-card {
   display: flex;
   align-items: flex-start;
-  gap: 16px;
-  padding: 20px 24px;
-  background: transparent;
-  border-bottom: 1px solid var(--border);
+  gap: var(--space-4);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
   text-decoration: none;
   color: var(--text-1);
-  transition: background 0.18s ease-out, border-color 0.18s ease-out;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
 }
 
-.inbox-item:last-child {
-  border-bottom: none;
+.notice-topic-card:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
 }
 
-.inbox-item:hover {
-  background: color-mix(in srgb, var(--surface) 92%, var(--accent-weak) 8%);
+.notice-topic-card.unread {
+  box-shadow: inset 3px 0 0 0 var(--accent);
 }
 
-.inbox-item.unread {
-  background: color-mix(in srgb, var(--surface) 88%, var(--accent-weak) 12%);
-}
-
-.inbox-item:focus-visible {
-  box-shadow: inset 0 0 0 1px var(--border-strong), var(--focus-ring);
+.notice-topic-card:focus-visible {
   outline: none;
+  box-shadow: var(--focus-ring);
 }
 
-.inbox-icon {
-  width: 48px;
-  height: 48px;
-  border-radius: 12px;
+.notice-topic-card.unread:focus-visible {
+  box-shadow: inset 3px 0 0 0 var(--accent), var(--focus-ring);
+}
+
+.notice-topic-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--radius-md);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 24px;
+  flex: none;
 }
 
-.inbox-icon-fallback {
-  font-weight: 900;
+.notice-topic-icon.topic-like {
+  background: var(--danger-weak);
+  color: var(--danger);
 }
 
-.inbox-icon.like { background: var(--danger-weak); color: var(--danger); }
-.inbox-icon.comment { background: var(--accent-weak); color: var(--accent); }
-.inbox-icon.follow { background: var(--success-weak); color: var(--success); }
-.inbox-icon.moderation { background: var(--warning-weak); color: var(--warning); }
+.notice-topic-icon.topic-comment {
+  background: var(--accent-weak);
+  color: var(--accent-text);
+}
 
-.inbox-content {
+.notice-topic-icon.topic-follow {
+  background: var(--success-weak);
+  color: var(--success);
+}
+
+.notice-topic-icon.topic-moderation {
+  background: var(--warning-weak);
+  color: var(--warning);
+}
+
+.notice-topic-icon.topic-fallback {
+  background: var(--surface-2);
+  color: var(--text-2);
+}
+
+.notice-topic-copy {
   flex: 1;
   min-width: 0;
   display: grid;
-  gap: 10px;
+  gap: var(--space-2);
 }
 
-.inbox-top {
-  display: grid;
-  gap: 6px;
-}
-
-.inbox-title-row {
+.notice-topic-title-row {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   flex-wrap: wrap;
 }
 
-.inbox-title {
-  font-weight: 800;
-  font-size: 15px;
-}
-
-.inbox-badge {
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 11px;
+.notice-topic-title {
+  font-size: var(--text-md);
   font-weight: 700;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, white 82%);
+  color: var(--text-1);
 }
 
-.inbox-sub {
-  font-size: 14px;
+.notice-topic-sub {
+  font-size: var(--text-sm);
   color: var(--text-2);
-  line-height: 1.55;
+  line-height: 1.6;
 }
 
-.inbox-meta {
+.notice-topic-meta {
+  font-size: 13px;
+  color: var(--text-3);
+}
+
+.notice-topic-tail {
   display: flex;
-  gap: 14px;
-  flex-wrap: wrap;
-  font-size: 12px;
-  color: var(--text-3);
+  align-items: center;
+  gap: var(--space-1);
+  flex: none;
+  color: var(--accent-text);
 }
 
-.unread-text {
-  color: var(--accent);
+.notice-topic-open {
+  font-size: 13px;
   font-weight: 700;
-}
-
-.inbox-tail {
-  min-width: 72px;
-  min-height: 34px;
-  padding: 6px 10px;
-  border-radius: 12px;
-  display: grid;
-  gap: 2px;
-  justify-items: center;
-  color: var(--text-2);
-  background: color-mix(in srgb, var(--surface) 70%, var(--bg) 30%);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.inbox-open-copy {
-  font-size: 11px;
-  color: var(--text-3);
-  letter-spacing: 0.04em;
+  white-space: nowrap;
 }
 
 @media (max-width: 768px) {
-  .notices-shell-head,
-  .inbox-item {
-    padding-left: 18px;
-    padding-right: 18px;
-  }
-
-  .inbox-icon {
-    width: 42px;
-    height: 42px;
-    border-radius: 10px;
-  }
-
-  .notices-shell-head {
-    flex-direction: column;
-    align-items: flex-start;
+  .notice-topic-card {
+    padding: var(--space-4);
   }
 }
 </style>

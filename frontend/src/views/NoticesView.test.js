@@ -15,6 +15,16 @@ vi.mock('../api/services/noticeService', () => ({
 import NoticesView from './NoticesView.vue'
 import { useAuthStore } from '../stores/auth'
 
+function deferred() {
+  let resolve
+  let reject
+  const promise = new Promise((resolvePromise, rejectPromise) => {
+    resolve = resolvePromise
+    reject = rejectPromise
+  })
+  return { promise, resolve, reject }
+}
+
 function mountView() {
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -30,14 +40,15 @@ function mountView() {
           props: ['to'],
           template: '<a :href="to"><slot /></a>'
         },
-        UiCard: { template: '<section><slot /></section>' },
+        UiBadge: { template: '<span class="ui-badge-stub"><slot /></span>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+        UiSkeleton: { template: '<div class="ui-skeleton-stub" role="status" />' },
+        UiState: { props: ['title'], template: '<div>{{ title }}<slot /><slot name="description" /><slot name="actions" /></div>' },
         UiButton: {
-          props: ['disabled', 'variant'],
+          props: ['disabled', 'variant', 'to'],
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiState: { template: '<div><slot /><slot name="description" /></div>' }
+        }
       }
     }
   })
@@ -55,18 +66,81 @@ describe('NoticesView', () => {
     })
   })
 
-  it('renders grouped notice topics with unread counts', async () => {
+  it('renders grouped notice topics with unread rail and weak chip', async () => {
     const wrapper = mountView()
     await flushPromises()
 
     expect(topicSummary).toHaveBeenCalledTimes(1)
     expect(wrapper.text()).toContain('1 个主题需要处理')
     expect(wrapper.text()).toContain('评论')
-    expect(wrapper.text()).toContain('需要处理')
-    expect(wrapper.text()).toContain('打开通知')
     expect(wrapper.text()).toContain('未读 2')
-    expect(wrapper.text()).not.toContain('可快速处理的收件箱')
-    expect(wrapper.findAll('a')[0].attributes('href')).toBe('/notices/comment')
+    expect(wrapper.text()).toContain('共 4 条')
+    expect(wrapper.text()).toContain('打开通知')
+
+    const rows = wrapper.findAll('a')
+    expect(rows[0].attributes('href')).toBe('/notices/comment')
+    expect(rows[0].classes()).toContain('unread')
+    expect(rows[1].attributes('href')).toBe('/notices/follow')
+    expect(rows[1].classes()).not.toContain('unread')
+    expect(rows[0].find('svg').exists()).toBe(true)
+  })
+
+  it('shows the skeleton during the first load instead of bare loading text', async () => {
+    const pending = deferred()
+    topicSummary.mockImplementationOnce(() => pending.promise)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.find('.ui-skeleton-stub').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('暂无通知')
+
+    pending.resolve({ data: [], traceId: 'trace-late' })
+    await flushPromises()
+    expect(wrapper.find('.ui-skeleton-stub').exists()).toBe(false)
+    expect(wrapper.text()).toContain('暂无通知')
+  })
+
+  it('shows an error state with retry and recovers after the retry succeeds', async () => {
+    topicSummary.mockRejectedValueOnce(new Error('summary exploded'))
+
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('summary exploded')
+
+    const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    expect(retry).toBeTruthy()
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(topicSummary).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('评论')
+    expect(wrapper.text()).not.toContain('summary exploded')
+  })
+
+  it('keeps the loaded list and reports refresh failures inline', async () => {
+    const wrapper = mountView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('评论')
+
+    topicSummary.mockRejectedValueOnce(new Error('refresh exploded'))
+    const refresh = wrapper.findAll('button').find((button) => button.text() === '刷新')
+    await refresh.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('评论')
+    expect(wrapper.find('.notices-inline-error').text()).toContain('refresh exploded')
+  })
+
+  it('shows the empty state with a primary next step', async () => {
+    topicSummary.mockResolvedValueOnce({ data: [], traceId: 'trace-empty' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('暂无通知')
+    const next = wrapper.findAll('button').find((button) => button.text() === '浏览帖子')
+    expect(next).toBeTruthy()
   })
 
   it('clears private rows and ignores the previous identity response after account switching', async () => {

@@ -256,7 +256,6 @@ describe('primitive class guardrails', () => {
   const classBaseline = new Map([
     ['src/views/AnalyticsView.vue', { input: 2 }],
     ['src/views/DriveShareView.vue', { input: 1 }],
-    ['src/views/DriveView.vue', { input: 5 }],
     ['src/views/MarketDetailView.vue', { input: 1 }],
     ['src/views/MarketOrderDetailView.vue', { input: 6 }],
     ['src/views/MarketPublishView.vue', { input: 3 }],

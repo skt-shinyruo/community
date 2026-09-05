@@ -105,6 +105,20 @@ UiState（错态带重试）。搜索结果来自 ES 投影、最终一致，页
 到数十秒；标题与摘要高亮只放行后端返回的 `<em>` 标记（其余标签全部转义），匹配度分数按原值展示，不由
 视觉层推断或伪造。
 
+`/users/:userId` 成员主页随波次 5 完成迁移：身份头部（头像、成员名 H1、角色徽章、用户等级 / 签到 /
+钱包 chip）、三项统计、公开资料与社区动向分区都是 8px 扁平表面，不再包裹外层容器卡片。访客（匿名）、
+本人与他人三种查看状态共用同一模板：匿名只读公开身份与统计；本人显示「编辑资料」入口；他人在已登录时
+显示关注 / 取消关注（`followStatusState` 决定可用性）、发私信、屏蔽与举报动作，权限与反馈语义不变。
+首载使用 UiSkeleton（detail variant），首载失败使用 UiState error 并带重试；社区动向时间线卡是原生链接，
+带可见 focus ring。
+
+`/users/:userId/followees` 与 `/users/:userId/followers` 关系列表与帖子 / 收藏 / 搜索共享 8px 扁平列表
+语言，并统一为「加载更多」追加式分页：`listFollowees` / `listFollowers` 的游标 + size 调用语义不变，
+追加失败保留已加载列表并内联报错，「加载更多」按钮即重试入口；首载骨架使用 UiSkeleton（list variant），
+空态（回到讨论区 / 返回主页两个下一步）与首载错态使用 UiState（错态带重试）。关系卡整卡可打开对应成员
+主页（`role="link"` + Enter，Enter 只响应卡片自身焦点，嵌套的成员名链接与关注 / 取关按钮独立工作），
+逐项关注 / 取关 mutation 与 hydration 语义不变。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -258,7 +272,7 @@ connect(accessToken)
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
 
-跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的游标、hydration、账号 / 路由隔离和逐项 mutation；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 `utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 

@@ -177,7 +177,7 @@ describe('UserProfileView route contract', () => {
     expect(UserProfileView.props.userId).toBeTruthy()
   })
 
-  it('publishes only the page model, intent actions and lifecycle', () => {
+  it('publishes only the page model, intent actions and lifecycle', async () => {
     const wrapper = mountProfile(userId)
 
     expect(Object.keys(wrapper.vm.actions).sort()).toEqual([
@@ -190,6 +190,40 @@ describe('UserProfileView route contract', () => {
     ])
     expect(Object.keys(wrapper.vm.lifecycle).sort()).toEqual(['mount', 'unmount'])
     expect(wrapper.vm.model).toMatchObject({ userId, loading: true })
+    await wrapper.vm.$nextTick()
+    expect(wrapper.find('.ui-skeleton').exists()).toBe(true)
+  })
+
+  it('recovers from an initial load failure through the retry action', async () => {
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${userId}`) return Promise.reject(new Error('profile unavailable'))
+      if (url === `/api/users/${userId}/recent-posts`) return Promise.resolve(okResult([]))
+      if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+
+    const wrapper = mountProfile(userId)
+    await flushPromises()
+    expect(wrapper.vm.model.error).toBe('profile unavailable')
+    expect(wrapper.text()).toContain('profile unavailable')
+
+    http.get.mockImplementation((url) => {
+      if (url === `/api/users/${userId}`) {
+        return Promise.resolve(okResult({ id: userId, username: 'alice' }))
+      }
+      if (url === `/api/users/${userId}/recent-posts`) return Promise.resolve(okResult([]))
+      if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
+      return Promise.resolve(okResult({}))
+    })
+
+    const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    expect(retry).toBeTruthy()
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.model.error).toBe('')
+    expect(wrapper.vm.model.profile).toMatchObject({ id: userId, username: 'alice' })
+    expect(wrapper.text()).toContain('alice')
   })
 
   it('keeps the profile usable when optional activity and relationship requests fail', async () => {

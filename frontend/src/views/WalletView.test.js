@@ -46,13 +46,22 @@ function mountWalletView() {
       stubs: {
         UiBreadcrumb: true,
         UiCard: { template: '<section><slot /></section>' },
+        UiField: {
+          props: ['label', 'error'],
+          template: '<div class="ui-field-stub"><label>{{ label }}</label><slot /><p v-if="error" role="alert">{{ error }}</p></div>'
+        },
         UiInput: {
           props: ['modelValue', 'disabled', 'type', 'placeholder'],
           emits: ['update:modelValue'],
           template: '<input :value="modelValue" :disabled="disabled" :type="type" :placeholder="placeholder" @input="$emit(\'update:modelValue\', $event.target.value)" />'
         },
+        UiModalConfirm: {
+          props: ['title', 'message', 'confirmText', 'confirmVariant'],
+          emits: ['confirm', 'cancel'],
+          template: '<div data-test="wallet-confirm"><p>{{ message }}</p><button data-test="wallet-confirm-cancel" @click="$emit(\'cancel\')">取消</button><button data-test="wallet-confirm-ok" @click="$emit(\'confirm\')">{{ confirmText }}</button></div>'
+        },
         UiSkeleton: { template: '<div data-test="wallet-skeleton"><slot /></div>' },
-        UiState: { template: '<div><slot /><slot name="description" /></div>' },
+        UiState: { template: '<div><slot /><slot name="description" /><slot name="actions" /></div>' },
         UiPageHeader: { template: '<header><slot /><slot name="title" /><slot name="subtitle" /></header>' },
         UiButton: {
           props: ['disabled', 'variant'],
@@ -72,6 +81,26 @@ function deferred() {
     reject = rejectPromise
   })
   return { promise, resolve, reject }
+}
+
+function txnItems(count, prefix = 'txn') {
+  return Array.from({ length: count }, (_, index) => ({
+    txnRef: `${prefix}-${index}`,
+    txnType: 'TRANSFER',
+    amount: -1,
+    counterpartLabel: `用户 ${prefix}-${index}`,
+    status: 'SUCCEEDED'
+  }))
+}
+
+function findButton(wrapper, text) {
+  return wrapper.findAll('button').find((button) => button.text() === text)
+}
+
+async function confirmWalletAction(wrapper) {
+  const dialog = wrapper.find('[data-test="wallet-confirm"]')
+  expect(dialog.exists()).toBe(true)
+  await dialog.find('[data-test="wallet-confirm-ok"]').trigger('click')
 }
 
 describe('WalletView', () => {
@@ -145,6 +174,7 @@ describe('WalletView', () => {
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
     await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await confirmWalletAction(wrapper)
     await flushPromises()
 
     expect(createTransfer).toHaveBeenCalledTimes(1)
@@ -161,6 +191,7 @@ describe('WalletView', () => {
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
     await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await confirmWalletAction(wrapper)
     await flushPromises()
 
     expect(createTransfer).toHaveBeenCalledTimes(1)
@@ -181,7 +212,69 @@ describe('WalletView', () => {
     await flushPromises()
 
     expect(createTransfer).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('请输入有效的目标用户 ID')
+  })
+
+  it('requires capital-loss confirmation before submitting a transfer', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
+    await inputs[3].setValue('25')
+    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await flushPromises()
+
+    expect(createTransfer).not.toHaveBeenCalled()
+    const dialog = wrapper.find('[data-test="wallet-confirm"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('11111111-1111-7111-8111-111111111111')
+    expect(dialog.text()).toContain('25')
+
+    await dialog.find('[data-test="wallet-confirm-cancel"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
+    expect(createTransfer).not.toHaveBeenCalled()
+
+    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await confirmWalletAction(wrapper)
+    await flushPromises()
+    expect(createTransfer).toHaveBeenCalledTimes(1)
+  })
+
+  it('requires capital-loss confirmation before discarding test credits', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[1].setValue('3')
+    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await flushPromises()
+
+    expect(createWithdrawal).not.toHaveBeenCalled()
+    const dialog = wrapper.find('[data-test="wallet-confirm"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('3')
+
+    await confirmWalletAction(wrapper)
+    await flushPromises()
+    expect(createWithdrawal).toHaveBeenCalledTimes(1)
+    expect(createWithdrawal.mock.calls[0][0]).toMatchObject({ amount: 3 })
+  })
+
+  it('rejects an invalid discard amount inline without opening the confirmation', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[1].setValue('-2')
+    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await flushPromises()
+
+    expect(createWithdrawal).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('请输入有效的测试积分数量')
   })
 
   it('renders wallet as an asset and ledger surface without demo copy', async () => {
@@ -240,22 +333,24 @@ describe('WalletView', () => {
     await flushPromises()
     const inputs = wrapper.findAll('input')
     const submit = () => wrapper.findAll('button').find((button) => button.text() === '发起转账')
+    const submitConfirmed = async () => {
+      await submit().trigger('click')
+      await confirmWalletAction(wrapper)
+      await flushPromises()
+    }
 
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
-    await submit().trigger('click')
-    await flushPromises()
+    await submitConfirmed()
     expect(wrapper.text()).toContain('temporary transfer failure')
 
-    await submit().trigger('click')
-    await flushPromises()
+    await submitConfirmed()
     expect(observedKeys[1]).toBe(observedKeys[0])
 
     const nextInputs = wrapper.findAll('input')
     await nextInputs[2].setValue('22222222-2222-7222-8222-222222222222')
     await nextInputs[3].setValue('10')
-    await submit().trigger('click')
-    await flushPromises()
+    await submitConfirmed()
     expect(observedKeys[2]).not.toBe(observedKeys[1])
   })
 
@@ -270,6 +365,7 @@ describe('WalletView', () => {
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
     await submit.trigger('click')
+    await confirmWalletAction(wrapper)
     await vi.waitFor(() => expect(createTransfer).toHaveBeenCalledTimes(1))
 
     expect(inputs[2].attributes('disabled')).toBeDefined()
@@ -330,5 +426,88 @@ describe('WalletView', () => {
     expect(wrapper.text()).toContain('new-user-ledger')
     expect(wrapper.text()).not.toContain('old-user-ledger')
     expect(wrapper.text()).not.toContain('999')
+  })
+
+  it('appends the ledger feed by growing the limit window until exhaustion', async () => {
+    getWalletTransactions.mockImplementation((limit) =>
+      Promise.resolve({ data: txnItems(Math.min(limit, 24), `page-${limit}`), traceId: `trace-${limit}` })
+    )
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    expect(getWalletTransactions).toHaveBeenCalledWith(12)
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(12)
+    expect(findButton(wrapper, '加载更多')).toBeTruthy()
+
+    await findButton(wrapper, '加载更多').trigger('click')
+    await flushPromises()
+    expect(getWalletTransactions).toHaveBeenCalledWith(24)
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(24)
+    expect(wrapper.text()).toContain('用户 page-24-23')
+    expect(findButton(wrapper, '加载更多')).toBeTruthy()
+
+    await findButton(wrapper, '加载更多').trigger('click')
+    await flushPromises()
+    expect(getWalletTransactions).toHaveBeenCalledWith(36)
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(24)
+    expect(findButton(wrapper, '加载更多')).toBeFalsy()
+    expect(wrapper.text()).toContain('已经到底了')
+  })
+
+  it('keeps the current feed window and reports a tail error when loading more fails', async () => {
+    getWalletTransactions
+      .mockResolvedValueOnce({ data: txnItems(12), traceId: 'trace-page-1' })
+      .mockRejectedValueOnce(new Error('ledger page down'))
+      .mockResolvedValueOnce({ data: txnItems(24), traceId: 'trace-page-2' })
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    await findButton(wrapper, '加载更多').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('ledger page down')
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(12)
+    expect(findButton(wrapper, '加载更多')).toBeTruthy()
+
+    await findButton(wrapper, '加载更多').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('ledger page down')
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(24)
+  })
+
+  it('hides the load-more control and marks the end when the first page is not full', async () => {
+    getWalletTransactions.mockResolvedValue({ data: txnItems(5), traceId: 'trace-wallet-transactions' })
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(5)
+    expect(findButton(wrapper, '加载更多')).toBeFalsy()
+    expect(wrapper.text()).toContain('已经到底了')
+  })
+
+  it('retries a failed initial load from the error state action', async () => {
+    getWalletSummary.mockRejectedValueOnce(new Error('summary down'))
+    getWalletTransactions.mockRejectedValueOnce(new Error('ledger down'))
+    getWalletCapabilities.mockRejectedValueOnce(new Error('capabilities down'))
+
+    const wrapper = mountWalletView()
+    await flushPromises()
+    expect(wrapper.text()).toContain('summary down')
+
+    await wrapper.find('[data-test="wallet-reload-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).not.toContain('summary down')
+    expect(wrapper.text()).toContain('可用余额')
+    expect(wrapper.text()).toContain('1000')
+  })
+
+  it('does not present an empty ledger state while transactions have never loaded', async () => {
+    getWalletTransactions.mockRejectedValueOnce(new Error('ledger unavailable'))
+
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('部分钱包数据加载失败：ledger unavailable')
+    expect(wrapper.text()).not.toContain('暂无交易记录')
   })
 })

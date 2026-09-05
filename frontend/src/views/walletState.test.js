@@ -1,5 +1,14 @@
 import { describe, expect, it } from 'vitest'
-import { buildWalletState } from './walletState'
+import {
+  WALLET_FEED_MAX_LIMIT,
+  WALLET_FEED_PAGE_SIZE,
+  buildWalletState,
+  nextWalletFeedLimit,
+  walletDiscardConfirmation,
+  walletFeedExhausted,
+  walletFeedHasMore,
+  walletTransferConfirmation
+} from './walletState'
 
 describe('walletState', () => {
   it('maps summary and txn items into one-wallet surface', () => {
@@ -81,5 +90,53 @@ describe('walletState', () => {
       '充值入账',
       '提现'
     ])
+  })
+})
+
+describe('wallet feed append pagination', () => {
+  it('grows the request window by one page up to the backend limit cap', () => {
+    expect(WALLET_FEED_PAGE_SIZE).toBe(12)
+    expect(nextWalletFeedLimit(12)).toBe(24)
+    expect(nextWalletFeedLimit(24)).toBe(36)
+    expect(nextWalletFeedLimit(48)).toBe(WALLET_FEED_MAX_LIMIT)
+    expect(nextWalletFeedLimit(WALLET_FEED_MAX_LIMIT)).toBe(WALLET_FEED_MAX_LIMIT)
+  })
+
+  it('treats a full window below the cap as having more items', () => {
+    expect(walletFeedHasMore({ count: 12, limit: 12 })).toBe(true)
+    expect(walletFeedHasMore({ count: 18, limit: 24 })).toBe(false)
+    expect(walletFeedHasMore({ count: 0, limit: 12 })).toBe(false)
+  })
+
+  it('stops offering more pages once the request window reaches the backend cap', () => {
+    expect(walletFeedHasMore({ count: 50, limit: WALLET_FEED_MAX_LIMIT })).toBe(false)
+    expect(walletFeedExhausted({ count: 50, limit: WALLET_FEED_MAX_LIMIT })).toBe(false)
+  })
+
+  it('proves exhaustion only when the backend returns fewer items than requested', () => {
+    expect(walletFeedExhausted({ count: 7, limit: 12 })).toBe(true)
+    expect(walletFeedExhausted({ count: 12, limit: 12 })).toBe(false)
+    expect(walletFeedExhausted({ count: 12, limit: 24 })).toBe(true)
+  })
+})
+
+describe('wallet capital-loss confirmation copy', () => {
+  it('restates transfer target and amount before the write attempt runs', () => {
+    const copy = walletTransferConfirmation({ toUserId: ' 11111111-1111-7111-8111-111111111111 ', amount: 25 })
+
+    expect(copy.title).toBe('确认转账')
+    expect(copy.confirmText).toBe('确认转账')
+    expect(copy.message).toContain('11111111-1111-7111-8111-111111111111')
+    expect(copy.message).toContain('25')
+    expect(copy.message).toContain('不可撤销')
+  })
+
+  it('restates the discard amount and its permanent balance effect', () => {
+    const copy = walletDiscardConfirmation({ amount: 7 })
+
+    expect(copy.title).toBe('确认销毁测试积分')
+    expect(copy.confirmText).toBe('确认销毁')
+    expect(copy.message).toContain('7')
+    expect(copy.message).toContain('不可撤销')
   })
 })

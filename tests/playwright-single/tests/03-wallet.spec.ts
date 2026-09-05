@@ -20,6 +20,8 @@ test.describe.serial('wallet product flow @regression', () => {
     await transferCard.getByRole('textbox', { name: '目标用户 ID' }).fill(accounts.bbb.userId)
     await transferCard.getByRole('spinbutton').fill('1')
     await transferCard.getByRole('button', { name: '发起转账' }).click()
-    await expect(page.getByText(/转账/).first()).toBeVisible()
+    // 转账是资损动作，必须经 UiModalConfirm 二次确认后才会提交。
+    await page.getByRole('button', { name: '确认转账' }).click()
+    await expect(page.getByText('转账转出').first()).toBeVisible()
   })
 })

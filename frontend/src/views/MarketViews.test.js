@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 
-import { flushPromises, mount } from '@vue/test-utils'
+import { DOMWrapper, flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { nextTick, reactive } from 'vue'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { beforeEach, afterEach, describe, expect, it, vi } from 'vitest'
 
 import { useAuthStore } from '../stores/auth'
 
@@ -19,6 +19,7 @@ const routeState = reactive({
   fullPath: `/market/listings/${LISTING_A}`
 })
 const routerPush = vi.fn()
+const mountedWrappers = []
 let pinia
 
 vi.mock('vue-router', async () => {
@@ -73,8 +74,8 @@ function mountOptions() {
           template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>'
         },
         UiState: {
-          props: ['variant'],
-          template: '<div :data-variant="variant"><slot /><slot name="description" /></div>'
+          props: ['variant', 'title'],
+          template: '<div :data-variant="variant"><strong v-if="title">{{ title }}</strong><slot /><slot name="description" /><slot name="actions" /></div>'
         },
         UiButton: {
           props: ['disabled', 'variant'],
@@ -84,6 +85,12 @@ function mountOptions() {
       }
     }
   }
+}
+
+function mountView(component) {
+  const wrapper = mount(component, mountOptions())
+  mountedWrappers.push(wrapper)
+  return wrapper
 }
 
 describe('Unified market views', () => {
@@ -99,6 +106,10 @@ describe('Unified market views', () => {
     listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-addresses' })
     listAdminMarketDisputes.mockResolvedValue({ data: [], traceId: 'trace-disputes' })
     adminResolveMarketDispute.mockResolvedValue({ data: {}, traceId: 'trace-resolve' })
+  })
+
+  afterEach(() => {
+    while (mountedWrappers.length) mountedWrappers.pop().unmount()
   })
 
   it('loads unified listings and renders both goods type labels', async () => {
@@ -127,7 +138,7 @@ describe('Unified market views', () => {
       traceId: 'trace-market-list'
     })
 
-    const wrapper = mount(MarketListView, mountOptions())
+    const wrapper = mountView(MarketListView)
     await flushPromises()
 
     expect(listMarketListings).toHaveBeenCalledTimes(1)
@@ -136,7 +147,7 @@ describe('Unified market views', () => {
     expect(wrapper.text()).toContain('钱包托管')
     expect(wrapper.text()).toContain('自动交付')
     expect(wrapper.text()).toContain('实物配送')
-    expect(wrapper.findAll('.market-row')).toHaveLength(2)
+    expect(wrapper.findAll('.market-listing')).toHaveLength(2)
   })
 
   it('appends listing pages and retries the same page after a failure', async () => {
@@ -158,36 +169,160 @@ describe('Unified market views', () => {
         size: 20
       })
 
-    const wrapper = mount(MarketListView, mountOptions())
+    const wrapper = mountView(MarketListView)
     await flushPromises()
 
     expect(listMarketListings).toHaveBeenNthCalledWith(1, { page: 0, size: 20 })
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-test="market-load-more"]').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('下一页暂不可用')
     expect(listMarketListings).toHaveBeenNthCalledWith(2, { page: 1, size: 20 })
 
-    await wrapper.get('button').trigger('click')
+    await wrapper.get('[data-test="market-load-more"]').trigger('click')
     await flushPromises()
 
     expect(listMarketListings).toHaveBeenNthCalledWith(3, { page: 1, size: 20 })
-    expect(wrapper.findAll('.market-row')).toHaveLength(2)
+    expect(wrapper.findAll('.market-listing')).toHaveLength(2)
     expect(wrapper.text()).toContain('第一页（更新）')
     expect(wrapper.text()).toContain('第二页')
     expect(wrapper.text()).not.toContain('加载更多')
+    expect(wrapper.text()).toContain('已经到底了')
   })
 
   it('renders trust-oriented empty market copy', async () => {
     listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
 
-    const wrapper = mount(MarketListView, mountOptions())
+    const wrapper = mountView(MarketListView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('钱包托管')
     expect(wrapper.text()).toContain('履约方式')
     expect(wrapper.text()).toContain('争议可裁定')
     expect(wrapper.text()).not.toContain('前台只按商品类型展示不同的履约语义')
+  })
+
+  it('shows a skeleton during the first catalog load', async () => {
+    const pending = deferred()
+    listMarketListings.mockReturnValueOnce(pending.promise)
+
+    const wrapper = mountView(MarketListView)
+    await nextTick()
+
+    expect(wrapper.get('[role="status"]').text()).toContain('正在加载市场商品')
+    expect(wrapper.text()).not.toContain('暂无在售商品')
+
+    pending.resolve({ data: [], traceId: 'trace-market-list' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('暂无在售商品')
+  })
+
+  it('offers a retry when the catalog fails to load', async () => {
+    listMarketListings
+      .mockRejectedValueOnce(new Error('市场服务暂不可用'))
+      .mockResolvedValueOnce({
+        data: [{ listingId: 11, goodsType: 'VIRTUAL', title: '重试后的商品', status: 'ACTIVE' }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      })
+
+    const wrapper = mountView(MarketListView)
+    await flushPromises()
+
+    expect(wrapper.get('[data-variant="error"]').text()).toContain('市场服务暂不可用')
+
+    await wrapper.get('[data-test="market-list-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(listMarketListings).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('重试后的商品')
+    expect(wrapper.find('[data-variant="error"]').exists()).toBe(false)
+  })
+
+  it('filters the loaded catalog with the in-page search without new requests', async () => {
+    listMarketListings.mockResolvedValue({
+      data: [
+        { listingId: 11, goodsType: 'VIRTUAL', title: 'Steam Key', description: '自动交付', sellerUserId: 'seller-a', status: 'ACTIVE' },
+        { listingId: 12, goodsType: 'PHYSICAL', title: '二手键盘', description: '顺手出', sellerUserId: 'seller-b', status: 'ACTIVE' }
+      ],
+      hasNext: true,
+      page: 0,
+      size: 20,
+      traceId: 'trace-market-list'
+    })
+
+    const wrapper = mountView(MarketListView)
+    await flushPromises()
+    expect(wrapper.findAll('.market-listing')).toHaveLength(2)
+
+    await wrapper.get('[type="search"]').setValue('键盘')
+    expect(wrapper.findAll('.market-listing')).toHaveLength(1)
+    expect(wrapper.text()).toContain('二手键盘')
+    expect(wrapper.text()).not.toContain('Steam Key')
+    expect(wrapper.text()).toContain('匹配 1 / 已加载 2 个商品')
+    expect(listMarketListings).toHaveBeenCalledTimes(1)
+
+    await wrapper.get('[type="search"]').setValue('不存在的商品')
+    expect(wrapper.findAll('.market-listing')).toHaveLength(0)
+    expect(wrapper.text()).toContain('没有匹配')
+
+    await wrapper.get('[data-test="market-search-clear"]').trigger('click')
+    expect(wrapper.findAll('.market-listing')).toHaveLength(2)
+    expect(wrapper.text()).toContain('Steam Key')
+  })
+
+  it('shows a detail skeleton during the first load and a retryable error state on failure', async () => {
+    const pending = deferred()
+    getMarketListingDetail.mockReturnValueOnce(pending.promise)
+
+    const wrapper = mountView(MarketDetailView)
+    await nextTick()
+    expect(wrapper.get('[role="status"]').text()).toContain('正在加载商品详情')
+
+    pending.reject(new Error('详情服务暂不可用'))
+    await flushPromises()
+    expect(wrapper.get('[data-variant="error"]').text()).toContain('详情服务暂不可用')
+
+    getMarketListingDetail.mockResolvedValueOnce({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Retry listing'),
+      traceId: 'trace-market-detail'
+    })
+    await wrapper.get('[data-test="market-detail-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Retry listing')
+    expect(wrapper.find('[data-variant="error"]').exists()).toBe(false)
+  })
+
+  it('keeps the listing visible and reports order failures inline', async () => {
+    authenticate()
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Inline failure listing'),
+      traceId: 'trace-market-detail'
+    })
+    createMarketOrder.mockRejectedValueOnce(new Error('库存不足'))
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+    await findOrderButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[data-test="market-order-error"]').text()).toContain('库存不足')
+    expect(wrapper.text()).toContain('Inline failure listing')
+    expect(wrapper.find('[data-variant="error"]').exists()).toBe(false)
+  })
+
+  it('links back to the market catalog instead of a bare breadcrumb', async () => {
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Back link listing'),
+      traceId: 'trace-market-detail'
+    })
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('返回市场')
   })
 
   it('loads a physical listing detail and requires an address for order creation', async () => {
@@ -217,7 +352,7 @@ describe('Unified market views', () => {
       traceId: 'trace-addresses'
     })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(getMarketListingDetail).toHaveBeenCalledWith(LISTING_A)
@@ -228,7 +363,14 @@ describe('Unified market views', () => {
     expect(wrapper.text()).toContain('库存')
     expect(wrapper.text()).toContain('履约')
 
-    await wrapper.find('select').setValue(ADDRESS_A)
+    // 收货地址收敛到 UiSelect：默认地址自动选中，显式切换验证 v-model 接线。
+    const addressTrigger = wrapper.get('[data-test="market-address-select"]')
+    expect(addressTrigger.text()).toContain('张三')
+    await addressTrigger.trigger('click')
+    await nextTick()
+    const addressOption = [...document.body.querySelectorAll('.ui-select__option')]
+      .find((el) => el.textContent.includes('张三'))
+    await new DOMWrapper(addressOption).trigger('click')
     await vi.waitFor(() => expect(findOrderButton(wrapper).attributes('disabled')).toBeUndefined())
     await findOrderButton(wrapper).trigger('click')
     await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
@@ -246,12 +388,12 @@ describe('Unified market views', () => {
       traceId: 'trace-market-detail'
     })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(wrapper.text()).toContain(`${goodsType} listing`)
     expect(listMarketAddresses).not.toHaveBeenCalled()
-    expect(wrapper.find('[data-test="market-address-error"]').exists()).toBe(false)
+    expect(wrapper.find('[data-test="market-address-field"]').exists()).toBe(false)
   })
 
   it.each([
@@ -265,11 +407,11 @@ describe('Unified market views', () => {
     })
     listMarketAddresses.mockRejectedValueOnce(failure)
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('Public physical listing')
-    expect(wrapper.get('[data-test="market-address-error"]').text()).toContain(failure.message)
+    expect(wrapper.get('[data-test="market-address-field"]').text()).toContain(failure.message)
     expect(wrapper.find('[data-variant="error"]').exists()).toBe(false)
   })
 
@@ -281,7 +423,7 @@ describe('Unified market views', () => {
     })
     listMarketAddresses.mockResolvedValueOnce({ data: [], traceId: 'trace-addresses' })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('Physical without address')
@@ -291,7 +433,7 @@ describe('Unified market views', () => {
     await flushPromises()
 
     expect(createMarketOrder).not.toHaveBeenCalled()
-    expect(wrapper.get('[data-test="market-address-error"]').text()).toContain('请选择收货地址')
+    expect(wrapper.get('[data-test="market-address-field"]').text()).toContain('请选择收货地址')
     expect(wrapper.text()).toContain('Physical without address')
   })
 
@@ -301,7 +443,7 @@ describe('Unified market views', () => {
       traceId: 'trace-market-detail'
     })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
     await findOrderButton(wrapper).trigger('click')
     await flushPromises()
@@ -323,7 +465,7 @@ describe('Unified market views', () => {
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
     setRouteListing(LISTING_B)
     await nextTick()
@@ -331,13 +473,13 @@ describe('Unified market views', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Listing B')
-    expect(wrapper.get('[data-test="market-address-select"]').element.value).toBe(ADDRESS_B)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('Bob')
 
     oldAddresses.resolve({ data: [marketAddress(ADDRESS_A, 'Alice')], traceId: 'trace-a' })
     await flushPromises()
 
     expect(wrapper.text()).toContain('Listing B')
-    expect(wrapper.get('[data-test="market-address-select"]').element.value).toBe(ADDRESS_B)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('Bob')
     expect(wrapper.text()).not.toContain('Alice')
   })
 
@@ -351,7 +493,7 @@ describe('Unified market views', () => {
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
     setRouteListing(LISTING_B)
     await nextTick()
@@ -362,9 +504,9 @@ describe('Unified market views', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('Listing B')
-    expect(wrapper.get('[data-test="market-address-select"]').element.value).toBe(ADDRESS_B)
-    expect(wrapper.find('[data-test="market-address-error"]').exists()).toBe(false)
-    expect(wrapper.find('[data-test="market-address-loading"]').exists()).toBe(false)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('Bob')
+    expect(wrapper.find('[data-test="market-address-field"] .ui-field-error').exists()).toBe(false)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).not.toContain('正在加载')
   })
 
   it('reloads only private addresses on token generation changes and discards the old response', async () => {
@@ -377,7 +519,7 @@ describe('Unified market views', () => {
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
     authenticate('token-2')
     await nextTick()
@@ -385,12 +527,12 @@ describe('Unified market views', () => {
     await flushPromises()
 
     expect(getMarketListingDetail).toHaveBeenCalledTimes(1)
-    expect(wrapper.get('[data-test="market-address-select"]').element.value).toBe(ADDRESS_B)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('Bob')
 
     oldAddresses.resolve({ data: [marketAddress(ADDRESS_A, 'Alice')], traceId: 'trace-a' })
     await flushPromises()
 
-    expect(wrapper.get('[data-test="market-address-select"]').element.value).toBe(ADDRESS_B)
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('Bob')
     expect(wrapper.text()).not.toContain('Alice')
   })
 
@@ -400,7 +542,7 @@ describe('Unified market views', () => {
       .mockReturnValueOnce(oldDetail.promise)
       .mockResolvedValueOnce({ data: marketListing(LISTING_B, 'VIRTUAL', 'Listing B') })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await vi.waitFor(() => expect(getMarketListingDetail).toHaveBeenCalledTimes(1))
     setRouteListing(LISTING_B)
     await nextTick()
@@ -438,7 +580,7 @@ describe('Unified market views', () => {
       traceId: 'trace-create-order'
     })
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(listMarketAddresses).not.toHaveBeenCalled()
@@ -466,7 +608,7 @@ describe('Unified market views', () => {
     const oldOrder = deferred()
     createMarketOrder.mockReturnValueOnce(oldOrder.promise)
 
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
     await findOrderButton(wrapper).trigger('click')
     await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
@@ -491,7 +633,7 @@ describe('Unified market views', () => {
     })
     const pendingOrder = deferred()
     createMarketOrder.mockReturnValueOnce(pendingOrder.promise)
-    const wrapper = mount(MarketDetailView, mountOptions())
+    const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     await findOrderButton(wrapper).trigger('click')
@@ -513,7 +655,7 @@ describe('Unified market views', () => {
 
   it('publishes a physical listing with goodsType-aware payload', async () => {
     authenticate('token-a')
-    const wrapper = mount(MarketPublishView, mountOptions())
+    const wrapper = mountView(MarketPublishView)
 
     expect(wrapper.text()).toContain('发布流程')
     expect(wrapper.text()).toContain('交易信息')
@@ -540,7 +682,7 @@ describe('Unified market views', () => {
     authenticate('token-a')
     const oldSubmission = deferred()
     createMarketListing.mockReturnValueOnce(oldSubmission.promise)
-    const wrapper = mount(MarketPublishView, mountOptions())
+    const wrapper = mountView(MarketPublishView)
 
     await wrapper.findAll('input')[0].setValue('A 的私有草稿')
     await wrapper.findAll('textarea')[1].setValue('CODE-A')
@@ -577,7 +719,7 @@ describe('Unified market views', () => {
       traceId: 'trace-disputes'
     })
 
-    const wrapper = mount(AdminMarketDisputesView, mountOptions())
+    const wrapper = mountView(AdminMarketDisputesView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('货不对板')

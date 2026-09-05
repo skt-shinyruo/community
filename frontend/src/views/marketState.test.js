@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMarketState } from './marketState'
+import { buildMarketState, filterMarketListings } from './marketState'
 
 describe('views/marketState', () => {
   it('should derive type labels and mixed fulfillment labels from goodsType', () => {
@@ -48,13 +48,52 @@ describe('views/marketState', () => {
     expect(state.listings[0]).toMatchObject({
       trustLabel: '钱包托管',
       fulfillmentLabel: '自动交付',
-      statusLabel: '在售'
+      statusLabel: '在售',
+      statusVariant: 'success'
     })
     expect(state.listings[1]).toMatchObject({
       trustLabel: '钱包托管',
       fulfillmentLabel: '实物配送',
-      statusLabel: '在售'
+      statusLabel: '在售',
+      statusVariant: 'success'
     })
+  })
+
+  it('maps listing status to distinguishable badge variants', () => {
+    const state = buildMarketState({
+      listings: [
+        { listingId: '1', goodsType: 'VIRTUAL', status: 'ACTIVE' },
+        { listingId: '2', goodsType: 'VIRTUAL', status: 'SOLD_OUT' },
+        { listingId: '3', goodsType: 'VIRTUAL', status: 'PAUSED' },
+        { listingId: '4', goodsType: 'VIRTUAL', status: 'CLOSED' },
+        { listingId: '5', goodsType: 'VIRTUAL', status: '' }
+      ]
+    })
+
+    expect(state.listings.map((item) => item.statusVariant)).toEqual([
+      'success',
+      'warning',
+      'default',
+      'default',
+      'default'
+    ])
+  })
+
+  it('filters loaded listings by the in-page search keyword', () => {
+    const state = buildMarketState({
+      listings: [
+        { listingId: '1', goodsType: 'VIRTUAL', title: 'Steam Key', description: '自动交付', sellerUserId: 'seller-a', status: 'ACTIVE' },
+        { listingId: '2', goodsType: 'PHYSICAL', title: '二手键盘', description: '顺手出', sellerUserId: 'seller-b', status: 'ACTIVE' }
+      ]
+    })
+
+    expect(filterMarketListings(state.listings, '')).toHaveLength(2)
+    expect(filterMarketListings(state.listings, '  ')).toHaveLength(2)
+    expect(filterMarketListings(state.listings, '键盘').map((item) => item.listingId)).toEqual(['2'])
+    expect(filterMarketListings(state.listings, 'STEAM').map((item) => item.listingId)).toEqual(['1'])
+    expect(filterMarketListings(state.listings, 'seller-b').map((item) => item.listingId)).toEqual(['2'])
+    expect(filterMarketListings(state.listings, '不存在')).toHaveLength(0)
+    expect(filterMarketListings(null, '键盘')).toHaveLength(0)
   })
 
   it('builds order lifecycle and next-action copy for operational rows', () => {

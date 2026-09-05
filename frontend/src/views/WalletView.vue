@@ -6,7 +6,7 @@
       <template #title>钱包</template>
       <template #subtitle>{{ state.hero.statusText }}</template>
       <template #actions>
-        <UiButton variant="secondary" :disabled="loading || submittingKey !== ''" @click="reload">
+        <UiButton variant="secondary" :disabled="loading || loadingMore || submittingKey !== ''" @click="reload">
           {{ loading ? '刷新中…' : '刷新' }}
         </UiButton>
       </template>
@@ -27,7 +27,12 @@
       </div>
     </div>
 
-    <UiState v-if="error" variant="error">{{ error }}</UiState>
+    <UiState v-if="error" variant="error">
+      {{ error }}
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading" data-test="wallet-reload-retry" @click="reload">重试</UiButton>
+      </template>
+    </UiState>
     <UiSkeleton v-if="loading && !ready" variant="card" label="正在加载钱包" />
 
     <div v-if="ready" class="wallet-layout">
@@ -46,7 +51,10 @@
           <section v-if="testCredits.grant.enabled" class="wallet-action-card">
             <h2>领取测试积分</h2>
             <p>本账号剩余 {{ testCredits.grant.remainingAmount }}，单次最多 {{ testCredits.grant.maxAmountPerRequest }}。</p>
-            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
+            <UiField label="领取数量" :error="formErrors.recharge">
+              <UiInput v-model.number="rechargeForm.amount" type="number" :disabled="submittingKey !== ''" />
+            </UiField>
+            <p v-if="actionErrors.recharge" class="error wallet-action-error" role="alert">{{ actionErrors.recharge }}</p>
             <UiButton :disabled="submittingKey !== '' || testCredits.grant.remainingAmount <= 0" @click="submitRecharge">
               {{ submittingKey === 'recharge' ? '领取中…' : '领取测试积分' }}
             </UiButton>
@@ -55,8 +63,11 @@
           <section v-if="testCredits.discard.enabled" class="wallet-action-card">
             <h2>销毁测试积分</h2>
             <p>本账号剩余配额 {{ testCredits.discard.remainingAmount }}；该操作不会产生外部出款。</p>
-            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
-            <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="submitWithdrawal">
+            <UiField label="销毁数量" :error="formErrors.withdraw">
+              <UiInput v-model.number="withdrawForm.amount" type="number" :disabled="submittingKey !== ''" />
+            </UiField>
+            <p v-if="actionErrors.withdraw" class="error wallet-action-error" role="alert">{{ actionErrors.withdraw }}</p>
+            <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="requestWithdrawal">
               {{ submittingKey === 'withdraw' ? '销毁中…' : '销毁测试积分' }}
             </UiButton>
           </section>
@@ -64,9 +75,14 @@
           <section class="wallet-action-card">
             <h2>转账</h2>
             <p>直接把积分转给另一位成员。</p>
-            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
-            <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
-            <UiButton :disabled="submittingKey !== ''" @click="submitTransfer">
+            <UiField label="目标用户 ID" :error="formErrors.transferToUserId">
+              <UiInput v-model.trim="transferForm.toUserId" :disabled="submittingKey !== ''" />
+            </UiField>
+            <UiField label="转账金额" :error="formErrors.transferAmount">
+              <UiInput v-model.number="transferForm.amount" type="number" :disabled="submittingKey !== ''" />
+            </UiField>
+            <p v-if="actionErrors.transfer" class="error wallet-action-error" role="alert">{{ actionErrors.transfer }}</p>
+            <UiButton :disabled="submittingKey !== ''" @click="requestTransfer">
               {{ submittingKey === 'transfer' ? '转账中…' : '发起转账' }}
             </UiButton>
           </section>
@@ -79,29 +95,52 @@
           <template #subtitle>按时间查看钱包流水、状态和对方信息。</template>
         </UiPageHeader>
 
-        <UiState v-if="state.feed.length === 0">
+        <UiState v-if="txnsLoaded && state.feed.length === 0">
           暂无交易记录
           <template #description>产生积分发放、销毁、转账或交易托管后，这里会显示流水摘要。</template>
         </UiState>
 
-        <div v-else class="wallet-feed">
-          <article v-for="item in state.feed" :key="item.key" class="wallet-feed-item">
-            <div class="wallet-feed-main">
-              <strong>{{ item.label }}</strong>
-              <span>{{ item.meta }}</span>
-            </div>
-            <div class="wallet-feed-amount" :class="{ 'is-negative': item.amount < 0 }">
-              {{ item.amountText }}
-            </div>
-          </article>
-        </div>
+        <template v-else-if="state.feed.length > 0">
+          <div class="wallet-feed">
+            <article v-for="item in state.feed" :key="item.key" class="wallet-feed-item">
+              <div class="wallet-feed-main">
+                <strong>{{ item.label }}</strong>
+                <span>{{ item.meta }}</span>
+              </div>
+              <div class="wallet-feed-amount" :class="{ 'is-negative': item.amount < 0 }">
+                {{ item.amountText }}
+              </div>
+            </article>
+          </div>
+
+          <p v-if="feedError" class="error wallet-feed-error" role="alert">{{ feedError }}</p>
+          <div v-if="loadingMore || hasMoreFeed" class="wallet-feed-tail">
+            <UiButton v-if="loadingMore" variant="ghost" disabled>
+              <LoaderCircle :size="14" aria-hidden="true" class="wallet-feed-spinner" />
+              正在加载…
+            </UiButton>
+            <UiButton v-else variant="secondary" class="wallet-feed-more-btn" @click="loadMore">加载更多</UiButton>
+          </div>
+          <p v-else-if="feedExhausted" class="wallet-feed-end">已经到底了</p>
+        </template>
       </UiCard>
     </div>
+
+    <UiModalConfirm
+      v-if="confirmation.open"
+      :title="confirmation.title"
+      :message="confirmation.message"
+      :confirm-text="confirmation.confirmText"
+      :confirm-variant="confirmation.variant"
+      @cancel="closeConfirmation"
+      @confirm="runConfirmation"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
+import { LoaderCircle } from 'lucide-vue-next'
 import {
   createRecharge,
   createTransfer,
@@ -114,13 +153,23 @@ import { createWriteAttempt } from '../api/writeAttempt'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiField from '../components/ui/UiField.vue'
 import UiInput from '../components/ui/UiInput.vue'
+import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
-import { buildWalletState } from './walletState'
+import {
+  WALLET_FEED_PAGE_SIZE,
+  buildWalletState,
+  nextWalletFeedLimit,
+  walletDiscardConfirmation,
+  walletFeedExhausted,
+  walletFeedHasMore,
+  walletTransferConfirmation
+} from './walletState'
 import { settleNamedRequests } from '../utils/settledRequests'
 
 const auth = useAuthStore()
@@ -135,6 +184,26 @@ const capabilities = ref({})
 const rechargeForm = ref({ amount: '' })
 const withdrawForm = ref({ amount: '' })
 const transferForm = ref({ toUserId: '', amount: '' })
+
+// 字段校验错误内联在对应 UiField，写失败内联在对应操作卡，页面级 error 只承担加载失败。
+const formErrors = ref({ recharge: '', withdraw: '', transferToUserId: '', transferAmount: '' })
+const actionErrors = ref({ recharge: '', withdraw: '', transfer: '' })
+
+// 流水按 limit 窗口追加：feedLimit 是当前已请求的窗口大小，加载更多把窗口扩一页。
+const feedLimit = ref(WALLET_FEED_PAGE_SIZE)
+const loadingMore = ref(false)
+const feedError = ref('')
+const txnsLoaded = ref(false)
+
+// 转账 / 销毁测试积分为资损动作，先经 UiModalConfirm 复述金额与对方再进入提交流程。
+const confirmation = reactive({
+  open: false,
+  title: '',
+  message: '',
+  confirmText: '确认',
+  variant: 'primary',
+  action: /** @type {null | (() => Promise<void> | void)} */ (null)
+})
 const writeAttempts = {
   recharge: createWriteAttempt(),
   withdraw: createWriteAttempt(),
@@ -157,6 +226,13 @@ const state = computed(() =>
 )
 
 const testCredits = computed(() => normalizeCapabilities(capabilities.value).testCredits)
+
+const hasMoreFeed = computed(() =>
+  walletFeedHasMore({ count: txns.value.length, limit: feedLimit.value })
+)
+const feedExhausted = computed(() =>
+  walletFeedExhausted({ count: txns.value.length, limit: feedLimit.value })
+)
 
 function normalizeSummary(data) {
   const safe = data && typeof data === 'object' ? data : {}
@@ -208,15 +284,19 @@ async function reload() {
   const scope = sessionScope.value
   loading.value = true
   error.value = ''
+  feedError.value = ''
   try {
     const outcome = await settleNamedRequests({
       summary: () => getWalletSummary(),
-      transactions: () => getWalletTransactions(12),
+      transactions: () => getWalletTransactions(feedLimit.value),
       capabilities: () => getWalletCapabilities()
     })
     if (generation !== reloadGeneration || scope !== sessionScope.value) return
     if (outcome.results.summary.ok) summary.value = normalizeSummary(outcome.results.summary.value?.data)
-    if (outcome.results.transactions.ok) txns.value = normalizeTxns(outcome.results.transactions.value?.data)
+    if (outcome.results.transactions.ok) {
+      txns.value = normalizeTxns(outcome.results.transactions.value?.data)
+      txnsLoaded.value = true
+    }
     if (outcome.results.capabilities.ok) capabilities.value = normalizeCapabilities(outcome.results.capabilities.value?.data)
     ready.value = ready.value || outcome.anySucceeded
     if (!outcome.allSucceeded) {
@@ -230,6 +310,50 @@ async function reload() {
       loading.value = false
     }
   }
+}
+
+async function loadMore() {
+  if (loading.value || loadingMore.value || submittingKey.value !== '' || !hasMoreFeed.value) return
+  const generation = ++reloadGeneration
+  const scope = sessionScope.value
+  const targetLimit = nextWalletFeedLimit(feedLimit.value)
+  loadingMore.value = true
+  feedError.value = ''
+  try {
+    const outcome = await getWalletTransactions(targetLimit)
+    if (generation !== reloadGeneration || scope !== sessionScope.value) return
+    txns.value = normalizeTxns(outcome?.data)
+    feedLimit.value = targetLimit
+    txnsLoaded.value = true
+  } catch (e) {
+    if (generation !== reloadGeneration || scope !== sessionScope.value) return
+    feedError.value = e?.message || '加载更多流水失败'
+  } finally {
+    // 结果可能因更新的 reload 而作废，但本次请求已结束，尾部指示必须复位。
+    loadingMore.value = false
+  }
+}
+
+function openConfirmation({ title, message, confirmText, variant = 'primary' }, action) {
+  if (submittingKey.value !== '' || typeof action !== 'function') return
+  confirmation.title = title
+  confirmation.message = message
+  confirmation.confirmText = confirmText
+  confirmation.variant = variant
+  confirmation.action = action
+  confirmation.open = true
+}
+
+function closeConfirmation() {
+  confirmation.open = false
+  confirmation.action = null
+}
+
+async function runConfirmation() {
+  const action = confirmation.action
+  if (!action) return
+  closeConfirmation()
+  await action()
 }
 
 function isCurrentAction(generation, scope) {
@@ -260,7 +384,8 @@ async function submitRecharge() {
   try {
     amount = requirePositiveAmount(rechargeForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
-    error.value = e.message
+    formErrors.value.recharge = e.message
+    actionErrors.value.recharge = ''
     return
   }
 
@@ -268,7 +393,8 @@ async function submitRecharge() {
   const scope = sessionScope.value
   const requestedIntent = rechargeIntent()
   submittingKey.value = 'recharge'
-  error.value = ''
+  formErrors.value.recharge = ''
+  actionErrors.value.recharge = ''
   try {
     await createRecharge({ amount }, { writeAttempt: writeAttempts.recharge })
     if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
@@ -277,10 +403,26 @@ async function submitRecharge() {
     await reload()
   } catch (e) {
     if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
-    error.value = e?.message || '领取测试积分失败'
+    actionErrors.value.recharge = e?.message || '领取测试积分失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
+}
+
+function requestWithdrawal() {
+  formErrors.value.withdraw = ''
+  actionErrors.value.withdraw = ''
+  let amount
+  try {
+    amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
+  } catch (e) {
+    formErrors.value.withdraw = e.message
+    return
+  }
+  openConfirmation(
+    { ...walletDiscardConfirmation({ amount }), variant: 'danger' },
+    () => submitWithdrawal()
+  )
 }
 
 async function submitWithdrawal() {
@@ -288,7 +430,8 @@ async function submitWithdrawal() {
   try {
     amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
   } catch (e) {
-    error.value = e.message
+    formErrors.value.withdraw = e.message
+    actionErrors.value.withdraw = ''
     return
   }
 
@@ -296,7 +439,8 @@ async function submitWithdrawal() {
   const scope = sessionScope.value
   const requestedIntent = withdrawalIntent()
   submittingKey.value = 'withdraw'
-  error.value = ''
+  formErrors.value.withdraw = ''
+  actionErrors.value.withdraw = ''
   try {
     await createWithdrawal({ amount }, { writeAttempt: writeAttempts.withdraw })
     if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
@@ -305,10 +449,34 @@ async function submitWithdrawal() {
     await reload()
   } catch (e) {
     if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
-    error.value = e?.message || '销毁测试积分失败'
+    actionErrors.value.withdraw = e?.message || '销毁测试积分失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
+}
+
+function requestTransfer() {
+  formErrors.value.transferToUserId = ''
+  formErrors.value.transferAmount = ''
+  actionErrors.value.transfer = ''
+  const toUserId = normalizeOpaqueId(transferForm.value.toUserId)
+  let valid = true
+  if (!isUuid(toUserId)) {
+    formErrors.value.transferToUserId = '请输入有效的目标用户 ID'
+    valid = false
+  }
+  let amount = 0
+  try {
+    amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')
+  } catch (e) {
+    formErrors.value.transferAmount = e.message
+    valid = false
+  }
+  if (!valid) return
+  openConfirmation(
+    { ...walletTransferConfirmation({ toUserId, amount }), variant: 'danger' },
+    () => submitTransfer()
+  )
 }
 
 async function submitTransfer() {
@@ -320,7 +488,12 @@ async function submitTransfer() {
     }
     amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')
   } catch (e) {
-    error.value = e.message
+    if (isUuid(toUserId)) {
+      formErrors.value.transferAmount = e.message
+    } else {
+      formErrors.value.transferToUserId = e.message
+    }
+    actionErrors.value.transfer = ''
     return
   }
 
@@ -328,7 +501,9 @@ async function submitTransfer() {
   const scope = sessionScope.value
   const requestedIntent = transferIntent()
   submittingKey.value = 'transfer'
-  error.value = ''
+  formErrors.value.transferToUserId = ''
+  formErrors.value.transferAmount = ''
+  actionErrors.value.transfer = ''
   try {
     await createTransfer({ toUserId, amount }, { writeAttempt: writeAttempts.transfer })
     if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
@@ -338,7 +513,7 @@ async function submitTransfer() {
     await reload()
   } catch (e) {
     if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
-    error.value = e?.message || '转账失败'
+    actionErrors.value.transfer = e?.message || '转账失败'
   } finally {
     if (isCurrentAction(generation, scope)) submittingKey.value = ''
   }
@@ -355,6 +530,13 @@ function resetPrivateState() {
   ready.value = false
   error.value = ''
   submittingKey.value = ''
+  feedLimit.value = WALLET_FEED_PAGE_SIZE
+  loadingMore.value = false
+  feedError.value = ''
+  txnsLoaded.value = false
+  formErrors.value = { recharge: '', withdraw: '', transferToUserId: '', transferAmount: '' }
+  actionErrors.value = { recharge: '', withdraw: '', transfer: '' }
+  closeConfirmation()
   Object.values(writeAttempts).forEach((attempt) => attempt.cancel())
 }
 
@@ -387,7 +569,7 @@ onBeforeUnmount(() => {
 .wallet-summary-strip {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .wallet-summary-main,
@@ -396,13 +578,13 @@ onBeforeUnmount(() => {
 .wallet-feed-item,
 .wallet-panel {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .wallet-summary-main,
 .wallet-summary-side {
-  padding: 22px 24px;
-  border-radius: 12px;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--accent) 18%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface));
@@ -424,32 +606,31 @@ onBeforeUnmount(() => {
 }
 
 .wallet-label {
-  font-size: 11px;
+  font-size: var(--text-xs);
   letter-spacing: 0;
-  text-transform: uppercase;
   color: var(--text-3);
   font-weight: 700;
 }
 
 .wallet-test-notice {
-  margin-bottom: 14px;
+  margin-bottom: var(--space-3);
 }
 
 .wallet-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 18px;
+  gap: var(--space-5);
   align-items: start;
 }
 
 .wallet-action-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .wallet-action-card {
-  padding: 18px;
+  padding: var(--space-4);
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
@@ -460,15 +641,21 @@ onBeforeUnmount(() => {
   font-size: 1.05rem;
 }
 
+.wallet-action-error,
+.wallet-feed-error {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
 .wallet-feed {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .wallet-feed-item {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: 14px 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
 }
 
@@ -493,6 +680,39 @@ onBeforeUnmount(() => {
 
 .wallet-feed-amount.is-negative {
   color: var(--danger);
+}
+
+.wallet-feed-tail {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+.wallet-feed-more-btn {
+  min-width: 260px;
+}
+
+.wallet-feed-spinner {
+  animation: wallet-feed-spin 0.8s linear infinite;
+}
+
+@keyframes wallet-feed-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wallet-feed-spinner {
+    animation: none;
+  }
+}
+
+.wallet-feed-end {
+  margin: 0;
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
 }
 
 @media (max-width: 960px) {

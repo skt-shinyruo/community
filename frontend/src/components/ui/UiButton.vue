@@ -85,6 +85,7 @@ function onLinkClick(event) {
   cursor: pointer;
   font-weight: 700;
   font-size: var(--text-sm);
+  text-decoration: none;
   background: var(--accent);
   color: var(--accent-contrast);
   display: inline-flex;

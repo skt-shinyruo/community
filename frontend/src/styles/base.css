@@ -20,13 +20,16 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-button,
-input,
-textarea {
-  font: inherit;
+/* :where() 零权重元素级兜底。构建后 chunk CSS 的链接顺序不保证 base 在 Ui 原语之前，
+   因此兜底只声明原语类规则不设置的 font-family / line-height；font-size / font-weight
+   全部留给 .btn / .ui-input 等类规则，避免同名零权重属性按加载顺序决胜负。 */
+:where(button, input, textarea) {
+  font-family: inherit;
+  line-height: inherit;
 }
 
-a {
+/* .btn 链接形态（UiButton to/href）的颜色与下划线由 UiButton 自己承担，此处避让。 */
+:where(a:not(.btn)) {
   color: inherit;
   text-decoration: none;
 }

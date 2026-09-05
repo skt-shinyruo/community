@@ -48,6 +48,11 @@ describe('router/routeCatalog', () => {
       { label: '成员档案', to: { name: 'userProfile', params: { userId: 'user-1' } } },
       { label: '关注列表' }
     ])
+    expect(getRouteBreadcrumbItems('marketInventory', { listingId: '21' })).toEqual([
+      { label: '市场', to: { name: 'market' } },
+      { label: '我的出售', to: { name: 'marketMyListings' } },
+      { label: '库存管理' }
+    ])
     expect(getRouteBreadcrumbItems('market')).toEqual([])
   })
 

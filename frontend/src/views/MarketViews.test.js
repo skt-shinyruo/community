@@ -93,6 +93,11 @@ function mountView(component) {
   return wrapper
 }
 
+// UiSelect 浮层 teleport 到 body，选项查询走 document。
+function listboxOptions() {
+  return [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
+}
+
 describe('Unified market views', () => {
   beforeEach(() => {
     pinia = createPinia()
@@ -662,12 +667,19 @@ describe('Unified market views', () => {
     expect(wrapper.text()).toContain('履约信息')
     expect(wrapper.text()).not.toContain('不再拆成独立虚拟市场页面')
 
-    await wrapper.find('select').setValue('PHYSICAL')
+    // 商品类型走 UiSelect（APG combobox/listbox）：打开浮层并选中「实物商品」。
+    await wrapper.get('[role="combobox"]').trigger('click')
+    await nextTick()
+    const physicalOption = listboxOptions().find((option) => option.textContent === '实物商品')
+    expect(physicalOption).toBeTruthy()
+    physicalOption.click()
+    await nextTick()
+
     await wrapper.findAll('input')[0].setValue('二手键盘')
     await wrapper.find('textarea').setValue('顺手出')
     await wrapper.findAll('input')[1].setValue('12900')
     await wrapper.findAll('input')[2].setValue('1')
-    await wrapper.find('button').trigger('click')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
     await flushPromises()
 
     expect(createMarketListing).toHaveBeenCalledWith(expect.objectContaining({
@@ -678,6 +690,37 @@ describe('Unified market views', () => {
     }))
   })
 
+  it('keeps the preloaded-content validation inline on the field without calling the service', async () => {
+    authenticate('token-a')
+    const wrapper = mountView(MarketPublishView)
+
+    await wrapper.findAll('input')[0].setValue('Steam 兑换码')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(createMarketListing).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('自动交付商品至少需要一条预存内容')
+
+    // 字段错误随内容输入即时清除。
+    await wrapper.findAll('textarea')[1].setValue('CODE-001')
+    await nextTick()
+    expect(wrapper.find('[role="alert"]').exists()).toBe(false)
+  })
+
+  it('reports publish failures inline in the submit area', async () => {
+    authenticate('token-a')
+    createMarketListing.mockRejectedValueOnce(new Error('发布服务不可用'))
+    const wrapper = mountView(MarketPublishView)
+
+    await wrapper.findAll('input')[0].setValue('Steam 兑换码')
+    await wrapper.findAll('textarea')[1].setValue('CODE-001')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.get('[role="alert"]').text()).toContain('发布服务不可用')
+    expect(wrapper.text()).not.toContain('发布成功')
+  })
+
   it('clears the publish draft and ignores an old submission after the authenticated identity changes', async () => {
     authenticate('token-a')
     const oldSubmission = deferred()
@@ -686,7 +729,7 @@ describe('Unified market views', () => {
 
     await wrapper.findAll('input')[0].setValue('A 的私有草稿')
     await wrapper.findAll('textarea')[1].setValue('CODE-A')
-    await wrapper.find('button').trigger('click')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
     await vi.waitFor(() => expect(createMarketListing).toHaveBeenCalledTimes(1))
 
     authenticate('token-b', '88888888-8888-7888-8888-888888888888')

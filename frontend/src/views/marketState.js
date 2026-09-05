@@ -201,6 +201,60 @@ function inventoryStatusLabel(status) {
   return '库存状态待确认'
 }
 
+// 库存状态排序秩：可售在前、失效在后，未知状态垫底；UiTable 状态列排序使用。
+function inventoryStatusRank(status) {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'AVAILABLE') return 0
+  if (normalized === 'LOCKED' || normalized === 'RESERVED') return 1
+  if (normalized === 'SOLD') return 2
+  if (normalized === 'INVALIDATED') return 3
+  return 4
+}
+
+// UiBadge variant：可售 success、锁定 pending、售出 warning，失效与未知回落 default。
+function inventoryStatusVariant(status) {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'AVAILABLE') return 'success'
+  if (normalized === 'LOCKED' || normalized === 'RESERVED') return 'pending'
+  if (normalized === 'SOLD') return 'warning'
+  return 'default'
+}
+
+// 与追加库存表单的可选项文案保持一致（兑换码 / 文本 / 链接），未知类型透传原始值。
+function inventoryPayloadTypeLabel(payloadType) {
+  const normalized = String(payloadType || '').trim().toUpperCase()
+  if (normalized === 'CODE') return '兑换码'
+  if (normalized === 'TEXT') return '文本'
+  if (normalized === 'LINK') return '链接'
+  return normalized || '未知类型'
+}
+
+// UiTable 排序钩子：视图把表头 sort 事件转成下一份排序状态（换列回到 asc、同列切换方向），
+// 排序在已加载投影上本地完成——后端列表接口没有排序参数，与页内搜索是同一取舍。
+export function nextTableSort(current, key) {
+  const safeKey = String(key || '')
+  if (!safeKey) return { key: '', direction: 'asc' }
+  const currentKey = String(current?.key || '')
+  const currentDirection = current?.direction === 'desc' ? 'desc' : 'asc'
+  if (currentKey !== safeKey) return { key: safeKey, direction: 'asc' }
+  return { key: safeKey, direction: currentDirection === 'asc' ? 'desc' : 'asc' }
+}
+
+export function sortMarketInventory(items, sort) {
+  const safeItems = Array.isArray(items) ? [...items] : []
+  const direction = sort?.direction === 'desc' ? -1 : 1
+  const comparators = {
+    status: (a, b) =>
+      (asNumber(a?.statusRank) - asNumber(b?.statusRank)) ||
+      String(a?.statusLabel || '').localeCompare(String(b?.statusLabel || ''), 'zh'),
+    payloadType: (a, b) =>
+      String(a?.payloadTypeLabel || '').localeCompare(String(b?.payloadTypeLabel || ''), 'zh')
+  }
+  const comparator = comparators[String(sort?.key || '')]
+  if (!comparator) return safeItems
+  return safeItems.sort((a, b) => comparator(a, b) * direction)
+}
+
 function amountText(amount) {
   const normalized = asNumber(amount)
   return `${normalized} 积分`
@@ -321,7 +375,10 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
     })),
     inventory: safeInventory.map((item) => ({
       ...item,
-      statusLabel: inventoryStatusLabel(item?.status)
+      statusLabel: inventoryStatusLabel(item?.status),
+      statusRank: inventoryStatusRank(item?.status),
+      statusVariant: inventoryStatusVariant(item?.status),
+      payloadTypeLabel: inventoryPayloadTypeLabel(item?.payloadType)
     }))
   }
 }

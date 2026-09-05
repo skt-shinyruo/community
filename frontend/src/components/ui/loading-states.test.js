@@ -14,7 +14,6 @@ const SANCTIONED = new Map([
 const LEGACY_LOADING_TEXT = new Map([
   ['src/views/AnalyticsView.vue', 1],
   ['src/views/MarketInventoryView.vue', 1],
-  ['src/views/MarketListView.vue', 1],
   ['src/views/MarketMyListingsView.vue', 1],
   ['src/views/MarketOrderListView.vue', 1],
   ['src/views/ModerationView.vue', 3]

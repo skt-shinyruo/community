@@ -33,31 +33,6 @@
   align-items: center;
 }
 
-.market-trust-strip {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 10px;
-  align-items: center;
-  padding: 12px 14px;
-  border: 1px solid var(--border);
-  border-radius: var(--radius-md);
-  background: var(--surface);
-}
-
-.market-trust-strip span {
-  display: inline-flex;
-  align-items: center;
-  min-height: 28px;
-  padding: 0 10px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--success) 10%, var(--surface) 90%);
-  border: 1px solid color-mix(in srgb, var(--success) 20%, var(--border) 80%);
-  color: var(--text-1);
-  font-size: 12px;
-  font-weight: 700;
-}
-
-.market-price-box,
 .market-summary {
   display: flex;
   flex-direction: column;
@@ -67,7 +42,6 @@
   color: var(--text-2);
 }
 
-.market-price-box strong,
 .market-summary {
   font-size: 22px;
   font-weight: 800;
@@ -129,13 +103,6 @@
   margin-bottom: 4px;
 }
 
-.market-row-seller {
-  margin-bottom: 4px;
-  color: var(--text-3);
-  font-size: 12px;
-  font-weight: 700;
-}
-
 .market-row-main p,
 .market-order-row p,
 .market-admin-row p {
@@ -161,12 +128,6 @@
   border: 1px solid var(--border);
   font-size: 12px;
   font-weight: 700;
-}
-
-.market-split {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
-  gap: 18px;
 }
 
 .market-form-grid {
@@ -235,22 +196,6 @@
   margin-top: 8px;
 }
 
-.market-risk-note {
-  display: grid;
-  gap: 4px;
-  padding: 12px;
-  border-radius: var(--radius-md);
-  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border) 76%);
-  background: color-mix(in srgb, var(--warning) 8%, var(--surface) 92%);
-  color: var(--text-2);
-  font-size: 13px;
-}
-
-.market-risk-note strong {
-  color: var(--text-1);
-}
-
-.market-success-note,
 .market-edit-form {
   display: grid;
   gap: 12px;
@@ -264,10 +209,6 @@
   grid-column: 1 / -1;
   border-color: var(--border);
   background: var(--surface-2);
-}
-
-.market-success-note strong {
-  color: var(--text-1);
 }
 
 .market-lifecycle {
@@ -302,7 +243,6 @@
 }
 
 @media (max-width: 900px) {
-  .market-split,
   .market-form-grid--wide {
     grid-template-columns: 1fr;
   }

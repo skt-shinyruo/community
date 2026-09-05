@@ -1,57 +1,62 @@
 <template>
-  <div class="page market-page">
-    <UiBreadcrumb />
+  <div class="page market-detail-page">
+    <nav aria-label="页面层级">
+      <UiButton variant="ghost" :to="{ name: 'market' }">
+        <ArrowLeft :size="16" aria-hidden="true" />
+        返回市场
+      </UiButton>
+    </nav>
 
-    <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-if="loading && !hasListing" class="muted">正在加载商品详情…</div>
+    <UiSkeleton v-if="loading && !hasListing" variant="detail" label="正在加载商品详情" />
+    <UiState v-else-if="error" variant="error" :title="error">
+      <template #description>商品详情加载失败，可以重试或返回市场。</template>
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading" data-test="market-detail-retry" @click="loadDetail()">重试</UiButton>
+      </template>
+    </UiState>
 
-    <div v-if="hasListing" class="market-detail-shell">
+    <template v-else-if="hasListing">
       <UiPageHeader>
         <template #title>{{ detail.title || '市场商品详情' }}</template>
         <template #subtitle>{{ detail.description || '查看价格、库存和履约方式。' }}</template>
       </UiPageHeader>
 
       <div class="market-price-box">
-        <strong>{{ detail.unitPriceText }}</strong>
-        <span>{{ detail.statusLabel }}</span>
+        <strong class="market-price-value">{{ detail.unitPriceText }}</strong>
+        <UiBadge :variant="detail.statusVariant">{{ detail.statusLabel }}</UiBadge>
         <span>{{ detail.stockText }}</span>
         <span>{{ detail.trustLabel }}</span>
       </div>
 
       <section class="market-split">
-        <UiCard class="market-panel">
-          <UiPageHeader>
-            <template #title>安全下单</template>
-            <template #subtitle>下单后资金进入钱包托管，按履约方式跟进交付、收货或争议处理。</template>
-          </UiPageHeader>
+        <section class="market-detail-panel" aria-labelledby="market-order-heading">
+          <h2 id="market-order-heading" class="market-detail-heading">安全下单</h2>
+          <p class="market-detail-intro">下单后资金进入钱包托管，按履约方式跟进交付、收货或争议处理。</p>
 
-          <div class="market-form-grid">
-            <label class="market-field">
-              <span>购买数量</span>
-              <input v-model.number="quantity" class="input" type="number" min="1" placeholder="输入购买数量" :disabled="submitting" />
-            </label>
-            <label v-if="detail.goodsType === 'PHYSICAL' && auth.authed" class="market-field">
-              <span>收货地址</span>
-              <div v-if="addressLoading" class="muted" data-test="market-address-loading">正在加载收货地址…</div>
-              <div v-else-if="addressError" class="error" data-test="market-address-error">{{ addressError }}</div>
-              <select
-                v-else-if="addressOptions.length"
+          <div class="market-order-form">
+            <UiField label="购买数量">
+              <UiInput v-model.number="quantity" type="number" min="1" :disabled="submitting" />
+            </UiField>
+            <UiField v-if="detail.goodsType === 'PHYSICAL' && auth.authed" label="收货地址" :error="addressError" data-test="market-address-field">
+              <UiSelect
+                v-if="addressLoading || addressOptions.length > 0"
                 v-model="selectedAddressId"
-                class="market-select"
                 data-test="market-address-select"
-                :disabled="submitting"
-              >
-                <option value="">请选择收货地址</option>
-                <option v-for="item in addressOptions" :key="item.addressId" :value="String(item.addressId)">
-                  {{ item.receiverName }} · {{ item.city }} · {{ item.detailAddress }}
-                </option>
-              </select>
-              <div v-else class="muted" data-test="market-address-empty">暂无收货地址</div>
-            </label>
+                :options="addressSelectOptions"
+                :placeholder="addressLoading ? '正在加载收货地址…' : '请选择收货地址'"
+                :disabled="submitting || addressLoading"
+                :loading="addressLoading"
+              />
+              <p v-else-if="!addressError" class="market-address-empty" data-test="market-address-empty">
+                暂无收货地址，
+                <RouterLink class="market-address-link" :to="{ name: 'settings', query: { section: 'addresses' } }">到设置添加</RouterLink>
+              </p>
+            </UiField>
             <div class="market-risk-note">
               <strong>钱包托管</strong>
               <span>确认商品、库存和履约方式后再提交；未完成前请优先在订单详情里处理争议。</span>
             </div>
+            <p v-if="orderError" class="error market-order-error" role="alert" data-test="market-order-error">{{ orderError }}</p>
             <UiButton data-test="market-order-submit" :disabled="submitting" @click="submitOrder">
               {{ submitting ? '下单中…' : '安全下单' }}
             </UiButton>
@@ -67,15 +72,13 @@
               </UiButton>
             </div>
           </div>
-        </UiCard>
+        </section>
 
-        <UiCard class="market-panel">
-          <UiPageHeader>
-            <template #title>交易说明</template>
-            <template #subtitle>价格、卖家、履约和托管状态会决定下一步是否安全。</template>
-          </UiPageHeader>
+        <section class="market-detail-panel" aria-labelledby="market-facts-heading">
+          <h2 id="market-facts-heading" class="market-detail-heading">交易说明</h2>
+          <p class="market-detail-intro">价格、卖家、履约和托管状态会决定下一步是否安全。</p>
 
-          <ul class="market-bullets">
+          <ul class="market-facts">
             <li>卖家：{{ detail.sellerLabel }}</li>
             <li>商品类型：{{ detail.goodsTypeLabel }}</li>
             <li>履约方式：{{ detail.fulfillmentLabel }}</li>
@@ -83,19 +86,23 @@
             <li>商品状态：{{ detail.statusLabel }}</li>
             <li>库存状态：{{ detail.stockText }}</li>
           </ul>
-        </UiCard>
+        </section>
       </section>
-    </div>
+    </template>
   </div>
 </template>
 
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import { ArrowLeft } from 'lucide-vue-next'
+import UiBadge from '../components/ui/UiBadge.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiCard from '../components/ui/UiCard.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiInput from '../components/ui/UiInput.vue'
+import UiSelect from '../components/ui/UiSelect.vue'
 import UiState from '../components/ui/UiState.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
   createMarketOrder,
@@ -115,6 +122,7 @@ const addressLoading = ref(false)
 const submitting = ref(false)
 const error = ref('')
 const addressError = ref('')
+const orderError = ref('')
 const orderMessage = ref('')
 const createdOrderId = ref('')
 const listing = ref({})
@@ -129,6 +137,10 @@ const orderAttempt = createWriteAttempt()
 const detail = computed(() => buildMarketState({ listings: [listing.value] }).listings[0] || {})
 const hasListing = computed(() => Object.keys(listing.value || {}).length > 0)
 const addressOptions = computed(() => (Array.isArray(addresses.value) ? addresses.value : []))
+const addressSelectOptions = computed(() => addressOptions.value.map((item) => ({
+  value: String(item.addressId),
+  label: `${item.receiverName} · ${item.city} · ${item.detailAddress}`
+})))
 const authScope = computed(() => [
   auth.tokenGeneration,
   normalizeOpaqueId(auth.userId),
@@ -222,6 +234,7 @@ async function loadDetail(requestedListingId = normalizeOpaqueId(route.params.li
   resetAddressState()
   loading.value = true
   error.value = ''
+  orderError.value = ''
   listing.value = {}
   if (!listingId) {
     error.value = '商品 ID 无效'
@@ -275,7 +288,7 @@ async function submitOrder() {
   const requestedAuthScope = authScope.value
   const requestedIntent = orderIntent(listingId)
   submitting.value = true
-  error.value = ''
+  orderError.value = ''
   addressError.value = ''
   orderMessage.value = ''
   createdOrderId.value = ''
@@ -297,7 +310,7 @@ async function submitOrder() {
     await loadDetail()
   } catch (e) {
     if (!isCurrentOrderIntent(sequence, listingId, requestedAuthScope, requestedIntent)) return
-    error.value = e?.message || '下单失败'
+    orderError.value = e?.message || '下单失败'
   } finally {
     if (isCurrentOrderRequest(sequence, listingId, requestedAuthScope)) submitting.value = false
   }
@@ -319,6 +332,7 @@ watch(
     orderSequence += 1
     orderAttempt.cancel()
     submitting.value = false
+    orderError.value = ''
     orderMessage.value = ''
     createdOrderId.value = ''
     if (listingId !== previousListingId) {
@@ -344,3 +358,125 @@ onBeforeUnmount(() => {
   orderAttempt.cancel()
 })
 </script>
+
+<style scoped>
+.market-detail-page {
+  gap: var(--space-5);
+}
+
+.market-price-box {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+  align-items: center;
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.market-price-value {
+  font-size: var(--text-xl);
+  font-weight: 800;
+  color: var(--text-1);
+}
+
+.market-split {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(280px, 0.8fr);
+  gap: var(--space-5);
+  align-items: start;
+}
+
+.market-detail-panel {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--card-padding);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+}
+
+.market-detail-heading {
+  margin: 0;
+  font-size: var(--text-md);
+  font-weight: 650;
+  line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--text-1);
+}
+
+.market-detail-intro {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.market-order-form {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.market-address-empty {
+  margin: 0;
+  color: var(--text-3);
+  font-size: var(--text-sm);
+}
+
+.market-address-link {
+  color: var(--link-color);
+  text-decoration: none;
+}
+
+.market-address-link:hover {
+  text-decoration: underline;
+}
+
+.market-risk-note {
+  display: grid;
+  gap: var(--space-1);
+  padding: var(--space-3);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--warning) 24%, var(--border) 76%);
+  background: var(--warning-weak);
+  color: var(--text-2);
+  font-size: 13px;
+}
+
+.market-risk-note strong {
+  color: var(--text-1);
+}
+
+.market-order-error {
+  margin: 0;
+  font-size: var(--text-sm);
+}
+
+.market-success-note {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border-radius: var(--radius-md);
+  border: 1px solid color-mix(in srgb, var(--success) 28%, var(--border) 72%);
+  background: var(--success-weak);
+}
+
+.market-success-note strong {
+  color: var(--text-1);
+}
+
+.market-facts {
+  margin: 0;
+  padding-left: var(--space-5);
+  color: var(--text-2);
+  font-size: var(--text-sm);
+}
+
+.market-facts li + li {
+  margin-top: var(--space-2);
+}
+
+@media (max-width: 900px) {
+  .market-split {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

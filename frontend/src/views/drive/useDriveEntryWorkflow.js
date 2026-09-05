@@ -23,11 +23,13 @@ function defaultDriveSpace() {
   return { quotaBytes: DEFAULT_QUOTA_BYTES, usedBytes: 0, remainingBytes: DEFAULT_QUOTA_BYTES }
 }
 
-export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPage, setError, setStatus }) {
+export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPage, confirm }) {
   const requestTracker = createLatestRequestTracker()
   const space = ref(defaultDriveSpace())
   const folderNameDraft = ref('')
   const creatingFolder = ref(false)
+  const folderError = ref('')
+  const renameError = ref('')
   const quota = computed(() => normalizeDriveQuota(space.value))
 
   async function refresh() {
@@ -62,18 +64,20 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
 
   function toggleFolderComposer() {
     creatingFolder.value = !creatingFolder.value
+    folderError.value = ''
     if (creatingFolder.value) folderNameDraft.value = ''
   }
 
   function cancelCreateFolder() {
     creatingFolder.value = false
     folderNameDraft.value = ''
+    folderError.value = ''
   }
 
   async function createFolder() {
     const name = String(folderNameDraft.value || '').trim()
     if (!name) {
-      setError('请输入文件夹名称')
+      folderError.value = '请输入文件夹名称'
       return
     }
     await runAction('folder', async (request) => {
@@ -81,9 +85,10 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
       if (!request.isCurrent()) return
       folderNameDraft.value = ''
       creatingFolder.value = false
-      setStatus('文件夹已创建')
+      folderError.value = ''
+      // 结果立即可见（新文件夹随列表刷新出现），静默更新，不弹 toast。
       await reloadPage()
-    }).catch(() => {})
+    }, { onError: (message) => { folderError.value = message } }).catch(() => {})
   }
 
   async function renameSelected() {
@@ -91,15 +96,15 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
     const newName = String(workspace.renameDraft.value || '').trim()
     if (!entry) return
     if (!newName) {
-      setError('请输入新名称')
+      renameError.value = '请输入新名称'
       return
     }
     await runAction('rename', async (request) => {
       await renameDriveEntry(entry.entryId, { newName })
       if (!request.isCurrent()) return
-      setStatus('名称已更新')
+      renameError.value = ''
       await reloadPage()
-    }).catch(() => {})
+    }, { onError: (message) => { renameError.value = message } }).catch(() => {})
   }
 
   async function moveSelectedHere() {
@@ -108,7 +113,6 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
     await runAction('move', async (request) => {
       await moveDriveEntry(entry.entryId, { targetParentId: workspace.currentFolderId.value })
       if (!request.isCurrent()) return
-      setStatus('条目已移动')
       await reloadPage()
     }).catch(() => {})
   }
@@ -126,13 +130,23 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
     }).catch(() => {})
   }
 
-  async function trashSelected() {
+  // 删除与彻底删除走 UiModalConfirm 二次确认（confirm 由页面层注入）；
+  // 移至回收站可恢复，彻底删除不可逆，两者文案与危险级别在确认弹窗中区分。
+  function trashSelected() {
     const entry = workspace.selectedEntry.value
     if (!entry?.canTrash) return
+    confirm({
+      title: '删除到回收站',
+      message: `「${entry.name}」将移至回收站，之后可以在回收站恢复。`,
+      confirmText: '移至回收站',
+      variant: 'danger'
+    }, () => trashEntry(entry))
+  }
+
+  async function trashEntry(entry) {
     await runAction('trash', async (request) => {
       await trashDriveEntry(entry.entryId)
       if (!request.isCurrent()) return
-      setStatus('条目已移至回收站')
       await reloadPage()
     }).catch(() => {})
   }
@@ -142,18 +156,25 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
     await runAction('restore', async (request) => {
       await restoreDriveEntry(entry.entryId, { targetParentId: workspace.currentFolderId.value })
       if (!request.isCurrent()) return
-      setStatus('条目已恢复')
       await reloadPage()
     }).catch(() => {})
   }
 
-  async function deleteSelectedPermanently() {
+  function deleteSelectedPermanently() {
     const entry = workspace.selectedEntry.value
     if (!entry?.canDeletePermanently) return
+    confirm({
+      title: '彻底删除',
+      message: `「${entry.name}」将被永久删除，无法恢复。`,
+      confirmText: '彻底删除',
+      variant: 'danger'
+    }, () => deletePermanently(entry))
+  }
+
+  async function deletePermanently(entry) {
     await runAction('delete', async (request) => {
       await deleteDriveEntryPermanently(entry.entryId)
       if (!request.isCurrent()) return
-      setStatus('条目已彻底删除')
       await reloadPage()
     }).catch(() => {})
   }
@@ -163,12 +184,16 @@ export function useDriveEntryWorkflow({ workspace, session, runAction, reloadPag
     space.value = defaultDriveSpace()
     folderNameDraft.value = ''
     creatingFolder.value = false
+    folderError.value = ''
+    renameError.value = ''
   }
 
   const model = reactive({
     quota,
     folderNameDraft,
     creatingFolder,
+    folderError,
+    renameError,
     toggleFolderComposer,
     cancelCreateFolder,
     createFolder,

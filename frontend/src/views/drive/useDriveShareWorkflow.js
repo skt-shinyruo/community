@@ -32,7 +32,7 @@ function statusLabel(status) {
   return '状态待确认'
 }
 
-export function useDriveShareWorkflow({ workspace, session, runAction, reloadPage, setStatus }) {
+export function useDriveShareWorkflow({ workspace, session, runAction, reloadPage, confirm, notify }) {
   const requestTracker = createLatestRequestTracker()
   const password = ref('')
   const expiresAt = ref(toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS)))
@@ -85,7 +85,11 @@ export function useDriveShareWorkflow({ workspace, session, runAction, reloadPag
 
   async function loadMore() {
     if (!hasNext.value) return
-    await runAction('shares', () => loadPage()).catch(() => {})
+    error.value = ''
+    // 加载更多失败可定位到分享区块，保留已加载分页并内联报错。
+    await runAction('shares', () => loadPage(), {
+      onError: (message) => { error.value = message }
+    }).catch(() => {})
   }
 
   async function create() {
@@ -108,20 +112,29 @@ export function useDriveShareWorkflow({ workspace, session, runAction, reloadPag
       if (!request.isCurrent()) return
       password.value = ''
       expiresAt.value = toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS))
-      setStatus('分享链接已生成')
+      // 结果立即可见（新分享出现在分享列表顶部），静默更新，不弹 toast。
       workspace.mode.value = 'shares'
       await loadPage({ reset: true })
-    }).catch(() => {})
+    }, { onError: (message) => { error.value = message } }).catch(() => {})
   }
 
-  async function revoke(item) {
+  // 撤销影响已经拿到链接的访问者，走 UiModalConfirm 二次确认。
+  function revoke(item) {
     if (!item?.shareId) return
+    confirm({
+      title: '撤销分享',
+      message: `撤销后「${item.entryName || '该条目'}」的分享链接立即失效，已拿到链接的人无法继续访问。`,
+      confirmText: '撤销',
+      variant: 'danger'
+    }, () => revokeShare(item))
+  }
+
+  async function revokeShare(item) {
     await runAction('revoke', async (request) => {
       await revokeDriveShare(item.shareId)
       if (!request.isCurrent()) return
       await loadPage({ reset: true })
-      if (request.isCurrent()) setStatus('分享已撤销')
-    }).catch(() => {})
+    }, { onError: (message) => { error.value = message } }).catch(() => {})
   }
 
   async function copy(item) {
@@ -129,10 +142,10 @@ export function useDriveShareWorkflow({ workspace, session, runAction, reloadPag
     const scope = session.capture()
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
       await navigator.clipboard.writeText(item.shareUrl)
-      if (session.isCurrent(scope)) setStatus('分享链接已复制')
+      if (session.isCurrent(scope)) notify('分享链接已复制')
       return
     }
-    if (session.isCurrent(scope)) setStatus(item.shareUrl)
+    if (session.isCurrent(scope)) notify(item.shareUrl)
   }
 
   function reset() {

@@ -2,7 +2,7 @@
 import { reactive, ref } from 'vue'
 import { createDriveUploadSession, uploadDriveFile } from '../../api/services/driveService'
 
-export function useDriveUploadWorkflow({ workspace, runAction, cancelAction, reloadPage, setStatus }) {
+export function useDriveUploadWorkflow({ workspace, runAction, cancelAction, reloadPage, notify }) {
   const progress = ref(/** @type {number | null} */ (null))
   /** @type {AbortController | null} */
   let uploadController = null
@@ -34,7 +34,8 @@ export function useDriveUploadWorkflow({ workspace, runAction, cancelAction, rel
           if (!request.isCurrent()) return
           progress.value = 0
         }
-        setStatus(`已上传 ${files.length} 个文件`)
+        // 多文件上传完成时列表可能已滚动或刷新，完成结果不可见，走 toast。
+        notify(`已上传 ${files.length} 个文件`)
         await reloadPage()
       })
     } catch {

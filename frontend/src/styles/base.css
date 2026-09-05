@@ -88,3 +88,13 @@ html[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
     scroll-behavior: auto !important;
   }
 }
+
+/* Route / scroll-top shared fade transition (退役 components.css 收拢至此，App.vue 与 UiScrollTop 共用)。 */
+.fade-enter-active,
+.fade-leave-active {
+  transition: opacity 0.16s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+}

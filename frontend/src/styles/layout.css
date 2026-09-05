@@ -121,10 +121,36 @@
   color: var(--text-3);
 }
 
+/* 壳搜索输入：原全局 .input 基座按现有级联效果原样收拢至此（transition 列出具体属性）。 */
 .topbar-search-input {
   width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
   padding-left: 38px;
+  border: 1px solid var(--border);
   border-radius: 999px;
+  outline: none;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  box-shadow: var(--shadow-sm);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+.topbar-search-input:hover {
+  border-color: var(--border-strong);
+}
+
+.topbar-search-input:focus {
+  border-color: var(--accent);
+}
+
+.topbar-search-input:focus-visible {
+  box-shadow: var(--shadow-sm), var(--focus-ring);
+}
+
+.topbar-search-input::placeholder {
+  color: var(--text-3);
 }
 
 .app-shell--public .topbar-search-input {
@@ -205,7 +231,7 @@
 
 .sidebar-brand-text {
   font-weight: 800;
-  letter-spacing: 0.02em;
+  letter-spacing: 0;
   white-space: nowrap;
 }
 
@@ -233,8 +259,7 @@
   padding: 0 10px;
   font-size: 11px;
   color: var(--text-3);
-  text-transform: uppercase;
-  letter-spacing: 0.12em;
+  letter-spacing: 0;
   font-weight: 700;
 }
 

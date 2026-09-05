@@ -9,7 +9,7 @@
         ref="inputRef"
         type="search"
         name="global-search"
-        class="input topbar-search-input"
+        class="topbar-search-input"
         :placeholder="placeholder"
         aria-label="全局搜索"
         :value="modelValue"

@@ -10,18 +10,21 @@
         <div class="toast-title" v-if="msg.title">{{ msg.title }}</div>
         <div class="toast-message">{{ msg.text }}</div>
         <div class="toast-actions" v-if="msg.actionText && typeof msg.onAction === 'function'">
-          <button class="btn sm" type="button" @click="handleAction(msg)">{{ msg.actionText }}</button>
+          <UiButton size="sm" type="button" @click="handleAction(msg)">{{ msg.actionText }}</UiButton>
         </div>
       </div>
-      <button class="btn-icon sm" @click="remove(msg.id)">
-        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg>
-      </button>
+      <UiIconButton aria-label="关闭通知" title="关闭通知" size="sm" @click="remove(msg.id)">
+        <X :size="16" aria-hidden="true" />
+      </UiIconButton>
     </div>
   </TransitionGroup>
 </template>
 
 <script setup>
 import { ref } from 'vue'
+import { X } from 'lucide-vue-next'
+import UiButton from './UiButton.vue'
+import UiIconButton from './UiIconButton.vue'
 
 const messages = ref([])
 let idCounter = 0
@@ -90,7 +93,7 @@ defineExpose({ show })
 /* Transitions */
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s cubic-bezier(0.25, 1, 0.5, 1);
+  transition: opacity 0.3s cubic-bezier(0.25, 1, 0.5, 1), transform 0.3s cubic-bezier(0.25, 1, 0.5, 1);
 }
 .toast-enter-from,
 .toast-leave-to {

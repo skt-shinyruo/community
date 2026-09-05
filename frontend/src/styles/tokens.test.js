@@ -1,8 +1,8 @@
 // 设计令牌与全局样式守卫：variables.css 是唯一令牌来源，本文件锁定规范批准的
 // Indigo 令牌、暗色表面、链接色、圆角、z-index 七阶与动效令牌，并对全部样式源做
 // 静态检查（未定义令牌、hex fallback、页面级 data-theme 覆盖、z-index 直写、
-// reduced-motion 守卫、WCAG 对比度、原语内部类视图基线与表单原语 focus ring）。
-// 规范见 docs/handbook/frontend-ui-optimization.md。
+// reduced-motion 守卫、WCAG 对比度、原语内部类视图登记、非零字距登记、手写 SVG 清零
+// 与表单原语 focus ring）。规范见 docs/handbook/frontend-ui-optimization.md。
 
 import { describe, expect, it } from 'vitest'
 import { readFileSync, readdirSync } from 'node:fs'
@@ -250,15 +250,24 @@ describe('global style guardrails', () => {
 })
 
 describe('primitive class guardrails', () => {
-  // .input / .auth-field / .field-label / .auth-form 是原语内部实现细节（规范 5.3），
-  // 视图随页面簇迁移收敛到 UiInput / UiTextarea / UiField。这里登记现状基线，只减不增：
-  // 新增使用或计数上升视为泄漏；完成迁移的视图应随迁移 PR 下调或移除基线条目。
+  // .btn / .input / .card / .skeleton 等是原语内部实现细节（规范 5.3）。components.css / pages.css
+  // 已随波次 10 退役，样式迁入各 Ui SFC 的 scoped 块；视图侧只剩管理后台按行为等价登记的原样
+  // 收拢副本。登记表是全量守卫：任何条目都必须与下方登记完全一致（新增、计数上升或登记失效
+  // 都视为泄漏），管理后台完成收敛后应同步删除对应行直至登记为空。
   const classBaseline = new Map([
     ['src/views/AnalyticsView.vue', { input: 2 }],
-    ['src/views/ModerationView.vue', { input: 5 }],
+    ['src/views/ModerationView.vue', { card: 2, input: 5, tag: 5 }],
     ['src/views/UserManagementView.vue', { 'field-label': 3, input: 5 }],
     ['src/views/WalletAdminView.vue', { input: 4 }]
   ])
+
+  // 原语内部类（components.css 退役前提供的全局类）。
+  const PRIMITIVE_CLASS_TOKENS = [
+    'btn', 'btn-icon', 'input', 'card', 'avatar', 'badge', 'tag', 'skeleton',
+    'divider', 'modal-mask', 'modal-card', 'page-header', 'ui-state'
+  ]
+  // 早期遗留命名单元（按 \b 词边界统计）。
+  const LEGACY_NAME_TOKENS = ['auth-field', 'field-label', 'auth-form']
 
   function collectViewClassUsage() {
     const root = resolve(process.cwd(), 'src/views')
@@ -279,12 +288,16 @@ describe('primitive class guardrails', () => {
       const raw = readFileSync(full, 'utf8')
       const rel = `src/views/${full.slice(root.length + 1)}`
       const counts = {}
-      let input = 0
+      const tokenCounts = new Map()
       for (const match of raw.matchAll(/class="([^"]*)"/g)) {
-        input += match[1].split(/\s+/).filter((token) => token === 'input').length
+        for (const token of match[1].split(/\s+/)) {
+          if (PRIMITIVE_CLASS_TOKENS.includes(token)) {
+            tokenCounts.set(token, (tokenCounts.get(token) || 0) + 1)
+          }
+        }
       }
-      if (input) counts.input = input
-      for (const name of ['auth-field', 'field-label', 'auth-form']) {
+      for (const [name, count] of tokenCounts) counts[name] = count
+      for (const name of LEGACY_NAME_TOKENS) {
         const found = raw.match(new RegExp(`\\b${name}\\b`, 'g'))
         if (found) counts[name] = found.length
       }
@@ -293,15 +306,23 @@ describe('primitive class guardrails', () => {
     return usage
   }
 
-  it('does not spread primitive-internal classes into more views', () => {
+  it('keeps primitive-internal classes exactly on the admin registry', () => {
     const usage = collectViewClassUsage()
     const problems = []
     for (const [path, counts] of usage) {
       const baseline = classBaseline.get(path) || {}
       for (const [name, count] of Object.entries(counts)) {
         const allowed = baseline[name] || 0
-        if (count > allowed) {
+        if (count !== allowed) {
           problems.push(`${path}: .${name} ${allowed} -> ${count}`)
+        }
+      }
+    }
+    for (const [path, counts] of classBaseline) {
+      const current = usage.get(path) || {}
+      for (const [name, allowed] of Object.entries(counts)) {
+        if ((current[name] || 0) !== allowed) {
+          problems.push(`${path}: .${name} registry stale (${allowed} -> ${current[name] || 0})`)
         }
       }
     }
@@ -316,5 +337,42 @@ describe('primitive class guardrails', () => {
       expect(source.css, `${path} :focus-visible`).toContain(':focus-visible')
       expect(source.css, `${path} --focus-ring`).toContain('var(--focus-ring)')
     }
+  })
+})
+
+describe('migrated-surface hygiene guardrails', () => {
+  // 迁移页面 letter-spacing 固定为 0（规范 4.2）；仅剩管理后台 eyebrow 的历史登记，只减不增。
+  const letterSpacingBaseline = new Map([
+    ['src/views/AnalyticsView.vue', 2],
+    ['src/views/UserManagementView.vue', 1]
+  ])
+
+  it('keeps non-zero letter-spacing only on the admin registry', () => {
+    const sources = collectStyleSources()
+    const found = new Map()
+    for (const { path, css } of sources) {
+      const count = [...css.matchAll(/letter-spacing\s*:\s*([^;]+);/g)]
+        .filter((match) => match[1].trim() !== '0').length
+      if (count > 0) found.set(path, count)
+    }
+    expect([...found.entries()].sort()).toEqual([...letterSpacingBaseline.entries()].sort())
+  })
+
+  it('keeps hand-written <svg> out of source; icons go through lucide named imports / navIcons', () => {
+    const root = resolve(process.cwd(), 'src')
+    const offenders = []
+    const walk = (dir) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const full = resolve(dir, entry.name)
+        if (entry.isDirectory()) {
+          walk(full)
+        } else if ((entry.name.endsWith('.vue') || entry.name.endsWith('.js')) && !entry.name.endsWith('.test.js')) {
+          const raw = readFileSync(full, 'utf8')
+          if (raw.includes('<svg')) offenders.push(`src/${full.slice(root.length + 1)}`)
+        }
+      }
+    }
+    walk(root)
+    expect(offenders).toEqual([])
   })
 })

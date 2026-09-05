@@ -5,7 +5,7 @@
         <template #title>统计</template>
         <template #subtitle>用更安静的方式查看增长指标、时间范围和当前数据成熟度。</template>
         <template #actions>
-          <UiButton variant="secondary" @click="query" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
+          <UiButton variant="secondary" @click="query" :disabled="loading">{{ loading ? '正在加载…' : '刷新' }}</UiButton>
         </template>
       </UiPageHeader>
     </UiCard>
@@ -205,6 +205,37 @@ onBeforeUnmount(() => {
 
 .analytics-label {
   font-size: 12px;
+  color: var(--text-3);
+}
+
+/* 退役全局 components.css 中仍被本页引用的 .input 规则，按行为等价原样迁入 scoped（DOM 类名不变）。 */
+.input {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  outline: none;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input:focus-visible {
+  box-shadow: var(--shadow-sm), var(--focus-ring);
+}
+
+.input::placeholder {
   color: var(--text-3);
 }
 

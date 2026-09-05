@@ -65,7 +65,6 @@
   margin: 4px 0 0;
 }
 
-.market-list,
 .market-order-list,
 .market-admin-list {
   display: flex;
@@ -73,7 +72,6 @@
   gap: 10px;
 }
 
-.market-row,
 .market-order-row,
 .market-admin-row {
   display: grid;
@@ -89,45 +87,22 @@
   transition: background-color 160ms ease, border-color 160ms ease;
 }
 
-.market-row:hover,
 .market-order-row:hover,
 .market-admin-row:hover {
   background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
   border-color: var(--border-strong);
 }
 
-.market-row-main strong,
 .market-order-row strong,
 .market-admin-row strong {
   display: block;
   margin-bottom: 4px;
 }
 
-.market-row-main p,
 .market-order-row p,
 .market-admin-row p {
   margin: 0;
   color: var(--text-2);
-}
-
-.market-row-meta {
-  display: flex;
-  flex-wrap: wrap;
-  justify-content: flex-end;
-  gap: 8px 12px;
-  align-items: center;
-  color: var(--text-2);
-}
-
-.market-pill {
-  display: inline-flex;
-  align-items: center;
-  padding: 5px 10px;
-  border-radius: 999px;
-  background: var(--surface-2);
-  border: 1px solid var(--border);
-  font-size: 12px;
-  font-weight: 700;
 }
 
 .market-form-grid {
@@ -137,19 +112,6 @@
 
 .market-form-grid--wide {
   grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.market-workflow-section {
-  display: grid;
-  gap: 12px;
-  padding: 14px 0;
-  border-top: 1px solid var(--border);
-}
-
-.market-workflow-section h2 {
-  margin: 0;
-  font-size: 15px;
-  color: var(--text-1);
 }
 
 .market-field {
@@ -170,34 +132,13 @@
   min-height: 44px;
 }
 
-.market-textarea,
-.market-select {
-  width: 100%;
-  min-height: 112px;
-  padding: 12px 14px;
-  border-radius: var(--radius-md);
-  border: 1px solid var(--border);
-  background: var(--surface);
-  color: var(--text-1);
-  font: inherit;
-}
-
-.market-select {
-  min-height: 44px;
-}
-
 @media (max-width: 900px) {
   .market-form-grid--wide {
     grid-template-columns: 1fr;
   }
 
-  .market-row,
   .market-order-row,
   .market-admin-row {
     grid-template-columns: 1fr;
-  }
-
-  .market-row-meta {
-    justify-content: flex-start;
   }
 }

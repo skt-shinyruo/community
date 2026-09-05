@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMarketState, filterMarketListings, marketOrderCancelConfirmation, marketOrderConfirmConfirmation } from './marketState'
+import { buildMarketState, filterMarketListings, marketOrderCancelConfirmation, marketOrderConfirmConfirmation, nextTableSort, sortMarketInventory } from './marketState'
 
 describe('views/marketState', () => {
   it('should derive type labels and mixed fulfillment labels from goodsType', () => {
@@ -205,6 +205,68 @@ describe('views/marketState', () => {
     expect(state.addresses[0].defaultLabel).toBe('默认地址')
     expect(state.inventory[0].statusLabel).toBe('可售')
     expect(state.inventory[1].statusLabel).toBe('已失效')
+  })
+
+  it('projects inventory status rank, badge variant and payload type label for the seller table', () => {
+    const state = buildMarketState({
+      inventory: [
+        { inventoryUnitId: 'u1', status: 'AVAILABLE', payloadType: 'CODE' },
+        { inventoryUnitId: 'u2', status: 'LOCKED', payloadType: 'TEXT' },
+        { inventoryUnitId: 'u3', status: 'RESERVED', payloadType: 'LINK' },
+        { inventoryUnitId: 'u4', status: 'SOLD', payloadType: 'CODE' },
+        { inventoryUnitId: 'u5', status: 'INVALIDATED', payloadType: 'CODE' },
+        { inventoryUnitId: 'u6', status: 'ARCHIVED', payloadType: 'FILE' },
+        { inventoryUnitId: 'u7', status: '', payloadType: '' }
+      ]
+    })
+
+    expect(state.inventory.map((item) => item.statusRank)).toEqual([0, 1, 1, 2, 3, 4, 4])
+    expect(state.inventory.map((item) => item.statusVariant)).toEqual([
+      'success', 'pending', 'pending', 'warning', 'default', 'default', 'default'
+    ])
+    expect(state.inventory.map((item) => item.payloadTypeLabel)).toEqual([
+      '兑换码', '文本', '链接', '兑换码', '兑换码', 'FILE', '未知类型'
+    ])
+  })
+
+  it('toggles table sort state with direction flip on the same column and asc reset on a new column', () => {
+    expect(nextTableSort(undefined, 'status')).toEqual({ key: 'status', direction: 'asc' })
+    expect(nextTableSort({ key: '', direction: 'asc' }, 'status')).toEqual({ key: 'status', direction: 'asc' })
+
+    const descending = nextTableSort({ key: 'status', direction: 'asc' }, 'status')
+    expect(descending).toEqual({ key: 'status', direction: 'desc' })
+    expect(nextTableSort(descending, 'status')).toEqual({ key: 'status', direction: 'asc' })
+
+    expect(nextTableSort({ key: 'status', direction: 'desc' }, 'payloadType')).toEqual({
+      key: 'payloadType',
+      direction: 'asc'
+    })
+    expect(nextTableSort({ key: 'status', direction: 'asc' }, '')).toEqual({ key: '', direction: 'asc' })
+  })
+
+  it('sorts inventory projections by status rank and payload type label without mutating input', () => {
+    const state = buildMarketState({
+      inventory: [
+        { inventoryUnitId: 'u1', status: 'INVALIDATED', payloadType: 'CODE' },
+        { inventoryUnitId: 'u2', status: 'AVAILABLE', payloadType: 'LINK' },
+        { inventoryUnitId: 'u3', status: 'SOLD', payloadType: 'TEXT' },
+        { inventoryUnitId: 'u4', status: 'AVAILABLE', payloadType: 'CODE' }
+      ]
+    })
+
+    expect(sortMarketInventory(state.inventory, { key: 'status', direction: 'asc' }).map((item) => item.inventoryUnitId))
+      .toEqual(['u2', 'u4', 'u3', 'u1'])
+    expect(sortMarketInventory(state.inventory, { key: 'status', direction: 'desc' }).map((item) => item.inventoryUnitId))
+      .toEqual(['u1', 'u3', 'u2', 'u4'])
+    expect(sortMarketInventory(state.inventory, { key: 'payloadType', direction: 'asc' }).map((item) => item.inventoryUnitId))
+      .toEqual(['u1', 'u4', 'u2', 'u3'])
+
+    // 未知排序键与空输入保持原顺序、返回新数组且不改动入参。
+    const untouched = state.inventory
+    expect(sortMarketInventory(untouched, { key: 'payloadContent', direction: 'asc' })).toEqual(untouched)
+    expect(sortMarketInventory(untouched, { key: 'payloadContent', direction: 'asc' })).not.toBe(untouched)
+    expect(sortMarketInventory(null, { key: 'status', direction: 'asc' })).toEqual([])
+    expect(untouched.map((item) => item.inventoryUnitId)).toEqual(['u1', 'u2', 'u3', 'u4'])
   })
 
   it('does not synthesize entity identifiers from aliases or array indexes', () => {

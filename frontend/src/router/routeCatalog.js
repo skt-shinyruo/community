@@ -102,6 +102,12 @@ const BREADCRUMBS = Object.freeze({
   followers: (params) => [
     { label: '成员档案', to: { name: 'userProfile', params: { userId: String(params.userId || '') } } },
     { label: '粉丝列表' }
+  ],
+  // 库存管理是三级路由（/market/my-listings/:listingId/inventory），按规范使用真实面包屑。
+  marketInventory: () => [
+    { label: '市场', to: { name: 'market' } },
+    { label: '我的出售', to: { name: 'marketMyListings' } },
+    { label: '库存管理' }
   ]
 })
 

@@ -72,6 +72,18 @@ export function mapConversationMessage(raw) {
 }
 
 /**
+ * WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`，与 HTTP 历史响应的
+ * `createdAtEpochMs` 不同名；在这里归一后再走同一份消息映射。
+ */
+export function mapRealtimeConversationMessage(frame) {
+  const raw = frame || {}
+  return mapConversationMessage({
+    ...raw,
+    createdAtEpochMs: raw.createdAtEpochMs ?? raw.createdAtEpochMillis
+  })
+}
+
+/**
  * @param {{ clientMsgId?: unknown, fromId?: unknown, toId?: unknown, content?: unknown, createTime?: number }} [message]
  */
 export function createPendingConversationMessage({ clientMsgId, fromId, toId, content, createTime = Date.now() } = {}) {
@@ -104,6 +116,11 @@ export function commitPendingConversationMessage(message, frame = {}) {
 
 export function failPendingConversationMessage(message) {
   return { ...(message || {}), deliveryState: 'failed' }
+}
+
+/** 重试是同一个写尝试：保留 clientMsgId / 身份别名，只把交付状态退回 pending。 */
+export function retryFailedConversationMessage(message) {
+  return { ...(message || {}), deliveryState: 'pending' }
 }
 
 export function advanceConversationSeqWaterline(currentWaterline, messages) {

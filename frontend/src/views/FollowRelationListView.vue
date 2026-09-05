@@ -2,67 +2,94 @@
   <div class="page relations-page">
     <UiBreadcrumb />
 
-    <div v-if="error && items.length > 0" class="error relations-banner">{{ error }}</div>
+    <UiPageHeader>
+      <template #title>{{ policy.title }}</template>
+      <template #subtitle>{{ policy.subtitle }}</template>
+      <template #actions>
+        <UiButton variant="secondary" class="relations-refresh" :disabled="loading || loadingMore" @click="reload">刷新</UiButton>
+      </template>
+    </UiPageHeader>
 
-    <UiCard class="relations-shell">
-      <div class="relations-shell-head">
-        <UiPageHeader>
-          <template #title>{{ policy.title }}</template>
-          <template #subtitle>{{ policy.subtitle }}</template>
-          <template #actions>
-            <UiButton variant="secondary" @click="refresh" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-          </template>
-        </UiPageHeader>
+    <div class="relations-feed">
+      <div v-if="loading && items.length === 0" class="relations-skeletons">
+        <UiSkeleton variant="list" :rows="4" />
       </div>
 
-      <div class="relations-toolbar">
-        <UiPagination :page="page" :has-next="hasNext" :disabled="loading" @prev="prevPage" @next="nextPage" />
-      </div>
+      <UiState v-if="error && items.length === 0" variant="error">
+        {{ error }}
+        <template #description>{{ policy.errorDescription }}</template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">重试</UiButton>
+        </template>
+      </UiState>
+      <div v-else-if="error" class="error relations-inline-error">{{ error }}</div>
 
-      <UiState v-if="error && items.length === 0" variant="error" class="relations-state">{{ error }}</UiState>
-      <div v-else-if="loading && items.length === 0" class="muted relations-state">{{ policy.loadingText }}</div>
-      <UiState v-else-if="items.length === 0" class="relations-state">
-        暂无数据
+      <UiState v-if="!loading && !error && items.length === 0">
+        {{ policy.emptyTitle }}
         <template #description>{{ policy.emptyDescription }}</template>
+        <template #actions>
+          <UiButton :to="{ name: 'posts' }">回到讨论区</UiButton>
+          <UiButton variant="ghost" :to="{ name: 'userProfile', params: { userId: String(userId || '') } }">返回主页</UiButton>
+        </template>
       </UiState>
 
-      <div v-else class="relations-list">
-        <article class="relation-card" v-for="it in items" :key="it.targetId">
+      <div v-if="items.length > 0" class="relations-list">
+        <article
+          v-for="it in items"
+          :key="it.targetId"
+          class="relation-card"
+          role="link"
+          tabindex="0"
+          @keydown.enter="onCardEnter($event, it)"
+          @click="openProfile(it)"
+        >
           <div class="relation-main">
             <UiAvatar :src="it.user?.headerUrl || ''" :name="it.user?.username || ''" :size="44" />
             <div class="relation-copy">
               <div class="relation-name-row">
-                <RouterLink :to="`/users/${it.targetId}`" class="relation-name">
+                <RouterLink :to="`/users/${it.targetId}`" class="relation-name" @click.stop>
                   {{ it.user?.username || '社区成员' }}
                 </RouterLink>
-                <span class="relation-pill">{{ policy.pill }}</span>
+                <UiBadge variant="accent">{{ policy.pill }}</UiBadge>
               </div>
               <div class="relation-summary">{{ policy.summary }}</div>
               <div class="relation-meta">建立关系于 {{ formatTime(it.followTime) }}</div>
             </div>
           </div>
 
-          <div class="relation-actions" v-if="authed && meId !== it.targetId">
+          <div class="relation-actions" v-if="authed && meId !== it.targetId" @click.stop>
             <UiButton v-if="!it.hasFollowed" :disabled="isMutating(it.targetId)" @click="doFollow(it)">关注</UiButton>
             <UiButton variant="secondary" v-else :disabled="isMutating(it.targetId)" @click="doUnfollow(it)">取关</UiButton>
           </div>
         </article>
       </div>
-    </UiCard>
+
+      <div v-if="pageError" class="error relations-inline-error">{{ pageError }}</div>
+
+      <div v-if="loadingMore || (hasNext && items.length > 0)" class="relations-load-more">
+        <UiButton v-if="loadingMore" variant="ghost" disabled>
+          <LoaderCircle :size="14" aria-hidden="true" class="relations-load-more-spinner" />
+          正在加载…
+        </UiButton>
+        <UiButton v-else variant="secondary" class="relations-load-more-btn" @click="loadMore">加载更多</UiButton>
+      </div>
+      <div v-if="!hasNext && items.length > 0" class="relations-end-note">已经到底了</div>
+    </div>
   </div>
 </template>
 
 <script setup>
 import { toRef } from 'vue'
+import { LoaderCircle } from 'lucide-vue-next'
 import { formatTime } from '../utils/time'
 import { useFollowRelationListState } from './followRelation/useFollowRelationListState'
-import UiCard from '../components/ui/UiCard.vue'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
-import UiButton from '../components/ui/UiButton.vue'
-import UiPagination from '../components/ui/UiPagination.vue'
-import UiState from '../components/ui/UiState.vue'
 import UiAvatar from '../components/ui/UiAvatar.vue'
+import UiBadge from '../components/ui/UiBadge.vue'
+import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
+import UiButton from '../components/ui/UiButton.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
+import UiState from '../components/ui/UiState.vue'
 
 const props = defineProps({
   relationKind: {
@@ -75,7 +102,6 @@ const props = defineProps({
 
 const {
   authed,
-  cursorHistory,
   doFollow,
   doUnfollow,
   error,
@@ -84,85 +110,85 @@ const {
   items,
   load,
   loading,
+  loadingMore,
+  loadMore,
   meId,
-  nextPage,
-  page,
+  nextCursor,
+  openProfile,
+  pageError,
   policy,
-  prevPage,
-  refresh
+  reload
 } = useFollowRelationListState({
   relationKind: toRef(props, 'relationKind'),
   profileUserId: toRef(props, 'userId')
 })
 
-defineExpose({ cursorHistory, load })
+// 键盘打开只响应卡片自身获得焦点时的 Enter；嵌套链接（成员名）与关注按钮的
+// Enter 走原生行为，不重复触发打开。
+function onCardEnter(event, item) {
+  if (event?.target !== event?.currentTarget) return
+  openProfile(item)
+}
+
+defineExpose({ load, loadMore, nextCursor, reload })
 </script>
 
 <style scoped>
 .relations-page {
   max-width: 980px;
-  margin: 0 auto;
-  gap: var(--space-5);
 }
 
-.relations-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
+.relations-refresh {
+  flex-shrink: 0;
 }
 
-.relations-banner {
-  margin-top: -6px;
+.relations-feed {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.relations-shell {
-  padding: 0;
-  overflow: hidden;
+.relations-skeletons {
+  display: grid;
+  gap: var(--space-3);
 }
 
-.relations-shell-head {
-  padding: 22px 24px 12px;
-}
-
-.relations-shell-head :deep(.page-header) {
-  gap: 0;
-}
-
-.relations-shell-head :deep(.page-header-subtitle) {
-  margin: 4px 0 0;
-}
-
-.relations-toolbar {
-  padding: 0 24px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.relations-state {
-  padding: 48px 24px;
+.relations-inline-error {
+  font-size: var(--text-sm);
 }
 
 .relations-list {
   display: grid;
+  gap: var(--space-3);
 }
 
 .relation-card {
-  padding: 20px 24px;
-  border-bottom: 1px solid var(--border);
   display: flex;
   justify-content: space-between;
-  gap: 16px;
   align-items: center;
+  gap: var(--space-4);
+  padding: var(--space-4) var(--space-5);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  cursor: pointer;
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard);
 }
 
-.relation-card:last-child {
-  border-bottom: none;
+.relation-card:hover {
+  border-color: var(--border-strong);
+  background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
+}
+
+.relation-card:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .relation-main {
   display: flex;
-  gap: 14px;
+  gap: var(--space-3);
   align-items: center;
   min-width: 0;
   flex: 1;
@@ -171,66 +197,97 @@ defineExpose({ cursorHistory, load })
 .relation-copy {
   min-width: 0;
   display: grid;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .relation-name-row {
   display: flex;
-  gap: 10px;
+  gap: var(--space-2);
   align-items: center;
   flex-wrap: wrap;
 }
 
 .relation-name {
-  font-weight: 800;
+  font-weight: 700;
   color: var(--text-1);
   text-decoration: none;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  border-radius: var(--radius-sm);
 }
 
 .relation-name:hover {
-  color: var(--accent);
+  color: var(--link-color);
 }
 
-.relation-pill {
-  border-radius: 999px;
-  padding: 4px 8px;
-  font-size: 11px;
-  font-weight: 700;
-  color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 18%, white 82%);
-}
-
-.relation-summary,
-.relation-meta {
-  color: var(--text-2);
+.relation-name:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .relation-summary {
-  line-height: 1.55;
+  color: var(--text-2);
+  font-size: var(--text-sm);
+  line-height: 1.6;
 }
 
 .relation-meta {
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-3);
 }
 
 .relation-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 8px;
+  gap: var(--space-2);
+  flex: none;
+}
+
+.relations-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+.relations-load-more-btn {
+  min-width: 260px;
+}
+
+.relations-load-more-spinner {
+  animation: relations-load-more-spin 0.8s linear infinite;
+}
+
+@keyframes relations-load-more-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .relations-load-more-spinner {
+    animation: none;
+  }
+}
+
+.relations-end-note {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
 }
 
 @media (max-width: 768px) {
-  .relations-shell-head,
-  .relations-toolbar,
-  .relation-card {
-    padding-left: 18px;
-    padding-right: 18px;
-  }
-
   .relation-card {
     flex-direction: column;
-    align-items: flex-start;
+    align-items: stretch;
+  }
+
+  .relation-actions {
+    align-self: flex-start;
+  }
+
+  .relations-load-more-btn {
+    min-width: 0;
+    width: 100%;
   }
 }
 </style>

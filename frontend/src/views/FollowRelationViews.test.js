@@ -11,6 +11,7 @@ const {
   getFollowStatuses,
   listFollowees,
   listFollowers,
+  routerPush,
   unfollowUser
 } = vi.hoisted(() => ({
   batchUserSummary: vi.fn(),
@@ -18,8 +19,17 @@ const {
   getFollowStatuses: vi.fn(),
   listFollowees: vi.fn(),
   listFollowers: vi.fn(),
+  routerPush: vi.fn(),
   unfollowUser: vi.fn()
 }))
+
+vi.mock('vue-router', async () => {
+  const actual = await vi.importActual('vue-router')
+  return {
+    ...actual,
+    useRouter: () => ({ push: routerPush })
+  }
+})
 
 vi.mock('../api/services/userService', () => ({ batchUserSummary }))
 vi.mock('../api/services/socialService', () => ({
@@ -79,28 +89,29 @@ function mountView(relationKind) {
       stubs: {
         RouterLink: { template: '<a><slot /></a>' },
         UiAvatar: true,
+        UiBadge: true,
         UiBreadcrumb: true,
-        UiCard: { template: '<section><slot /></section>' },
         UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
-        UiState: { template: '<div><slot /><slot name="description" /></div>' },
+        UiSkeleton: true,
+        UiState: { template: '<div><slot /><slot name="description" /><slot name="actions" /></div>' },
         UiButton: {
-          props: ['disabled', 'variant'],
+          props: ['disabled', 'variant', 'to'],
           emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>'
-        },
-        UiPagination: true
+        }
       }
     }
   })
 }
 
-describe('follow relation pagination', () => {
+describe('follow relation load-more feed', () => {
   beforeEach(() => {
     batchUserSummary.mockReset()
     followUser.mockReset()
     getFollowStatuses.mockReset()
     listFollowees.mockReset()
     listFollowers.mockReset()
+    routerPush.mockReset()
     unfollowUser.mockReset()
     batchUserSummary.mockImplementation(async (ids) => ({
       data: ids.map((id) => ({ id, username: `user-${id.slice(-2)}` }))
@@ -113,30 +124,141 @@ describe('follow relation pagination', () => {
   it.each([
     ['followees', listFollowees],
     ['followers', listFollowers]
-  ])('keeps %s page data and retries the same page after failure', async (relationKind, listRelations) => {
+  ])('appends %s pages with the returned cursor until the feed is exhausted', async (relationKind, listRelations) => {
     const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
-    const secondPage = [relation(10)]
+    listRelations
+      .mockResolvedValueOnce(relationPage(firstPage, 'cursor-page-1', 'trace-page-0'))
+      .mockResolvedValueOnce(relationPage([relation(10)], '', 'trace-page-1'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+    expect(wrapper.vm.items).toHaveLength(10)
+    expect(wrapper.vm.hasNext).toBe(true)
+
+    await wrapper.vm.loadMore()
+    expect(listRelations.mock.calls.map(([, request]) => request.cursor)).toEqual([
+      '',
+      'cursor-page-1'
+    ])
+    expect(wrapper.vm.items).toHaveLength(11)
+    expect(wrapper.vm.hasNext).toBe(false)
+    expect(wrapper.text()).toContain('已经到底了')
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('keeps loaded %s items and retries the same cursor after a load-more failure', async (relationKind, listRelations) => {
+    const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
     listRelations
       .mockResolvedValueOnce(relationPage(firstPage, 'cursor-page-1', 'trace-page-0'))
       .mockRejectedValueOnce(new Error('temporary relation failure'))
-      .mockResolvedValueOnce(relationPage(secondPage, '', 'trace-page-1'))
+      .mockResolvedValueOnce(relationPage([relation(10)], '', 'trace-page-1'))
 
     const wrapper = mountView(relationKind)
     await flushPromises()
 
-    await wrapper.vm.nextPage()
-    expect(wrapper.vm.page).toBe(0)
+    await wrapper.vm.loadMore()
     expect(wrapper.vm.items).toHaveLength(10)
+    expect(wrapper.vm.pageError).toBe('temporary relation failure')
     expect(wrapper.text()).toContain('temporary relation failure')
 
-    await wrapper.vm.nextPage()
+    await wrapper.vm.loadMore()
     expect(listRelations.mock.calls.map(([, request]) => request.cursor)).toEqual([
       '',
       'cursor-page-1',
       'cursor-page-1'
     ])
-    expect(wrapper.vm.page).toBe(1)
+    expect(wrapper.vm.items).toHaveLength(11)
+    expect(wrapper.vm.pageError).toBe('')
+  })
+
+  it.each([
+    ['followees', listFollowees, '暂无关注'],
+    ['followers', listFollowers, '暂无粉丝']
+  ])('shows the %s empty state with a primary next step', async (relationKind, listRelations, emptyTitle) => {
+    listRelations.mockResolvedValueOnce(relationPage([], '', 'trace-empty'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain(emptyTitle)
+    expect(wrapper.text()).toContain('回到讨论区')
+    expect(wrapper.text()).toContain('返回主页')
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('offers a retry after the initial %s load fails', async (relationKind, listRelations) => {
+    listRelations
+      .mockRejectedValueOnce(new Error('relation service down'))
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-retry'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+    expect(wrapper.vm.error).toBe('relation service down')
+    expect(wrapper.text()).toContain('relation service down')
+
+    const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    expect(retry).toBeTruthy()
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(wrapper.vm.error).toBe('')
     expect(wrapper.vm.items).toHaveLength(1)
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('opens a %s card with click or Enter while nested controls stay independent', async (relationKind, listRelations) => {
+    listRelations.mockResolvedValue(relationPage([relation(0)], '', 'trace-open'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+
+    const card = wrapper.find('.relation-card')
+    expect(card.attributes('role')).toBe('link')
+    expect(card.attributes('tabindex')).toBe('0')
+
+    await card.trigger('click')
+    expect(routerPush).toHaveBeenCalledTimes(1)
+    expect(routerPush).toHaveBeenLastCalledWith({
+      name: 'userProfile',
+      params: { userId: relation(0).targetId }
+    })
+
+    routerPush.mockClear()
+    await card.trigger('keydown.enter')
+    expect(routerPush).toHaveBeenCalledTimes(1)
+
+    routerPush.mockClear()
+    await wrapper.find('.relation-name').trigger('keydown.enter')
+    expect(routerPush).not.toHaveBeenCalled()
+
+    await wrapper.find('.relation-actions').trigger('click')
+    expect(routerPush).not.toHaveBeenCalled()
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
+  ])('keeps the %s mutation buttons usable without triggering card navigation', async (relationKind, listRelations) => {
+    listRelations.mockResolvedValue(relationPage([relation(0)], '', 'trace-mutate'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+
+    const followButton = wrapper.findAll('.relation-actions button')
+      .find((button) => button.text() === '关注')
+    expect(followButton).toBeTruthy()
+    await followButton.trigger('click')
+    await flushPromises()
+
+    expect(followUser).toHaveBeenCalledTimes(1)
+    expect(followUser).toHaveBeenCalledWith(3, relation(0).targetId)
+    expect(routerPush).not.toHaveBeenCalled()
   })
 
   it.each([
@@ -169,7 +291,7 @@ describe('follow relation pagination', () => {
   it.each([
     ['followees', listFollowees],
     ['followers', listFollowers]
-  ])('keeps the latest %s refresh when an older page request finishes last', async (relationKind, listRelations) => {
+  ])('keeps the latest %s reload when an older load-more request finishes last', async (relationKind, listRelations) => {
     const pageRequest = deferred()
     const refreshRequest = deferred()
     const initialPage = Array.from({ length: 10 }, (_, index) => relation(index))
@@ -181,21 +303,22 @@ describe('follow relation pagination', () => {
     const wrapper = mountView(relationKind)
     await flushPromises()
 
-    const pendingPage = wrapper.vm.load(1)
-    const pendingRefresh = wrapper.vm.refresh()
+    const pendingMore = wrapper.vm.loadMore()
+    const pendingReload = wrapper.vm.reload()
     refreshRequest.resolve(relationPage(
       [{ ...relation(30), followTime: '2026-08-02T00:00:00Z' }],
       'cursor-refreshed',
       'trace-refresh'
     ))
-    await pendingRefresh
+    await pendingReload
     await flushPromises()
 
     pageRequest.resolve(relationPage([relation(10)], '', 'trace-page'))
-    await pendingPage
+    await pendingMore
     await flushPromises()
-    expect(wrapper.vm.page).toBe(0)
+    expect(wrapper.vm.items).toHaveLength(1)
     expect(wrapper.vm.items[0].targetId).toBe(relation(30).targetId)
+    expect(wrapper.vm.nextCursor).toBe('cursor-refreshed')
   })
 
   it.each([
@@ -247,11 +370,11 @@ describe('follow relation pagination', () => {
   it.each([
     ['followees', listFollowees],
     ['followers', listFollowers]
-  ])('applies a pending %s mutation to the refreshed item for the same viewer', async (relationKind, listRelations) => {
+  ])('applies a pending %s mutation to the reloaded item for the same viewer', async (relationKind, listRelations) => {
     const followRequest = deferred()
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
-      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-refresh'))
+      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-reload'))
     followUser.mockImplementation(() => followRequest.promise)
 
     const wrapper = mountView(relationKind)
@@ -259,7 +382,7 @@ describe('follow relation pagination', () => {
     const previousItem = wrapper.vm.items[0]
     const pendingFollow = wrapper.vm.doFollow(previousItem)
 
-    await wrapper.vm.refresh()
+    await wrapper.vm.reload()
     expect(wrapper.vm.items[0]).not.toBe(previousItem)
     expect(wrapper.vm.isMutating(relation(0).targetId)).toBe(true)
 
@@ -268,50 +391,5 @@ describe('follow relation pagination', () => {
     await flushPromises()
     expect(wrapper.vm.items[0].hasFollowed).toBe(true)
     expect(wrapper.vm.isMutating(relation(0).targetId)).toBe(false)
-  })
-
-  it.each([
-    ['followees', listFollowees],
-    ['followers', listFollowers]
-  ])('uses the saved %s cursor for forward and backward navigation', async (relationKind, listRelations) => {
-    listRelations
-      .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1', 'trace-page-0'))
-      .mockResolvedValueOnce(relationPage([relation(1)], 'cursor-page-2', 'trace-page-1'))
-      .mockResolvedValueOnce(relationPage([relation(0)], 'cursor-page-1-new', 'trace-back'))
-
-    const wrapper = mountView(relationKind)
-    await flushPromises()
-    await wrapper.vm.nextPage()
-    await wrapper.vm.prevPage()
-
-    expect(listRelations.mock.calls.map(([, request]) => request.cursor)).toEqual([
-      '',
-      'cursor-page-1',
-      ''
-    ])
-    expect(wrapper.vm.page).toBe(0)
-    expect(wrapper.vm.cursorHistory).toEqual(['', 'cursor-page-1-new'])
-  })
-
-  it.each([
-    ['followees', listFollowees],
-    ['followers', listFollowers]
-  ])('can load %s pages beyond the legacy page-100 limit by cursor', async (relationKind, listRelations) => {
-    listRelations
-      .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
-      .mockResolvedValueOnce(relationPage([relation(101)], '', 'trace-page-101'))
-
-    const wrapper = mountView(relationKind)
-    await flushPromises()
-    wrapper.vm.cursorHistory[101] = 'cursor-page-101'
-
-    await wrapper.vm.load(101)
-
-    expect(listRelations).toHaveBeenLastCalledWith(PROFILE_ID, {
-      cursor: 'cursor-page-101',
-      size: 10
-    })
-    expect(wrapper.vm.page).toBe(101)
-    expect(wrapper.vm.items[0].targetId).toBe(relation(101).targetId)
   })
 })

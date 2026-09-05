@@ -1,288 +1,104 @@
-<!-- 通知详情页：按 topic 展示通知列表，并支持标记已读。 -->
 <template>
   <div class="page notice-detail-page">
-    <div v-if="error && items.length > 0" class="error notice-detail-banner">{{ error }}</div>
+    <nav class="notice-detail-nav" aria-label="页面层级">
+      <UiButton variant="ghost" class="notice-detail-back" :to="{ name: 'notices' }">
+        <ArrowLeft :size="16" aria-hidden="true" />
+        返回通知汇总
+      </UiButton>
+    </nav>
 
-    <UiCard class="notice-detail-shell">
-      <div class="notice-detail-shell-head">
-        <UiPageHeader>
-          <template #title>
-            {{
-              topic === 'comment'
-                ? '评论通知'
-                : topic === 'like'
-                  ? '点赞通知'
-                  : topic === 'follow'
-                    ? '关注通知'
-                    : topic === 'moderation'
-                      ? '治理通知'
-                      : '通知详情'
-            }}
-          </template>
-          <template #subtitle>
-            {{
-              topic === 'comment'
-                ? '回到需要你继续阅读或回复的评论线程。'
-                : topic === 'like'
-                  ? '集中查看哪些内容最近收到了新的认可。'
-                  : topic === 'follow'
-                    ? '查看最近新增的关注与社交变化。'
-                    : topic === 'moderation'
-                      ? '查看治理动作和处理结果的最新更新。'
-                      : '查看这一类通知的详细记录。'
-            }}
-          </template>
-          <template #actions>
-            <UiButton variant="secondary" @click="markAllRead" :disabled="loading || items.length === 0">标记本页已读</UiButton>
-            <UiButton variant="secondary" @click="refresh" :disabled="loading">{{ loading ? '加载中…' : '刷新' }}</UiButton>
-            <RouterLink class="btn ghost" to="/notices">返回通知汇总</RouterLink>
-          </template>
-        </UiPageHeader>
+    <UiPageHeader>
+      <template #title>{{ policy.title }}</template>
+      <template #subtitle>{{ policy.subtitle }}</template>
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading || markingRead || !hasUnread" @click="markAllRead">标记已读</UiButton>
+        <UiButton variant="secondary" :disabled="loading || markingRead" @click="reload">刷新</UiButton>
+      </template>
+    </UiPageHeader>
+
+    <div class="notice-feed">
+      <div v-if="loading && cards.length === 0" class="notice-detail-skeletons">
+        <UiSkeleton variant="list" :rows="4" />
       </div>
 
-      <div class="notice-detail-toolbar">
-        <UiPagination :page="page" :has-next="hasNext" :disabled="loading" @prev="prevPage" @next="nextPage" />
-      </div>
+      <UiState v-if="error && cards.length === 0" variant="error" :title="error">
+        <template #description>通知列表加载失败，可以重试或返回通知汇总。</template>
+        <template #actions>
+          <UiButton variant="secondary" :disabled="loading" @click="reload">重试</UiButton>
+        </template>
+      </UiState>
+      <div v-else-if="error" class="error notice-detail-inline-error" role="alert">{{ error }}</div>
 
-      <UiState v-if="error && items.length === 0" variant="error" class="notice-detail-state">{{ error }}</UiState>
-      <div v-else-if="loading && items.length === 0" class="muted notice-detail-state">正在加载通知…</div>
-      <UiState v-else-if="items.length === 0" class="notice-detail-state">
+      <UiState v-if="!loading && !error && cards.length === 0">
         暂无通知
         <template #description>这一类通知当前没有更多记录，稍后可以刷新再看。</template>
+        <template #actions>
+          <UiButton variant="secondary" :to="{ name: 'notices' }">返回通知汇总</UiButton>
+        </template>
       </UiState>
 
-      <div v-else class="notice-feed">
-        <article v-for="n in items" :key="n.id" class="notice-card" :class="{ unread: Number(n?.status || 0) !== 1 }">
+      <div v-if="cards.length > 0" class="notice-list">
+        <article v-for="n in cards" :key="n.id" class="notice-card" :class="{ unread: !n.read }">
           <div class="notice-card-head">
-            <div class="notice-card-copy">
-              <div class="notice-card-eyebrow">
-                {{
-                  safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                    ? '评论动态'
-                    : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                      ? '点赞动态'
-                      : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                        ? '关注动态'
-                        : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                          ? '治理动态'
-                          : '通知'
-                }}
-              </div>
-              <h3 class="notice-card-title">
-                {{
-                  safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                    ? '有人回复了你的内容'
-                    : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                      ? '你的内容收到了新的点赞'
-                      : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                        ? '你收到了新的关注'
-                        : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                          ? '治理状态有更新'
-                          : '查看这条通知'
-                }}
-              </h3>
-            </div>
+            <h2 class="notice-card-title">{{ n.title }}</h2>
             <div class="notice-card-time">{{ formatTime(n.createTime) }}</div>
           </div>
 
-          <p class="notice-card-body">
-            {{
-              safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                ? '有人在帖子或评论线程里与你互动，可以返回原帖继续阅读上下文。'
-                : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                  ? '这说明你的内容正在被更多人看见，也适合回到原帖继续跟进讨论。'
-                  : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                    ? '新的关注通常意味着有人开始留意你的公开发言和动态。'
-                    : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                      ? '如果这条通知涉及帖子或内容治理，建议回到相关页面查看更完整的结果。'
-                      : formatNotice(n)
-            }}
-          </p>
+          <p class="notice-card-body">{{ n.body }}</p>
 
           <div class="notice-card-meta">
-            <span class="notice-state-pill" :class="{ unread: Number(n?.status || 0) !== 1 }">
-              {{ Number(n?.status || 0) === 1 ? '已读' : '未读' }}
-            </span>
-            <span v-if="safeJsonParse(n?.content, null)?.payload?.actorUserId">
-              {{ shortMemberLabel(safeJsonParse(n?.content, null)?.payload?.actorUserId) }}
-            </span>
-            <span v-if="noticePostId(n)">可返回帖子查看上下文</span>
+            <UiBadge :variant="n.read ? 'default' : 'accent'">{{ n.read ? '已读' : '未读' }}</UiBadge>
+            <span v-if="n.actorLabel">{{ n.actorLabel }}</span>
+            <span v-if="n.postId">可返回帖子查看上下文</span>
           </div>
 
-          <div class="notice-card-actions" v-if="noticePostId(n)">
-            <RouterLink class="btn secondary" :to="`/posts/${noticePostId(n)}`">查看相关帖子</RouterLink>
+          <div v-if="n.postId" class="notice-card-actions">
+            <UiButton variant="secondary" :to="`/posts/${n.postId}`">查看相关帖子</UiButton>
           </div>
         </article>
       </div>
-    </UiCard>
+
+      <div v-if="pageError" class="error notice-detail-inline-error" role="alert">{{ pageError }}</div>
+
+      <div v-if="loadingMore || (hasNext && cards.length > 0)" class="notice-detail-load-more">
+        <UiButton v-if="loadingMore" variant="ghost" disabled>
+          <LoaderCircle :size="14" aria-hidden="true" class="notice-detail-load-more-spinner" />
+          正在加载…
+        </UiButton>
+        <UiButton v-else variant="secondary" class="notice-detail-load-more-btn" @click="loadMore">加载更多</UiButton>
+      </div>
+      <div v-if="!hasNext && cards.length > 0" class="notice-detail-end-note">已经到底了</div>
+    </div>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
-import { useAuthStore } from '../stores/auth'
-import { useInboxUnreadStore } from '../stores/inboxUnread'
-import { listNotices, markRead } from '../api/services/noticeService'
-import { safeJsonParse } from '../utils/safeJson'
-import { formatTime } from '../utils/time'
-import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
-import { createLatestRequestTracker } from '../utils/latestRequest'
-import UiCard from '../components/ui/UiCard.vue'
-import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import { computed } from 'vue'
+import { ArrowLeft, LoaderCircle } from 'lucide-vue-next'
+import UiBadge from '../components/ui/UiBadge.vue'
 import UiButton from '../components/ui/UiButton.vue'
-import UiPagination from '../components/ui/UiPagination.vue'
+import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
+import { formatTime } from '../utils/time'
+import { useNoticeTopicFeedState } from './notices/useNoticeTopicFeedState'
 
 const props = defineProps({ topic: String })
-const auth = useAuthStore()
-const inboxUnread = useInboxUnreadStore()
 
-const topic = computed(() => String(props.topic || ''))
-const page = ref(0)
-const size = ref(10)
-
-const loading = ref(false)
-const error = ref('')
-const items = ref([])
-
-const hasNext = ref(true)
-const loadRequestTracker = createLatestRequestTracker()
-const markReadRequestTracker = createLatestRequestTracker()
-
-function currentViewScope() {
-  return `${auth.tokenGeneration}:${String(auth.userId || '')}:${topic.value}`
-}
-
-function isCurrentRequest(tracker, token, viewScope) {
-  return tracker.isCurrent(token) && currentViewScope() === viewScope
-}
-
-function formatNotice(msg) {
-  const raw = safeJsonParse(msg?.content, null)
-  const type = raw?.type || ''
-  const payload = raw?.payload || {}
-  if (type === 'COMMENT_CREATED') {
-    return payload?.postId ? `有人在帖子 ${payload.postId} 下回复了你，建议回到原帖继续阅读上下文。` : '有人回复了你的内容。'
-  }
-  if (type === 'LIKE_CREATED') {
-    return '有人对你的内容表达了认可，可以回到原帖看看这次互动发生在什么位置。'
-  }
-  if (type === 'FOLLOW_CREATED') {
-    return '你收到了新的关注，对方开始留意你的公开动态。'
-  }
-  if (type === 'MODERATION_ACTION_APPLIED') {
-    const action = payload?.action ?? '-'
-    const reason = payload?.reason ?? ''
-    const duration = payload?.durationSeconds
-    const extra = duration ? ` duration=${duration}s` : ''
-    const targetType = payload?.targetType ?? '-'
-    const targetId = payload?.targetId ?? '-'
-    return `治理结果已更新：动作=${action}${extra ? ` · ${extra.trim()}` : ''} · 目标=${targetType}/${targetId}${reason ? ` · 原因=${reason}` : ''}`
-  }
-  return `通知：${type || 'unknown'}`
-}
-
-function noticePostId(msg) {
-  const raw = safeJsonParse(msg?.content, null)
-  const type = raw?.type || ''
-  const payload = raw?.payload || {}
-  const pid = normalizeOpaqueId(payload?.postId)
-  if (pid) return pid
-  if (type === 'MODERATION_ACTION_APPLIED' && Number(payload?.targetType || 0) === 1) {
-    return normalizeOpaqueId(payload?.targetId)
-  }
-  return ''
-}
-
-function shortMemberLabel(value) {
-  const raw = String(value || '').trim()
-  if (!raw) return '社区成员'
-  return `社区成员 ${raw.slice(0, 8)}`
-}
-
-async function load(targetPage = page.value) {
-  const token = loadRequestTracker.begin()
-  const viewScope = currentViewScope()
-  const requestedTopic = topic.value
-  error.value = ''
-  loading.value = true
-  try {
-    const { data } = await listNotices(requestedTopic, { page: targetPage, size: size.value })
-    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
-    const nextItems = Array.isArray(data) ? data : []
-    hasNext.value = nextItems.length >= Number(size.value || 10)
-    if (targetPage > page.value && nextItems.length === 0) {
-      return
-    }
-    page.value = targetPage
-    items.value = nextItems
-  } catch (e) {
-    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
-    error.value = e?.message || '加载失败'
-  } finally {
-    if (isCurrentRequest(loadRequestTracker, token, viewScope)) {
-      loading.value = false
-    }
-  }
-}
-
-async function markAllRead() {
-  if (loading.value || items.value.length === 0) return
-  const token = markReadRequestTracker.begin()
-  const viewScope = currentViewScope()
-  const requestedPage = page.value
-  error.value = ''
-  loading.value = true
-  try {
-    const ids = normalizeOpaqueIds(items.value.map((x) => x?.id))
-    await markRead(ids)
-    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
-    await load(requestedPage)
-    // 已读操作后刷新壳层未读角标（不依赖轮询）。
-    void inboxUnread.refresh()
-  } catch (e) {
-    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
-    error.value = e?.message || '标记已读失败'
-  } finally {
-    if (isCurrentRequest(markReadRequestTracker, token, viewScope)) {
-      loading.value = false
-    }
-  }
-}
-
-async function nextPage() {
-  if (loading.value || !hasNext.value) return
-  await load(page.value + 1)
-}
-
-async function prevPage() {
-  if (loading.value) return
-  await load(Math.max(0, page.value - 1))
-}
-
-async function refresh() {
-  await load(page.value)
-}
-
-function resetForViewScope() {
-  loadRequestTracker.invalidate()
-  markReadRequestTracker.invalidate()
-  page.value = 0
-  hasNext.value = true
-  loading.value = false
-  error.value = ''
-  items.value = []
-  if (auth.authed && topic.value) load(0)
-}
-
-watch(currentViewScope, resetForViewScope)
-onMounted(() => {
-  if (auth.authed && topic.value) load(0)
-})
-onBeforeUnmount(() => {
-  loadRequestTracker.invalidate()
-  markReadRequestTracker.invalidate()
-})
+const {
+  cards,
+  error,
+  hasNext,
+  hasUnread,
+  loading,
+  loadingMore,
+  loadMore,
+  markAllRead,
+  markingRead,
+  pageError,
+  policy,
+  reload
+} = useNoticeTopicFeedState({ topic: computed(() => String(props.topic || '')) })
 </script>
 
 <style scoped>
@@ -292,83 +108,66 @@ onBeforeUnmount(() => {
   gap: var(--space-5);
 }
 
-.notice-card-eyebrow {
-  font-size: 11px;
-  letter-spacing: 0.16em;
-  text-transform: uppercase;
-  color: var(--text-3);
-  font-weight: 700;
+.notice-detail-nav {
+  display: flex;
+  align-items: center;
+  justify-content: flex-start;
 }
 
-.notice-detail-banner {
-  margin-top: -6px;
-}
-
-.notice-detail-shell {
-  padding: 0;
-  overflow: hidden;
-}
-
-.notice-detail-shell-head {
-  padding: 22px 24px 12px;
-}
-
-.notice-detail-shell-head :deep(.page-header) {
-  gap: 0;
-}
-
-.notice-detail-shell-head :deep(.page-header-subtitle) {
-  margin: 4px 0 0;
-}
-
-.notice-detail-toolbar {
-  padding: 0 24px 18px;
-  border-bottom: 1px solid var(--border);
-}
-
-.notice-detail-state {
-  padding: 48px 24px;
+.notice-detail-back {
+  flex: none;
 }
 
 .notice-feed {
   display: grid;
+  gap: var(--space-3);
+}
+
+.notice-detail-skeletons {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.notice-detail-inline-error {
+  font-size: var(--text-sm);
+}
+
+.notice-list {
+  display: grid;
+  gap: var(--space-3);
 }
 
 .notice-card {
-  padding: 22px 24px;
-  border-bottom: 1px solid var(--border);
   display: grid;
-  gap: 14px;
-}
-
-.notice-card:last-child {
-  border-bottom: none;
+  gap: var(--space-3);
+  padding: var(--space-5) var(--space-6);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
 }
 
 .notice-card.unread {
-  background: color-mix(in srgb, var(--surface) 90%, var(--accent-weak) 10%);
+  box-shadow: inset 3px 0 0 0 var(--accent);
 }
 
 .notice-card-head {
   display: flex;
   justify-content: space-between;
-  gap: 16px;
+  gap: var(--space-3);
   align-items: flex-start;
-}
-
-.notice-card-copy {
-  display: grid;
-  gap: 6px;
 }
 
 .notice-card-title {
   margin: 0;
-  font-size: 1.05rem;
+  font-size: 19px;
+  font-weight: 650;
   line-height: 1.35;
+  letter-spacing: 0;
+  color: var(--text-1);
 }
 
 .notice-card-time {
-  font-size: 12px;
+  font-size: var(--text-xs);
   color: var(--text-3);
   white-space: nowrap;
 }
@@ -376,46 +175,69 @@ onBeforeUnmount(() => {
 .notice-card-body {
   margin: 0;
   color: var(--text-2);
+  font-size: var(--text-sm);
   line-height: 1.7;
 }
 
 .notice-card-meta {
   display: flex;
-  gap: 12px;
+  align-items: center;
+  gap: var(--space-3);
   flex-wrap: wrap;
-  font-size: 12px;
+  font-size: 13px;
   color: var(--text-3);
-}
-
-.notice-state-pill {
-  border-radius: 999px;
-  padding: 4px 9px;
-  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
-  color: var(--text-2);
-  font-weight: 700;
-}
-
-.notice-state-pill.unread {
-  background: color-mix(in srgb, var(--accent) 18%, white 82%);
-  color: var(--accent);
 }
 
 .notice-card-actions {
   display: flex;
   flex-wrap: wrap;
-  gap: 10px;
+  gap: var(--space-2);
+}
+
+.notice-detail-load-more {
+  display: flex;
+  justify-content: center;
+  padding-top: var(--space-2);
+}
+
+.notice-detail-load-more-btn {
+  min-width: 260px;
+}
+
+.notice-detail-load-more-spinner {
+  animation: notice-detail-load-more-spin 0.8s linear infinite;
+}
+
+@keyframes notice-detail-load-more-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .notice-detail-load-more-spinner {
+    animation: none;
+  }
+}
+
+.notice-detail-end-note {
+  text-align: center;
+  color: var(--text-3);
+  font-size: 13px;
 }
 
 @media (max-width: 768px) {
-  .notice-detail-shell-head,
-  .notice-detail-toolbar,
   .notice-card {
-    padding-left: 18px;
-    padding-right: 18px;
+    padding: var(--space-4);
   }
 
   .notice-card-head {
     flex-direction: column;
+  }
+
+  .notice-detail-load-more-btn {
+    min-width: 0;
+    width: 100%;
   }
 }
 </style>

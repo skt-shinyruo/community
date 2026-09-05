@@ -19,8 +19,7 @@ const LEGACY_LOADING_TEXT = new Map([
   ['src/views/MarketListView.vue', 1],
   ['src/views/MarketMyListingsView.vue', 1],
   ['src/views/MarketOrderListView.vue', 1],
-  ['src/views/ModerationView.vue', 3],
-  ['src/views/NoticeDetailView.vue', 1]
+  ['src/views/ModerationView.vue', 3]
 ])
 
 function collectSources() {

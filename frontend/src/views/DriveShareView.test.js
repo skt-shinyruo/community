@@ -293,4 +293,144 @@ describe('DriveShareView', () => {
 
     expect(window.open).not.toHaveBeenCalled()
   })
+
+  it('shows a retryable error state when the share gate fails to load', async () => {
+    getPublicDriveShare
+      .mockRejectedValueOnce(new Error('分享不存在或已失效'))
+      .mockResolvedValueOnce({ data: { shareToken: 'token-a', requiresPassword: true }, traceId: '' })
+
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('分享不存在或已失效')
+    expect(wrapper.find('input[type="password"]').exists()).toBe(false)
+
+    await wrapper.find('[data-test="share-reload"]').trigger('click')
+    await flushPromises()
+
+    expect(getPublicDriveShare).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('input[type="password"]').exists()).toBe(true)
+    expect(wrapper.text()).not.toContain('分享不存在或已失效')
+  })
+
+  it('flags the extraction code field when submitting an empty code', async () => {
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(verifyDriveShare).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('请输入提取码')
+  })
+
+  it('keeps a wrong extraction code as an inline field error distinct from the page error state', async () => {
+    verifyDriveShare.mockRejectedValueOnce(new Error('提取码错误'))
+
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    await wrapper.find('input[type="password"]').setValue('0000')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.find('.ui-field-error').text()).toBe('提取码错误')
+    expect(wrapper.text()).not.toContain('验证成功')
+    // 页面级错误态（链接失效）与提取码错误（字段内联）互不相同。
+    expect(wrapper.find('[data-test="share-reload"]').exists()).toBe(false)
+    expect(wrapper.find('input[type="password"]').exists()).toBe(true)
+  })
+
+  it('shows a retryable error when folder entries fail and recovers on retry', async () => {
+    verifyDriveShare.mockResolvedValueOnce({
+      data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
+      traceId: ''
+    })
+    listDriveShareEntries
+      .mockRejectedValueOnce(new Error('网络错误'))
+      .mockResolvedValueOnce({
+        data: [{ entryId: 'child-file', parentId: 'folder-root', type: 'FILE', name: 'a.txt', status: 'ACTIVE' }],
+        traceId: ''
+      })
+
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    await wrapper.find('input[type="password"]').setValue('1234')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('网络错误')
+    expect(wrapper.text()).not.toContain('此文件夹为空')
+
+    await wrapper.find('[data-test="share-entries-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(listDriveShareEntries).toHaveBeenLastCalledWith('token-a', 'ticket-a', '')
+    expect(wrapper.text()).toContain('a.txt')
+    expect(wrapper.text()).not.toContain('网络错误')
+  })
+
+  it('shows an empty state for an empty verified folder share', async () => {
+    verifyDriveShare.mockResolvedValueOnce({
+      data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
+      traceId: ''
+    })
+    listDriveShareEntries.mockResolvedValueOnce({ data: [], traceId: '' })
+
+    const wrapper = mount(DriveShareView, {
+      props: { shareToken: 'token-a' },
+      global: {
+        stubs: {
+          UiCard: { template: '<section><slot /></section>' },
+          UiPageHeader: { template: '<header><slot name="title" /><slot name="subtitle" /><slot name="actions" /></header>' },
+          UiButton: { props: ['disabled', 'variant', 'type'], emits: ['click'], template: '<button :disabled="disabled" @click="$emit(\'click\')"><slot /></button>' }
+        }
+      }
+    })
+    await flushPromises()
+
+    await wrapper.find('input[type="password"]').setValue('1234')
+    await wrapper.find('form').trigger('submit.prevent')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('验证成功')
+    expect(wrapper.text()).toContain('此文件夹为空')
+  })
 })

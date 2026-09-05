@@ -387,7 +387,7 @@ onBeforeUnmount(() => {
 .wallet-summary-strip {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: var(--space-4);
+  gap: 16px;
 }
 
 .wallet-summary-main,
@@ -396,13 +396,13 @@ onBeforeUnmount(() => {
 .wallet-feed-item,
 .wallet-panel {
   display: grid;
-  gap: var(--space-3);
+  gap: 12px;
 }
 
 .wallet-summary-main,
 .wallet-summary-side {
-  padding: var(--space-5) var(--space-6);
-  border-radius: var(--radius-lg);
+  padding: 22px 24px;
+  border-radius: 12px;
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--accent) 18%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface));
@@ -438,14 +438,14 @@ onBeforeUnmount(() => {
 .wallet-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: var(--space-5);
+  gap: 18px;
   align-items: start;
 }
 
 .wallet-action-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: var(--space-3);
+  gap: 14px;
 }
 
 .wallet-action-card {
@@ -462,13 +462,13 @@ onBeforeUnmount(() => {
 
 .wallet-feed {
   display: grid;
-  gap: var(--space-3);
+  gap: 12px;
 }
 
 .wallet-feed-item {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: var(--space-3) 0;
+  padding: 14px 0;
   border-bottom: 1px solid var(--border);
 }
 

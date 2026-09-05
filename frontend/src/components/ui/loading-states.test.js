@@ -13,7 +13,6 @@ const SANCTIONED = new Map([
 // 迁移债：各页面簇在后续波次迁往 UiSkeleton / 尾部指示 / 按钮 loading 后删除对应行。
 const LEGACY_LOADING_TEXT = new Map([
   ['src/views/AnalyticsView.vue', 1],
-  ['src/views/ConversationDetailView.vue', 1],
   ['src/views/MarketInventoryView.vue', 1],
   ['src/views/MarketListView.vue', 1],
   ['src/views/MarketMyListingsView.vue', 1],

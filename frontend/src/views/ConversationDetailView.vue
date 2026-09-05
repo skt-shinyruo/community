@@ -3,12 +3,12 @@
     <UiCard class="chat-card">
       <div class="chat-header">
         <div class="chat-header-main">
-          <RouterLink to="/messages" class="chat-back-link" aria-label="返回会话列表" title="返回收件箱">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-              <polyline points="15 18 9 12 15 6"></polyline>
-            </svg>
-            <span>返回收件箱</span>
-          </RouterLink>
+          <nav aria-label="页面层级">
+            <UiButton variant="ghost" :to="{ name: 'messages' }">
+              <ArrowLeft :size="16" aria-hidden="true" />
+              返回收件箱
+            </UiButton>
+          </nav>
 
           <UiPageHeader class="chat-title-block">
             <template #title>{{ model.targetId ? '私信线程' : '当前对话' }}</template>
@@ -32,18 +32,27 @@
       <div class="chat-area" ref="chatArea">
         <div class="chat-timeline-label">消息时间线</div>
 
-        <UiButton
-          v-if="model.hasMoreHistory"
-          data-testid="load-earlier-messages"
-          variant="secondary"
-          :disabled="model.loadingHistory || model.loading"
-          @click="actions.loadEarlier"
-        >
-          {{ model.loadingHistory ? '加载中…' : '加载更早消息' }}
-        </UiButton>
+        <div v-if="model.hasMoreHistory" class="chat-history-more">
+          <UiButton
+            data-testid="load-earlier-messages"
+            variant="secondary"
+            :disabled="model.loadingHistory || model.loading"
+            @click="actions.loadEarlier"
+          >
+            <LoaderCircle v-if="model.loadingHistory" :size="14" aria-hidden="true" class="chat-history-spinner" />
+            {{ model.loadingHistory ? '正在加载…' : '加载更早消息' }}
+          </UiButton>
+        </div>
 
-        <UiState v-if="model.error && model.messages.length === 0" variant="error" class="chat-state">{{ model.error }}</UiState>
-        <div v-else-if="model.loading && model.messages.length === 0" class="muted chat-state">正在同步会话…</div>
+        <UiState v-if="model.error && model.messages.length === 0" variant="error" class="chat-state" :title="model.error">
+          <template #description>会话消息加载失败，可以重试或返回收件箱。</template>
+          <template #actions>
+            <UiButton variant="secondary" :disabled="model.loading" @click="actions.refresh">重试</UiButton>
+          </template>
+        </UiState>
+        <div v-else-if="model.loading && model.messages.length === 0" class="chat-state">
+          <UiSkeleton variant="list" :rows="4" label="加载会话消息" />
+        </div>
         <UiState v-else-if="model.messages.length === 0" class="chat-state">
           暂无消息
           <template #description>你可以直接发出第一条消息，让这段对话开始流动起来。</template>
@@ -56,8 +65,18 @@
               <span class="message-time">{{ m.timeLabel }}</span>
             </div>
             <div class="message-bubble">{{ m.content }}</div>
-            <span v-if="m.deliveryState === 'pending'" class="message-delivery">发送中…</span>
-            <span v-else-if="m.deliveryState === 'failed'" class="message-delivery error">发送失败</span>
+            <div v-if="m.deliveryState === 'pending'" class="message-delivery">发送中…</div>
+            <div v-else-if="m.deliveryState === 'failed'" class="message-delivery">
+              <span class="error">发送失败</span>
+              <UiButton
+                variant="ghost"
+                class="message-retry"
+                :disabled="!model.realtimeReady"
+                @click="actions.retrySend(m.clientMsgId)"
+              >
+                重试
+              </UiButton>
+            </div>
           </div>
         </div>
       </div>
@@ -80,10 +99,12 @@
 
 <script setup>
 import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { ArrowLeft, LoaderCircle } from 'lucide-vue-next'
 import ConversationComposer from '../components/scene/ConversationComposer.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import { useConversationDetailWorkflow } from './useConversationDetailWorkflow'
 
@@ -109,64 +130,44 @@ onBeforeUnmount(lifecycle.unmount)
   display: flex;
   flex-direction: column;
   min-height: 78vh;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 97%, white 3%), var(--surface));
 }
 
 .chat-header {
-  padding: 18px 22px;
+  padding: var(--space-5) var(--space-6);
   display: flex;
   justify-content: space-between;
-  gap: 20px;
+  gap: var(--space-5);
   align-items: flex-start;
 }
 
 .chat-header-main {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
   min-width: 0;
-}
-
-.chat-back-link {
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
-  color: var(--text-2);
-  text-decoration: none;
-  font-size: 13px;
-  font-weight: 600;
-}
-
-.chat-back-link:hover {
-  color: var(--text-1);
-}
-
-.chat-title-block :deep(.ui-page-header) {
-  gap: 0;
 }
 
 .chat-header-actions {
   display: flex;
   align-items: center;
-  gap: 10px;
+  gap: var(--space-2);
   flex-wrap: wrap;
   justify-content: flex-end;
 }
 
 .chat-status-pill {
-  border-radius: 999px;
-  padding: 7px 12px;
-  font-size: 12px;
+  border-radius: var(--radius-full);
+  padding: var(--space-1) var(--space-3);
+  font-size: var(--text-xs);
   font-weight: 700;
-  color: var(--text-2);
-  background: color-mix(in srgb, var(--surface) 82%, var(--bg) 18%);
+  color: var(--text-3);
+  background: var(--surface-2);
   border: 1px solid var(--border);
 }
 
 .chat-status-pill.online {
-  color: var(--success);
-  background: color-mix(in srgb, var(--success-weak) 70%, white 30%);
-  border-color: color-mix(in srgb, var(--success) 22%, var(--border) 78%);
+  color: var(--accent-text);
+  background: var(--accent-weak);
+  border-color: transparent;
 }
 
 .chat-divider {
@@ -179,25 +180,42 @@ onBeforeUnmount(lifecycle.unmount)
   flex: 1;
   min-height: 0;
   max-height: min(60vh, 720px);
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--bg) 85%, var(--surface) 15%), var(--bg));
+  background: var(--bg);
   overflow-y: auto;
-  padding: 24px;
+  padding: var(--space-6);
   display: flex;
   flex-direction: column;
 }
 
 .chat-timeline-label {
   align-self: center;
-  margin-bottom: 18px;
-  padding: 6px 12px;
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--surface) 88%, var(--bg) 12%);
+  margin-bottom: var(--space-5);
+  padding: var(--space-1) var(--space-3);
+  border-radius: var(--radius-full);
+  background: var(--surface-2);
   color: var(--text-3);
-  font-size: 12px;
-  letter-spacing: 0.08em;
-  text-transform: uppercase;
+  font-size: var(--text-xs);
   font-weight: 700;
+}
+
+.chat-history-more {
+  display: flex;
+  justify-content: center;
+  margin-bottom: var(--space-4);
+}
+
+.chat-history-spinner {
+  animation: chat-history-spin 0.8s linear infinite;
+}
+
+@keyframes chat-history-spin {
+  to { transform: rotate(360deg); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .chat-history-spinner {
+    animation: none;
+  }
 }
 
 .chat-state {
@@ -207,7 +225,7 @@ onBeforeUnmount(lifecycle.unmount)
 .message-list {
   display: flex;
   flex-direction: column;
-  gap: 18px;
+  gap: var(--space-5);
 }
 
 .message-row {
@@ -216,7 +234,7 @@ onBeforeUnmount(lifecycle.unmount)
   align-items: flex-start;
   max-width: min(72%, 620px);
   align-self: flex-start;
-  gap: 6px;
+  gap: var(--space-1);
 }
 
 .message-row.mine {
@@ -227,61 +245,68 @@ onBeforeUnmount(lifecycle.unmount)
 .message-meta {
   display: flex;
   align-items: center;
-  gap: 8px;
-  padding: 0 6px;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
 }
 
 .message-author {
-  font-size: 12px;
+  font-size: var(--text-xs);
   font-weight: 700;
   color: var(--text-2);
 }
 
+.message-time {
+  font-size: var(--text-xs);
+  color: var(--text-3);
+}
+
 .message-bubble {
-  padding: 14px 18px;
-  background: color-mix(in srgb, var(--surface) 90%, white 10%);
-  border-radius: 18px;
-  border-top-left-radius: 6px;
-  box-shadow: var(--shadow-sm);
-  font-size: 15px;
-  line-height: 1.65;
+  padding: var(--space-4) var(--space-5);
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  border-top-left-radius: var(--radius-sm);
+  font-size: var(--text-md);
+  line-height: var(--line-normal);
   color: var(--text-1);
   white-space: pre-wrap;
   word-break: break-word;
 }
 
 .message-row.mine .message-bubble {
-  background: color-mix(in srgb, var(--accent) 88%, white 12%);
+  background: var(--accent);
+  border-color: transparent;
   color: var(--accent-contrast);
-  border-top-left-radius: 18px;
-  border-top-right-radius: 6px;
-}
-
-.message-time {
-  font-size: 11px;
-  color: var(--text-3);
+  border-top-left-radius: var(--radius-lg);
+  border-top-right-radius: var(--radius-sm);
 }
 
 .message-delivery {
-  font-size: 11px;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-2);
+  font-size: var(--text-xs);
   color: var(--text-3);
 }
 
+.message-retry {
+  flex: none;
+}
+
 .chat-composer {
-  padding: 20px 24px 24px;
+  padding: var(--space-5) var(--space-6) var(--space-6);
   display: grid;
-  gap: 14px;
-  background:
-    linear-gradient(180deg, color-mix(in srgb, var(--surface) 96%, white 4%), var(--surface));
+  gap: var(--space-4);
 }
 
 .chat-composer-copy {
   display: grid;
-  gap: 4px;
+  gap: var(--space-1);
 }
 
 .chat-composer-label {
-  font-size: 14px;
+  font-size: var(--text-sm);
   font-weight: 700;
 }
 
@@ -301,17 +326,17 @@ onBeforeUnmount(lifecycle.unmount)
   }
 
   .chat-header {
-    padding: 16px;
+    padding: var(--space-4);
     flex-direction: column;
   }
 
   .chat-area {
-    padding: 16px;
+    padding: var(--space-4);
     max-height: none;
   }
 
   .chat-composer {
-    padding: 12px;
+    padding: var(--space-3);
   }
 
   .message-row {

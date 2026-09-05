@@ -127,3 +127,59 @@ onBeforeUnmount(() => {
   actionTracker.invalidate()
 })
 </script>
+
+<style scoped>
+.market-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.market-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.market-admin-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.market-admin-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 16px;
+  align-items: center;
+  padding: 16px 18px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  text-decoration: none;
+  color: inherit;
+  transition: background-color 160ms ease, border-color 160ms ease;
+}
+
+.market-admin-row:hover {
+  background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
+  border-color: var(--border-strong);
+}
+
+.market-admin-row strong {
+  display: block;
+  margin-bottom: 4px;
+}
+
+.market-admin-row p {
+  margin: 0;
+  color: var(--text-2);
+}
+
+@media (max-width: 900px) {
+  .market-admin-row {
+    grid-template-columns: 1fr;
+  }
+}
+</style>

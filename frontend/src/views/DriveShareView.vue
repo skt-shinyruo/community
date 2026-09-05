@@ -12,8 +12,13 @@
       </template>
     </UiPageHeader>
 
-    <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-else-if="loading" class="muted">正在加载分享…</div>
+    <UiSkeleton v-if="loading" variant="card" label="正在加载分享" />
+    <UiState v-else-if="error" variant="error" :title="error">
+      <template #description>分享链接加载失败，可以重试；若多次失败，链接可能已失效或被撤销。</template>
+      <template #actions>
+        <UiButton variant="secondary" :disabled="loading" data-test="share-reload" @click="retryLoadShare">重试</UiButton>
+      </template>
+    </UiState>
 
     <UiCard v-else class="drive-share-card">
       <div class="drive-share-summary">
@@ -32,18 +37,18 @@
       </div>
 
       <form class="drive-share-form" @submit.prevent="verify">
-        <label class="drive-field">
-          <span>提取码</span>
-          <input v-model.trim="password" class="input" type="password" autocomplete="off" />
-        </label>
+        <UiField label="提取码" :error="fieldError">
+          <UiInput v-model.trim="password" type="password" autocomplete="off" />
+        </UiField>
         <UiButton :disabled="submitting" type="submit">
-          {{ ticket ? '重新验证' : '访问分享' }}
+          {{ submitting ? '验证中…' : ticket ? '重新验证' : '访问分享' }}
         </UiButton>
-        <p v-if="message" class="drive-share-message">{{ message }}</p>
+        <p v-if="successMessage" class="drive-share-message">{{ successMessage }}</p>
       </form>
 
       <div v-if="ticket && isFileShare" class="drive-share-actions">
         <UiButton :disabled="submitting" @click="download">下载</UiButton>
+        <p v-if="downloadError" class="drive-share-download-error" role="alert">{{ downloadError }}</p>
         <p v-if="downloadUrl" class="muted drive-share-url">{{ downloadUrl }}</p>
       </div>
 
@@ -69,9 +74,19 @@
           </template>
         </div>
 
-        <UiState v-if="entriesError" variant="error">{{ entriesError }}</UiState>
-        <div v-else-if="entriesLoading" class="muted">正在加载文件…</div>
-        <div v-else-if="shareEntries.length === 0" class="muted">此文件夹为空</div>
+        <UiSkeleton v-if="entriesLoading" variant="list" :rows="3" label="正在加载分享文件" />
+        <UiState v-else-if="entriesError" variant="error" :title="entriesError">
+          <template #description>分享文件加载失败，可以重试。</template>
+          <template #actions>
+            <UiButton variant="secondary" :disabled="entriesLoading" data-test="share-entries-retry" @click="retryLoadEntries">重试</UiButton>
+          </template>
+        </UiState>
+        <UiState v-else-if="shareEntries.length === 0" title="此文件夹为空">
+          <template #description>当前文件夹没有可访问的内容。</template>
+          <template v-if="folderTrail.length > 0" #actions>
+            <UiButton variant="secondary" @click="goFolderTrail(folderTrail.length - 2)">返回上一级</UiButton>
+          </template>
+        </UiState>
         <ul v-else class="drive-share-entry-list">
           <li v-for="entry in shareEntries" :key="entry.entryId" class="drive-share-entry">
             <button
@@ -105,6 +120,9 @@
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiInput from '../components/ui/UiInput.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import {
@@ -126,7 +144,9 @@ const props = defineProps({
 const loading = ref(false)
 const submitting = ref(false)
 const error = ref('')
-const message = ref('')
+const fieldError = ref('')
+const successMessage = ref('')
+const downloadError = ref('')
 const password = ref('')
 const share = ref({})
 const ticket = ref('')
@@ -160,7 +180,9 @@ async function loadShare(shareToken, contextGeneration) {
   const requestToken = shareRequestTracker.begin()
   loading.value = true
   error.value = ''
-  message.value = ''
+  fieldError.value = ''
+  successMessage.value = ''
+  downloadError.value = ''
   try {
     const { data } = await getPublicDriveShare(shareToken)
     if (!isCurrentShareRequest(shareRequestTracker, requestToken, contextGeneration, shareToken)) return
@@ -179,11 +201,17 @@ async function loadShare(shareToken, contextGeneration) {
   }
 }
 
+function retryLoadShare() {
+  loadShare(String(props.shareToken || ''), shareContextGeneration)
+}
+
 async function verify() {
   if (submitting.value) return
   const safePassword = String(password.value || '').trim()
+  successMessage.value = ''
+  downloadError.value = ''
   if (!safePassword) {
-    message.value = '请输入提取码'
+    fieldError.value = '请输入提取码'
     return
   }
   const contextGeneration = shareContextGeneration
@@ -193,12 +221,17 @@ async function verify() {
   entriesLoading.value = false
   submitting.value = true
   error.value = ''
+  fieldError.value = ''
   try {
     const { data } = await verifyDriveShare(shareToken, safePassword)
     if (!isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) return
     share.value = { ...share.value, ...(data || {}) }
     ticket.value = String(data?.ticket || '')
-    message.value = ticket.value ? '验证成功' : '验证失败'
+    if (ticket.value) {
+      successMessage.value = '验证成功'
+    } else {
+      fieldError.value = '验证失败'
+    }
     downloadUrl.value = ''
     if (ticket.value && isFolderShare.value) {
       shareEntries.value = []
@@ -209,7 +242,7 @@ async function verify() {
     }
   } catch (e) {
     if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) {
-      message.value = e?.message || '验证失败'
+      fieldError.value = e?.message || '验证失败'
     }
   } finally {
     if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken)) {
@@ -242,6 +275,11 @@ async function loadShareEntries(parentId = '', nextTrail = folderTrail.value) {
   }
 }
 
+function retryLoadEntries() {
+  const currentParentId = folderTrail.value[folderTrail.value.length - 1]?.entryId || ''
+  loadShareEntries(currentParentId, folderTrail.value)
+}
+
 async function enterFolder(entry) {
   if (!entry?.isFolder) return
   const nextTrail = [...folderTrail.value, { entryId: String(entry.entryId || ''), name: String(entry.name || '') }]
@@ -267,6 +305,7 @@ async function download(entry = share.value) {
   const requestToken = submissionRequestTracker.begin()
   submitting.value = true
   error.value = ''
+  downloadError.value = ''
   try {
     const { data } = await getDriveShareDownloadUrl(shareToken, requestTicket, entryId)
     if (!isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) || ticket.value !== requestTicket) return
@@ -276,7 +315,7 @@ async function download(entry = share.value) {
     }
   } catch (e) {
     if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
-      message.value = e?.message || '获取下载链接失败'
+      downloadError.value = e?.message || '获取下载链接失败'
     }
   } finally {
     if (isCurrentShareRequest(submissionRequestTracker, requestToken, contextGeneration, shareToken) && ticket.value === requestTicket) {
@@ -297,7 +336,9 @@ watch(
     submitting.value = false
     entriesLoading.value = false
     error.value = ''
-    message.value = ''
+    fieldError.value = ''
+    successMessage.value = ''
+    downloadError.value = ''
     share.value = {}
     ticket.value = ''
     downloadUrl.value = ''
@@ -322,34 +363,34 @@ onBeforeUnmount(() => {
 .drive-share-page {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .drive-share-card {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: var(--space-4);
   max-width: 760px;
 }
 
 .drive-share-summary {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .drive-share-summary-item {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding: 12px 14px;
-  border-radius: 8px;
+  gap: var(--space-2);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--radius-md);
   border: 1px solid var(--border);
 }
 
 .drive-share-summary-item span {
-  font-size: 12px;
-  color: var(--muted);
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .drive-share-form,
@@ -357,24 +398,19 @@ onBeforeUnmount(() => {
 .drive-share-browser {
   display: flex;
   flex-direction: column;
-  gap: 12px;
-}
-
-.drive-field {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-}
-
-.drive-field span {
-  font-size: 12px;
-  color: var(--muted);
+  gap: var(--space-3);
 }
 
 .drive-share-message,
-.drive-share-url {
+.drive-share-url,
+.drive-share-download-error {
   margin: 0;
   word-break: break-all;
+}
+
+.drive-share-download-error {
+  color: var(--danger);
+  font-size: var(--text-sm);
 }
 
 .drive-header-dot {
@@ -385,8 +421,8 @@ onBeforeUnmount(() => {
   display: flex;
   align-items: center;
   flex-wrap: wrap;
-  gap: 6px;
-  min-height: 32px;
+  gap: var(--space-2);
+  min-height: var(--control-height);
 }
 
 .drive-share-breadcrumb-item {
@@ -396,6 +432,17 @@ onBeforeUnmount(() => {
   cursor: pointer;
   padding: 0;
   font: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.drive-share-breadcrumb-item:hover {
+  text-decoration: underline;
+}
+
+.drive-share-breadcrumb-item:focus-visible,
+.drive-share-entry-folder:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
 }
 
 .drive-share-breadcrumb-separator {
@@ -405,7 +452,7 @@ onBeforeUnmount(() => {
 .drive-share-entry-list {
   display: flex;
   flex-direction: column;
-  gap: 8px;
+  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -415,10 +462,10 @@ onBeforeUnmount(() => {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;
   align-items: center;
-  gap: 12px;
-  padding: 10px 12px;
+  gap: var(--space-3);
+  padding: var(--space-3);
   border: 1px solid var(--border);
-  border-radius: 8px;
+  border-radius: var(--radius-md);
 }
 
 .drive-share-entry-name {
@@ -434,11 +481,16 @@ onBeforeUnmount(() => {
   padding: 0;
   text-align: left;
   font: inherit;
+  border-radius: var(--radius-sm);
+}
+
+.drive-share-entry-folder:hover {
+  text-decoration: underline;
 }
 
 .drive-share-entry-meta {
-  color: var(--muted);
-  font-size: 12px;
+  color: var(--text-3);
+  font-size: var(--text-xs);
   white-space: nowrap;
 }
 

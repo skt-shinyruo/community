@@ -379,7 +379,7 @@ connect(accessToken)
 
 ## 产品 UI 基础件
 
-`frontend/src/styles/` 只保留 variables、base、layout、utils 四个全局样式文件：`variables.css` 是唯一令牌来源，`layout.css` 承载壳层样式，`base.css` 是元素级 reset 与共享 fade 过渡。`components.css` 与 `pages.css` 已随波次 10 退役：原语样式（`.btn` / `.input` / `.card` / `.badge` / `.avatar` / `.ui-state` / `.page-header` / `.btn-icon` 等）迁入对应 Ui SFC 的 `<style scoped>`（类名不变），壳搜索输入基座收拢进 `layout.css` 的 `.topbar-search-input`，无引用的 `.divider` / `.ui-checkbox` / `.skeleton` / `.tag.topic-category` 等孤儿规则整体删除。通用 `.card`（现为 `UiCard` 内部实现）默认不带装饰性 hover lift 或大阴影。
+`frontend/src/styles/` 只保留 variables、base、layout、utils 四个全局样式文件：`variables.css` 是唯一令牌来源，`layout.css` 承载壳层样式，`base.css` 是元素级 reset 与共享 fade 过渡（元素级兜底一律 `:where()` 零权重，且只声明 Ui 原语类规则不设置的属性并避让 `.btn` 链接形态，与构建后 chunk CSS 链接顺序无关）。`components.css` 与 `pages.css` 已随波次 10 退役：原语样式（`.btn` / `.input` / `.card` / `.badge` / `.avatar` / `.ui-state` / `.page-header` / `.btn-icon` 等）迁入对应 Ui SFC 的 `<style scoped>`（类名不变），壳搜索输入基座收拢进 `layout.css` 的 `.topbar-search-input`，无引用的 `.divider` / `.ui-checkbox` / `.skeleton` / `.tag.topic-category` 等孤儿规则整体删除。通用 `.card`（现为 `UiCard` 内部实现）默认不带装饰性 hover lift 或大阴影。
 
 `frontend/src/components/ui/UiState.vue` 只承担 empty / error / development 三种结果状态：empty 给出主要下一步，error 提供重试，development 标记未上线功能；不承担 loading。首载加载使用 `frontend/src/components/ui/UiSkeleton.vue`（list / card / detail 三档结构占位，`role="status"` 加 sr-only 标签向辅助技术播报），分页加载使用尾部指示，操作中状态使用按钮 loading；裸「加载中」文本已清零，`frontend/src/components/ui/loading-states.test.js` 收紧为零允许守卫（UiSkeleton 的 sr-only 标签是唯一受认可来源，任何新增直接失败）。
 

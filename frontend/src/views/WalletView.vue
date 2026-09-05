@@ -28,7 +28,7 @@
     </div>
 
     <UiState v-if="error" variant="error">{{ error }}</UiState>
-    <div v-if="loading && !ready" class="muted wallet-state">正在加载钱包…</div>
+    <UiSkeleton v-if="loading && !ready" variant="card" label="正在加载钱包" />
 
     <div v-if="ready" class="wallet-layout">
       <UiCard class="wallet-panel">
@@ -46,7 +46,7 @@
           <section v-if="testCredits.grant.enabled" class="wallet-action-card">
             <h2>领取测试积分</h2>
             <p>本账号剩余 {{ testCredits.grant.remainingAmount }}，单次最多 {{ testCredits.grant.maxAmountPerRequest }}。</p>
-            <input v-model.number="rechargeForm.amount" class="input" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
+            <UiInput v-model.number="rechargeForm.amount" type="number" placeholder="输入测试积分数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.grant.remainingAmount <= 0" @click="submitRecharge">
               {{ submittingKey === 'recharge' ? '领取中…' : '领取测试积分' }}
             </UiButton>
@@ -55,7 +55,7 @@
           <section v-if="testCredits.discard.enabled" class="wallet-action-card">
             <h2>销毁测试积分</h2>
             <p>本账号剩余配额 {{ testCredits.discard.remainingAmount }}；该操作不会产生外部出款。</p>
-            <input v-model.number="withdrawForm.amount" class="input" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
+            <UiInput v-model.number="withdrawForm.amount" type="number" placeholder="输入销毁数量" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== '' || testCredits.discard.remainingAmount <= 0" @click="submitWithdrawal">
               {{ submittingKey === 'withdraw' ? '销毁中…' : '销毁测试积分' }}
             </UiButton>
@@ -64,8 +64,8 @@
           <section class="wallet-action-card">
             <h2>转账</h2>
             <p>直接把积分转给另一位成员。</p>
-            <input v-model.trim="transferForm.toUserId" class="input" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
-            <input v-model.number="transferForm.amount" class="input" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
+            <UiInput v-model.trim="transferForm.toUserId" placeholder="目标用户 ID" :disabled="submittingKey !== ''" />
+            <UiInput v-model.number="transferForm.amount" type="number" placeholder="输入转账金额" :disabled="submittingKey !== ''" />
             <UiButton :disabled="submittingKey !== ''" @click="submitTransfer">
               {{ submittingKey === 'transfer' ? '转账中…' : '发起转账' }}
             </UiButton>
@@ -114,6 +114,8 @@ import { createWriteAttempt } from '../api/writeAttempt'
 import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiInput from '../components/ui/UiInput.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
@@ -385,7 +387,7 @@ onBeforeUnmount(() => {
 .wallet-summary-strip {
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(280px, 0.9fr);
-  gap: 16px;
+  gap: var(--space-4);
 }
 
 .wallet-summary-main,
@@ -394,13 +396,13 @@ onBeforeUnmount(() => {
 .wallet-feed-item,
 .wallet-panel {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .wallet-summary-main,
 .wallet-summary-side {
-  padding: 22px 24px;
-  border-radius: 12px;
+  padding: var(--space-5) var(--space-6);
+  border-radius: var(--radius-lg);
   border: 1px solid color-mix(in srgb, var(--border) 82%, var(--accent) 18%);
   background:
     linear-gradient(180deg, color-mix(in srgb, var(--surface) 94%, white 6%), var(--surface));
@@ -423,14 +425,10 @@ onBeforeUnmount(() => {
 
 .wallet-label {
   font-size: 11px;
-  letter-spacing: 0.16em;
+  letter-spacing: 0;
   text-transform: uppercase;
   color: var(--text-3);
   font-weight: 700;
-}
-
-.wallet-state {
-  padding: 24px 0;
 }
 
 .wallet-test-notice {
@@ -440,14 +438,14 @@ onBeforeUnmount(() => {
 .wallet-layout {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(0, 0.8fr);
-  gap: 18px;
+  gap: var(--space-5);
   align-items: start;
 }
 
 .wallet-action-grid {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
+  gap: var(--space-3);
 }
 
 .wallet-action-card {
@@ -464,13 +462,13 @@ onBeforeUnmount(() => {
 
 .wallet-feed {
   display: grid;
-  gap: 12px;
+  gap: var(--space-3);
 }
 
 .wallet-feed-item {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: 14px 0;
+  padding: var(--space-3) 0;
   border-bottom: 1px solid var(--border);
 }
 

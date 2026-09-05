@@ -260,8 +260,7 @@ describe('primitive class guardrails', () => {
     ['src/views/MarketPublishView.vue', { input: 3 }],
     ['src/views/ModerationView.vue', { input: 5 }],
     ['src/views/UserManagementView.vue', { 'field-label': 3, input: 5 }],
-    ['src/views/WalletAdminView.vue', { input: 4 }],
-    ['src/views/WalletView.vue', { input: 4 }]
+    ['src/views/WalletAdminView.vue', { input: 4 }]
   ])
 
   function collectViewClassUsage() {

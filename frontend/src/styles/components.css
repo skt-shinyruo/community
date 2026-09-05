@@ -373,6 +373,12 @@
   color: var(--warning);
 }
 
+.badge-pending {
+  background: var(--pending-weak);
+  border-color: color-mix(in srgb, var(--pending) 28%, var(--border) 72%);
+  color: var(--pending);
+}
+
 .ui-state {
   display: flex;
   align-items: flex-start;

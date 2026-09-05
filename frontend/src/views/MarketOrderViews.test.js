@@ -10,6 +10,8 @@ const routeState = vi.hoisted(() => ({
   route: null
 }))
 
+const routerState = vi.hoisted(() => ({ push: null }))
+
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
   const { reactive } = await vi.importActual('vue')
@@ -21,9 +23,13 @@ vi.mock('vue-router', async () => {
       fullPath: '/market/orders/31'
     })
   }
+  if (!routerState.push) {
+    routerState.push = vi.fn()
+  }
   return {
     ...actual,
-    useRoute: () => routeState.route
+    useRoute: () => routeState.route,
+    useRouter: () => ({ push: routerState.push })
   }
 })
 
@@ -82,12 +88,18 @@ function mountOptions() {
           template: '<header><slot name="title" /><slot name="subtitle" /><slot /></header>'
         },
         UiState: {
-          props: ['type'],
-          template: '<div><slot /><slot name="description" /></div>'
+          props: ['variant', 'title'],
+          template: '<div :data-variant="variant"><strong v-if="title">{{ title }}</strong><slot /><slot name="description" /><slot name="actions" /></div>'
         },
         UiButton: {
-          props: ['disabled'],
+          props: ['disabled', 'variant', 'to'],
+          emits: ['click'],
           template: '<button :disabled="disabled" @click="$emit(\'click\', $event)"><slot /></button>'
+        },
+        UiModalConfirm: {
+          props: ['title', 'message', 'confirmText', 'confirmVariant'],
+          emits: ['confirm', 'cancel'],
+          template: '<div data-test="order-confirm"><p>{{ message }}</p><button data-test="order-confirm-cancel" @click="$emit(\'cancel\')">取消</button><button data-test="order-confirm-ok" @click="$emit(\'confirm\')">{{ confirmText }}</button></div>'
         }
       }
     }
@@ -138,7 +150,7 @@ describe('Unified market order views', () => {
     await flushPromises()
 
     expect(listBuyingMarketOrders).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
+    expect(wrapper.findAll('.market-order-card')).toHaveLength(1)
     expect(wrapper.text()).toContain('虚拟商品')
     expect(wrapper.text()).toContain('待确认')
     expect(wrapper.text()).toContain('托管中')
@@ -165,7 +177,7 @@ describe('Unified market order views', () => {
     await flushPromises()
 
     expect(listSellingMarketOrders).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.market-order-row')).toHaveLength(1)
+    expect(wrapper.findAll('.market-order-card')).toHaveLength(1)
     expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.text()).toContain('已发货')
     expect(wrapper.text()).toContain('已发货')
@@ -204,6 +216,167 @@ describe('Unified market order views', () => {
     expect(wrapper.text()).not.toContain('A 的私有订单')
   })
 
+  it('renders in-domain buying/selling tabs and deep-links the sibling tab by route', async () => {
+    listBuyingMarketOrders.mockResolvedValue({
+      data: [
+        {
+          orderId: 31,
+          requestId: 'buying:req-1',
+          goodsType: 'VIRTUAL',
+          listingTitleSnapshot: 'Netflix 卡密',
+          status: 'DELIVERED',
+          totalAmount: 1500
+        }
+      ],
+      traceId: 'trace-buying'
+    })
+
+    const wrapper = mountOrderList('buying')
+    await flushPromises()
+
+    const tablist = wrapper.find('[role="tablist"]')
+    expect(tablist.exists()).toBe(true)
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs).toHaveLength(2)
+    expect(tabs[0].text()).toBe('买入')
+    expect(tabs[1].text()).toBe('卖出')
+    expect(tabs[0].attributes('aria-selected')).toBe('true')
+    expect(tabs[1].attributes('aria-selected')).toBe('false')
+
+    await tabs[1].trigger('click')
+    expect(routerState.push).toHaveBeenCalledWith({ name: 'marketSellingOrders' })
+  })
+
+  it('activates the sibling tab with arrow keys for keyboard users', async () => {
+    const wrapper = mountOrderList('buying')
+    await flushPromises()
+
+    await wrapper.find('[role="tablist"]').trigger('keydown', { key: 'ArrowRight' })
+    expect(routerState.push).toHaveBeenCalledWith({ name: 'marketSellingOrders' })
+
+    routerState.push.mockClear()
+    await wrapper.setProps({ side: 'selling' })
+    await flushPromises()
+    await wrapper.find('[role="tablist"]').trigger('keydown', { key: 'ArrowLeft' })
+    expect(routerState.push).toHaveBeenCalledWith({ name: 'marketBuyingOrders' })
+  })
+
+  it('keeps buying and selling state isolated when the route reuses the component', async () => {
+    listBuyingMarketOrders.mockResolvedValue({
+      data: [
+        {
+          orderId: 31,
+          requestId: 'buying:req-1',
+          goodsType: 'VIRTUAL',
+          listingTitleSnapshot: '买入的卡密',
+          status: 'DELIVERED',
+          totalAmount: 1500
+        }
+      ],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+
+    const wrapper = mountOrderList('buying')
+    await flushPromises()
+    expect(wrapper.text()).toContain('买入的卡密')
+
+    // 路由复用组件实例：side prop 切换后按新 scope 重取，旧买单列表不得残留在卖单视图。
+    listSellingMarketOrders.mockResolvedValue({
+      data: [
+        {
+          orderId: 41,
+          requestId: 'selling:req-1',
+          goodsType: 'PHYSICAL',
+          listingTitleSnapshot: '卖出的键盘',
+          status: 'ESCROWED',
+          totalAmount: 12900
+        }
+      ],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await wrapper.setProps({ side: 'selling' })
+    await flushPromises()
+
+    expect(listSellingMarketOrders).toHaveBeenCalledTimes(1)
+    expect(wrapper.text()).toContain('卖出的键盘')
+    expect(wrapper.text()).not.toContain('买入的卡密')
+    const tabs = wrapper.findAll('[role="tab"]')
+    expect(tabs[1].attributes('aria-selected')).toBe('true')
+  })
+
+  it('marks in-flight escrow states with a processing badge and text label', async () => {
+    listBuyingMarketOrders.mockResolvedValue({
+      data: [
+        {
+          orderId: 36,
+          requestId: 'buying:req-pending',
+          goodsType: 'VIRTUAL',
+          listingTitleSnapshot: '待托管订单',
+          status: 'ESCROW_PENDING',
+          totalAmount: 800
+        }
+      ],
+      traceId: 'trace-buying'
+    })
+
+    const wrapper = mountOrderList('buying')
+    await flushPromises()
+
+    const badge = wrapper.find('.market-order-card .badge')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('托管处理中')
+    expect(badge.classes()).toContain('badge-pending')
+    expect(wrapper.text()).toContain('等待资金托管')
+  })
+
+  it('offers a primary next step on empty buying and selling lists', async () => {
+    const buying = mountOrderList('buying')
+    await flushPromises()
+    expect(buying.text()).toContain('暂无购买订单')
+    expect(buying.text()).toContain('去市场逛逛')
+    buying.unmount()
+
+    const selling = mountOrderList('selling')
+    await flushPromises()
+    expect(selling.text()).toContain('暂无出售订单')
+    expect(selling.text()).toContain('查看我的出售')
+    selling.unmount()
+  })
+
+  it('shows a retryable error state when the initial order load fails', async () => {
+    listBuyingMarketOrders.mockRejectedValueOnce(new Error('网络异常'))
+
+    const wrapper = mountOrderList('buying')
+    await flushPromises()
+    expect(wrapper.text()).toContain('网络异常')
+
+    listBuyingMarketOrders.mockResolvedValue({
+      data: [
+        {
+          orderId: 31,
+          requestId: 'buying:req-1',
+          goodsType: 'VIRTUAL',
+          listingTitleSnapshot: 'Netflix 卡密',
+          status: 'DELIVERED',
+          totalAmount: 1500
+        }
+      ],
+      hasNext: false,
+      page: 0,
+      size: 20
+    })
+    await wrapper.find('[data-test="market-orders-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(listBuyingMarketOrders).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('Netflix 卡密')
+    expect(wrapper.text()).not.toContain('网络异常')
+  })
+
   it('loads physical order detail and renders shipment information', async () => {
     getMarketOrderDetail.mockResolvedValue({
       data: {
@@ -229,7 +402,7 @@ describe('Unified market order views', () => {
     expect(wrapper.text()).toContain('实物商品')
     expect(wrapper.text()).toContain('顺丰')
     expect(wrapper.text()).toContain('SF1234567890')
-    expect(wrapper.find('.market-lifecycle').exists()).toBe(true)
+    expect(wrapper.find('.market-order-lifecycle').exists()).toBe(true)
     expect(wrapper.text()).toContain('已创建')
     expect(wrapper.text()).toContain('资金托管')
     expect(wrapper.text()).toContain('履约')
@@ -245,7 +418,7 @@ describe('Unified market order views', () => {
 
     expect(wrapper.text()).toContain('暂无订单详情')
     expect(wrapper.text()).not.toContain('订单 #1')
-    expect(wrapper.findAll('.market-order-row')).toHaveLength(0)
+    expect(wrapper.findAll('.market-order-summary')).toHaveLength(0)
   })
 
   it('ignores stale order detail responses after route changes', async () => {
@@ -434,7 +607,7 @@ describe('Unified market order views', () => {
     expect(wrapper.find('textarea').element.value).toBe('B-DRAFT')
   })
 
-  it('lets a buyer confirm and cancel eligible orders', async () => {
+  it('lets a buyer confirm and cancel eligible orders after capital-loss confirmation', async () => {
     routeState.route.params.orderId = '33'
     routeState.route.path = '/market/orders/33'
     routeState.route.fullPath = '/market/orders/33'
@@ -457,6 +630,15 @@ describe('Unified market order views', () => {
 
     expect(wrapper.text()).toContain('确认收货')
     await wrapper.findAll('button').find((button) => button.text() === '确认收货').trigger('click')
+    await flushPromises()
+
+    // 确认收货是放款给卖家的资损动作：先经确认弹窗复述金额与后果，确认前不调用接口。
+    expect(confirmMarketOrder).not.toHaveBeenCalled()
+    const confirmDialog = wrapper.find('[data-test="order-confirm"]')
+    expect(confirmDialog.exists()).toBe(true)
+    expect(confirmDialog.text()).toContain('12900 积分')
+    expect(confirmDialog.text()).toContain('放款给卖家')
+    await confirmDialog.find('[data-test="order-confirm-ok"]').trigger('click')
     await flushPromises()
 
     expect(confirmMarketOrder).toHaveBeenCalledWith('33')
@@ -486,7 +668,110 @@ describe('Unified market order views', () => {
     await wrapper.findAll('button').find((button) => button.text() === '取消订单').trigger('click')
     await flushPromises()
 
+    // 取消订单中止卖家履约并触发退款，同样需要二次确认。
+    expect(cancelMarketOrder).not.toHaveBeenCalled()
+    const cancelDialog = wrapper.find('[data-test="order-confirm"]')
+    expect(cancelDialog.exists()).toBe(true)
+    expect(cancelDialog.text()).toContain('500 积分')
+    expect(cancelDialog.text()).toContain('退回')
+    await cancelDialog.find('[data-test="order-confirm-ok"]').trigger('click')
+    await flushPromises()
+
     expect(cancelMarketOrder).toHaveBeenCalledWith('34')
+  })
+
+  it('dismisses the capital-loss confirmation without calling the order APIs', async () => {
+    routeState.route.params.orderId = '33'
+    routeState.route.path = '/market/orders/33'
+    routeState.route.fullPath = '/market/orders/33'
+    getMarketOrderDetail.mockResolvedValue({
+      data: {
+        orderId: 33,
+        requestId: 'buying:req-confirm',
+        goodsType: 'PHYSICAL',
+        sellerUserId: '22222222-2222-7222-8222-222222222222',
+        buyerUserId: '11111111-1111-7111-8111-111111111111',
+        listingTitleSnapshot: '二手键盘',
+        status: 'SHIPPED',
+        totalAmount: 12900
+      },
+      traceId: 'trace-detail'
+    })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === '确认收货').trigger('click')
+    await flushPromises()
+    const dialog = wrapper.find('[data-test="order-confirm"]')
+    expect(dialog.exists()).toBe(true)
+
+    await dialog.find('[data-test="order-confirm-cancel"]').trigger('click')
+    await flushPromises()
+
+    expect(confirmMarketOrder).not.toHaveBeenCalled()
+    expect(cancelMarketOrder).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="order-confirm"]').exists()).toBe(false)
+  })
+
+  it('closes a pending capital-loss confirmation when the route or identity changes', async () => {
+    routeState.route.params.orderId = '33'
+    routeState.route.path = '/market/orders/33'
+    routeState.route.fullPath = '/market/orders/33'
+    getMarketOrderDetail.mockResolvedValue({
+      data: {
+        orderId: 33,
+        requestId: 'buying:req-confirm',
+        goodsType: 'PHYSICAL',
+        sellerUserId: '22222222-2222-7222-8222-222222222222',
+        buyerUserId: '11111111-1111-7111-8111-111111111111',
+        listingTitleSnapshot: '二手键盘',
+        status: 'SHIPPED',
+        totalAmount: 12900
+      },
+      traceId: 'trace-detail'
+    })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === '确认收货').trigger('click')
+    await flushPromises()
+    expect(wrapper.find('[data-test="order-confirm"]').exists()).toBe(true)
+
+    routeState.route.params = { orderId: '36' }
+    routeState.route.path = '/market/orders/36'
+    routeState.route.fullPath = '/market/orders/36'
+    await flushPromises()
+
+    expect(wrapper.find('[data-test="order-confirm"]').exists()).toBe(false)
+    expect(confirmMarketOrder).not.toHaveBeenCalled()
+  })
+
+  it('labels the viewer role and pending processing state with text, not color alone', async () => {
+    getMarketOrderDetail.mockResolvedValue({
+      data: {
+        orderId: 31,
+        requestId: 'selling:req-role',
+        goodsType: 'VIRTUAL',
+        deliveryModeSnapshot: 'MANUAL',
+        sellerUserId: '11111111-1111-7111-8111-111111111111',
+        buyerUserId: '22222222-2222-7222-8222-222222222222',
+        listingTitleSnapshot: 'Netflix 卡密',
+        status: 'ESCROW_PENDING',
+        totalAmount: 1500
+      },
+      traceId: 'trace-detail'
+    })
+
+    const wrapper = mount(MarketOrderDetailView, mountOptions())
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('我是卖家')
+    const badge = wrapper.find('.market-order-summary .badge')
+    expect(badge.exists()).toBe(true)
+    expect(badge.text()).toBe('托管处理中')
+    expect(badge.classes()).toContain('badge-pending')
+    expect(wrapper.text()).toContain('等待资金托管')
   })
 
   it('shows conservative facts and no controls for an unknown order status', async () => {

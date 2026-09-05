@@ -39,6 +39,20 @@ function listingStatusVariant(status) {
   return 'default'
 }
 
+// UiBadge variant：已完成 success、争议与托管失败 danger、资金/退款处理中 pending（pending
+// 语义见 frontend.md 一致性表）、托管/交付/发货等履约进行中 accent，取消/退款等中性终态与
+// 未知状态保守回落 default；文案仍由 statusLabel 承担，不靠颜色单独表达。
+function orderStatusVariant(status) {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'COMPLETED') return 'success'
+  if (normalized === 'DISPUTED' || normalized === 'DISPUTE_REFUND_PENDING' || normalized === 'DISPUTE_RELEASE_PENDING') return 'danger'
+  if (normalized === 'ESCROW_FAILED') return 'danger'
+  if (normalized === 'ESCROW_PENDING' || normalized === 'RELEASE_PENDING'
+    || normalized === 'REFUND_PENDING' || normalized === 'ESCROW_CANCEL_PENDING') return 'pending'
+  if (normalized === 'ESCROWED' || normalized === 'DELIVERED' || normalized === 'SHIPPED') return 'accent'
+  return 'default'
+}
+
 function fulfillmentLabel(item) {
   const goodsType = String(item?.goodsType || '').trim().toUpperCase()
   if (goodsType === 'VIRTUAL') return deliveryLabel(item?.deliveryMode)
@@ -283,6 +297,7 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
         ...item,
         goodsTypeLabel: goodsTypeLabel(item?.goodsType),
         statusLabel: fact.statusLabel,
+        statusVariant: orderStatusVariant(item?.status),
         fundsLabel: fact.fundsLabel,
         fulfillmentLabel: fulfillmentStateLabel(item, fact),
         nextActionLabel: fact.nextActionLabel,
@@ -308,5 +323,29 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
       ...item,
       statusLabel: inventoryStatusLabel(item?.status)
     }))
+  }
+}
+
+// 确认完成 / 收货是放款给卖家的资损动作，取消订单会中止卖家履约并触发退款流程：
+// 两者都先经 UiModalConfirm 复述金额与不可撤销后果（延续 WalletView 的确认写法），
+// 再进入原提交流程；确认弹窗只做复述，不改变 allowedActions 权限语义。
+export function marketOrderConfirmConfirmation({ totalAmountText, confirmButtonText } = {}) {
+  const amount = String(totalAmountText || '').trim() || '托管资金'
+  const action = String(confirmButtonText || '').trim() || '确认完成'
+  return {
+    title: action,
+    message: `${action}后，托管的 ${amount} 将放款给卖家，操作不可撤销；如未收到商品或交付内容无效，请先发起申诉。`,
+    confirmText: action,
+    variant: 'danger'
+  }
+}
+
+export function marketOrderCancelConfirmation({ totalAmountText } = {}) {
+  const amount = String(totalAmountText || '').trim() || '托管资金'
+  return {
+    title: '取消订单',
+    message: `取消后订单进入取消托管处理，托管的 ${amount} 将退回你的钱包，卖家不再继续履约；取消不可撤销。`,
+    confirmText: '取消订单',
+    variant: 'danger'
   }
 }

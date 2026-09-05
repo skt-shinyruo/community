@@ -43,3 +43,26 @@ const fallback = computed(() => {
   return n ? n.slice(0, 1).toUpperCase() : '?'
 })
 </script>
+
+<!-- 样式自全局 components.css 退役后迁入（原 .avatar 一族，类名与外观不变）。 -->
+<style scoped>
+.avatar {
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--surface) 54%, var(--surface-2) 46%);
+  border: 1px solid var(--border);
+  display: inline-grid;
+  place-items: center;
+  overflow: hidden;
+}
+
+.avatar-img {
+  display: block;
+  object-fit: cover;
+}
+
+.avatar-fallback {
+  font-size: var(--text-xs);
+  font-weight: 800;
+  color: var(--text-2);
+}
+</style>

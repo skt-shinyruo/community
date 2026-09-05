@@ -1,13 +1,21 @@
 <template>
   <Transition name="fade">
-    <button v-if="visible" class="scroll-top btn-icon" @click="scrollToTop">
-      <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 19V5M5 12l7-7 7 7"/></svg>
-    </button>
+    <UiIconButton
+      v-if="visible"
+      class="scroll-top"
+      aria-label="回到顶部"
+      title="回到顶部"
+      @click="scrollToTop"
+    >
+      <ArrowUp :size="24" aria-hidden="true" />
+    </UiIconButton>
   </Transition>
 </template>
 
 <script setup>
 import { ref, onMounted, onUnmounted } from 'vue'
+import { ArrowUp } from 'lucide-vue-next'
+import UiIconButton from './UiIconButton.vue'
 
 const visible = ref(false)
 
@@ -40,13 +48,16 @@ onUnmounted(() => {
   color: var(--accent-contrast);
   border: none;
   box-shadow: var(--shadow-lg);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  cursor: pointer;
   z-index: var(--z-nav);
   /* transform/filter 走悬停动效；opacity 保留 0.3s 显隐节奏（作用域规则优先级高于全局 .fade-*） */
   transition: transform 0.2s, filter 0.2s, opacity 0.3s;
+}
+/* 覆盖 UiIconButton 的幽灵态 hover/active，保持 accent 实心圆形外观 */
+.scroll-top:hover,
+.scroll-top:active {
+  background: var(--accent);
+  border-color: transparent;
+  color: var(--accent-contrast);
 }
 .scroll-top:hover {
   transform: translateY(-2px);

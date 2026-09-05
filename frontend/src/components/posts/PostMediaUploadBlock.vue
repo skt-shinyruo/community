@@ -5,7 +5,7 @@
     <input
       v-if="!hasAsset"
       ref="mediaFileInput"
-      class="input"
+      class="post-media-file-input"
       type="file"
       :id="`post-media-file-${index}`"
       :name="`post-media-file-${index}`"
@@ -14,21 +14,21 @@
       @change="onFileChange"
     />
 
-    <input
+    <UiInput
       v-if="isFile"
-      :value="displayName"
+      :model-value="displayName"
       :disabled="disabled"
       placeholder="文件名"
-      class="input post-media-upload-input"
-      @input="updateBlock({ displayName: $event.target.value })"
+      class="post-media-upload-input"
+      @update:model-value="updateBlock({ displayName: $event })"
     />
-    <input
+    <UiInput
       v-else
-      :value="caption"
+      :model-value="caption"
       :disabled="disabled"
       placeholder="说明"
-      class="input post-media-upload-input"
-      @input="updateBlock({ caption: $event.target.value })"
+      class="post-media-upload-input"
+      @update:model-value="updateBlock({ caption: $event })"
     />
 
     <div class="post-media-upload-actions">
@@ -51,6 +51,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref } from 'vue'
 import UiButton from '../ui/UiButton.vue'
+import UiInput from '../ui/UiInput.vue'
 import { inferMediaKind, preparePostMediaUpload, uploadPostMediaFile } from '../../api/services/postMediaService'
 
 const props = defineProps({
@@ -194,3 +195,40 @@ function cancelUpload({ silent = false } = {}) {
 
 onBeforeUnmount(() => cancelUpload({ silent: true }))
 </script>
+
+<style scoped>
+/* 文件选择框沿用输入原语外观（退役全局 .input 的令牌化等价）。 */
+.post-media-file-input {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  outline: none;
+  background: var(--bg);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
+}
+
+.post-media-file-input:hover:not(:disabled) {
+  border-color: var(--border-strong);
+}
+
+.post-media-file-input:focus {
+  border-color: var(--accent);
+}
+
+.post-media-file-input:focus-visible {
+  box-shadow: var(--focus-ring);
+}
+
+.post-media-file-input:disabled {
+  background: var(--surface-2);
+  color: var(--muted);
+  cursor: not-allowed;
+}
+</style>

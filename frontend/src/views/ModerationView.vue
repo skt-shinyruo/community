@@ -1,7 +1,5 @@
 <template>
   <div class="page moderation-page">
-    <UiBreadcrumb />
-
     <UiCard class="moderation-shell">
       <UiPageHeader>
         <template #title>治理后台</template>
@@ -18,7 +16,7 @@
 
       <div v-if="error && currentItems.length > 0" class="error moderation-state">{{ error }}</div>
       <UiState v-if="error && currentItems.length === 0" variant="error" class="moderation-state">{{ error }}</UiState>
-      <div v-else-if="loading" class="muted moderation-loading">加载中…</div>
+      <UiSkeleton v-else-if="loading" variant="list" :rows="3" label="正在加载治理数据" />
 
       <div v-else class="moderation-body">
         <template v-if="tab === 'reports'">
@@ -71,7 +69,7 @@
 
             <div class="moderation-pagination">
               <UiButton v-if="reportsHasNext" variant="secondary" :disabled="loadingMore" @click="loadMoreReports">
-                {{ loadingMore ? '加载中…' : '加载更多' }}
+                {{ loadingMore ? '正在加载…' : '加载更多' }}
               </UiButton>
             </div>
           </div>
@@ -96,7 +94,7 @@
 
             <div class="moderation-pagination">
               <UiButton v-if="actionsHasNext" variant="secondary" :disabled="loadingMore" @click="loadMoreActions">
-                {{ loadingMore ? '加载中…' : '加载更多' }}
+                {{ loadingMore ? '正在加载…' : '加载更多' }}
               </UiButton>
             </div>
           </div>
@@ -105,44 +103,58 @@
     </UiCard>
   </div>
 
-  <!-- Action Modal -->
-  <dialog
+  <!-- Action Modal：外壳收敛到 UiModal（焦点圈定 / Escape / backdrop / busy 禁关统一走原语）。 -->
+  <UiModal
     v-if="actionModalOpen"
-    ref="actionDialogRef"
-    class="modal-mask"
-    role="dialog"
-    aria-modal="true"
-    aria-labelledby="moderation-action-title"
-    aria-describedby="moderation-action-description"
-    @click.self="closeActionModal"
-    @cancel.prevent="closeActionModal"
+    :title="`处置举报 #${selectedReport?.id}`"
+    size="lg"
+    :busy="actionLoading"
+    @close="closeActionModal"
   >
-    <div
-      class="modal-card card moderation-modal"
-    >
-      <div class="moderation-modal-body">
-        <div class="moderation-modal-head">
-          <div id="moderation-action-title" class="moderation-modal-title">处置举报 #{{ selectedReport?.id }}</div>
-          <UiIconButton aria-label="关闭" title="关闭" size="sm" @click="closeActionModal">×</UiIconButton>
-        </div>
+    <div class="moderation-modal-body">
+      <div class="muted moderation-modal-meta">
+        风险动作：处置会写入治理审计，并可能影响帖子、评论或成员状态。
+        <br />
+        目标：{{ targetTypeLabel(selectedReport?.targetType) }} #{{ selectedReport?.targetId }}
+      </div>
 
-        <div id="moderation-action-description" class="muted moderation-modal-meta">
-          风险动作：处置会写入治理审计，并可能影响帖子、评论或成员状态。
-          <br />
-          目标：{{ targetTypeLabel(selectedReport?.targetType) }} #{{ selectedReport?.targetId }}
-        </div>
+      <div class="moderation-modal-field">
+        <div class="muted moderation-modal-label">动作</div>
+        <select
+          v-model="actionForm.action"
+          name="moderation-action-type"
+          class="input moderation-modal-select"
+          aria-label="处置动作"
+          :disabled="actionLoading"
+        >
+          <option
+            v-for="option in actionOptions"
+            :key="String(option.value)"
+            :value="option.value"
+            :disabled="option.disabled"
+          >
+            {{ option.label }}
+          </option>
+        </select>
+      </div>
 
-        <div class="moderation-modal-field">
-          <div class="muted moderation-modal-label">动作</div>
+      <div class="moderation-modal-field">
+        <div class="muted moderation-modal-label">理由（必填）</div>
+          <textarea v-model.trim="actionForm.reason" name="moderation-action-reason" class="input multiline" rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
+      </div>
+
+      <div v-if="actionNeedsDuration" class="moderation-modal-field">
+        <div class="muted moderation-modal-label">时长</div>
+        <div class="moderation-modal-duration">
           <select
-            v-model="actionForm.action"
-            name="moderation-action-type"
-            class="input moderation-modal-select"
-            aria-label="处置动作"
+            v-model="actionForm.durationPreset"
+            name="moderation-duration-preset"
+            class="input moderation-modal-select moderation-modal-select--duration"
+            aria-label="处置时长"
             :disabled="actionLoading"
           >
             <option
-              v-for="option in actionOptions"
+              v-for="option in durationPresetOptions"
               :key="String(option.value)"
               :value="option.value"
               :disabled="option.disabled"
@@ -150,63 +162,36 @@
               {{ option.label }}
             </option>
           </select>
-        </div>
 
-        <div class="moderation-modal-field">
-          <div class="muted moderation-modal-label">理由（必填）</div>
-            <textarea v-model.trim="actionForm.reason" name="moderation-action-reason" class="input multiline" rows="3" placeholder="简要说明处置原因" :disabled="actionLoading" />
-        </div>
-
-        <div v-if="actionNeedsDuration" class="moderation-modal-field">
-          <div class="muted moderation-modal-label">时长</div>
-          <div class="moderation-modal-duration">
-            <select
-              v-model="actionForm.durationPreset"
-              name="moderation-duration-preset"
-              class="input moderation-modal-select moderation-modal-select--duration"
-              aria-label="处置时长"
-              :disabled="actionLoading"
-            >
-              <option
-                v-for="option in durationPresetOptions"
-                :key="String(option.value)"
-                :value="option.value"
-                :disabled="option.disabled"
-              >
-                {{ option.label }}
-              </option>
-            </select>
-
-            <input
-              v-if="actionForm.durationPreset === 'custom'"
-              v-model.trim="actionForm.durationSeconds"
-              name="moderation-duration-seconds"
-              class="input moderation-modal-custom-duration"
-              placeholder="秒，例如 600"
-              :disabled="actionLoading"
-            />
-          </div>
-        </div>
-
-        <div v-if="actionError" class="error moderation-modal-error">{{ actionError }}</div>
-
-        <div class="moderation-modal-actions">
-          <UiButton variant="secondary" :disabled="actionLoading" @click="closeActionModal">取消</UiButton>
-          <UiButton :disabled="actionLoading" @click="submitAction">{{ actionLoading ? '处理中…' : '确认处置' }}</UiButton>
+          <input
+            v-if="actionForm.durationPreset === 'custom'"
+            v-model.trim="actionForm.durationSeconds"
+            name="moderation-duration-seconds"
+            class="input moderation-modal-custom-duration"
+            placeholder="秒，例如 600"
+            :disabled="actionLoading"
+          />
         </div>
       </div>
+
+      <div v-if="actionError" class="error moderation-modal-error">{{ actionError }}</div>
     </div>
-  </dialog>
+
+    <template #footer>
+      <UiButton variant="secondary" :disabled="actionLoading" @click="closeActionModal">取消</UiButton>
+      <UiButton :disabled="actionLoading" @click="submitAction">{{ actionLoading ? '处理中…' : '确认处置' }}</UiButton>
+    </template>
+  </UiModal>
 </template>
 
 <script setup>
-import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import UiBadge from '../components/ui/UiBadge.vue'
-import UiBreadcrumb from '../components/ui/UiBreadcrumb.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiModal from '../components/ui/UiModal.vue'
+import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
-import UiIconButton from '../components/ui/UiIconButton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { formatTime } from '../utils/time'
@@ -372,7 +357,6 @@ async function loadMoreActions() {
 
 // action modal
 const actionModalOpen = ref(false)
-const actionDialogRef = ref(null)
 const selectedReport = ref(null)
 const actionLoading = ref(false)
 const actionError = ref('')
@@ -391,11 +375,9 @@ function openActionModal(report) {
   actionForm.value = { action: 'reject', reason: '', durationPreset: '86400', durationSeconds: '' }
   actionError.value = ''
   actionModalOpen.value = true
-  void nextTick(() => actionDialogRef.value?.showModal?.())
 }
 
 function closeActionModal() {
-  actionDialogRef.value?.close?.()
   actionModalOpen.value = false
   selectedReport.value = null
   actionError.value = ''
@@ -508,10 +490,6 @@ onBeforeUnmount(() => {
   margin-top: 12px;
 }
 
-.moderation-loading {
-  padding: 16px;
-}
-
 .moderation-body {
   margin-top: 12px;
   display: grid;
@@ -613,25 +591,10 @@ onBeforeUnmount(() => {
   margin-top: 8px;
 }
 
-.moderation-modal {
-  max-width: 680px;
-}
-
 .moderation-modal-body {
   padding: 16px;
   display: grid;
   gap: 12px;
-}
-
-.moderation-modal-head {
-  display: flex;
-  justify-content: space-between;
-  gap: 12px;
-  align-items: center;
-}
-
-.moderation-modal-title {
-  font-weight: 800;
 }
 
 .moderation-modal-meta,
@@ -661,10 +624,76 @@ onBeforeUnmount(() => {
   flex-wrap: wrap;
 }
 
-.moderation-modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+/* 退役全局 components.css 中仍被本页引用的规则，按行为等价原样迁入 scoped
+   （.input / .card / .tag，DOM 类名不变）。 */
+.input {
+  width: 100%;
+  height: var(--control-height);
+  padding: 0 var(--control-padding-x);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  outline: none;
+  background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  color: var(--text-1);
+  font-size: var(--text-sm);
+  transition: border-color 0.2s ease, background-color 0.2s ease, box-shadow 0.2s ease;
+  box-shadow: var(--shadow-sm);
+}
+
+.input.multiline {
+  height: auto;
+  padding: var(--control-padding-y) var(--control-padding-x);
+  line-height: var(--line-normal);
+  min-height: 100px;
+  resize: vertical;
+}
+
+.input:hover {
+  border-color: var(--border-strong);
+}
+
+.input:focus {
+  border-color: var(--accent);
+}
+
+.input:focus-visible {
+  box-shadow: var(--shadow-sm), var(--focus-ring);
+}
+
+.input::placeholder {
+  color: var(--text-3);
+}
+
+.card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  padding: var(--card-padding);
+  box-shadow: none;
+  transition: border-color 0.2s ease, background-color 0.2s ease;
+}
+
+.card:hover {
+  border-color: var(--border-strong);
+}
+
+.card.flat {
+  box-shadow: none;
+  border-color: transparent;
+  background: transparent;
+  padding: 0;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  height: 22px;
+  padding: 0 8px;
+  border-radius: 999px;
+  font-size: var(--text-xs);
+  border: 1px solid var(--border);
+  background: color-mix(in srgb, var(--surface) 84%, var(--bg) 16%);
+  color: var(--text-2);
 }
 
 @media (max-width: 768px) {

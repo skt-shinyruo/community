@@ -31,6 +31,14 @@ function listingStatusLabel(status) {
   return '待处理'
 }
 
+// UiBadge variant：在售 success、售罄 warning，其余回落 default，库存/价格状态在视图层可区分。
+function listingStatusVariant(status) {
+  const normalized = normalizeStatus(status)
+  if (normalized === 'ACTIVE') return 'success'
+  if (normalized === 'SOLD_OUT') return 'warning'
+  return 'default'
+}
+
 function fulfillmentLabel(item) {
   const goodsType = String(item?.goodsType || '').trim().toUpperCase()
   if (goodsType === 'VIRTUAL') return deliveryLabel(item?.deliveryMode)
@@ -208,6 +216,19 @@ function addressLine(item) {
   return parts.join(' ')
 }
 
+// 市场页内搜索：后端列表接口只有页码参数（规范不修改后端 API），关键词在已加载的商品投影上
+// 过滤标题、描述和卖家标签；壳搜索只覆盖帖子/标签/用户，不承接市场。
+export function filterMarketListings(listings, keyword) {
+  const safeListings = Array.isArray(listings) ? listings : []
+  const query = String(keyword || '').trim().toLowerCase()
+  if (!query) return safeListings
+  return safeListings.filter((item) => [
+    item?.title,
+    item?.description,
+    item?.sellerLabel
+  ].some((field) => String(field || '').toLowerCase().includes(query)))
+}
+
 export function mergeMarketPage(currentItems, nextItems, idField) {
   const merged = []
   const positions = new Map()
@@ -250,6 +271,7 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
         fulfillmentLabel: fulfillmentLabel(item),
         trustLabel: trustLabel(item?.status),
         statusLabel: listingStatusLabel(item?.status),
+        statusVariant: listingStatusVariant(item?.status),
         unitPriceText: amountText(unitPrice),
         stockText: stockText(item?.stockAvailable)
       }

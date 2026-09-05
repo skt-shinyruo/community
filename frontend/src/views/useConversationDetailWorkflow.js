@@ -2,6 +2,7 @@ import { computed, nextTick, reactive, ref, unref, watch } from 'vue'
 import { listImConversationHistory, listImConversationMessages, markImConversationRead } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { showToast } from '../ui/toastService'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -83,7 +84,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   }
 
   function currentViewScope() {
-    return `${auth.tokenGeneration}:${meId.value}:${conversationId.value}`
+    return `${identityScope(auth)}:${conversationId.value}`
   }
 
   function captureViewContext() {

@@ -55,57 +55,19 @@
         <article v-for="n in items" :key="n.id" class="notice-card" :class="{ unread: Number(n?.status || 0) !== 1 }">
           <div class="notice-card-head">
             <div class="notice-card-copy">
-              <div class="notice-card-eyebrow">
-                {{
-                  safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                    ? '评论动态'
-                    : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                      ? '点赞动态'
-                      : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                        ? '关注动态'
-                        : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                          ? '治理动态'
-                          : '通知'
-                }}
-              </div>
-              <h3 class="notice-card-title">
-                {{
-                  safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                    ? '有人回复了你的内容'
-                    : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                      ? '你的内容收到了新的点赞'
-                      : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                        ? '你收到了新的关注'
-                        : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                          ? '治理状态有更新'
-                          : '查看这条通知'
-                }}
-              </h3>
+              <div class="notice-card-eyebrow">{{ noticeEyebrow(n) }}</div>
+              <h3 class="notice-card-title">{{ noticeTitle(n) }}</h3>
             </div>
             <div class="notice-card-time">{{ formatTime(n.createTime) }}</div>
           </div>
 
-          <p class="notice-card-body">
-            {{
-              safeJsonParse(n?.content, null)?.type === 'COMMENT_CREATED'
-                ? '有人在帖子或评论线程里与你互动，可以返回原帖继续阅读上下文。'
-                : safeJsonParse(n?.content, null)?.type === 'LIKE_CREATED'
-                  ? '这说明你的内容正在被更多人看见，也适合回到原帖继续跟进讨论。'
-                  : safeJsonParse(n?.content, null)?.type === 'FOLLOW_CREATED'
-                    ? '新的关注通常意味着有人开始留意你的公开发言和动态。'
-                    : safeJsonParse(n?.content, null)?.type === 'MODERATION_ACTION_APPLIED'
-                      ? '如果这条通知涉及帖子或内容治理，建议回到相关页面查看更完整的结果。'
-                      : formatNotice(n)
-            }}
-          </p>
+          <p class="notice-card-body">{{ noticeBody(n) }}</p>
 
           <div class="notice-card-meta">
             <span class="notice-state-pill" :class="{ unread: Number(n?.status || 0) !== 1 }">
               {{ Number(n?.status || 0) === 1 ? '已读' : '未读' }}
             </span>
-            <span v-if="safeJsonParse(n?.content, null)?.payload?.actorUserId">
-              {{ shortMemberLabel(safeJsonParse(n?.content, null)?.payload?.actorUserId) }}
-            </span>
+            <span v-if="noticeActorId(n)">{{ shortMemberLabel(noticeActorId(n)) }}</span>
             <span v-if="noticePostId(n)">可返回帖子查看上下文</span>
           </div>
 
@@ -126,6 +88,7 @@ import { safeJsonParse } from '../utils/safeJson'
 import { formatTime } from '../utils/time'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../utils/opaqueId'
 import { createLatestRequestTracker } from '../utils/latestRequest'
+import { identityScope } from '../stores/identityScope'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
@@ -144,40 +107,57 @@ const error = ref('')
 const items = ref([])
 
 const hasNext = ref(true)
-const loadRequestTracker = createLatestRequestTracker()
-const markReadRequestTracker = createLatestRequestTracker()
+const loadRequestTracker = createLatestRequestTracker({
+  getScope: () => `${identityScope(auth)}:${topic.value}`
+})
+const markReadRequestTracker = createLatestRequestTracker({
+  getScope: () => `${identityScope(auth)}:${topic.value}`
+})
 
-function currentViewScope() {
-  return `${auth.tokenGeneration}:${String(auth.userId || '')}:${topic.value}`
+const NOTICE_KINDS = {
+  COMMENT_CREATED: {
+    eyebrow: '评论动态',
+    title: '有人回复了你的内容',
+    body: '有人在帖子或评论线程里与你互动，可以返回原帖继续阅读上下文。'
+  },
+  LIKE_CREATED: {
+    eyebrow: '点赞动态',
+    title: '你的内容收到了新的点赞',
+    body: '这说明你的内容正在被更多人看见，也适合回到原帖继续跟进讨论。'
+  },
+  FOLLOW_CREATED: {
+    eyebrow: '关注动态',
+    title: '你收到了新的关注',
+    body: '新的关注通常意味着有人开始留意你的公开发言和动态。'
+  },
+  MODERATION_ACTION_APPLIED: {
+    eyebrow: '治理动态',
+    title: '治理状态有更新',
+    body: '如果这条通知涉及帖子或内容治理，建议回到相关页面查看更完整的结果。'
+  }
 }
 
-function isCurrentRequest(tracker, token, viewScope) {
-  return tracker.isCurrent(token) && currentViewScope() === viewScope
+function noticeKind(msg) {
+  return NOTICE_KINDS[safeJsonParse(msg?.content, null)?.type] || null
 }
 
-function formatNotice(msg) {
-  const raw = safeJsonParse(msg?.content, null)
-  const type = raw?.type || ''
-  const payload = raw?.payload || {}
-  if (type === 'COMMENT_CREATED') {
-    return payload?.postId ? `有人在帖子 ${payload.postId} 下回复了你，建议回到原帖继续阅读上下文。` : '有人回复了你的内容。'
-  }
-  if (type === 'LIKE_CREATED') {
-    return '有人对你的内容表达了认可，可以回到原帖看看这次互动发生在什么位置。'
-  }
-  if (type === 'FOLLOW_CREATED') {
-    return '你收到了新的关注，对方开始留意你的公开动态。'
-  }
-  if (type === 'MODERATION_ACTION_APPLIED') {
-    const action = payload?.action ?? '-'
-    const reason = payload?.reason ?? ''
-    const duration = payload?.durationSeconds
-    const extra = duration ? ` duration=${duration}s` : ''
-    const targetType = payload?.targetType ?? '-'
-    const targetId = payload?.targetId ?? '-'
-    return `治理结果已更新：动作=${action}${extra ? ` · ${extra.trim()}` : ''} · 目标=${targetType}/${targetId}${reason ? ` · 原因=${reason}` : ''}`
-  }
+function noticeEyebrow(n) {
+  return noticeKind(n)?.eyebrow || '通知'
+}
+
+function noticeTitle(n) {
+  return noticeKind(n)?.title || '查看这条通知'
+}
+
+function noticeBody(n) {
+  const kind = noticeKind(n)
+  if (kind) return kind.body
+  const type = safeJsonParse(n?.content, null)?.type || ''
   return `通知：${type || 'unknown'}`
+}
+
+function noticeActorId(n) {
+  return safeJsonParse(n?.content, null)?.payload?.actorUserId || ''
 }
 
 function noticePostId(msg) {
@@ -200,13 +180,12 @@ function shortMemberLabel(value) {
 
 async function load(targetPage = page.value) {
   const token = loadRequestTracker.begin()
-  const viewScope = currentViewScope()
   const requestedTopic = topic.value
   error.value = ''
   loading.value = true
   try {
     const { data } = await listNotices(requestedTopic, { page: targetPage, size: size.value })
-    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
+    if (!loadRequestTracker.isCurrent(token)) return
     const nextItems = Array.isArray(data) ? data : []
     hasNext.value = nextItems.length >= Number(size.value || 10)
     if (targetPage > page.value && nextItems.length === 0) {
@@ -215,10 +194,10 @@ async function load(targetPage = page.value) {
     page.value = targetPage
     items.value = nextItems
   } catch (e) {
-    if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
+    if (!loadRequestTracker.isCurrent(token)) return
     error.value = e?.message || '加载失败'
   } finally {
-    if (isCurrentRequest(loadRequestTracker, token, viewScope)) {
+    if (loadRequestTracker.isCurrent(token)) {
       loading.value = false
     }
   }
@@ -227,20 +206,19 @@ async function load(targetPage = page.value) {
 async function markAllRead() {
   if (loading.value || items.value.length === 0) return
   const token = markReadRequestTracker.begin()
-  const viewScope = currentViewScope()
   const requestedPage = page.value
   error.value = ''
   loading.value = true
   try {
     const ids = normalizeOpaqueIds(items.value.map((x) => x?.id))
     await markRead(ids)
-    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
+    if (!markReadRequestTracker.isCurrent(token)) return
     await load(requestedPage)
   } catch (e) {
-    if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
+    if (!markReadRequestTracker.isCurrent(token)) return
     error.value = e?.message || '标记已读失败'
   } finally {
-    if (isCurrentRequest(markReadRequestTracker, token, viewScope)) {
+    if (markReadRequestTracker.isCurrent(token)) {
       loading.value = false
     }
   }
@@ -271,7 +249,7 @@ function resetForViewScope() {
   if (auth.authed && topic.value) load(0)
 }
 
-watch(currentViewScope, resetForViewScope)
+watch(() => `${identityScope(auth)}:${topic.value}`, resetForViewScope)
 onMounted(() => {
   if (auth.authed && topic.value) load(0)
 })

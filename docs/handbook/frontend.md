@@ -133,7 +133,7 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 | 测试积分领取 / 销毁、钱包转账 | 每个动作表单分别持有 `WriteAttempt`。 |
 | 市场下单 | 商品详情的下单表单持有一个 `WriteAttempt`。 |
 
-`frontend/src/api/writeAttempt.js` 明确建模 `idle -> active -> succeeded|cancelled|changed`。首次发送生成 key；传输失败不结束 attempt，人工重试继续使用同一个 key；成功、取消、切换账号 / 页面或修改业务意图后清除旧 key，下次发送再生成。不要按 URL、payload 指纹或时间窗口缓存 key，两个内容相同但由用户分别发起的动作仍是两个业务尝试。高风险 service 缺少 `WriteAttempt` 时直接报错，以便在开发期暴露生命周期遗漏。
+`frontend/src/api/writeAttempt.js` 拥有一次高风险写尝试的完整 key 生命周期。首次发送生成 key；传输失败不结束 attempt，人工重试继续使用同一个 key；成功、取消、切换账号 / 页面或修改业务意图后清除旧 key，下次发送再生成。不要按 URL、payload 指纹或时间窗口缓存 key，两个内容相同但由用户分别发起的动作仍是两个业务尝试。高风险 service 缺少 `WriteAttempt` 时直接报错，以便在开发期暴露生命周期遗漏。
 
 ## IM 实时客户端
 

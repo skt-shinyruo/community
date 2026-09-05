@@ -64,7 +64,7 @@ jobs:
           node-version: "20"
           cache: npm
           cache-dependency-path: tools/mock-data-studio/package-lock.json
-      - name: Run k6 suite structure contracts
+      - name: Run k6 option contracts
         working-directory: tests/k6
         run: npm test
       - name: Install Mock Data Studio dependencies

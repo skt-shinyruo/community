@@ -5,7 +5,7 @@ import { authenticatedParams } from './auth.js'
 import { postJson, resultData } from './http.js'
 import { imConnected, imRejected } from './metrics.js'
 
-export function openImSession(accessToken) {
+function openImSession(accessToken) {
   const response = postJson('/api/im/sessions', {}, authenticatedParams(accessToken), 200)
   const data = resultData(response, {})
   check(response, {

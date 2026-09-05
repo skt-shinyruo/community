@@ -94,7 +94,7 @@ initialize_topology_defaults() {
       subnet_prefix=172.31
       ;;
     *)
-      echo "[deployment.sh] unsupported topology: ${TOPOLOGY}" >&2
+      echo "[deployment.sh] unsupported stack: ${STACK}" >&2
       exit 1
       ;;
   esac
@@ -190,7 +190,7 @@ validate_project_topology() {
 
   if [ "${#reused_variables[@]}" -gt 0 ]; then
     echo "[deployment.sh] custom project '${PROJECT_NAME}' requires an independent topology; override every default network, static peer, trusted CIDR, and volume namespace value" >&2
-    echo "[deployment.sh] values still using ${TOPOLOGY} defaults: ${reused_variables[*]}" >&2
+    echo "[deployment.sh] values still using ${STACK} defaults: ${reused_variables[*]}" >&2
     exit 1
   fi
 }
@@ -434,7 +434,6 @@ fi
 
 case "${STACK}" in
   infra)
-    TOPOLOGY="single"
     if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
       echo "[deployment.sh] --stack infra does not support --observability" >&2
       exit 1
@@ -442,7 +441,6 @@ case "${STACK}" in
     OBSERVABILITY=0
     ;;
   single)
-    TOPOLOGY="single"
     if [ "${OBSERVABILITY_MODE}" = "enabled" ]; then
       OBSERVABILITY=1
     else
@@ -450,7 +448,6 @@ case "${STACK}" in
     fi
     ;;
   cluster)
-    TOPOLOGY="cluster"
     if [ "${OBSERVABILITY_MODE}" = "disabled" ]; then
       OBSERVABILITY=0
     else
@@ -535,7 +532,7 @@ if [ "${COMMAND}" = "reset-mysql" ]; then
   "${COMPOSE_CMD[@]}" down
 
   MYSQL_VOLUMES=("${COMMUNITY_VOLUME_NAMESPACE}_mysql_primary_data")
-  if [ "${TOPOLOGY}" = "cluster" ]; then
+  if [ "${STACK}" = "cluster" ]; then
     MYSQL_VOLUMES+=(
       "${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_1_data"
       "${COMMUNITY_VOLUME_NAMESPACE}_mysql_replica_2_data"

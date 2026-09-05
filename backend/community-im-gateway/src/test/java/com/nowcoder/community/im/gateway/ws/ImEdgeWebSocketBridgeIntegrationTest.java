@@ -229,7 +229,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                         .then())
                 .subscribe();
         try {
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             assertThat(reject).contains("\"reasonCode\":\"connect_timeout\"");
         } finally {
@@ -382,7 +382,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
         try {
             outbound.tryEmitNext(firstFrame);
             outbound.tryEmitComplete();
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             return reject;
         } finally {
@@ -406,7 +406,7 @@ class ImEdgeWebSocketBridgeIntegrationTest {
                 })
                 .subscribe();
         try {
-            String reject = received.poll(5, TimeUnit.SECONDS);
+            String reject = received.poll(RECEIVE_TIMEOUT_SECONDS, TimeUnit.SECONDS);
             assertThat(reject).isNotNull();
             return reject;
         } finally {

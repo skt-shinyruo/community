@@ -1,11 +1,5 @@
 import type { Page } from '@playwright/test'
 
-export type ExpectedHttpError = {
-  method: string
-  path: string
-  status: number
-}
-
 export type AuditFailure = {
   kind: 'http' | 'pageerror' | 'console'
   method?: string
@@ -23,7 +17,7 @@ type AuditedResponse = {
 
 export type ApiErrorAudit = {
   attach(page: Page): void
-  failures(expected: ExpectedHttpError[]): AuditFailure[]
+  failures(): AuditFailure[]
 }
 
 function originOf(value: string): string {
@@ -91,11 +85,9 @@ export function createApiErrorAudit(apiBaseUrl: string): ApiErrorAudit {
       })
     },
 
-    failures(expected) {
-      const allowed = new Set(expected.map((item) => `${item.method.toUpperCase()} ${item.path} ${item.status}`))
+    failures() {
       const httpFailures = responses
         .filter((response) => response.status >= 500 || (response.status >= 400 && response.status <= 499))
-        .filter((response) => !allowed.has(`${response.method.toUpperCase()} ${response.path} ${response.status}`))
         .map((response) => ({
           kind: 'http' as const,
           method: response.method,

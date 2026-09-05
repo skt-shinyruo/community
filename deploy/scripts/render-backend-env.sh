@@ -60,21 +60,21 @@ EOF
   env_line SPRING_CLOUD_NACOS_DISCOVERY_IP 127.0.0.1
   env_line NACOS_CONFIG_GROUP "$(resolve_process_env_then_dotenv_then_fallback NACOS_CONFIG_GROUP COMMUNITY)"
   env_line NACOS_NAMESPACE "$(resolve_process_env_then_dotenv_then_fallback NACOS_NAMESPACE)"
+  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
+  env_line METRICS_BASIC_AUTH_USERNAME "$(resolve_process_env_then_dotenv_then_fallback METRICS_BASIC_AUTH_USERNAME prometheus)"
+  env_line METRICS_BASIC_AUTH_PASSWORD "$(require_process_env_then_dotenv_value METRICS_BASIC_AUTH_PASSWORD)"
 }
 
 mkdir -p "${output_dir}"
 
 {
   write_common 18080
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
   env_line JWT_ACCESS_PRIVATE_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PRIVATE_KEY)"
   env_line JWT_SERVICE_HMAC_SECRET "$(require_process_env_then_dotenv_value JWT_SERVICE_HMAC_SECRET)"
   env_line AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET "$(require_process_env_then_dotenv_value AUTH_PASSWORD_RESET_IDENTIFIER_HMAC_SECRET)"
   env_line AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET "$(require_process_env_then_dotenv_value AUTH_PASSWORD_RESET_QUOTA_HMAC_SECRET)"
   env_line AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS "$(resolve_process_env_then_dotenv_then_fallback AUTH_PASSWORD_RESET_PREVIOUS_IDENTIFIER_HMAC_SECRETS)"
   env_line DRIVE_SHARE_TICKET_SECRET "$(require_process_env_then_dotenv_value DRIVE_SHARE_TICKET_SECRET)"
-  env_line METRICS_BASIC_AUTH_USERNAME "$(resolve_process_env_then_dotenv_then_fallback METRICS_BASIC_AUTH_USERNAME prometheus)"
-  env_line METRICS_BASIC_AUTH_PASSWORD "$(require_process_env_then_dotenv_value METRICS_BASIC_AUTH_PASSWORD)"
   env_line DB_URL "jdbc:mysql://127.0.0.1:$(require_process_env_then_dotenv_value MYSQL_HOST_PORT)/community?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
   env_line DB_USERNAME "$(resolve_process_env_then_dotenv_then_fallback MYSQL_USER community)"
   env_line DB_PASSWORD "$(require_process_env_then_dotenv_value MYSQL_PASSWORD)"
@@ -94,10 +94,7 @@ mkdir -p "${output_dir}"
 
 {
   write_common 18090
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
   env_line JWT_SERVICE_HMAC_SECRET "$(require_process_env_then_dotenv_value JWT_SERVICE_HMAC_SECRET)"
-  env_line METRICS_BASIC_AUTH_USERNAME "$(resolve_process_env_then_dotenv_then_fallback METRICS_BASIC_AUTH_USERNAME prometheus)"
-  env_line METRICS_BASIC_AUTH_PASSWORD "$(require_process_env_then_dotenv_value METRICS_BASIC_AUTH_PASSWORD)"
   env_line OSS_DB_URL "jdbc:mysql://127.0.0.1:$(require_process_env_then_dotenv_value MYSQL_HOST_PORT)/community_oss?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
   env_line OSS_DB_USERNAME "$(resolve_process_env_then_dotenv_then_fallback OSS_MYSQL_USER community_oss)"
   env_line OSS_DB_PASSWORD "$(require_process_env_then_dotenv_value OSS_MYSQL_PASSWORD)"
@@ -113,9 +110,6 @@ mkdir -p "${output_dir}"
 
 {
   write_common "$(require_process_env_then_dotenv_value NGINX_API_PORT)"
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
-  env_line METRICS_BASIC_AUTH_USERNAME "$(resolve_process_env_then_dotenv_then_fallback METRICS_BASIC_AUTH_USERNAME prometheus)"
-  env_line METRICS_BASIC_AUTH_PASSWORD "$(require_process_env_then_dotenv_value METRICS_BASIC_AUTH_PASSWORD)"
   env_line SPRING_DATA_REDIS_HOST 127.0.0.1
   env_line SPRING_DATA_REDIS_PORT "$(require_process_env_then_dotenv_value REDIS_HOST_PORT)"
   env_line GATEWAY_TRUSTED_PROXY_ENABLED false
@@ -124,7 +118,6 @@ mkdir -p "${output_dir}"
 
 {
   write_common 18083
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
   env_line IM_SESSION_TICKET_HMAC_SECRET "$(require_process_env_then_dotenv_value IM_SESSION_TICKET_HMAC_SECRET)"
   env_line IM_SESSION_TICKET_ISSUER "$(resolve_process_env_then_dotenv_then_fallback IM_SESSION_TICKET_ISSUER community-im-gateway)"
   env_line IM_SESSION_TICKET_AUDIENCE "$(resolve_process_env_then_dotenv_then_fallback IM_SESSION_TICKET_AUDIENCE im-realtime)"
@@ -135,7 +128,6 @@ mkdir -p "${output_dir}"
 
 {
   write_common 18082
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
   env_line JWT_SERVICE_HMAC_SECRET "$(require_process_env_then_dotenv_value JWT_SERVICE_HMAC_SECRET)"
   env_line IM_CORE_DB_URL "jdbc:mysql://127.0.0.1:$(require_process_env_then_dotenv_value MYSQL_HOST_PORT)/im_core?useUnicode=true&characterEncoding=utf8&serverTimezone=UTC&useSSL=false&allowPublicKeyRetrieval=true"
   env_line IM_CORE_DB_USER "$(resolve_process_env_then_dotenv_then_fallback IM_MYSQL_USER im_core)"
@@ -145,7 +137,6 @@ mkdir -p "${output_dir}"
 
 {
   write_common 18081
-  env_line JWT_ACCESS_PUBLIC_KEY "$(require_process_env_then_dotenv_value JWT_ACCESS_PUBLIC_KEY)"
   env_line JWT_SERVICE_HMAC_SECRET "$(require_process_env_then_dotenv_value JWT_SERVICE_HMAC_SECRET)"
   env_line IM_SESSION_TICKET_HMAC_SECRET "$(require_process_env_then_dotenv_value IM_SESSION_TICKET_HMAC_SECRET)"
   env_line IM_SESSION_TICKET_ISSUER "$(resolve_process_env_then_dotenv_then_fallback IM_SESSION_TICKET_ISSUER community-im-gateway)"

@@ -1,6 +1,6 @@
 import { expect, test } from '../fixtures/test'
 import { accounts } from '../fixtures/accounts'
-import { ensureStorageState, loginViaUi } from '../fixtures/auth'
+import { loginViaUi } from '../fixtures/auth'
 import { appUrl, expectFrontendReachable, expectGatewayHealthy, gotoHash } from '../fixtures/helpers'
 
 test.describe('single smoke @smoke @regression', () => {
@@ -20,9 +20,8 @@ test.describe('single smoke @smoke @regression', () => {
     await expect(page.getByText('登录').first()).toBeVisible()
   })
 
-  test('aaa can login and storage state can be created @smoke @regression', async ({ browser, page }) => {
+  test('aaa can login @smoke @regression', async ({ page }) => {
     await loginViaUi(page, accounts.aaa)
-    await ensureStorageState(browser, accounts.aaa)
   })
 
   test('login page is directly reachable @smoke @regression', async ({ page }) => {

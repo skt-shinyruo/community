@@ -1,12 +1,6 @@
-import fs from 'node:fs/promises'
-import path from 'node:path'
-import { expect, type Browser, type Page } from '@playwright/test'
+import { expect, type Page } from '@playwright/test'
 import { type TestAccount } from './accounts'
 import { appUrl } from './helpers'
-
-async function ensureAuthDir(): Promise<void> {
-  await fs.mkdir('.auth', { recursive: true })
-}
 
 export async function loginViaUi(page: Page, account: TestAccount): Promise<void> {
   const logoutButton = page.getByRole('button', { name: '登出' })
@@ -20,23 +14,4 @@ export async function loginViaUi(page: Page, account: TestAccount): Promise<void
   await page.getByRole('button', { name: '登录' }).click()
   await expect(page).toHaveURL(/#\/posts/)
   await expect(page.getByText(account.username).first()).toBeVisible()
-}
-
-export async function saveStorageState(browser: Browser, account: TestAccount): Promise<void> {
-  await ensureAuthDir()
-  const context = await browser.newContext()
-  const page = await context.newPage()
-  await loginViaUi(page, account)
-  await context.storageState({ path: account.storageStatePath })
-  await context.close()
-}
-
-export async function ensureStorageState(browser: Browser, account: TestAccount): Promise<string> {
-  try {
-    await fs.access(account.storageStatePath)
-    return path.resolve(account.storageStatePath)
-  } catch {
-    await saveStorageState(browser, account)
-    return path.resolve(account.storageStatePath)
-  }
 }

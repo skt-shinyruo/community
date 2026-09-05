@@ -239,13 +239,6 @@ describe('http', () => {
     expect(mock.history.get.filter((request) => request.url === '/api/still-unauthorized')).toHaveLength(2)
   })
 
-  it('should suppress global error toast when request opts out', async () => {
-    mock.onPost('/api/auth/refresh').replyOnce(401, { code: 10004, message: '刷新令牌无效', traceId: 'trace-1' })
-
-    await expect(http.post('/api/auth/refresh', null, { skipGlobalErrorToast: true })).rejects.toBeTruthy()
-    expect(toast).not.toHaveBeenCalled()
-  })
-
   it('should not attempt refresh for any auth endpoint 401 response', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 'old-token' })

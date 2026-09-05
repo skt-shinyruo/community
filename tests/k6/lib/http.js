@@ -3,7 +3,7 @@ import { check, sleep } from 'k6'
 import { config } from './config.js'
 import { recordUnexpected } from './metrics.js'
 
-export function jsonHeaders(extra = {}) {
+function jsonHeaders(extra = {}) {
   const headers = {
     'Content-Type': 'application/json',
     Accept: 'application/json'
@@ -33,7 +33,7 @@ export function url(path) {
   return `${config.baseUrl}${path.startsWith('/') ? path : `/${path}`}`
 }
 
-export function parseJson(response, fallback = null) {
+function parseJson(response, fallback = null) {
   try {
     return response.json()
   } catch (_) {
@@ -49,7 +49,7 @@ export function resultData(response, fallback = null) {
   return body === null ? fallback : body
 }
 
-export function expectStatus(response, expected, name) {
+function expectStatus(response, expected, name) {
   const expectedSet = Array.isArray(expected) ? expected : [expected]
   const ok = expectedSet.includes(response.status)
   recordUnexpected(ok)
@@ -63,13 +63,7 @@ function requestOptions(path, params = {}, headers = undefined) {
   const requestParams = params || {}
   const merged = {
     headers: headers || requestParams.headers,
-    tags: requestParams.tags || { type: 'api', endpoint: path },
-    timeout: requestParams.timeout,
-    redirects: requestParams.redirects,
-    cookies: requestParams.cookies,
-    jar: requestParams.jar,
-    compression: requestParams.compression,
-    responseType: requestParams.responseType
+    tags: requestParams.tags || { type: 'api', endpoint: path }
   }
   return Object.fromEntries(Object.entries(merged).filter(([, value]) => value != null))
 }

@@ -1,8 +1,0 @@
-/* Page-level reusable patterns (non-business) */
-
-.tag.topic-category {
-  background: color-mix(in srgb, var(--accent) 10%, var(--surface) 90%);
-  border-color: color-mix(in srgb, var(--accent) 18%, var(--border) 82%);
-  color: var(--text-1);
-  font-weight: 700;
-}

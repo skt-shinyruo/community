@@ -31,25 +31,30 @@ import { useDriveEntryWorkflow } from './useDriveEntryWorkflow'
 import { useDriveWorkspaceState } from './useDriveWorkspaceState'
 
 describe('useDriveEntryWorkflow', () => {
-  function createSubject({ current = true } = {}) {
+  function createSubject({ current = true, confirm } = {}) {
     const workspace = useDriveWorkspaceState()
-    const setError = vi.fn()
-    const setStatus = vi.fn()
+    const confirmSpy = confirm || vi.fn((options, action) => action())
     const reloadPage = vi.fn().mockResolvedValue(undefined)
     const session = {
       capture: vi.fn(() => ({ generation: 1 })),
       isCurrent: vi.fn(() => current)
     }
-    const runAction = vi.fn(async (label, action) => action({ isCurrent: () => current }))
+    const runAction = vi.fn(async (label, action, { onError } = {}) => {
+      try {
+        await action({ isCurrent: () => current })
+      } catch (cause) {
+        if (onError) onError(cause?.message || '操作失败')
+        throw cause
+      }
+    })
     const workflow = useDriveEntryWorkflow({
       workspace,
       session,
       runAction,
       reloadPage,
-      setError,
-      setStatus
+      confirm: confirmSpy
     })
-    return { workspace, workflow, runAction, reloadPage, session, setError, setStatus }
+    return { workspace, workflow, runAction, reloadPage, session, confirm: confirmSpy }
   }
 
   beforeEach(() => {
@@ -108,7 +113,7 @@ describe('useDriveEntryWorkflow', () => {
       successCount: 1,
       failures: [expect.objectContaining({ message: 'quota unavailable' })]
     })
-    expect(current.workspace.entries.value[0].entryId).toBe('file-1')
+    expect(current.workspace.entries.value[0].name).toBe('kept.txt')
 
     const stale = createSubject({ current: false })
     listDriveEntries.mockResolvedValueOnce({ data: [{ entryId: 'stale', name: 'stale.txt' }] })
@@ -116,31 +121,32 @@ describe('useDriveEntryWorkflow', () => {
     expect(stale.workspace.entries.value).toEqual([])
   })
 
-  it('validates folder and rename drafts before running writes', async () => {
-    const { workspace, workflow, runAction, reloadPage, setError, setStatus } = createSubject()
+  it('validates folder and rename drafts inline before running writes', async () => {
+    const { workspace, workflow, reloadPage } = createSubject()
 
     workflow.model.toggleFolderComposer()
     expect(workflow.model.creatingFolder).toBe(true)
     await workflow.model.createFolder()
-    expect(setError).toHaveBeenCalledWith('请输入文件夹名称')
-    expect(runAction).not.toHaveBeenCalled()
+    expect(workflow.model.folderError).toBe('请输入文件夹名称')
+    expect(createDriveFolder).not.toHaveBeenCalled()
 
     workflow.model.folderNameDraft = '  资料  '
     await workflow.model.createFolder()
     expect(createDriveFolder).toHaveBeenCalledWith({ parentId: '', name: '资料' })
-    expect(setStatus).toHaveBeenCalledWith('文件夹已创建')
     expect(reloadPage).toHaveBeenCalledTimes(1)
     expect(workflow.model.creatingFolder).toBe(false)
+    expect(workflow.model.folderError).toBe('')
 
     workspace.commitEntries(workspace.entries, [{ entryId: 'file-1', name: 'old.txt' }])
     workspace.renameDraft.value = '  '
     await workflow.model.renameSelected()
-    expect(setError).toHaveBeenCalledWith('请输入新名称')
+    expect(workflow.model.renameError).toBe('请输入新名称')
+    expect(renameDriveEntry).not.toHaveBeenCalled()
 
     workspace.renameDraft.value = ' new.txt '
     await workflow.model.renameSelected()
     expect(renameDriveEntry).toHaveBeenCalledWith('file-1', { newName: 'new.txt' })
-    expect(setStatus).toHaveBeenCalledWith('名称已更新')
+    expect(workflow.model.renameError).toBe('')
 
     workflow.model.toggleFolderComposer()
     workflow.model.folderNameDraft = 'discarded'
@@ -148,8 +154,24 @@ describe('useDriveEntryWorkflow', () => {
     expect(workflow.model.folderNameDraft).toBe('')
   })
 
-  it('executes move, download, trash, restore, and permanent-delete capabilities', async () => {
-    const { workspace, workflow, reloadPage, setStatus } = createSubject()
+  it('surfaces folder and rename write failures on their fields', async () => {
+    const { workspace, workflow } = createSubject()
+    workflow.model.toggleFolderComposer()
+    workflow.model.folderNameDraft = '资料'
+    createDriveFolder.mockRejectedValueOnce(new Error('名称已存在'))
+    await workflow.model.createFolder()
+    expect(workflow.model.folderError).toBe('名称已存在')
+    expect(workflow.model.creatingFolder).toBe(true)
+
+    workspace.commitEntries(workspace.entries, [{ entryId: 'file-1', name: 'old.txt' }])
+    workspace.renameDraft.value = 'new.txt'
+    renameDriveEntry.mockRejectedValueOnce(new Error('目标目录不可用'))
+    await workflow.model.renameSelected()
+    expect(workflow.model.renameError).toBe('目标目录不可用')
+  })
+
+  it('executes move, download and restore capabilities without confirmation', async () => {
+    const { workspace, workflow, reloadPage, confirm } = createSubject()
     const open = vi.spyOn(window, 'open').mockImplementation(() => null)
     const active = {
       entryId: 'file-1',
@@ -161,10 +183,9 @@ describe('useDriveEntryWorkflow', () => {
 
     await workflow.model.moveSelectedHere()
     await workflow.model.downloadSelected()
-    await workflow.model.trashSelected()
     expect(moveDriveEntry).toHaveBeenCalledWith('file-1', { targetParentId: '' })
     expect(open).toHaveBeenCalledWith('https://files.example.test/download', '_blank', 'noopener,noreferrer')
-    expect(trashDriveEntry).toHaveBeenCalledWith('file-1')
+    expect(confirm).not.toHaveBeenCalled()
 
     const trashed = {
       entryId: 'file-2',
@@ -175,20 +196,49 @@ describe('useDriveEntryWorkflow', () => {
     workspace.mode.value = 'trash'
     workspace.commitEntries(workspace.trashEntries, [trashed])
     await workflow.model.restoreSelected()
-    await workflow.model.deleteSelectedPermanently()
     expect(restoreDriveEntry).toHaveBeenCalledWith('file-2', { targetParentId: '' })
+    expect(reloadPage).toHaveBeenCalledTimes(2)
+  })
+
+  it('gates trash and permanent delete behind danger confirmations', async () => {
+    const pending = []
+    const { workspace, workflow, confirm } = createSubject({
+      confirm: vi.fn((options, action) => pending.push({ options, action }))
+    })
+    workspace.commitEntries(workspace.entries, [{
+      entryId: 'file-1',
+      name: 'active.txt',
+      canDownload: true,
+      canTrash: true
+    }])
+
+    workflow.model.trashSelected()
+    expect(trashDriveEntry).not.toHaveBeenCalled()
+    expect(confirm).toHaveBeenCalledTimes(1)
+    expect(pending[0].options).toMatchObject({ variant: 'danger', confirmText: '移至回收站' })
+    expect(pending[0].options.message).toContain('active.txt')
+
+    await pending[0].action()
+    expect(trashDriveEntry).toHaveBeenCalledWith('file-1')
+
+    workspace.mode.value = 'trash'
+    workspace.commitEntries(workspace.trashEntries, [{
+      entryId: 'file-2',
+      name: 'trashed.txt',
+      canRestore: true,
+      canDeletePermanently: true
+    }])
+    workflow.model.deleteSelectedPermanently()
+    expect(deleteDriveEntryPermanently).not.toHaveBeenCalled()
+    expect(pending[1].options).toMatchObject({ variant: 'danger', confirmText: '彻底删除' })
+    expect(pending[1].options.message).toContain('无法恢复')
+
+    await pending[1].action()
     expect(deleteDriveEntryPermanently).toHaveBeenCalledWith('file-2')
-    expect(setStatus.mock.calls.map(([message]) => message)).toEqual(expect.arrayContaining([
-      '条目已移动',
-      '条目已移至回收站',
-      '条目已恢复',
-      '条目已彻底删除'
-    ]))
-    expect(reloadPage).toHaveBeenCalledTimes(4)
   })
 
   it('suppresses stale write effects and resets local entry state', async () => {
-    const { workspace, workflow, reloadPage, setStatus } = createSubject({ current: false })
+    const { workspace, workflow, reloadPage } = createSubject({ current: false })
     workspace.commitEntries(workspace.entries, [{
       entryId: 'file-1',
       name: 'active.txt',
@@ -200,7 +250,6 @@ describe('useDriveEntryWorkflow', () => {
     await workflow.model.downloadSelected()
     await workflow.model.trashSelected()
     expect(open).not.toHaveBeenCalled()
-    expect(setStatus).not.toHaveBeenCalled()
     expect(reloadPage).not.toHaveBeenCalled()
 
     workflow.model.toggleFolderComposer()

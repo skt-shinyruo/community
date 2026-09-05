@@ -1,8 +1,10 @@
 // @ts-check
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { showToast } from '../../ui/toastService'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { useDriveConfirmation } from './useDriveConfirmation'
 import { useDriveEntryWorkflow } from './useDriveEntryWorkflow'
 import { useDriveShareWorkflow } from './useDriveShareWorkflow'
 import { useDriveUploadWorkflow } from './useDriveUploadWorkflow'
@@ -16,7 +18,6 @@ export function useDrivePageState() {
   const loading = ref(false)
   const busyAction = ref('')
   const error = ref('')
-  const statusMessage = ref('')
   const isBusy = computed(() => loading.value || busyAction.value !== '')
 
   const session = {
@@ -25,24 +26,35 @@ export function useDrivePageState() {
       normalizeOpaqueId(auth.userId) === scope.userId
   }
   const isCurrent = (tracker, token, scope) => tracker.isCurrent(token) && session.isCurrent(scope)
-  const setError = (message) => { error.value = message }
-  const setStatus = (message) => { statusMessage.value = message }
+  // 反馈渠道（规范 6.3）：结果可见的动作静默更新；结果不可见（复制链接、上传完成 / 取消）走 toast；
+  // 加载失败留在 page.error 由列表区呈现（空列表 UiState 错态 / 有数据内联 alert）；
+  // 不可定位的动作失败走 error toast，可定位的失败经 runAction 的 onError 落到对应区块。
+  const notify = (message) => { if (message) showToast({ type: 'success', text: message }) }
+  const notifyError = (message) => { if (message) showToast({ type: 'error', text: message }) }
   let entryWorkflow
   let uploadWorkflow
   let shareWorkflow
 
-  function runAction(label, fn) {
+  /**
+   * @param {string} label
+   * @param {(request: { isCurrent: () => boolean }) => Promise<any> | any} fn
+   * @param {{ onError?: (message: string) => void }} [options]
+   */
+  function runAction(label, fn, { onError } = {}) {
     const token = actionTracker.begin()
     const scope = session.capture()
     const request = { isCurrent: () => isCurrent(actionTracker, token, scope) }
     busyAction.value = label
     error.value = ''
-    statusMessage.value = ''
     if (shareWorkflow) shareWorkflow.model.error = ''
     return Promise.resolve()
       .then(() => fn(request))
       .catch((cause) => {
-        if (request.isCurrent()) error.value = cause?.message || '操作失败'
+        if (request.isCurrent()) {
+          const message = cause?.message || '操作失败'
+          if (onError) onError(message)
+          else notifyError(message)
+        }
         throw cause
       })
       .finally(() => {
@@ -54,8 +66,10 @@ export function useDrivePageState() {
     actionTracker.invalidate()
     busyAction.value = ''
     error.value = ''
-    statusMessage.value = message
+    if (message) showToast({ type: 'info', text: message })
   }
+
+  const { confirmation, confirm, closeConfirmation, runConfirmation } = useDriveConfirmation({ isBusy })
 
   async function reload() {
     const token = reloadTracker.begin()
@@ -86,8 +100,8 @@ export function useDrivePageState() {
     }
   }
 
-  const workflowContext = { workspace: workspaceState, session, runAction, reloadPage: reload, setStatus }
-  entryWorkflow = useDriveEntryWorkflow({ ...workflowContext, setError })
+  const workflowContext = { workspace: workspaceState, session, runAction, reloadPage: reload, confirm, notify }
+  entryWorkflow = useDriveEntryWorkflow(workflowContext)
   uploadWorkflow = useDriveUploadWorkflow({ ...workflowContext, cancelAction })
   shareWorkflow = useDriveShareWorkflow(workflowContext)
 
@@ -121,11 +135,12 @@ export function useDrivePageState() {
     shareWorkflow.invalidate()
     loading.value = false
     busyAction.value = ''
+    closeConfirmation()
   }
 
   function resetOwnerState() {
     error.value = ''
-    statusMessage.value = ''
+    closeConfirmation()
     workspaceState.reset()
     entryWorkflow.reset()
     uploadWorkflow.reset()
@@ -144,9 +159,9 @@ export function useDrivePageState() {
   )
   onBeforeUnmount(invalidateRequests)
 
-  const page = reactive({ loading, busyAction, error, statusMessage, isBusy, reload })
+  const page = reactive({ loading, busyAction, error, isBusy, reload })
   const entries = entryWorkflow.model
   const upload = uploadWorkflow.model
   const shares = shareWorkflow.model
-  return { page, workspace, entries, upload, shares }
+  return { page, workspace, entries, upload, shares, confirmation, closeConfirmation, runConfirmation }
 }

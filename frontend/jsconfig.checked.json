@@ -53,6 +53,7 @@
 
     // Focused page workflows
     "src/views/driveState.js",
+    "src/views/drive/useDriveConfirmation.js",
     "src/views/drive/useDriveEntryWorkflow.js",
     "src/views/drive/useDrivePageState.js",
     "src/views/drive/useDriveShareWorkflow.js",

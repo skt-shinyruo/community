@@ -119,6 +119,15 @@ UiState（错态带重试）。搜索结果来自 ES 投影、最终一致，页
 主页（`role="link"` + Enter，Enter 只响应卡片自身焦点，嵌套的成员名链接与关注 / 取关按钮独立工作），
 逐项关注 / 取关 mutation 与 hydration 语义不变。
 
+`/messages` 私信会话列表随波次 6 迁入同一套扁平列表语言：`listImConversationPage` 的游标 + size 调用
+语义不变，「加载更多」追加分页在途时尾部只显示加载指示，追加失败保留已加载列表并在尾部内联报错，
+「加载更多」按钮即重试入口；首载使用 UiSkeleton（list variant），空态（「去社区逛逛」下一步）与首载
+错态使用 UiState（错态带重试），不再出现裸加载文本。会话卡是原生 `RouterLink` 链接（Enter 原生打开、
+focus ring 可见），未读会话只用 3px accent 左轨和弱色未读 chip 表达，不使用整卡高饱和底色。列表首载 /
+刷新成功后触发 `inboxUnread.refresh()`，让侧边栏 / 移动端私信入口角标与列表已读语义收敛到同一份服务端
+事实。页面流程由 `frontend/src/views/useConversationsFeed.js` 承载（会话 scope 竞态丢弃、游标去重合并），
+组件只保留渲染与格式化。会话详情与 IM 恢复链路的迁移属于后续波次，不在本页范围。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -132,7 +141,7 @@ UiState（错态带重试）。搜索结果来自 ES 投影、最终一致，页
 
 导航选中态使用 `--accent-weak` 背景、`--accent-text` 文字和 3px accent 左轨；壳层图标统一为 `lucide-vue-next` 按需命名导入，`components/layout/navIcons.js` 只做导航 icon key 到 lucide 组件的映射，不新增本地 path 表或包装层。
 
-侧边栏通知 / 私信入口和移动端对应入口显示未读角标（超过 99 显示 `99+`），计数由 `frontend/src/stores/inboxUnread.js` 聚合通知（`GET /api/notices/summary`）与私信（`GET /api/im/unread/summary`，群聊未读不计入私信角标）。角标在登录恢复 / 登出（身份变化）、窗口重新聚焦、通知已读操作（`NoticeDetailView`）、私信已读操作（会话详情 workflow）和 IM `privateMessage` 实时事件后刷新，不引入轮询；后台刷新通过 `skipGlobalErrorToast` 静默失败，身份切换时在途结果被丢弃。
+侧边栏通知 / 私信入口和移动端对应入口显示未读角标（超过 99 显示 `99+`），计数由 `frontend/src/stores/inboxUnread.js` 聚合通知（`GET /api/notices/summary`）与私信（`GET /api/im/unread/summary`，群聊未读不计入私信角标）。角标在登录恢复 / 登出（身份变化）、窗口重新聚焦、通知已读操作（`NoticeDetailView`）、私信已读操作（会话详情 workflow）、会话列表首载 / 刷新（`ConversationsView`）和 IM `privateMessage` 实时事件后刷新，不引入轮询；后台刷新通过 `skipGlobalErrorToast` 静默失败，身份切换时在途结果被丢弃。
 
 ## 主题、密度与设计令牌
 
@@ -259,6 +268,7 @@ connect(accessToken)
 | `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、消息映射、去重和排序。 |
+| `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、重连补拉、水位线、订阅和滚动生命周期。 |
 | `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示和 feed key 生成。 |

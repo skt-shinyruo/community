@@ -3,6 +3,7 @@ import { listImConversationHistory, markImConversationRead } from '../api/servic
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { useAuthStore } from '../stores/auth'
 import { useInboxUnreadStore } from '../stores/inboxUnread'
+import { identityScope } from '../stores/identityScope'
 import { showToast } from '../ui/toastService'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
@@ -73,7 +74,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   const historyFlow = createHistoryFlowState()
 
   function currentViewScope() {
-    return `${auth.tokenGeneration}:${meId.value}:${conversationId.value}`
+    return `${identityScope(auth)}:${conversationId.value}`
   }
 
   function captureViewContext() {

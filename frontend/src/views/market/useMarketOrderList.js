@@ -1,5 +1,6 @@
 import { computed, onBeforeUnmount, ref, toValue, watch } from 'vue'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { buildMarketState, mergeMarketPage } from '../marketState'
 
 // side 是买入/卖出域内 tab 的来源：同一组件实例被两条路由复用时，side 变化并入
@@ -21,7 +22,6 @@ export function useMarketOrderList({
   const orders = ref([])
   const page = ref(0)
   const hasNext = ref(false)
-  let requestGeneration = 0
 
   const state = computed(() => buildMarketState({ orders: orders.value }))
   const sessionScope = computed(() => [
@@ -31,12 +31,10 @@ export function useMarketOrderList({
     auth.authed ? 'authenticated' : 'anonymous'
   ].join(':'))
 
-  const isCurrentRequest = (generation, scope) =>
-    generation === requestGeneration && scope === sessionScope.value
+  const requestTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
   async function requestPage(targetPage, append) {
-    const generation = ++requestGeneration
-    const scope = sessionScope.value
+    const requestHandle = requestTracker.begin()
     if (append) {
       loadingMore.value = true
       pageError.value = ''
@@ -49,17 +47,17 @@ export function useMarketOrderList({
 
     try {
       const response = await listOrders({ page: targetPage, size: pageSize })
-      if (!isCurrentRequest(generation, scope)) return
+      if (!requestTracker.isCurrent(requestHandle)) return
       const data = Array.isArray(response?.data) ? response.data : []
       orders.value = append ? mergeMarketPage(orders.value, data, 'orderId') : data
       page.value = Number(response?.page ?? targetPage)
       hasNext.value = response?.hasNext === true
     } catch (cause) {
-      if (!isCurrentRequest(generation, scope)) return
+      if (!requestTracker.isCurrent(requestHandle)) return
       if (append) pageError.value = cause?.message || toValue(moreError)
       else error.value = cause?.message || toValue(initialError)
     } finally {
-      if (isCurrentRequest(generation, scope)) {
+      if (requestTracker.isCurrent(requestHandle)) {
         if (append) loadingMore.value = false
         else loading.value = false
       }
@@ -73,7 +71,7 @@ export function useMarketOrderList({
   }
 
   function reset() {
-    requestGeneration += 1
+    requestTracker.invalidate()
     orders.value = []
     page.value = 0
     hasNext.value = false
@@ -89,7 +87,7 @@ export function useMarketOrderList({
   }, { immediate: true })
 
   onBeforeUnmount(() => {
-    requestGeneration += 1
+    requestTracker.invalidate()
   })
 
   return { state, loading, loadingMore, error, pageError, hasNext, reload, loadMore, reset }

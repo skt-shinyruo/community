@@ -5,6 +5,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useInboxUnreadStore } from '../../stores/inboxUnread'
+import { identityScope } from '../../stores/identityScope'
 import { listNotices, markRead } from '../../api/services/noticeService'
 import { safeJsonParse } from '../../utils/safeJson'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../../utils/opaqueId'
@@ -99,8 +100,12 @@ export function useNoticeTopicFeedState({ topic }) {
   const pageError = ref('')
   const items = ref([])
 
-  const loadRequestTracker = createLatestRequestTracker()
-  const markReadRequestTracker = createLatestRequestTracker()
+  const loadRequestTracker = createLatestRequestTracker({
+    getScope: () => `${identityScope(auth)}:${topic.value}`
+  })
+  const markReadRequestTracker = createLatestRequestTracker({
+    getScope: () => `${identityScope(auth)}:${topic.value}`
+  })
 
   const policy = computed(() => TOPIC_POLICY[topic.value] || FALLBACK_TOPIC_POLICY)
   const hasUnread = computed(() => items.value.some((n) => !isNoticeRead(n)))
@@ -118,18 +123,9 @@ export function useNoticeTopicFeedState({ topic }) {
     }
   }))
 
-  function currentViewScope() {
-    return `${auth.tokenGeneration}:${String(auth.userId || '')}:${topic.value}`
-  }
-
-  function isCurrentRequest(tracker, token, viewScope) {
-    return tracker.isCurrent(token) && currentViewScope() === viewScope
-  }
-
   async function load(append = false, targetPage = page.value) {
     if (!auth.authed || !topic.value) return
     const token = loadRequestTracker.begin()
-    const viewScope = currentViewScope()
     const requestedTopic = topic.value
     if (append) {
       loadingMore.value = true
@@ -140,18 +136,18 @@ export function useNoticeTopicFeedState({ topic }) {
     }
     try {
       const { data } = await listNotices(requestedTopic, { page: targetPage, size })
-      if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
+      if (!loadRequestTracker.isCurrent(token)) return
       const nextItems = Array.isArray(data) ? data : []
       hasNext.value = nextItems.length >= size
       if (append && nextItems.length === 0) return
       page.value = targetPage
       items.value = append ? [...items.value, ...nextItems] : nextItems
     } catch (e) {
-      if (!isCurrentRequest(loadRequestTracker, token, viewScope)) return
+      if (!loadRequestTracker.isCurrent(token)) return
       if (append) pageError.value = e?.message || '加载更多失败'
       else error.value = e?.message || '加载通知失败'
     } finally {
-      if (isCurrentRequest(loadRequestTracker, token, viewScope)) {
+      if (loadRequestTracker.isCurrent(token)) {
         loading.value = false
         loadingMore.value = false
       }
@@ -171,22 +167,21 @@ export function useNoticeTopicFeedState({ topic }) {
   async function markAllRead() {
     if (loading.value || markingRead.value || !hasUnread.value) return
     const token = markReadRequestTracker.begin()
-    const viewScope = currentViewScope()
     error.value = ''
     markingRead.value = true
     try {
       const ids = normalizeOpaqueIds(items.value.filter((n) => !isNoticeRead(n)).map((x) => x?.id))
       await markRead(ids)
-      if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
+      if (!markReadRequestTracker.isCurrent(token)) return
       const readIds = new Set(ids)
       items.value = items.value.map((n) => (readIds.has(normalizeOpaqueId(n?.id)) ? { ...n, status: 1 } : n))
       // 已读操作后刷新壳层未读角标（不依赖轮询）。
       void inboxUnread.refresh()
     } catch (e) {
-      if (!isCurrentRequest(markReadRequestTracker, token, viewScope)) return
+      if (!markReadRequestTracker.isCurrent(token)) return
       error.value = e?.message || '标记已读失败'
     } finally {
-      if (isCurrentRequest(markReadRequestTracker, token, viewScope)) {
+      if (markReadRequestTracker.isCurrent(token)) {
         markingRead.value = false
       }
     }
@@ -206,7 +201,7 @@ export function useNoticeTopicFeedState({ topic }) {
     if (auth.authed && topic.value) load(false, 0)
   }
 
-  watch(currentViewScope, resetForViewScope)
+  watch(() => `${identityScope(auth)}:${topic.value}`, resetForViewScope)
   onMounted(() => {
     if (auth.authed && topic.value) load(false, 0)
   })

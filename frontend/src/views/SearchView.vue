@@ -192,6 +192,7 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import { formatTimeAgo } from '../utils/time'
+import { escapeHtml } from '../components/ui/markdown'
 import { describeSearchActivity } from './searchResultSurface'
 import { normalizeSearchTag, useSearchPageState } from './search/useSearchPageState'
 
@@ -222,15 +223,6 @@ const {
 const normalizeTag = normalizeSearchTag
 
 // 高亮内容安全渲染：默认转义所有标签，仅放行 <em> 与 </em>。
-function escapeHtml(text) {
-  return String(text || '')
-    .replace(/&/g, '&amp;')
-    .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#39;')
-}
-
 function emOnlyHtml(text) {
   const escaped = escapeHtml(text)
   return escaped.replace(/&lt;\/?em&gt;/g, (m) => (m === '&lt;em&gt;' ? '<em>' : '</em>'))

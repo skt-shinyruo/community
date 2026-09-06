@@ -1,6 +1,6 @@
 export const runId = process.env.SINGLE_TEST_RUN_ID || new Date().toISOString().replace(/[-:.TZ]/g, '').slice(0, 14)
 
-export function uniqueName(prefix: string): string {
+function uniqueName(prefix: string): string {
   return `${prefix} ${runId}`
 }
 

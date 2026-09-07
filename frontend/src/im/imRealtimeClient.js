@@ -111,6 +111,9 @@ export class ImRealtimeClient {
     this.accessToken = ''
     this.connectAttempt += 1
     this._clearReconnect()
+    // A fresh login should start from the base backoff delay, not inherit a
+    // streak accumulated before logout/token rotation.
+    this.reconnectAttempts = 0
     const socket = this.ws
     this.ws = null
     try {
@@ -192,7 +195,6 @@ export class ImRealtimeClient {
       this.state.authed = false
       this.state.userId = ''
       this.state.sessionId = ''
-      this.reconnectAttempts = 0
       this._emitStateChanged()
       if (!isCurrentSocket()) return
       try {
@@ -215,6 +217,9 @@ export class ImRealtimeClient {
       if (type === 'connected') {
         this.state.authed = true
         this.state.sessionId = String(msg?.sessionId || '').trim()
+        // Transport open is not authentication: only a valid connected frame
+        // proves the session was accepted, so the backoff counter resets here.
+        this.reconnectAttempts = 0
         this._emitStateChanged()
       } else if (type === 'reject' && String(msg?.cmd || '') === 'connect') {
         this.state.authed = false

@@ -560,4 +560,187 @@ describe('imRealtimeClient URL resolution', () => {
     expect(sent[2]).toMatchObject({ type: 'connect', ticket: 'ticket-3' })
     expect(imCoreHttp.post).toHaveBeenCalledTimes(3)
   })
+
+  describe('reconnect backoff', () => {
+    beforeEach(() => {
+      vi.useFakeTimers()
+      // Pin jitter to 0 so delays are exactly 500 * 2^attempts (capped at 5000).
+      vi.spyOn(Math, 'random').mockReturnValue(0)
+    })
+
+    afterEach(() => {
+      vi.useRealTimers()
+    })
+
+    function mockSession(imCoreHttp, ticket = 'ticket-1') {
+      imCoreHttp.post.mockResolvedValue({
+        data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket } }
+      })
+    }
+
+    function openThenClose(socket) {
+      socket.readyState = FakeWebSocket.OPEN
+      socket.onopen?.()
+      socket.readyState = 3
+      socket.onclose?.()
+    }
+
+    it('does not reset the reconnect counter on websocket open alone', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(1)
+
+      // First unauthenticated open/close cycle schedules a ~500ms reconnect.
+      openThenClose(FakeWebSocket.instances[0])
+      await vi.advanceTimersByTimeAsync(499)
+      expect(FakeWebSocket.instances).toHaveLength(1)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(2)
+
+      // Second cycle: open must NOT have zeroed the counter, so the next
+      // reconnect waits ~1000ms instead of dropping back to ~500ms.
+      openThenClose(FakeWebSocket.instances[1])
+      await vi.advanceTimersByTimeAsync(500)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(2)
+      await vi.advanceTimersByTimeAsync(500)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(3)
+    })
+
+    it('keeps increasing the delay while connections close before the connected frame', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(1)
+
+      // Backoff ladder with jitter=0: 500, 1000, 2000, 4000.
+      const delays = [500, 1000, 2000, 4000]
+      for (let index = 0; index < delays.length; index += 1) {
+        openThenClose(FakeWebSocket.instances[index])
+        await vi.advanceTimersByTimeAsync(delays[index] - 1)
+        await flushMicrotasks()
+        expect(FakeWebSocket.instances).toHaveLength(index + 1)
+        await vi.advanceTimersByTimeAsync(1)
+        await flushMicrotasks()
+        expect(FakeWebSocket.instances).toHaveLength(index + 2)
+      }
+    })
+
+    it('resets the reconnect counter after a valid connected frame', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+
+      // Two unauthenticated cycles escalate the counter (delays 500, 1000).
+      openThenClose(FakeWebSocket.instances[0])
+      await vi.advanceTimersByTimeAsync(500)
+      await flushMicrotasks()
+      openThenClose(FakeWebSocket.instances[1])
+      await vi.advanceTimersByTimeAsync(1000)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(3)
+
+      // This socket authenticates, then drops: the next reconnect must be
+      // back at the ~500ms base delay.
+      const authedSocket = FakeWebSocket.instances[2]
+      authedSocket.readyState = FakeWebSocket.OPEN
+      authedSocket.onopen?.()
+      authedSocket.onmessage?.({
+        data: JSON.stringify({ type: 'connected', sessionId: 'sess-1', schemaVersion: 1 })
+      })
+      expect(imRealtimeClient.state.authed).toBe(true)
+      authedSocket.readyState = 3
+      authedSocket.onclose?.()
+
+      await vi.advanceTimersByTimeAsync(499)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(3)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(4)
+    })
+
+    it('caps the backoff delay at 5000ms', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+
+      // Drive the counter past the 2^4 exponent cap: 500, 1000, 2000, 4000,
+      // then every further delay must stay at 5000.
+      const delays = [500, 1000, 2000, 4000, 5000]
+      for (let index = 0; index < delays.length; index += 1) {
+        openThenClose(FakeWebSocket.instances[index])
+        await vi.advanceTimersByTimeAsync(delays[index])
+        await flushMicrotasks()
+        expect(FakeWebSocket.instances).toHaveLength(index + 2)
+      }
+
+      // One more failure: delay must still be capped, not 8000.
+      openThenClose(FakeWebSocket.instances[5])
+      await vi.advanceTimersByTimeAsync(4999)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(6)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(7)
+    })
+
+    it('cancels a pending reconnect on manual disconnect', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+      openThenClose(FakeWebSocket.instances[0])
+
+      imRealtimeClient.disconnect()
+      await vi.advanceTimersByTimeAsync(10000)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(1)
+    })
+
+    it('starts a fresh login at the base delay after an unauthenticated streak', async () => {
+      const { imRealtimeClient, imCoreHttp } = await loadClient()
+      mockSession(imCoreHttp)
+
+      await imRealtimeClient.connect('token-1')
+      await flushMicrotasks()
+
+      // Accumulate backoff while unauthenticated (delays 500, 1000).
+      openThenClose(FakeWebSocket.instances[0])
+      await vi.advanceTimersByTimeAsync(500)
+      await flushMicrotasks()
+      openThenClose(FakeWebSocket.instances[1])
+      await vi.advanceTimersByTimeAsync(1000)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(3)
+
+      // Logout + re-login (App.vue drives disconnect/connect on token change):
+      // the first reconnect after the new session drops must be ~500ms again.
+      openThenClose(FakeWebSocket.instances[2])
+      imRealtimeClient.disconnect()
+      await imRealtimeClient.connect('token-2')
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(4)
+
+      openThenClose(FakeWebSocket.instances[3])
+      await vi.advanceTimersByTimeAsync(499)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(4)
+      await vi.advanceTimersByTimeAsync(1)
+      await flushMicrotasks()
+      expect(FakeWebSocket.instances).toHaveLength(5)
+    })
+  })
 })

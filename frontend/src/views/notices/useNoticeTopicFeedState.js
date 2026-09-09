@@ -36,19 +36,19 @@ const FALLBACK_TOPIC_POLICY = Object.freeze({
 })
 
 const NOTICE_TYPE_PRESENTATION = Object.freeze({
-  COMMENT_CREATED: {
+  CommentCreated: {
     title: '有人回复了你的内容',
     body: '有人在帖子或评论线程里与你互动，可以返回原帖继续阅读上下文。'
   },
-  LIKE_CREATED: {
+  LikeCreated: {
     title: '你的内容收到了新的点赞',
     body: '这说明你的内容正在被更多人看见，也适合回到原帖继续跟进讨论。'
   },
-  FOLLOW_CREATED: {
+  FollowCreated: {
     title: '你收到了新的关注',
     body: '新的关注通常意味着有人开始留意你的公开发言和动态。'
   },
-  MODERATION_ACTION_APPLIED: {
+  ModerationActionApplied: {
     title: '治理状态有更新',
     body: '如果这条通知涉及帖子或内容治理，建议回到相关页面查看更完整的结果。'
   }
@@ -63,7 +63,7 @@ export function describeNoticeContent(notice) {
   const type = String(raw?.type || '')
   const known = NOTICE_TYPE_PRESENTATION[type]
   if (known) return known
-  return { title: '查看这条通知', body: `通知：${type || 'unknown'}` }
+  return { title: '查看这条通知', body: '这条通知的详细内容暂时无法展示，稍后可以再回来看看。' }
 }
 
 export function noticePostId(notice) {
@@ -72,7 +72,7 @@ export function noticePostId(notice) {
   const payload = raw?.payload || {}
   const pid = normalizeOpaqueId(payload?.postId)
   if (pid) return pid
-  if (type === 'MODERATION_ACTION_APPLIED' && Number(payload?.targetType || 0) === 1) {
+  if (type === 'ModerationActionApplied' && Number(payload?.targetType || 0) === 1) {
     return normalizeOpaqueId(payload?.targetId)
   }
   return ''

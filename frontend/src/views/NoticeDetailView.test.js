@@ -27,7 +27,7 @@ import { useInboxUnreadStore } from '../stores/inboxUnread'
 
 const mountedWrappers = []
 
-function notice(index, { status = 0, type = 'COMMENT_CREATED', payload = {} } = {}) {
+function notice(index, { status = 0, type = 'CommentCreated', payload = {} } = {}) {
   return {
     id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
     status,
@@ -85,7 +85,7 @@ describe('NoticeDetailView', () => {
     listNotices.mockResolvedValue({
       data: [
         notice(0),
-        notice(1, { type: 'LIKE_CREATED' })
+        notice(1, { type: 'LikeCreated' })
       ],
       traceId: 'trace-notices'
     })
@@ -157,7 +157,7 @@ describe('NoticeDetailView', () => {
     const firstPage = Array.from({ length: 10 }, (_, index) => notice(index))
     listNotices
       .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
-      .mockResolvedValueOnce({ data: [notice(10, { type: 'FOLLOW_CREATED' })], traceId: 'trace-page-1' })
+      .mockResolvedValueOnce({ data: [notice(10, { type: 'FollowCreated' })], traceId: 'trace-page-1' })
 
     const wrapper = mountNoticeDetailView()
     await flushPromises()
@@ -177,7 +177,7 @@ describe('NoticeDetailView', () => {
     listNotices
       .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
       .mockRejectedValueOnce(new Error('temporary notice failure'))
-      .mockResolvedValueOnce({ data: [notice(10, { type: 'FOLLOW_CREATED' })], traceId: 'trace-page-1' })
+      .mockResolvedValueOnce({ data: [notice(10, { type: 'FollowCreated' })], traceId: 'trace-page-1' })
 
     const wrapper = mountNoticeDetailView()
     await flushPromises()
@@ -199,7 +199,7 @@ describe('NoticeDetailView', () => {
     listNotices.mockResolvedValueOnce({
       data: [
         notice(0),
-        notice(1, { status: 1, type: 'LIKE_CREATED' })
+        notice(1, { status: 1, type: 'LikeCreated' })
       ],
       traceId: 'trace-mixed'
     })
@@ -274,7 +274,7 @@ describe('NoticeDetailView', () => {
     expect(listNotices).toHaveBeenNthCalledWith(2, 'like', { page: 0, size: 10 })
 
     resolveLike({
-      data: [notice(2, { type: 'LIKE_CREATED' })],
+      data: [notice(2, { type: 'LikeCreated' })],
       traceId: 'trace-like'
     })
     await flushPromises()
@@ -292,7 +292,7 @@ describe('NoticeDetailView', () => {
     let resolveOldMarkRead
     listNotices
       .mockResolvedValueOnce({ data: [notice(0)], traceId: 'trace-user-a' })
-      .mockResolvedValueOnce({ data: [notice(1, { type: 'FOLLOW_CREATED' })], traceId: 'trace-user-b' })
+      .mockResolvedValueOnce({ data: [notice(1, { type: 'FollowCreated' })], traceId: 'trace-user-b' })
     markRead.mockImplementationOnce(() => new Promise((resolve) => { resolveOldMarkRead = resolve }))
 
     const wrapper = mountNoticeDetailView()
@@ -324,13 +324,13 @@ describe('NoticeDetailView', () => {
         {
           id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
           status: 0,
-          content: JSON.stringify({ type: 'COMMENT_CREATED', payload: {} }),
+          content: JSON.stringify({ type: 'CommentCreated', payload: {} }),
           createTime: 1774060182920
         },
         {
           id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
           status: 0,
-          content: JSON.stringify({ type: 'LIKE_CREATED', payload: {} }),
+          content: JSON.stringify({ type: 'LikeCreated', payload: {} }),
           createTime: 1774060182921
         }
       ],

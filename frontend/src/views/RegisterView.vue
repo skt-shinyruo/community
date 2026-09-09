@@ -283,6 +283,8 @@ async function onVerifyCode() {
       return
     }
     error.value = resolved.message || '验证失败'
+  } finally {
+    loading.value = false
   }
 }
 

@@ -224,4 +224,87 @@ describe('RegisterView', () => {
     expect(auth.accessToken).toBe('new-token')
     expect(auth.me).toBeNull()
   })
+
+  it('re-enables the verify and resend buttons after a wrong verification code so the user can retry', async () => {
+    window.localStorage.setItem('community.register.pending', JSON.stringify({
+      registrationToken: 'reg-token',
+      emailCodeIssued: true,
+      maskedEmail: 'b***b@example.com'
+    }))
+    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCode.mockRejectedValueOnce(backendError(10009, '注册验证码不正确'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('000000')
+    await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('注册验证码不正确')
+    expect(wrapper.get('.verify-main .auth-submit-btn').element.disabled).toBe(false)
+    expect(wrapper.get('.verify-resend button.btn').element.disabled).toBe(false)
+
+    verifyRegisterCode.mockResolvedValueOnce({
+      data: { accessToken: 'new-token' },
+      traceId: 'trace-verify'
+    })
+    ensureSessionReady.mockResolvedValueOnce({ state: 'ready' })
+
+    await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('123456')
+    await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(verifyRegisterCode).toHaveBeenLastCalledWith('reg-token', '123456')
+    expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts' })
+  })
+
+  it('re-enables the register button after the registration context is invalidated and the flow resets to the form step', async () => {
+    window.localStorage.setItem('community.register.pending', JSON.stringify({
+      registrationToken: 'reg-token',
+      emailCodeIssued: true,
+      maskedEmail: 'b***b@example.com'
+    }))
+    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCode.mockRejectedValueOnce(backendError(10013, '注册上下文已失效'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('123456')
+    await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('注册上下文已失效，请重新注册')
+    expect(wrapper.find('.verify-main').exists()).toBe(false)
+    expect(wrapper.get('button.auth-submit-btn').element.disabled).toBe(false)
+    expect(window.localStorage.getItem('community.register.pending')).toBeNull()
+  })
+
+  it('re-enables the verify and resend buttons when session restore reports anonymous', async () => {
+    window.localStorage.setItem('community.register.pending', JSON.stringify({
+      registrationToken: 'reg-token',
+      emailCodeIssued: true,
+      maskedEmail: 'b***b@example.com'
+    }))
+    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCode.mockResolvedValueOnce({
+      data: { accessToken: 'new-token' },
+      traceId: 'trace-verify'
+    })
+    ensureSessionReady.mockResolvedValueOnce({ state: 'anonymous' })
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('123456')
+    await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('登录状态已失效，请重新登录')
+    expect(wrapper.get('.verify-main .auth-submit-btn').element.disabled).toBe(false)
+    expect(wrapper.get('.verify-resend button.btn').element.disabled).toBe(false)
+    expect(useAuthStore().accessToken).toBe('')
+    expect(routerState.replace).not.toHaveBeenCalled()
+  })
 })

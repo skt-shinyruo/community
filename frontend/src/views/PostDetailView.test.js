@@ -1,20 +1,21 @@
 // @vitest-environment jsdom
 
-import { defineComponent } from 'vue'
+import { defineComponent, nextTick, reactive } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../stores/auth'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { usePostDetailLoader } from './post-detail/usePostDetailLoader'
 
-const routeState = vi.hoisted(() => ({
+const routeState = reactive({
   params: { postId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa' },
   query: {},
   hash: ''
-}))
+})
+const mountedWrappers = []
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
@@ -67,6 +68,7 @@ vi.mock('../utils/readTracker', () => ({
 }))
 
 import { addComment, getPostDetail, listComments, listReplies } from '../api/services/postService'
+import { getUserProfile } from '../api/services/userService'
 import { getFollowStatus, setLike } from '../api/services/socialService'
 import { markPostRead } from '../utils/readTracker'
 import PostDetailView from './PostDetailView.vue'
@@ -118,11 +120,13 @@ describe('PostDetailView', () => {
       }
     })
 
-    return mount(harness, {
+    const wrapper = mount(harness, {
       global: {
         plugins: [pinia]
       }
     })
+    mountedWrappers.push(wrapper)
+    return wrapper
   }
 
   function mountView() {
@@ -140,7 +144,7 @@ describe('PostDetailView', () => {
     postMetaCache.ensureLikeCounts = vi.fn().mockResolvedValue({})
     postMetaCache.ensureLikeStatuses = vi.fn().mockResolvedValue({})
 
-    return mount(PostDetailView, {
+    const wrapper = mount(PostDetailView, {
       global: {
         plugins: [pinia],
         stubs: {
@@ -149,7 +153,13 @@ describe('PostDetailView', () => {
         }
       }
     })
+    mountedWrappers.push(wrapper)
+    return wrapper
   }
+
+  afterEach(() => {
+    while (mountedWrappers.length) mountedWrappers.pop().unmount()
+  })
 
   beforeEach(() => {
     vi.clearAllMocks()
@@ -260,6 +270,53 @@ describe('PostDetailView', () => {
     expect(wrapper.vm.page.post?.title).toBe('account B detail')
     expect(wrapper.vm.page.post?.liked).toBe(false)
     expect(wrapper.vm.page.post?.bookmarked).toBe(false)
+  })
+
+  it('keeps the current post author when the previous post author profile arrives late', async () => {
+    const postB = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    const staleAuthor = deferred()
+    getPostDetail
+      .mockResolvedValueOnce({
+        data: {
+          id: routeState.params.postId,
+          userId: 'author-a',
+          title: 'post A detail',
+          blocks: [],
+          commentCount: 0
+        },
+        traceId: 'trace-detail-a'
+      })
+      .mockResolvedValueOnce({
+        data: {
+          id: postB,
+          userId: 'author-b',
+          title: 'post B detail',
+          blocks: [],
+          commentCount: 0
+        },
+        traceId: 'trace-detail-b'
+      })
+    getUserProfile
+      .mockReturnValueOnce(staleAuthor.promise)
+      .mockResolvedValueOnce({ userId: 'author-b', username: 'author-b-name' })
+
+    const wrapper = mountLoader()
+    await vi.waitFor(() => expect(getUserProfile).toHaveBeenCalledTimes(1))
+    expect(getUserProfile).toHaveBeenNthCalledWith(1, 'author-a')
+
+    routeState.params.postId = postB
+    await nextTick()
+    await vi.waitFor(() => expect(getUserProfile).toHaveBeenCalledTimes(2))
+    await flushPromises()
+
+    expect(wrapper.vm.page.post?.title).toBe('post B detail')
+    expect(wrapper.vm.page.postAuthor?.username).toBe('author-b-name')
+
+    staleAuthor.resolve({ userId: 'author-a', username: 'author-a-name' })
+    await flushPromises()
+
+    expect(wrapper.vm.page.post?.title).toBe('post B detail')
+    expect(wrapper.vm.page.postAuthor?.username).toBe('author-b-name')
   })
 
   it('keeps comment drafts isolated between accounts', async () => {

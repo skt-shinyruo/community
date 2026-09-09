@@ -58,8 +58,9 @@ export function usePostDetailLoader() {
       actions.applyPostLikeOverlay()
 
       if (post.value?.userId) {
-        postAuthor.value = await getUserProfile(post.value.userId).catch(() => null)
+        const author = await getUserProfile(post.value.userId).catch(() => null)
         if (!postRequestTracker.isCurrent(token)) return
+        postAuthor.value = author
       } else {
         postAuthor.value = null
       }

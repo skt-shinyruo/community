@@ -28,7 +28,8 @@ const {
     accessToken: '',
     userId: 0,
     authed: false,
-    tokenGeneration: 0
+    identityEpoch: 0,
+    identityUserId: ''
   },
   authStoreHolder: { current: null },
   blockUser: vi.fn(),
@@ -148,7 +149,8 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = ''
     authState.userId = 0
     authState.authed = false
-    authState.tokenGeneration = 0
+    authState.identityEpoch = 0
+    authState.identityUserId = ''
     socialPrefsState.blockedSet = new Set()
     ensureUserSummaries.mockResolvedValue({})
     getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
@@ -230,7 +232,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'viewer-token'
     authState.userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     authState.authed = true
-    authState.tokenGeneration = 1
+    authState.identityUserId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(okResult({ id: userId, username: 'alice' }))
@@ -380,7 +382,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'viewer-token'
     authState.userId = viewerId
     authState.authed = true
-    authState.tokenGeneration = 1
+    authState.identityUserId = viewerId
 
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${previousUserId}`) return previousProfileRequest.promise
@@ -435,7 +437,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'previous-token'
     authState.userId = previousViewerId
     authState.authed = true
-    authState.tokenGeneration = 1
+    authState.identityUserId = previousViewerId
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${profileUserId}`) {
         return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }, 'trace-profile'))
@@ -454,7 +456,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'current-token'
     authState.userId = currentViewerId
     authState.authed = true
-    authState.tokenGeneration = 2
+    authState.identityUserId = currentViewerId
     await flushPromises()
     expect(wrapper.vm.model.followStatus).toBe(true)
 
@@ -471,7 +473,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'viewer-token'
     authState.userId = viewerId
     authState.authed = true
-    authState.tokenGeneration = 1
+    authState.identityUserId = viewerId
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${previousUserId}`) {
         return Promise.resolve(okResult({ id: previousUserId, username: 'previous profile' }, 'trace-previous-profile'))
@@ -518,7 +520,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'previous-token'
     authState.userId = previousViewerId
     authState.authed = true
-    authState.tokenGeneration = 1
+    authState.identityUserId = previousViewerId
     http.get.mockImplementation((url) => {
       if (url === `/api/users/${profileUserId}`) {
         return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }))
@@ -537,7 +539,7 @@ describe('UserProfileView route contract', () => {
     authState.accessToken = 'current-token'
     authState.userId = currentViewerId
     authState.authed = true
-    authState.tokenGeneration = 2
+    authState.identityUserId = currentViewerId
     await flushPromises()
     expect(socialPrefsState.ensureBlocked).toHaveBeenCalledTimes(blockedLoadsBeforeSwitch + 1)
 

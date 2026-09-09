@@ -140,7 +140,7 @@ import {
   updateMarketAddress
 } from '../../api/services/marketService'
 import { useAuthStore } from '../../stores/auth'
-import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { identityScope } from '../../stores/identityScope'
 import { buildMarketState } from '../marketState'
 
 const auth = useAuthStore()
@@ -156,11 +156,7 @@ let requestGeneration = 0
 let actionGeneration = 0
 
 const state = computed(() => buildMarketState({ addresses: addresses.value }))
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 
 function isCurrentRequest(generation, scope) {
   return generation === requestGeneration && scope === sessionScope.value

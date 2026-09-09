@@ -182,7 +182,9 @@ describe('UserManagementView', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('角色已更新')
-    expect(wrapper.text()).not.toContain('alice@example.com')
+    expect(wrapper.text()).toContain('当前角色：USER')
+    // 同一账号的权限变化不是身份切换：视图状态保留，逾期响应仍被 isAdmin 复核拦截。
+    expect(wrapper.text()).toContain('alice@example.com')
     expect(showToast).not.toHaveBeenCalled()
   })
 })

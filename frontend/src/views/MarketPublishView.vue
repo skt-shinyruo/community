@@ -87,8 +87,8 @@ import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { createMarketListing } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
-import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const DEFAULT_MESSAGE = '发布后可从“我的出售”继续管理库存和订单。'
 const GOODS_TYPE_OPTIONS = Object.freeze([
@@ -114,11 +114,7 @@ const goodsTypeOptions = GOODS_TYPE_OPTIONS
 const deliveryModeOptions = DELIVERY_MODE_OPTIONS
 
 const isVirtual = computed(() => form.value.goodsType === 'VIRTUAL')
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const submitTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 function emptyListingForm() {

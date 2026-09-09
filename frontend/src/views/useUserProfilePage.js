@@ -3,6 +3,7 @@ import { blockUser, unblockUser } from '../api/services/blockService'
 import { followUser, getFollowStatus, unfollowUser } from '../api/services/socialService'
 import { getUserProfile, listUserRecentComments, listUserRecentPosts } from '../api/services/userService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
@@ -82,11 +83,7 @@ export function useUserProfilePage({ userId: userIdSource }) {
   const meUserId = computed(() => normalizeOpaqueId(auth.userId))
   const isSelfProfile = computed(() => sameOpaqueId(meUserId.value, userId.value))
   const isBlocked = computed(() => prefs.blockedSet.has(userId.value))
-  const authScope = computed(() => [
-    auth.tokenGeneration,
-    meUserId.value,
-    authed.value ? 'authenticated' : 'anonymous'
-  ].join(':'))
+  const authScope = computed(() => identityScope(auth))
   const viewScope = computed(() => `${userId.value}:${authScope.value}`)
 
   const joinedYear = computed(() => {

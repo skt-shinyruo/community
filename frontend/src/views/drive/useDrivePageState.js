@@ -1,9 +1,9 @@
 // @ts-check
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { showToast } from '../../ui/toastService'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
-import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { useDriveConfirmation } from './useDriveConfirmation'
 import { useDriveEntryWorkflow } from './useDriveEntryWorkflow'
 import { useDriveShareWorkflow } from './useDriveShareWorkflow'
@@ -21,9 +21,8 @@ export function useDrivePageState() {
   const isBusy = computed(() => loading.value || busyAction.value !== '')
 
   const session = {
-    capture: () => ({ tokenGeneration: auth.tokenGeneration, userId: normalizeOpaqueId(auth.userId) }),
-    isCurrent: (scope) => auth.authed && auth.tokenGeneration === scope.tokenGeneration &&
-      normalizeOpaqueId(auth.userId) === scope.userId
+    capture: () => identityScope(auth),
+    isCurrent: (scope) => auth.authed && scope === identityScope(auth)
   }
   const isCurrent = (tracker, token, scope) => tracker.isCurrent(token) && session.isCurrent(scope)
   // 反馈渠道（规范 6.3）：结果可见的动作静默更新；结果不可见（复制链接、上传完成 / 取消）走 toast；
@@ -148,11 +147,11 @@ export function useDrivePageState() {
   }
 
   watch(
-    () => [auth.tokenGeneration, normalizeOpaqueId(auth.userId), auth.authed],
-    ([, userId, authed], previous = []) => {
+    () => identityScope(auth),
+    (scope, previous) => {
       invalidateRequests()
-      if (!previous.length || userId !== previous[1]) resetOwnerState()
-      if (authed) reload()
+      if (!previous || scope !== previous) resetOwnerState()
+      if (auth.authed) reload()
       else resetOwnerState()
     },
     { immediate: true }

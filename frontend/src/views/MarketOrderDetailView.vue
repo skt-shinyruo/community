@@ -213,6 +213,7 @@ import {
   shipMarketOrder
 } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import {
   buildMarketState,
@@ -292,9 +293,7 @@ const backTarget = computed(() => (isSeller.value && !isBuyer.value)
   : { name: 'marketBuyingOrders', label: '返回我的购买' })
 const viewScope = computed(() => [
   normalizeOpaqueId(route.params.orderId),
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
+  identityScope(auth)
 ].join(':'))
 const addressSnapshot = computed(() => {
   const parts = [

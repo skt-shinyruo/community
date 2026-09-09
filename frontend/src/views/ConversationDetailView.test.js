@@ -1210,4 +1210,33 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).not.toContain('旧身份历史消息')
     expect(markImConversationRead).not.toHaveBeenCalled()
   })
+
+  it('keeps draft, messages, and scroll position across access token rotation', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    const chatArea = wrapper.get('.chat-area').element
+    Object.defineProperty(chatArea, 'scrollHeight', { configurable: true, value: 640 })
+    await flushPromises()
+
+    expect(wrapper.findAll('.message-row')).toHaveLength(2)
+    expect(chatArea.scrollTop).toBe(640)
+
+    // 用户向上滚动并输入草稿，随后后台请求触发 401 静默刷新（token 轮换）。
+    chatArea.scrollTop = 200
+    await wrapper.get('textarea').setValue('输入到一半的草稿')
+
+    const auth = useAuthStore()
+    auth.installSession({ accessToken: 'rotated-token', me: null })
+    await flushPromises()
+    auth.setMe({ userId: '11111111-1111-7111-8111-111111111111', username: 'me', authorities: [] })
+    await flushPromises()
+
+    expect(wrapper.get('textarea').element.value).toBe('输入到一半的草稿')
+    expect(wrapper.findAll('.message-row')).toHaveLength(2)
+    expect(wrapper.text()).toContain('第一条消息')
+    expect(wrapper.text()).toContain('第二条消息')
+    expect(chatArea.scrollTop).toBe(200)
+    // 轮换不触发消息历史的重载。
+    expect(listImConversationHistory).toHaveBeenCalledTimes(1)
+  })
 })

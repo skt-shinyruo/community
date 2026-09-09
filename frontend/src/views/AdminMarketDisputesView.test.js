@@ -159,6 +159,9 @@ describe('AdminMarketDisputesView', () => {
     await flushPromises()
 
     expect(listAdminMarketDisputes).toHaveBeenCalledTimes(1)
-    expect(wrapper.findAll('.market-admin-row')).toHaveLength(0)
+    // 同一账号权限回收不再重置视图：已加载的行保留（身份未切换），
+    // 迟到的裁定响应经实时 isAdmin 校验丢弃，不会触发提交后的重载。
+    expect(wrapper.findAll('.market-admin-row')).toHaveLength(1)
+    expect(wrapper.text()).toContain('货不对板')
   })
 })

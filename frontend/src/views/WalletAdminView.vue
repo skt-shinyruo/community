@@ -60,6 +60,7 @@ import UiCard from '../components/ui/UiCard.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 
@@ -68,11 +69,7 @@ const error = ref('')
 const submittingKey = ref('')
 const actions = ref([])
 
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 const freezeForm = ref({

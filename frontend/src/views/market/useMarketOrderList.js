@@ -1,5 +1,5 @@
 import { computed, onBeforeUnmount, ref, toValue, watch } from 'vue'
-import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { identityScope } from '../../stores/identityScope'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { buildMarketState, mergeMarketPage } from '../marketState'
 
@@ -26,9 +26,7 @@ export function useMarketOrderList({
   const state = computed(() => buildMarketState({ orders: orders.value }))
   const sessionScope = computed(() => [
     toValue(side) || '',
-    auth.tokenGeneration,
-    normalizeOpaqueId(auth.userId),
-    auth.authed ? 'authenticated' : 'anonymous'
+    identityScope(auth)
   ].join(':'))
 
   const requestTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })

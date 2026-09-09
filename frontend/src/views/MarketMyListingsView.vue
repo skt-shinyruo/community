@@ -91,7 +91,7 @@ import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMyMarketListings } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
-import { normalizeOpaqueId } from '../utils/opaqueId'
+import { identityScope } from '../stores/identityScope'
 import { buildMarketState, mergeMarketPage } from './marketState'
 
 const auth = useAuthStore()
@@ -106,11 +106,7 @@ const pageSize = 20
 let requestGeneration = 0
 
 const state = computed(() => buildMarketState({ listings: listings.value }))
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 
 function isCurrentRequest(generation, scope) {
   return generation === requestGeneration && scope === sessionScope.value

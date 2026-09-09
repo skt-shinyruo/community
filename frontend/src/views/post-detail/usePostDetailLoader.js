@@ -2,6 +2,7 @@
 import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
@@ -36,13 +37,13 @@ export function usePostDetailLoader() {
 
   function captureViewScope() {
     return {
-      authGeneration: auth.tokenGeneration,
+      authScope: identityScope(auth),
       postId: normalizeOpaqueId(postId.value)
     }
   }
 
   function isCurrentViewScope(scope) {
-    return scope?.authGeneration === auth.tokenGeneration
+    return scope?.authScope === identityScope(auth)
       && sameOpaqueId(scope?.postId, postId.value)
   }
 
@@ -131,7 +132,7 @@ export function usePostDetailLoader() {
   })
 
   watch(
-    () => auth.tokenGeneration,
+    () => identityScope(auth),
     () => {
       postRequestTracker.invalidate()
       discussion.resetForIdentity()

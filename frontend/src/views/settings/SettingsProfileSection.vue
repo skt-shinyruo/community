@@ -88,6 +88,7 @@
 <script setup>
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { me as apiMe } from '../../api/services/authService'
 import { invalidateUserProfile } from '../../api/services/userService'
 import http from '../../api/http'
@@ -114,11 +115,7 @@ const selectedPreviewUrl = ref('')
 let uploadGeneration = 0
 let uploadController = null
 
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 
 const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 

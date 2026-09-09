@@ -69,6 +69,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { blockUser, unblockUser } from '../../api/services/blockService'
 import { getUserProfile } from '../../api/services/userService'
@@ -108,18 +109,18 @@ let profileRequestId = 0
 let actionRequestId = 0
 let disposed = false
 
-function isCurrentScope(requestId, uid, authGeneration) {
+function isCurrentScope(requestId, uid, authScope) {
   return !disposed
     && requestId === profileRequestId
     && uid === resolvedUserId.value
-    && auth.tokenGeneration === authGeneration
+    && identityScope(auth) === authScope
 }
 
-function isCurrentAction(requestId, uid, authGeneration) {
+function isCurrentAction(requestId, uid, authScope) {
   return !disposed
     && requestId === actionRequestId
     && uid === resolvedUserId.value
-    && auth.tokenGeneration === authGeneration
+    && identityScope(auth) === authScope
 }
 
 function shouldFetchProfile(user) {
@@ -134,16 +135,16 @@ async function ensureProfile() {
   const uid = resolvedUserId.value
   if (!uid) return
   const requestId = ++profileRequestId
-  const authGeneration = auth.tokenGeneration
+  const authScope = identityScope(auth)
   if (profile.value && !shouldFetchProfile(profile.value)) return
   if (!shouldFetchProfile(props.user)) {
     // props already has a rich profile
-    if (isCurrentScope(requestId, uid, authGeneration)) profile.value = props.user
+    if (isCurrentScope(requestId, uid, authScope)) profile.value = props.user
     return
   }
 
   const nextProfile = await getUserProfile(uid).catch(() => null)
-  if (isCurrentScope(requestId, uid, authGeneration)) profile.value = nextProfile
+  if (isCurrentScope(requestId, uid, authScope)) profile.value = nextProfile
 }
 
 async function onEnter() {
@@ -171,7 +172,7 @@ watch(resolvedUserId, () => {
   reportOpen.value = false
 })
 
-watch(() => auth.tokenGeneration, () => {
+watch(() => identityScope(auth), () => {
   profileRequestId += 1
   actionRequestId += 1
   profile.value = null
@@ -190,25 +191,25 @@ function openReport() {
 async function toggleBlock() {
   if (!canInteract.value) return
   const targetId = resolvedUserId.value
-  const authGeneration = auth.tokenGeneration
+  const authScope = identityScope(auth)
   const requestId = ++actionRequestId
   actionLoading.value = true
   try {
     if (isBlocked.value) {
       await unblockUser(targetId)
-      if (!isCurrentAction(requestId, targetId, authGeneration)) return
+      if (!isCurrentAction(requestId, targetId, authScope)) return
       showToast({ type: 'success', text: '已解除屏蔽' })
     } else {
       await blockUser(targetId)
-      if (!isCurrentAction(requestId, targetId, authGeneration)) return
+      if (!isCurrentAction(requestId, targetId, authScope)) return
       showToast({ type: 'success', text: '已屏蔽该用户' })
     }
     await prefs.ensureBlocked(true)
   } catch (e) {
-    if (!isCurrentAction(requestId, targetId, authGeneration)) return
+    if (!isCurrentAction(requestId, targetId, authScope)) return
     showErrorToast(e, { type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
   } finally {
-    if (isCurrentAction(requestId, targetId, authGeneration)) actionLoading.value = false
+    if (isCurrentAction(requestId, targetId, authScope)) actionLoading.value = false
   }
 }
 

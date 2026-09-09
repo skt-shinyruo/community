@@ -42,6 +42,7 @@ import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
@@ -53,11 +54,7 @@ const submittingId = ref('')
 const disputes = ref([])
 
 const state = computed(() => buildMarketState({ disputes: disputes.value }))
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  [...auth.authorities].sort().join(',')
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const loadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 

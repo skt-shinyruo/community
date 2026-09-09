@@ -56,7 +56,9 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   let mounted = false
 
   const conversationId = computed(() => String(unref(conversationIdSource) || '').trim())
-  const meId = computed(() => normalizeOpaqueId(auth.userId))
+  // meId 取轮换期间也稳定的已解析身份：401 静默刷新的 me=null 窗口内
+  // 实时消息匹配、发送与已读回执不被打断。
+  const meId = computed(() => normalizeOpaqueId(auth.identityUserId))
   const targetId = computed(() => parseConversationTargetId(conversationId.value, meId.value))
   const realtimeReady = computed(() => realtimeState.value.authed === true)
   const realtimeStatusText = computed(() => {

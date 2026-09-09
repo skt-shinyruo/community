@@ -1,6 +1,7 @@
 import { computed, onMounted, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { listBoardFeed, listGlobalFeed, createPost as apiCreatePost, batchPostSummaries } from '../../api/services/postService'
 import { searchPosts as apiSearchPosts } from '../../api/services/searchService'
@@ -69,7 +70,7 @@ export function usePostsFeed() {
   const router = useRouter()
   const authed = computed(() => !!auth.accessToken)
   const me = computed(() => auth.me || {})
-  const readIdentityId = computed(() => normalizeOpaqueId(auth.userId) || 'anonymous')
+  const readIdentityId = computed(() => normalizeOpaqueId(auth.identityUserId) || 'anonymous')
   const postMetaCache = usePostMetaCacheStore()
 
   const routeQuery = computed(() => parsePostsRouteQuery(route.query))
@@ -590,14 +591,14 @@ export function usePostsFeed() {
 
   async function togglePostLike(p) {
     if (!authed.value || !p) return showToast({ type: 'warning', text: '请先登录' })
-    const authGeneration = auth.tokenGeneration
+    const authScope = identityScope(auth)
     try {
        const resp = await setLike({
         entityType: 1,
         entityId: p.id,
         liked: null
       })
-       if (auth.tokenGeneration !== authGeneration) return
+       if (identityScope(auth) !== authScope) return
        if (typeof resp?.data?.likeCount === 'number') {
          p.likeCount = resp.data.likeCount
          postMetaCache.setLikeCount(1, p.id, p.likeCount)
@@ -607,7 +608,7 @@ export function usePostsFeed() {
          postMetaCache.setLikeStatus(1, p.id, p.liked)
        }
     } catch (e) {
-      if (auth.tokenGeneration !== authGeneration) return
+      if (identityScope(auth) !== authScope) return
       showErrorToast(e, { type: 'error', text: e?.message || '点赞失败' }, showToast)
     }
   }
@@ -630,11 +631,11 @@ export function usePostsFeed() {
       return
     }
     creating.value = true
-    const authGeneration = auth.tokenGeneration
+    const authScope = identityScope(auth)
     const requestedIntent = createIntent(command)
     try {
       const resp = await apiCreatePost(command, { writeAttempt: createAttempt })
-      if (auth.tokenGeneration !== authGeneration || requestedIntent !== createIntent()) return
+      if (identityScope(auth) !== authScope || requestedIntent !== createIntent()) return
       const createdPostId = normalizeOpaqueId(resp?.data?.postId)
       createAttempt.succeed()
       const hasPostId = !!createdPostId
@@ -651,17 +652,17 @@ export function usePostsFeed() {
       isPublishFocused.value = false 
       await reload()
     } catch (e) {
-      if (auth.tokenGeneration !== authGeneration || requestedIntent !== createIntent()) return
+      if (identityScope(auth) !== authScope || requestedIntent !== createIntent()) return
       createError.value = e?.message || '发布失败'
     } finally {
-      if (auth.tokenGeneration === authGeneration) {
+      if (identityScope(auth) === authScope) {
         creating.value = false
       }
     }
   }
 
   watch(
-    () => auth.tokenGeneration,
+    () => identityScope(auth),
     () => {
       // Feed filtering and interaction overlays are identity-bound.
       lastLoadToken += 1

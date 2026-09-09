@@ -198,6 +198,7 @@ import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 
 const auth = useAuthStore()
 const tab = ref('reports')
@@ -223,11 +224,7 @@ let loadGeneration = 0
 let actionGeneration = 0
 
 const hasModerationAccess = computed(() => auth.authed && auth.isAdminOrModerator)
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  [...auth.authorities].sort().join(',')
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const viewScope = computed(() => [
   sessionScope.value,
   tab.value,

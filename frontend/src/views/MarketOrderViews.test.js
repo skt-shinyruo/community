@@ -51,7 +51,9 @@ vi.mock('../stores/auth', async () => {
       accessToken: 'token',
       authed: true,
       tokenGeneration: 1,
-      userId: '11111111-1111-7111-8111-111111111111'
+      userId: '11111111-1111-7111-8111-111111111111',
+      identityEpoch: 1,
+      identityUserId: '11111111-1111-7111-8111-111111111111'
     })
   }
   return { useAuthStore: () => authState.state }
@@ -843,7 +845,8 @@ function installIdentity(userId, accessToken) {
   authState.state.userId = userId
   authState.state.accessToken = accessToken
   authState.state.authed = !!accessToken
-  authState.state.tokenGeneration += 1
+  authState.state.identityEpoch += 1
+  authState.state.identityUserId = userId
 }
 
 function sellerManualOrder(orderId, title) {

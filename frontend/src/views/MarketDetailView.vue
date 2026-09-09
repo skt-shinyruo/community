@@ -110,6 +110,7 @@ import {
   listMarketAddresses
 } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState } from './marketState'
 import { createWriteAttempt } from '../api/writeAttempt'
@@ -141,11 +142,7 @@ const addressSelectOptions = computed(() => addressOptions.value.map((item) => (
   value: String(item.addressId),
   label: `${item.receiverName} · ${item.city} · ${item.detailAddress}`
 })))
-const authScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const authScope = computed(() => identityScope(auth))
 
 function resetAddressState() {
   addressSequence += 1

@@ -1,13 +1,27 @@
 import { defineStore } from 'pinia'
+import { normalizeOpaqueId } from '../utils/opaqueId'
 
 const SESSION_HINT_KEY = 'community.session.hint'
+
+// 已解析身份只在真实身份切换时推进 identityEpoch：access token 轮换（静默刷新）
+// 不属于身份切换，identityUserId 在轮换期间的 me=null 窗口内保持不变。
+function syncResolvedIdentity(auth, me) {
+  const resolvedId = normalizeOpaqueId(me?.userId)
+  if (!resolvedId) return
+  if (auth.identityUserId && auth.identityUserId !== resolvedId) {
+    auth.identityEpoch += 1
+  }
+  auth.identityUserId = resolvedId
+}
 
 export const useAuthStore = defineStore('auth', {
   state: () => ({
     accessToken: '',
     me: /** @type {null | { userId?: any, username?: string, authorities?: string[], [key: string]: any }} */ (null),
     identityState: 'anonymous',
-    tokenGeneration: 0
+    tokenGeneration: 0,
+    identityEpoch: 0,
+    identityUserId: ''
   }),
   getters: {
     authed: (s) => !!s.accessToken,
@@ -38,6 +52,7 @@ export const useAuthStore = defineStore('auth', {
         this.me = me || null
         this.identityState = this.me ? 'resolved' : 'unresolved'
       }
+      syncResolvedIdentity(this, this.me)
       try {
         globalThis.localStorage?.setItem(SESSION_HINT_KEY, '1')
       } catch {
@@ -47,6 +62,7 @@ export const useAuthStore = defineStore('auth', {
     setMe(me) {
       this.me = me || null
       this.identityState = this.accessToken && this.me ? 'resolved' : (this.accessToken ? 'unresolved' : 'anonymous')
+      syncResolvedIdentity(this, this.me)
     },
     clear() {
       const hadSession = !!this.accessToken || this.me !== null
@@ -55,6 +71,8 @@ export const useAuthStore = defineStore('auth', {
       this.identityState = 'anonymous'
       if (hadSession) {
         this.tokenGeneration += 1
+        this.identityEpoch += 1
+        this.identityUserId = ''
       }
       try {
         globalThis.localStorage?.removeItem(SESSION_HINT_KEY)

@@ -375,6 +375,41 @@ describe('ConversationsView', () => {
     expect(wrapper.find('[data-testid="load-more-conversations"]').exists()).toBe(false)
   })
 
+  it('keeps loaded rows, cursor, and pagination across access token rotation', async () => {
+    listImConversationPage
+      .mockResolvedValueOnce({
+        items: [{ conversationId: 'conv-a', otherUserId: '11111111-1111-7111-8111-111111111111', unreadCount: 0, lastMessage: null }],
+        nextCursor: 'cursor-2',
+        hasMore: true
+      })
+      .mockResolvedValueOnce({
+        items: [{ conversationId: 'conv-b', otherUserId: '22222222-2222-7222-8222-222222222222', unreadCount: 0, lastMessage: null }],
+        nextCursor: null,
+        hasMore: false
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.find('[data-testid="load-more-conversations"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('a')).toHaveLength(2)
+    expect(wrapper.text()).toContain('已经到底了')
+
+    const auth = useAuthStore()
+    // 静默刷新：先安装轮换 token（me 进入未解析窗口），再恢复同账号身份。
+    auth.installSession({ accessToken: 'rotated-token', me: null })
+    await flushPromises()
+    auth.setMe({ userId: '11111111-1111-7111-8111-111111111111', username: 'user-a', authorities: [] })
+    await flushPromises()
+
+    expect(wrapper.findAll('a')).toHaveLength(2)
+    expect(wrapper.findAll('a')[0].attributes('href')).toBe('/messages/conv-a')
+    expect(wrapper.findAll('a')[1].attributes('href')).toBe('/messages/conv-b')
+    expect(wrapper.text()).toContain('已经到底了')
+    // 轮换不触发回到第一页的全量重载。
+    expect(listImConversationPage).toHaveBeenCalledTimes(2)
+  })
+
   it('clears rows and ignores the previous identity response after account switching', async () => {
     let resolveUserA
     let resolveUserB

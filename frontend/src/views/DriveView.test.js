@@ -404,7 +404,7 @@ describe('DriveView', () => {
     expect(listDriveEntries).toHaveBeenLastCalledWith({ parentId: '' })
   })
 
-  it('does not let a previous auth generation overwrite the refreshed drive', async () => {
+  it('does not let a previous identity load overwrite the refreshed drive', async () => {
     const previousGenerationLoad = deferred()
     listDriveEntries
       .mockImplementationOnce(() => previousGenerationLoad.promise)
@@ -416,7 +416,10 @@ describe('DriveView', () => {
     const wrapper = mountDrive(pinia)
     await vi.waitFor(() => expect(listDriveEntries).toHaveBeenCalledTimes(1))
 
-    auth.installSession({ accessToken: 'access-rotated' })
+    auth.installSession({
+      accessToken: 'access-b',
+      me: { userId: 'user-b' }
+    })
     await flushPromises()
 
     expect(wrapper.text()).toContain('current-generation.txt')

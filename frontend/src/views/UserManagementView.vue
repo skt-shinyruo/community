@@ -98,6 +98,7 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { showErrorToast, showToast } from '../ui/toastService'
 
@@ -117,11 +118,7 @@ const reason = ref('')
 const confirmOpen = ref(false)
 let searchGeneration = 0
 let actionGeneration = 0
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  [...auth.authorities].sort().join(',')
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const roleOptions = [
   { label: 'USER（普通用户）', value: 0 },
   { label: 'MODERATOR（版主）', value: 2 },

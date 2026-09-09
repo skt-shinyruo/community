@@ -1,6 +1,7 @@
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import { listFollowees, listFollowers, followUser, unfollowUser } from '../../api/services/socialService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
@@ -50,12 +51,7 @@ export function useFollowRelationListState({ relationKind, profileUserId }) {
   let mutationGeneration = 0
   const activeMutations = new Map()
 
-  const viewScope = computed(() => [
-    userId.value,
-    auth.tokenGeneration,
-    meId.value,
-    authed.value ? 'authenticated' : 'anonymous'
-  ].join(':'))
+  const viewScope = computed(() => [userId.value, identityScope(auth)].join(':'))
   const requestTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 
   async function load({ append = false } = {}) {

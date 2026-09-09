@@ -2,6 +2,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRouter } from 'vue-router'
 import { listBookmarks } from '../api/services/bookmarkService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { normalizeOpaqueId } from '../utils/opaqueId'
@@ -23,11 +24,7 @@ export function useBookmarksFeed() {
   const hasNext = ref(true)
   let requestGeneration = 0
 
-  const sessionScope = computed(() => [
-    auth.tokenGeneration,
-    normalizeOpaqueId(auth.userId),
-    auth.authed ? 'authenticated' : 'anonymous'
-  ].join(':'))
+  const sessionScope = computed(() => identityScope(auth))
 
   function categoryLabel(id) {
     const cid = normalizeOpaqueId(id)

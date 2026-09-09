@@ -1,6 +1,7 @@
 // @ts-check
 import { computed, reactive, ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { identityScope } from '../../stores/identityScope'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
@@ -115,11 +116,11 @@ export function usePostDetailActions({
       return
     }
     const token = followStatusRequestTracker.begin()
-    const authGeneration = auth.tokenGeneration
+    const authScope = identityScope(auth)
     try {
       const resp = await getFollowStatus(3, expectedUserId, { force: true })
       if (!followStatusRequestTracker.isCurrent(token)) return
-      if (auth.tokenGeneration !== authGeneration) return
+      if (identityScope(auth) !== authScope) return
       if (!sameOpaqueId(post.value?.userId, expectedUserId)) return
       followStatus.value = resp?.data ?? null
     } catch {

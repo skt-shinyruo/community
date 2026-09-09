@@ -50,6 +50,7 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
 import UiButton from '../ui/UiButton.vue'
 import UiField from '../ui/UiField.vue'
 import UiModal from '../ui/UiModal.vue'
@@ -82,10 +83,10 @@ const error = ref('')
 let operationId = 0
 let disposed = false
 
-function isCurrentOperation(id, authGeneration, targetType, targetId) {
+function isCurrentOperation(id, authScope, targetType, targetId) {
   return !disposed
     && id === operationId
-    && auth.tokenGeneration === authGeneration
+    && identityScope(auth) === authScope
     && String(props.targetType || '') === targetType
     && normalizeOpaqueId(props.targetId) === targetId
 }
@@ -100,7 +101,7 @@ const targetTypeLabel = computed(() => {
 
 async function submit() {
   const id = ++operationId
-  const authGeneration = auth.tokenGeneration
+  const authScope = identityScope(auth)
   const targetType = String(props.targetType || '')
   const targetId = normalizeOpaqueId(props.targetId)
   error.value = ''
@@ -112,15 +113,15 @@ async function submit() {
       reason: reason.value,
       detail: detail.value
     })
-    if (!isCurrentOperation(id, authGeneration, targetType, targetId)) return
+    if (!isCurrentOperation(id, authScope, targetType, targetId)) return
     showToast({ type: 'success', title: '已提交', text: '感谢反馈，我们会尽快处理。' })
     detail.value = ''
   } catch (e) {
-    if (!isCurrentOperation(id, authGeneration, targetType, targetId)) return
+    if (!isCurrentOperation(id, authScope, targetType, targetId)) return
     error.value = e?.message || '提交失败'
     return
   } finally {
-    if (isCurrentOperation(id, authGeneration, targetType, targetId)) submitting.value = false
+    if (isCurrentOperation(id, authScope, targetType, targetId)) submitting.value = false
   }
 
   emit('submitted')
@@ -128,7 +129,7 @@ async function submit() {
 }
 
 watch(
-  () => auth.tokenGeneration,
+  () => identityScope(auth),
   () => {
     operationId += 1
     submitting.value = false

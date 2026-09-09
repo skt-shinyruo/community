@@ -247,6 +247,8 @@ shouldBootstrapSession(...)
 
 Auth store 使用 `identityState=anonymous|unresolved|resolved` 表达身份快照。安装不同 access token 时必须同步清空旧 `me` 并推进 `tokenGeneration`；新 token 对应的 `/me` 暂时失败时保持 `unresolved`，不能组合成“新 token + 旧 me”。只有 refresh 或 `/me` 明确返回 `401/403` 才是权威认证失败并清空会话；网络错误、限流、服务端错误和缺少临时响应字段均保留当前会话并返回可重试错误。
 
+视图与缓存监听的身份作用域是 `frontend/src/stores/identityScope.js` 的 `identityScope(auth)`（`identityEpoch:identityUserId`），与 `tokenGeneration` 是两套信号：`tokenGeneration` 随每次 access token 变化推进，只服务 HTTP/refresh 并发协调；`identityEpoch` 只在真实身份切换时推进——登出 `clear()`、或新解析出的 userId 与上一个已解析身份不同（换账号，含刷新后解析出他账号的迟到发现）。轮换（401 静默刷新）不改变身份作用域，`identityUserId` 在轮换期间 `me=null` 的未解析窗口内保持上一个已解析身份。视图重置、按身份隔离的缓存（拉黑列表、点赞 / 关注状态、未读角标、已读追踪）与请求竞态丢弃都监听身份作用域：轮换期间聊天草稿、消息列表、滚动位置、会话列表分页与其他页面本地状态保持不变，登出 / 换账号仍整体失效。管理页（用户管理、审核、分析、市场争议）的作用域不再并入 `authorities`：同一账号权限变化不触发视图重置（权限信息随 `me` 在轮换窗口同步抖动，并入会把轮换误判成重置信号），在途写响应继续由各视图的实时 `auth.isAdmin` 校验丢弃，路由守卫仍是授权边界。
+
 `sessionHint` 只表示“这个浏览器曾经有过登录态”，不是凭据。真正登录态必须由 `/api/auth/refresh` 和 `/api/auth/me` 确认。
 
 ## API Endpoint 解析

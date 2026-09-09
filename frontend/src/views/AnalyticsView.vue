@@ -72,12 +72,12 @@
 <script setup>
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { uv, dau } from '../api/services/analyticsService'
 import UiCard from '../components/ui/UiCard.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
-import { normalizeOpaqueId } from '../utils/opaqueId'
 import { settleNamedRequests } from '../utils/settledRequests'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 
@@ -94,11 +94,7 @@ const dResult = ref('-')
 
 const uvResult = computed(() => uResult.value)
 const dauResult = computed(() => dResult.value)
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  [...auth.authorities].sort().join(',')
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 const requestTracker = createLatestRequestTracker({
   getScope: () => `${sessionScope.value}:${start.value}:${end.value}`
 })

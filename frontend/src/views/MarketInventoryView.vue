@@ -131,6 +131,7 @@ import {
   listMarketInventory
 } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState, mergeMarketPage, nextTableSort, sortMarketInventory } from './marketState'
 
@@ -181,9 +182,7 @@ const invalidateMessage = computed(() => {
 })
 const viewScope = computed(() => [
   normalizeOpaqueId(route.params.listingId),
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
+  identityScope(auth)
 ].join(':'))
 
 function isCurrentRequest(generation, scope) {

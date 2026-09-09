@@ -157,6 +157,7 @@ import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
+import { identityScope } from '../stores/identityScope'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import {
   WALLET_FEED_PAGE_SIZE,
@@ -209,11 +210,7 @@ const writeAttempts = {
 let reloadGeneration = 0
 let actionGeneration = 0
 
-const sessionScope = computed(() => [
-  auth.tokenGeneration,
-  normalizeOpaqueId(auth.userId),
-  auth.authed ? 'authenticated' : 'anonymous'
-].join(':'))
+const sessionScope = computed(() => identityScope(auth))
 
 const state = computed(() =>
   buildWalletState({

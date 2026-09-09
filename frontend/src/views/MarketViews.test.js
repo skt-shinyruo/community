@@ -514,7 +514,7 @@ describe('Unified market views', () => {
     expect(wrapper.get('[data-test="market-address-select"]').text()).not.toContain('正在加载')
   })
 
-  it('reloads only private addresses on token generation changes and discards the old response', async () => {
+  it('reloads only private addresses on identity changes and discards the old response', async () => {
     authenticate('token-1')
     getMarketListingDetail.mockResolvedValueOnce({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Generation listing')
@@ -526,7 +526,7 @@ describe('Unified market views', () => {
 
     const wrapper = mountView(MarketDetailView)
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(1))
-    authenticate('token-2')
+    authenticate('token-2', '88888888-8888-7888-8888-888888888888')
     await nextTick()
     await vi.waitFor(() => expect(listMarketAddresses).toHaveBeenCalledTimes(2))
     await flushPromises()

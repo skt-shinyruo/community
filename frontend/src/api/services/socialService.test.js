@@ -1,16 +1,18 @@
-import { afterEach, beforeEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
 import {
   followUser,
+  getFollowStatus,
   getFollowStatuses,
   getLikeCounts,
   getLikeStatuses,
   listFollowers,
   listFollowees,
-  setLike
+  setLike,
+  unfollowUser
 } from './socialService'
 import { useAuthStore } from '../../stores/auth'
 
@@ -24,6 +26,7 @@ describe('api/services/socialService', () => {
   afterEach(() => {
     mock?.restore()
     mock = null
+    vi.restoreAllMocks()
   })
 
   it('write requests should send only canonical social fields', async () => {
@@ -134,6 +137,135 @@ describe('api/services/socialService', () => {
     })
 
     await expect(getLikeStatuses(2, [entityA])).rejects.toThrow('批量查询点赞状态响应非法')
+  })
+
+  it('does not let an in-flight batch status response overwrite a completed follow mutation', async () => {
+    const entityA = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    const entityB = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    mock = new MockAdapter(http)
+    let resolveStaleStatuses
+    mock.onGet('/api/follows/statuses').replyOnce(() => new Promise((resolve) => {
+      resolveStaleStatuses = () => resolve([200, {
+        code: 0,
+        message: '',
+        data: { [entityA]: false, [entityB]: true },
+        traceId: 'trace-stale-statuses'
+      }])
+    }))
+    mock.onPost('/api/follows').reply(200, {
+      code: 0,
+      message: '',
+      data: null,
+      traceId: 'trace-follow'
+    })
+
+    const pending = getFollowStatuses(3, [entityA, entityB])
+    while (!resolveStaleStatuses) await Promise.resolve()
+
+    await followUser(3, entityA)
+    resolveStaleStatuses()
+
+    await expect(pending).resolves.toEqual({
+      data: { [entityA]: true, [entityB]: true },
+      traceId: 'trace-stale-statuses'
+    })
+
+    const cached = await getFollowStatuses(3, [entityA, entityB])
+    expect(cached.data).toEqual({ [entityA]: true, [entityB]: true })
+    expect(mock.history.get).toHaveLength(1)
+  })
+
+  it('does not let an in-flight single status response overwrite a completed unfollow mutation', async () => {
+    const entityId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
+    mock = new MockAdapter(http)
+    let resolveStaleStatus
+    mock.onGet('/api/follows/status').replyOnce(() => new Promise((resolve) => {
+      resolveStaleStatus = () => resolve([200, {
+        code: 0,
+        message: '',
+        data: true,
+        traceId: 'trace-stale-status'
+      }])
+    }))
+    mock.onDelete('/api/follows').reply(200, {
+      code: 0,
+      message: '',
+      data: null,
+      traceId: 'trace-unfollow'
+    })
+
+    const pending = getFollowStatus(3, entityId)
+    while (!resolveStaleStatus) await Promise.resolve()
+
+    await unfollowUser(3, entityId)
+    resolveStaleStatus()
+
+    await expect(pending).resolves.toEqual({ data: false, traceId: 'trace-stale-status' })
+
+    const cached = await getFollowStatus(3, entityId)
+    expect(cached.data).toBe(false)
+    expect(mock.history.get).toHaveLength(1)
+  })
+
+  it('expires cached follow statuses after the TTL', async () => {
+    const entityId = 'dddddddd-dddd-7ddd-8ddd-dddddddddddd'
+    const now = vi.spyOn(Date, 'now')
+    now.mockReturnValue(1_000_000_000)
+    let serverValue = true
+    mock = new MockAdapter(http)
+    mock.onGet('/api/follows/statuses').reply(() => [200, {
+      code: 0,
+      message: '',
+      data: { [entityId]: serverValue },
+      traceId: 'trace-statuses'
+    }])
+
+    expect((await getFollowStatuses(3, [entityId])).data[entityId]).toBe(true)
+    expect((await getFollowStatuses(3, [entityId])).data[entityId]).toBe(true)
+    expect(mock.history.get).toHaveLength(1)
+
+    serverValue = false
+    now.mockReturnValue(1_000_000_000 + 5 * 60 * 1000 + 1)
+
+    expect((await getFollowStatuses(3, [entityId])).data[entityId]).toBe(false)
+    expect(mock.history.get).toHaveLength(2)
+  })
+
+  it('evicts the least recently used follow status beyond the capacity bound', async () => {
+    const ids = Array.from(
+      { length: 501 },
+      (_, i) => `00000000-0000-7000-8000-${String(i).padStart(12, '0')}`
+    )
+    mock = new MockAdapter(http)
+    mock.onGet('/api/follows/statuses').reply((config) => {
+      const requested = String(config.params.entityIds).split(',')
+      return [200, {
+        code: 0,
+        message: '',
+        data: Object.fromEntries(requested.map((id) => [id, true])),
+        traceId: 'trace-statuses'
+      }]
+    })
+
+    // 批量查询单次上限 200，三次写满 500 项容量
+    await getFollowStatuses(3, ids.slice(0, 200))
+    await getFollowStatuses(3, ids.slice(200, 400))
+    await getFollowStatuses(3, ids.slice(400, 500))
+    expect(mock.history.get).toHaveLength(3)
+
+    // 读 ids[1] 使其成为最近使用
+    await getFollowStatuses(3, [ids[1]])
+    expect(mock.history.get).toHaveLength(3)
+
+    // 写入第 501 项，逐出最久未使用的 ids[0]
+    await getFollowStatuses(3, [ids[500]])
+    expect(mock.history.get).toHaveLength(4)
+
+    // ids[1] 仍在缓存中；ids[0] 已被逐出需要重新拉取
+    await getFollowStatuses(3, [ids[1]])
+    expect(mock.history.get).toHaveLength(4)
+    await getFollowStatuses(3, [ids[0]])
+    expect(mock.history.get).toHaveLength(5)
   })
 
   it('getFollowStatuses should preserve UUID ids and return a complete status map', async () => {

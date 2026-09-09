@@ -377,6 +377,8 @@ connect(accessToken)
 
 `userService` 的完整资料缓存使用 5 分钟 TTL 和 100 项 LRU 上限，并公开单用户/全量失效入口。缓存只接收明确列出的查看者无关资料字段，不保存 `hasFollowed` 等私有关系状态，因此可以跨登录代际复用；关注关系继续由 social API 按 auth generation 隔离。头像等资料写入成功后必须先失效对应用户；失效时仍在途的旧请求不得重新写回缓存。
 
+`socialService` 的关注状态缓存带 5 分钟 TTL 与 500 项 LRU 上限，不会随长刷流会话无限增长，过期或逐出后重新拉取。关注 / 取关完成会按当前时间写入目标键：发起早于该写入的在途查询响应（单条或批量）按写入时间戳判定为过期，不得覆盖变更后的状态，后写获胜；晚于变更发起的新查询正常回写。
+
 ## 产品 UI 基础件
 
 `frontend/src/styles/` 只保留 variables、base、layout、utils 四个全局样式文件：`variables.css` 是唯一令牌来源，`layout.css` 承载壳层样式，`base.css` 是元素级 reset 与共享 fade 过渡（元素级兜底一律 `:where()` 零权重，且只声明 Ui 原语类规则不设置的属性并避让 `.btn` 链接形态，与构建后 chunk CSS 链接顺序无关）。`components.css` 与 `pages.css` 已随波次 10 退役：原语样式（`.btn` / `.input` / `.card` / `.badge` / `.avatar` / `.ui-state` / `.page-header` / `.btn-icon` 等）迁入对应 Ui SFC 的 `<style scoped>`（类名不变），壳搜索输入基座收拢进 `layout.css` 的 `.topbar-search-input`，无引用的 `.divider` / `.ui-checkbox` / `.skeleton` / `.tag.topic-category` 等孤儿规则整体删除。通用 `.card`（现为 `UiCard` 内部实现）默认不带装饰性 hover lift 或大阴影。

@@ -101,7 +101,7 @@
 - 批量关注状态一次最多接收 200 个 ID，应用层去重后由 repository 单查询返回完整 true/false 映射；关注和粉丝页再与 user batch summary 并行装配，避免逐行 N+1。
 - 关注和粉丝列表只提供 `/page` cursor 入口，返回 `items + nextCursor + hasNext`，page size 最大为 `50`。
 - cursor 是 opaque 的 `(createdAt,targetId)` 边界；repository 按 `created_at desc, id desc` 做 keyset 查询并继续排除双向拉黑关系，避免深 offset 扫描和同一时间戳下的漏项/重复项。
-- 前端关注状态缓存按 auth store 与 token generation 隔离，切换账号或刷新会话后不会复用前一身份的私有关系结果。
+- 前端关注状态缓存按 auth store 与 token generation 隔离，切换账号或刷新会话后不会复用前一身份的私有关系结果；缓存带 5 分钟 TTL 与 500 项 LRU 上限，关注 / 取关完成按当前时间写入目标键，发起早于该写入的在途查询响应按写入时间戳判定为过期，不得覆盖变更后的状态（后写获胜）。
 - Controller 只做 HTTP 绑定、认证提取和 DTO 转换，是否支持某个 `entityType` 由 `FollowApplicationService` / `FollowDomainService` 决定。
 
 查询能力：

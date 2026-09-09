@@ -2,8 +2,12 @@
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
-import { normalizeOpaqueId, normalizeOpaqueIds } from '../../utils/opaqueId'
+import { normalizeOpaqueIds } from '../../utils/opaqueId'
 import { useAuthStore } from '../../stores/auth'
+import { identityScope } from '../../stores/identityScope'
+
+const FOLLOW_CACHE_TTL_MS = 5 * 60 * 1000
+const FOLLOW_CACHE_MAX_ENTRIES = 500
 
 const followStatusCache = new Map()
 
@@ -17,7 +21,7 @@ function likeKey(entityType, entityId) {
 
 function syncFollowCacheScope() {
   const auth = useAuthStore()
-  const scope = `${auth.tokenGeneration}:${normalizeOpaqueId(auth.userId)}`
+  const scope = identityScope(auth)
   if (followCacheAuthStore !== auth || followCacheScope !== scope) {
     followStatusCache.clear()
     followStatusInflight.clear()
@@ -31,6 +35,37 @@ function scopedFollowKey(scope, entityType, entityId) {
   return `${scope}:${likeKey(entityType, entityId)}`
 }
 
+function touchFollowEntry(key, entry) {
+  followStatusCache.delete(key)
+  followStatusCache.set(key, entry)
+}
+
+function readCachedFollowStatus(key) {
+  const entry = followStatusCache.get(key)
+  if (!entry) return null
+  if (entry.expiresAt <= Date.now()) {
+    followStatusCache.delete(key)
+    return null
+  }
+  touchFollowEntry(key, entry)
+  return entry.value
+}
+
+function writeCachedFollowStatus(key, value) {
+  const now = Date.now()
+  touchFollowEntry(key, { value, updatedAt: now, expiresAt: now + FOLLOW_CACHE_TTL_MS })
+  while (followStatusCache.size > FOLLOW_CACHE_MAX_ENTRIES) {
+    followStatusCache.delete(followStatusCache.keys().next().value)
+  }
+}
+
+// 后写获胜：晚于查询发起时间写入的缓存项（即变更结果）不得被该查询的响应覆盖。
+function followQueryMayWrite(key, startedAt) {
+  const entry = followStatusCache.get(key)
+  if (!entry || entry.expiresAt <= Date.now()) return true
+  return entry.updatedAt < startedAt
+}
+
 export async function setLike({ entityType, entityId, liked }) {
   const resp = await http.post('/api/likes', { entityType, entityId, liked })
   return unwrapResultBody(resp.data, '点赞')
@@ -42,7 +77,7 @@ export async function followUser(entityType, entityId) {
   const resp = await http.post('/api/follows', { entityType, entityId })
   const { traceId } = unwrapResultBody(resp.data, '关注')
   if (syncFollowCacheScope() === cacheScope) {
-    followStatusCache.set(cacheKey, true)
+    writeCachedFollowStatus(cacheKey, true)
   }
   return { traceId }
 }
@@ -53,7 +88,7 @@ export async function unfollowUser(entityType, entityId) {
   const resp = await http.delete('/api/follows', { params: { entityType, entityId } })
   const { traceId } = unwrapResultBody(resp.data, '取关')
   if (syncFollowCacheScope() === cacheScope) {
-    followStatusCache.set(cacheKey, false)
+    writeCachedFollowStatus(cacheKey, false)
   }
   return { traceId }
 }
@@ -61,21 +96,26 @@ export async function unfollowUser(entityType, entityId) {
 export async function getFollowStatus(entityType, entityId, { force = false } = {}) {
   const cacheScope = syncFollowCacheScope()
   const k = scopedFollowKey(cacheScope, entityType, entityId)
-  if (!force && followStatusCache.has(k)) {
-    return { data: !!followStatusCache.get(k), traceId: '' }
+  if (!force) {
+    const cached = readCachedFollowStatus(k)
+    if (cached !== null) return { data: cached, traceId: '' }
   }
 
   if (followStatusInflight.has(k)) {
     return followStatusInflight.get(k)
   }
 
+  const startedAt = Date.now()
   const p = (async () => {
     const resp = await http.get('/api/follows/status', { params: { entityType, entityId } })
     const { data, traceId } = unwrapResultBody(resp.data, '查询关注状态')
     if (syncFollowCacheScope() !== cacheScope) {
       return getFollowStatus(entityType, entityId, { force: true })
     }
-    followStatusCache.set(k, !!data)
+    if (!followQueryMayWrite(k, startedAt)) {
+      return { data: readCachedFollowStatus(k) ?? !!data, traceId }
+    }
+    writeCachedFollowStatus(k, !!data)
     return { data: !!data, traceId }
   })()
 
@@ -94,9 +134,10 @@ export async function getFollowStatuses(entityType, entityIds, { force = false }
 
   const requestedIds = force
     ? ids
-    : ids.filter((entityId) => !followStatusCache.has(scopedFollowKey(cacheScope, entityType, entityId)))
+    : ids.filter((entityId) => readCachedFollowStatus(scopedFollowKey(cacheScope, entityType, entityId)) === null)
   let traceId = ''
   if (requestedIds.length > 0) {
+    const startedAt = Date.now()
     const resp = await http.get('/api/follows/statuses', {
       params: { entityType, entityIds: requestedIds.join(',') }
     })
@@ -109,14 +150,17 @@ export async function getFollowStatuses(entityType, entityIds, { force = false }
     }
     traceId = typeof result.traceId === 'string' ? result.traceId : ''
     for (const entityId of requestedIds) {
-      followStatusCache.set(scopedFollowKey(cacheScope, entityType, entityId), result.data[entityId] === true)
+      const k = scopedFollowKey(cacheScope, entityType, entityId)
+      if (followQueryMayWrite(k, startedAt)) {
+        writeCachedFollowStatus(k, result.data[entityId] === true)
+      }
     }
   }
 
   return {
     data: Object.fromEntries(ids.map((entityId) => [
       entityId,
-      followStatusCache.get(scopedFollowKey(cacheScope, entityType, entityId)) === true
+      readCachedFollowStatus(scopedFollowKey(cacheScope, entityType, entityId)) === true
     ])),
     traceId
   }

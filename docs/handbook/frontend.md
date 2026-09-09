@@ -14,7 +14,7 @@
 | 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
 | 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
-| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js` |
+| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js`、`frontend/src/views/conversationDetailPendingSends.js` |
 | 页面纯状态 | `frontend/src/views/*State.js` |
 | 全局读侧缓存 | `frontend/src/stores/*.js` |
 
@@ -135,10 +135,15 @@ UiPageHeader，实时状态 pill 用 accent-weak/accent-text 表达已就绪、s
 「加载更早消息」在途时按钮内 spinner 并禁用，滚动锚定语义不变。消息气泡收敛为扁平令牌表面：对方
 surface + 1px border，我方 accent + accent-contrast，不再叠加阴影或白色 color-mix。deliveryState 三态
 在视图层可区分：pending 显示「发送中…」，failed 显示「发送失败」并提供重试按钮（实时未就绪时禁用），
-committed 不附加标记。失败重试是同一个写尝试：`retrySend` 复用原 clientMsgId 重新下发同一条
+committed 不附加标记。pending 有回执兜底时限（10 秒）：帧写入 socket 后若连接立刻死亡且服务端从未
+收到（休眠 / 断网瞬间不会有任何回执），超时仍未决的发送转为 failed 并开放同一重试入口；committed /
+reject 回执直接解除兜底计时，重连 backfill 命中后把 clientMsgId 移出 pending 集合使迟到的超时回调落空，
+正常路径不被超时器误伤。失败重试是同一个写尝试：
+`retrySend` 复用原 clientMsgId 重新下发同一条
 sendPrivateText command（IM 幂等键语义，不生成新 key），committed 回执与 HTTP backfill 仍经
 `messageIdentity` 别名合并，重试不产生重复消息。视图不承载 IM 协议或状态机：会话 bootstrap
-（`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，页面流程继续由
+（`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，pending 回执兜底计时由
+`conversationDetailPendingSends.js` 承载，页面流程继续由
 `useConversationDetailWorkflow.js` 的 `model/actions/lifecycle`（新增 `retrySend`）承载。
 
 `/market` 商品目录与 `/market/listings/:listingId` 商品详情随波次 9 完成迁移（页面合同不变）。目录页是市场域内操作的入口：「我的出售 / 出售订单 / 我的购买 / 发布商品」收敛为
@@ -323,7 +328,7 @@ connect(accessToken)
 
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
-- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。
+- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。pending 发送有 10 秒回执兜底（`conversationDetailPendingSends.js` 的 `PENDING_SEND_TIMEOUT_MS`）：帧写入后连接立刻死亡且服务端从未收到时不会有任何回执，超时仍未决即转失败态；committed / reject 回执直接解除计时，重连 backfill 命中会把 clientMsgId 移出 pending 集合（迟到的超时回调落空），会话切换 / 卸载解除全部计时。残缺无法在本地落账的 committed 帧不算确认，pending 与兜底计时保留。
 - 会话详情流程集中在 `frontend/src/views/useConversationDetailWorkflow.js`，只向组件公开 `model/actions/lifecycle`；HTTP/WS transport、请求竞态、订阅清理和滚动锚定不由组件直接管理。一个 `historyFlow` 统一记录 scope generation、基线阶段与轮次、连续 `seq` waterline、重连请求/完成轮次和实际补拉轮次；scope 切换会推进 generation，使旧异步执行失效。该流程先等待首次 `limit=50` history 建立基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
 - backfill 按会话 scope 单飞串行执行；每次重连上升沿推进请求轮次，当前执行按开始时覆盖的最新轮次完成，期间任意多次重连合并为下一轮，从最新水位继续补；空页同样完成其覆盖轮次，不能吞掉后续恢复请求。
 - pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`（HTTP history 响应是 `createdAtEpochMs`），由 `conversationDetailState.js` 的 `mapRealtimeConversationMessage` 归一后再走同一份消息映射与校验。
@@ -341,7 +346,8 @@ connect(accessToken)
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
 | `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、去重和排序。 |
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
-| `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
+| `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失联超时兜底、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
+| `conversationDetailPendingSends.js` | 私信 pending 发送的回执兜底计时（`PENDING_SEND_TIMEOUT_MS`）：arm / disarm / disarmAll，超时未决回调工作流把发送转为失败态。 |
 | `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增与到底判定）和资损确认文案。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
@@ -419,7 +425,7 @@ button（click 与 Enter / Space 激活）发出 `sort(columnKey)` 事件，排�
 | --- | --- |
 | Notice | 通知是 owner Kafka 驱动的最终一致投影，写操作成功后可能稍后出现；失败由 consumer retry / `.dlq` 处理。 |
 | Search | 搜索结果来自 ES 投影，发帖 / 改帖后搜索可短暂落后；必要时查 `content.events` consumer/DLQ 或 reindex。 |
-| IM | WS 推送是 best-effort；pending send 以 committed / reject frame 更新，断线重连后从 HTTP 已确认的连续 `seq` 水位分页补拉并合并。 |
+| IM | WS 推送是 best-effort；pending send 以 committed / reject frame 更新，10 秒无回执的失联发送转失败态并可手动重试，断线重连后从 HTTP 已确认的连续 `seq` 水位分页补拉并合并。 |
 | Market 下单 | HTTP 成功可能只是订单创建成功，资金可能处于 `ESCROW_PENDING`。 |
 | Market 确认 / 取消 / 争议 | 资金放款 / 退款由 `market_wallet_action` processor / recovery 推进，`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING`、`DISPUTE_REFUND_PENDING` 都应展示为处理中。 |
 | Wallet | 钱包 ledger 是资金 owner；市场页面不要自行推断余额变化。 |

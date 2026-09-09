@@ -24,6 +24,7 @@ import {
   createHistoryFlowState,
   resetHistoryFlowState
 } from './conversationDetailHistoryFlow'
+import { createPendingSendTimers } from './conversationDetailPendingSends'
 
 /** @typedef {Record<string, any>} ConversationMessage */
 /** @typedef {number | { token: number, scope: unknown }} RequestToken */
@@ -45,6 +46,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   const sending = ref(false)
   const realtimeState = ref({ ...imRealtimeClient.state })
   const pendingClientMsgIds = new Set(/** @type {string[]} */ ([]))
+  const pendingSendTimers = createPendingSendTimers({ onTimeout: failLostPendingSend })
   const loadRequestTracker = createLatestRequestTracker()
   const unsubscribers = /** @type {Array<() => void>} */ ([])
   /** @type {(() => void) | null} */
@@ -212,6 +214,27 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     }
   }
 
+  /**
+   * 失联兜底：超时仍未收到回执的 pending 发送转为失败态。
+   * committed / reject 回执与重连 backfill 都会先把 clientMsgId 移出 pending 集合，
+   * 正常路径的发送不会被迟到的超时器误伤。
+   * @param {string} clientMsgId
+   */
+  function failLostPendingSend(clientMsgId) {
+    if (!pendingClientMsgIds.has(clientMsgId)) return
+    pendingClientMsgIds.delete(clientMsgId)
+    const isLostPending = (/** @type {ConversationMessage} */ item) =>
+      item.clientMsgId === clientMsgId && item.deliveryState === 'pending' && sameOpaqueId(item.fromId, meId.value)
+    if (!items.value.some(isLostPending)) return
+    items.value = items.value.map((item) =>
+      isLostPending(item) ? failPendingConversationMessage(item) : item
+    )
+    error.value = '发送超时，请检查网络后重试'
+    try {
+      showToast({ type: 'error', title: '发送失败', text: '发送超时，请检查网络后重试' })
+    } catch {}
+  }
+
   async function send() {
     if (!content.value.trim() || !targetId.value) return
 
@@ -226,6 +249,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       })
       if (clientMsgId) {
         pendingClientMsgIds.add(String(clientMsgId))
+        pendingSendTimers.arm(String(clientMsgId))
         items.value = mergeConversationMessages(items.value, [createPendingConversationMessage({
           clientMsgId,
           fromId: meId.value,
@@ -263,6 +287,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
         clientMsgId: id
       })
       pendingClientMsgIds.add(id)
+      pendingSendTimers.arm(id)
       items.value = items.value.map((item) =>
         item.clientMsgId === id && sameOpaqueId(item.fromId, meId.value)
           ? retryFailedConversationMessage(item)
@@ -288,6 +313,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     content.value = ''
     sending.value = false
     pendingClientMsgIds.clear()
+    pendingSendTimers.disarmAll()
     if (auth.authed && conversationId.value && meId.value && targetId.value) refresh()
   }
 
@@ -343,13 +369,15 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     const pending = items.value.find((item) =>
       item.clientMsgId === clientMsgId && sameOpaqueId(item.fromId, meId.value)
     )
-    if (pending) {
-      try {
-        items.value = mergeConversationMessages(items.value, [commitPendingConversationMessage(pending, message)])
-      } catch {
-        // HTTP backfill remains authoritative when a committed frame is incomplete.
-      }
+    if (!pending) return
+    try {
+      items.value = mergeConversationMessages(items.value, [commitPendingConversationMessage(pending, message)])
+    } catch {
+      // 残缺的 committed 帧无法在本地落账，不算确认：保留 pending 与兜底计时，
+      // 由超时转失败或重连 backfill 以 HTTP 事实收敛。
+      return
     }
+    pendingSendTimers.disarm(clientMsgId)
     pendingClientMsgIds.delete(clientMsgId)
   }
 
@@ -357,6 +385,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     if (String(message?.cmd || '') !== 'sendPrivateText') return
     const clientMsgId = String(message?.clientMsgId || '')
     if (!clientMsgId || !pendingClientMsgIds.has(clientMsgId)) return
+    pendingSendTimers.disarm(clientMsgId)
     pendingClientMsgIds.delete(clientMsgId)
     items.value = items.value.map((item) =>
       item.clientMsgId === clientMsgId && sameOpaqueId(item.fromId, meId.value)
@@ -404,6 +433,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     resetHistoryFlow()
     latestLoadBuffer = null
     pendingClientMsgIds.clear()
+    pendingSendTimers.disarmAll()
     for (const unsubscribe of unsubscribers.splice(0)) {
       try { unsubscribe?.() } catch {}
     }

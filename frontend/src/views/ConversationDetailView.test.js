@@ -2,7 +2,7 @@
 
 import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 const {
   listeners,
   listImConversationHistory,
@@ -53,6 +53,11 @@ vi.mock('../im/imRealtimeClient', () => ({
 import { useAuthStore } from '../stores/auth'
 import { useInboxUnreadStore } from '../stores/inboxUnread'
 import ConversationDetailView from './ConversationDetailView.vue'
+
+// vitest 默认连 setImmediate 一起 fake 会让 flushPromises 挂起，这里只 fake 超时器相关的四类。
+function useViewFakeTimers() {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval'] })
+}
 
 function mountView(conversationId) {
   const pinia = createPinia()
@@ -131,6 +136,10 @@ describe('ConversationDetailView', () => {
     getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [] })
     topicSummary.mockResolvedValue({ data: [] })
     sendPrivateText.mockClear()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('loads the latest history, marks its maximum seq read, scrolls bottom, and sends to the participant', async () => {
@@ -544,6 +553,209 @@ describe('ConversationDetailView', () => {
     await flushPromises()
     expect(wrapper.find('.message-retry').exists()).toBe(false)
     expect(wrapper.text()).toContain('发送中')
+  })
+
+  it('marks a lost pending send failed after the delivery timeout and retries it with the same clientMsgId', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('失联的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+
+    // 兜底时限未到：正常在途的发送不被误转失败。
+    await vi.advanceTimersByTimeAsync(9_999)
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+    expect(wrapper.find('.message-retry').exists()).toBe(false)
+
+    // 帧写入后连接死亡且服务端从未收到：超时后转失败态并开放既有重试入口。
+    await vi.advanceTimersByTimeAsync(1)
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送失败')
+    expect(wrapper.text()).toContain('发送超时')
+    expect(wrapper.text()).not.toContain('发送中')
+
+    sendPrivateText.mockClear()
+    await wrapper.get('.message-retry').trigger('click')
+    await flushPromises()
+
+    // 重发复用原 clientMsgId（同一写尝试），并重新进入发送中。
+    expect(sendPrivateText).toHaveBeenCalledTimes(1)
+    expect(sendPrivateText).toHaveBeenCalledWith({
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: '失联的消息',
+      clientMsgId: 'client-msg-1'
+    })
+    expect(wrapper.text()).toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+
+    // 重试收到的 committed 同样解除兜底：之后不再被超时器误伤。
+    listeners.sendCommitted({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: '99999999-9999-7999-8999-999999999999',
+      seq: 9,
+      requestId: 'req-timeout-retry-1'
+    })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).toContain('失联的消息')
+    expect(wrapper.text()).not.toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+  })
+
+  it('clears the delivery timeout when the committed frame arrives before the deadline', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('正常发送')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+
+    listeners.sendCommitted({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: '99999999-9999-7999-8999-999999999999',
+      seq: 9,
+      requestId: 'req-commit-1'
+    })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('正常发送')
+    expect(wrapper.text()).not.toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+    expect(wrapper.find('.message-retry').exists()).toBe(false)
+  })
+
+  it('clears the delivery timeout when the send is rejected before the deadline', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('被拒绝的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+
+    listeners.sendRejected({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1', message: '发送频率过高' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送频率过高')
+
+    // reject 已终结这次写尝试：迟到的超时器不能覆盖拒绝原因或重复标记。
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送失败')
+    expect(wrapper.text()).toContain('发送频率过高')
+    expect(wrapper.text()).not.toContain('发送超时')
+  })
+
+  it('does not fail a pending send that reconnect backfill proves persisted', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    listImConversationMessages.mockResolvedValueOnce({
+      items: [{
+        messageId: '99999999-9999-7999-8999-999999999999',
+        seq: 9,
+        fromUserId: '11111111-1111-7111-8111-111111111111',
+        toUserId: '22222222-2222-7222-8222-222222222222',
+        content: '已持久化消息',
+        clientMsgId: 'client-msg-1',
+        createdAtEpochMs: 1774060187920
+      }]
+    })
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('写入后断线的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+
+    // 服务端实际已收到但回执丢失：重连 backfill 以 HTTP 事实收敛 pending。
+    listeners.stateChanged({ connected: false, authed: false, sessionId: '', userId: '' })
+    await flushPromises()
+    listeners.stateChanged({ connected: true, authed: true, sessionId: 'sess-2', userId: '' })
+    await flushPromises()
+    expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 8, limit: 100 })
+    expect(wrapper.text()).toContain('已持久化消息')
+    expect(wrapper.text()).not.toContain('发送中')
+
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('发送失败')
+    expect(wrapper.text()).not.toContain('发送超时')
+    expect(wrapper.find('.message-retry').exists()).toBe(false)
+  })
+
+  it('does not carry pending send timeouts across conversation switches', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationA = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const conversationB = '11111111-1111-7111-8111-111111111111_33333333-3333-7333-8333-333333333333'
+    const wrapper = mountView(conversationA)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('切换前的失联消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+
+    await wrapper.setProps({ conversationId: conversationB })
+    await flushPromises()
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('第一条消息')
+    expect(wrapper.text()).not.toContain('切换前的失联消息')
+    expect(wrapper.text()).not.toContain('发送失败')
+    expect(wrapper.text()).not.toContain('发送超时')
+  })
+
+  it('keeps the delivery fallback armed when the committed frame is incomplete', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('回执残缺的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+
+    // 残缺 committed 帧无法在本地落账：不算确认，发送中状态不能被永远挂起。
+    listeners.sendCommitted({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1' })
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+
+    await vi.advanceTimersByTimeAsync(10_000)
+    await flushPromises()
+    expect(wrapper.text()).toContain('发送失败')
+    expect(wrapper.text()).toContain('发送超时')
+    expect(wrapper.text()).not.toContain('发送中')
   })
 
   it('shows a pending send and replaces it with HTTP backfill on reconnect', async () => {

@@ -115,12 +115,11 @@ public class MarketDisputeApplicationService {
     @Transactional
     public MarketDisputeResult adminResolveRefund(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
-        validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
 
         dispute.setStatus(DISPUTE_STATUS_ADMIN_RESOLVED);
-        dispute.setSellerNote(note.trim());
+        applyAdminNote(dispute, note);
         dispute.setResolutionType(RESOLUTION_REFUND);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(Date.from(clock.instant()));
@@ -139,12 +138,11 @@ public class MarketDisputeApplicationService {
     @Transactional
     public MarketDisputeResult adminResolveRelease(UUID disputeId, UUID adminUserId, String note) {
         validateActor(adminUserId);
-        validateText(note, "note");
         MarketDispute dispute = requireAdminResolvableDispute(disputeId);
         MarketOrder order = requireDisputedOrderForUpdate(dispute.getOrderId());
 
         dispute.setStatus(DISPUTE_STATUS_ADMIN_RESOLVED);
-        dispute.setSellerNote(note.trim());
+        applyAdminNote(dispute, note);
         dispute.setResolutionType(RESOLUTION_RELEASE);
         dispute.setResolvedBy(adminUserId);
         dispute.setResolvedAt(Date.from(clock.instant()));
@@ -162,8 +160,23 @@ public class MarketDisputeApplicationService {
 
     public List<MarketDisputeResult> listOpenDisputes() {
         return marketDisputeRepository.findOpenDisputes().stream()
-                .map(MarketDisputeResult::from)
+                .map(this::toResultWithOrderAmount)
                 .toList();
+    }
+
+    private MarketDisputeResult toResultWithOrderAmount(MarketDispute dispute) {
+        MarketOrder order = marketOrderRepository.findById(dispute.getOrderId());
+        if (order == null) {
+            return MarketDisputeResult.from(dispute);
+        }
+        return MarketDisputeResult.from(dispute, order.getTotalAmount());
+    }
+
+    // 裁定理由非空才写入 dispute；留空保留卖家原始说明，不写入占位词。
+    private void applyAdminNote(MarketDispute dispute, String note) {
+        if (StringUtils.hasText(note)) {
+            dispute.setSellerNote(note.trim());
+        }
     }
 
     private void applyForeground(MarketOrderTransition transition) {

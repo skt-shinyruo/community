@@ -8,6 +8,7 @@ import java.util.UUID;
 public record MarketDisputeResult(
         UUID disputeId,
         UUID orderId,
+        Long totalAmount,
         String goodsType,
         UUID buyerUserId,
         UUID sellerUserId,
@@ -23,9 +24,14 @@ public record MarketDisputeResult(
 ) {
 
     public static MarketDisputeResult from(MarketDispute dispute) {
+        return from(dispute, null);
+    }
+
+    public static MarketDisputeResult from(MarketDispute dispute, Long totalAmount) {
         return new MarketDisputeResult(
                 dispute.getDisputeId(),
                 dispute.getOrderId(),
+                totalAmount,
                 dispute.getGoodsType(),
                 dispute.getBuyerUserId(),
                 dispute.getSellerUserId(),

@@ -9,11 +9,13 @@ import com.nowcoder.community.market.domain.repository.MarketDisputeRepository;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.time.Clock;
 import java.util.Date;
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -95,6 +97,118 @@ class MarketDisputeApplicationServiceUnitTest {
         verify(marketDisputeRepository).lockById(disputeId);
         verify(marketOrderRepository).lockById(orderId);
         verify(marketWalletActionCoordinator).enqueueDisputeRelease(orderId, disputeId, sellerUserId, buyerUserId, 12_900L);
+    }
+
+    @Test
+    void adminResolveRefundWithBlankNoteShouldKeepSellerNote() {
+        UUID disputeId = uuid(1);
+        UUID orderId = uuid(2);
+        UUID sellerUserId = uuid(3);
+        UUID buyerUserId = uuid(4);
+        UUID adminUserId = uuid(5);
+        MarketDispute rejected = rejectedDispute(disputeId, orderId, sellerUserId, buyerUserId);
+        MarketOrder order = disputedOrder(orderId, sellerUserId, buyerUserId, 12_900L);
+
+        when(marketDisputeRepository.lockById(disputeId)).thenReturn(rejected);
+        when(marketOrderRepository.lockById(orderId)).thenReturn(order);
+        when(marketOrderRepository.apply(any(MarketOrderTransition.class)))
+                .thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
+        when(marketDisputeRepository.findById(disputeId)).thenReturn(copyDispute(rejected));
+
+        new MarketDisputeApplicationService(
+                marketDisputeRepository,
+                marketOrderRepository,
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        ).adminResolveRefund(disputeId, adminUserId, "  ");
+
+        ArgumentCaptor<MarketDispute> saved = ArgumentCaptor.forClass(MarketDispute.class);
+        verify(marketDisputeRepository).saveChanges(saved.capture());
+        assertThat(saved.getValue().getSellerNote()).isEqualTo("不同意退款");
+    }
+
+    @Test
+    void adminResolveRefundWithNoteShouldReplaceSellerNote() {
+        UUID disputeId = uuid(1);
+        UUID orderId = uuid(2);
+        UUID sellerUserId = uuid(3);
+        UUID buyerUserId = uuid(4);
+        UUID adminUserId = uuid(5);
+        MarketDispute rejected = rejectedDispute(disputeId, orderId, sellerUserId, buyerUserId);
+        MarketOrder order = disputedOrder(orderId, sellerUserId, buyerUserId, 12_900L);
+
+        when(marketDisputeRepository.lockById(disputeId)).thenReturn(rejected);
+        when(marketOrderRepository.lockById(orderId)).thenReturn(order);
+        when(marketOrderRepository.apply(any(MarketOrderTransition.class)))
+                .thenReturn(MarketOrderRepository.ApplyStatus.APPLIED);
+        when(marketDisputeRepository.findById(disputeId)).thenReturn(copyDispute(rejected));
+
+        new MarketDisputeApplicationService(
+                marketDisputeRepository,
+                marketOrderRepository,
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        ).adminResolveRefund(disputeId, adminUserId, " 证据支持买家 ");
+
+        ArgumentCaptor<MarketDispute> saved = ArgumentCaptor.forClass(MarketDispute.class);
+        verify(marketDisputeRepository).saveChanges(saved.capture());
+        assertThat(saved.getValue().getSellerNote()).isEqualTo("证据支持买家");
+    }
+
+    @Test
+    void listOpenDisputesShouldExposeOrderTotalAmount() {
+        UUID disputeId = uuid(1);
+        UUID orderId = uuid(2);
+        UUID sellerUserId = uuid(3);
+        UUID buyerUserId = uuid(4);
+        MarketDispute rejected = rejectedDispute(disputeId, orderId, sellerUserId, buyerUserId);
+        MarketOrder order = disputedOrder(orderId, sellerUserId, buyerUserId, 12_900L);
+
+        when(marketDisputeRepository.findOpenDisputes()).thenReturn(List.of(rejected));
+        when(marketOrderRepository.findById(orderId)).thenReturn(order);
+
+        List<MarketDisputeResult> results = new MarketDisputeApplicationService(
+                marketDisputeRepository,
+                marketOrderRepository,
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        ).listOpenDisputes();
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).totalAmount()).isEqualTo(12_900L);
+    }
+
+    @Test
+    void listOpenDisputesShouldLeaveTotalAmountNullWhenOrderMissing() {
+        UUID disputeId = uuid(1);
+        UUID orderId = uuid(2);
+        UUID sellerUserId = uuid(3);
+        UUID buyerUserId = uuid(4);
+        MarketDispute rejected = rejectedDispute(disputeId, orderId, sellerUserId, buyerUserId);
+
+        when(marketDisputeRepository.findOpenDisputes()).thenReturn(List.of(rejected));
+
+        List<MarketDisputeResult> results = new MarketDisputeApplicationService(
+                marketDisputeRepository,
+                marketOrderRepository,
+                marketWalletActionCoordinator,
+                new UuidV7Generator(),
+                Clock.systemUTC()
+        ).listOpenDisputes();
+
+        assertThat(results).hasSize(1);
+        assertThat(results.get(0).totalAmount()).isNull();
+    }
+
+    private MarketDispute rejectedDispute(UUID disputeId, UUID orderId, UUID sellerUserId, UUID buyerUserId) {
+        MarketDispute dispute = openDispute(disputeId, orderId, sellerUserId);
+        dispute.setBuyerUserId(buyerUserId);
+        dispute.setStatus("SELLER_REJECTED");
+        dispute.setSellerNote("不同意退款");
+        return dispute;
     }
 
     private MarketDispute openDispute(UUID disputeId, UUID orderId, UUID sellerUserId) {

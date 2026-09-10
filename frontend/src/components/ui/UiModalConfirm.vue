@@ -1,7 +1,9 @@
-<!-- 确认弹窗：用于删除/置顶/加精等危险操作二次确认。外壳与焦点行为收敛到 UiModal。 -->
+<!-- 确认弹窗：用于删除/置顶/加精等危险操作二次确认。外壳与焦点行为收敛到 UiModal。
+     默认 slot 可承载复述文案之外的额外内容（如资损动作的理由输入）。 -->
 <template>
   <UiModal :title="title" :busy="busy" @close="$emit('cancel')">
     <p class="ui-modal-confirm__message">{{ message }}</p>
+    <slot />
     <template #footer>
       <UiButton variant="secondary" :disabled="busy" @click="$emit('cancel')">取消</UiButton>
       <UiButton :variant="confirmVariant" :disabled="busy" @click="$emit('confirm')">{{ confirmText }}</UiButton>

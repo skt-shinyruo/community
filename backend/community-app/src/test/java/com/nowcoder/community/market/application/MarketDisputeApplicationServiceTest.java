@@ -14,6 +14,7 @@ import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
+import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
@@ -103,11 +104,44 @@ class MarketDisputeApplicationServiceTest {
 
         assertThat(resolved.status()).isEqualTo("ADMIN_RESOLVED");
         assertThat(resolved.resolutionType()).isEqualTo("RELEASE");
+        assertThat(resolved.sellerNote()).isEqualTo("证据支持卖家");
         assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("DISPUTE_RELEASE_PENDING");
         marketWalletActionProcessor.processDue(10);
 
         assertThat(marketQueryService.getOrderDetail(orderId, buyerUserId).status()).isEqualTo("COMPLETED");
         assertThat(walletAccountService.balanceOfUser(sellerUserId)).isEqualTo(12_900L);
+    }
+
+    @Test
+    void adminResolveRefundWithBlankNoteShouldKeepSellerNote() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        UUID adminUserId = uuid(99);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
+
+        MarketDisputeResult dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        marketDisputeService.sellerRejectRefund(dispute.disputeId(), sellerUserId, "不同意退款");
+        MarketDisputeResult resolved = marketDisputeService.adminResolveRefund(dispute.disputeId(), adminUserId, " ");
+
+        assertThat(resolved.status()).isEqualTo("ADMIN_RESOLVED");
+        assertThat(resolved.resolutionType()).isEqualTo("REFUND");
+        assertThat(resolved.sellerNote()).isEqualTo("不同意退款");
+    }
+
+    @Test
+    void listOpenDisputesShouldExposeOrderTotalAmount() {
+        UUID sellerUserId = uuid(7);
+        UUID buyerUserId = uuid(9);
+        seedBuyerBalance(buyerUserId, 20_000L);
+        UUID orderId = seedShippedPhysicalOrder(sellerUserId, buyerUserId);
+
+        MarketDisputeResult dispute = marketDisputeService.openDispute(orderId, buyerUserId, "货不对板", "和描述不一致");
+        List<MarketDisputeResult> openDisputes = marketDisputeService.listOpenDisputes();
+
+        assertThat(openDisputes).hasSize(1);
+        assertThat(openDisputes.get(0).disputeId()).isEqualTo(dispute.disputeId());
+        assertThat(openDisputes.get(0).totalAmount()).isEqualTo(12_900L);
     }
 
     private UUID seedShippedPhysicalOrder(UUID sellerUserId, UUID buyerUserId) {

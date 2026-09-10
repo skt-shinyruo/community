@@ -18,40 +18,79 @@
         <div>
           <strong>争议 #{{ item.disputeId }}</strong>
           <p>{{ item.goodsTypeLabel }} · {{ item.reason }} · {{ item.statusLabel }}</p>
+          <p v-if="item.totalAmountText">订单金额：{{ item.totalAmountText }}</p>
           <p>{{ item.nextActionLabel }}</p>
           <p v-if="item.buyerNote || item.sellerNote">买家说明：{{ item.buyerNote || '未填写' }} · 卖家说明：{{ item.sellerNote || '未填写' }}</p>
         </div>
         <div class="market-inline-actions">
-          <UiButton variant="secondary" :disabled="submittingId !== ''" @click="resolve(item.disputeId, 'refund')">
+          <UiButton variant="secondary" :disabled="submittingId !== ''" @click="requestResolve(item, 'refund')">
             退回买家
           </UiButton>
-          <UiButton :disabled="submittingId !== ''" @click="resolve(item.disputeId, 'release')">
+          <UiButton :disabled="submittingId !== ''" @click="requestResolve(item, 'release')">
             放款卖家
           </UiButton>
         </div>
       </article>
     </div>
+
+    <!-- 裁定直接动托管资金：确认弹窗复述订单金额与不可撤销后果（延续订单确认 / 钱包转账的资损确认
+         模式），裁定理由由管理员在弹窗默认 slot 中显式填写，留空时后端不覆盖卖家原始说明。 -->
+    <UiModalConfirm
+      v-if="resolution.open"
+      :title="resolution.title"
+      :message="resolution.message"
+      :confirm-text="resolution.confirmText"
+      :confirm-variant="resolution.variant"
+      :busy="submittingId !== ''"
+      @cancel="closeResolution"
+      @confirm="confirmResolution"
+    >
+      <div class="market-resolution-body">
+        <UiField label="裁定理由" help="将进入审计记录；留空则不覆盖卖家原始说明">
+          <UiTextarea
+            v-model.trim="resolution.note"
+            :disabled="submittingId !== ''"
+            placeholder="填写本次裁定的理由"
+          />
+        </UiField>
+        <p v-if="resolution.error" class="error market-resolution-error" role="alert">{{ resolution.error }}</p>
+      </div>
+    </UiModalConfirm>
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, reactive, ref, watch } from 'vue'
 import UiButton from '../components/ui/UiButton.vue'
+import UiField from '../components/ui/UiField.vue'
+import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
+import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { adminResolveMarketDispute, listAdminMarketDisputes } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-import { buildMarketState } from './marketState'
+import { buildMarketState, marketDisputeResolutionConfirmation } from './marketState'
 
 const auth = useAuthStore()
 const loading = ref(false)
 const error = ref('')
 const submittingId = ref('')
 const disputes = ref([])
+const resolution = reactive({
+  open: false,
+  disputeId: '',
+  action: 'refund',
+  title: '',
+  message: '',
+  confirmText: '',
+  variant: 'danger',
+  note: '',
+  error: ''
+})
 
 const state = computed(() => buildMarketState({ disputes: disputes.value }))
 const sessionScope = computed(() => identityScope(auth))
@@ -86,20 +125,44 @@ async function reload() {
   }
 }
 
-async function resolve(disputeId, action) {
-  const normalizedDisputeId = normalizeOpaqueId(disputeId)
-  if (!normalizedDisputeId || !auth.authed || !auth.isAdmin || submittingId.value !== '') return
+function requestResolve(item, action) {
+  const disputeId = normalizeOpaqueId(item?.disputeId)
+  if (!disputeId || !auth.authed || !auth.isAdmin || submittingId.value !== '') return
+  const copy = marketDisputeResolutionConfirmation({ action, totalAmountText: item?.totalAmountText })
+  resolution.disputeId = disputeId
+  resolution.action = action === 'release' ? 'release' : 'refund'
+  resolution.title = copy.title
+  resolution.message = copy.message
+  resolution.confirmText = copy.confirmText
+  resolution.variant = copy.variant
+  resolution.note = ''
+  resolution.error = ''
+  resolution.open = true
+}
+
+function closeResolution() {
+  if (submittingId.value !== '') return
+  resolution.open = false
+  resolution.error = ''
+}
+
+async function confirmResolution() {
+  const disputeId = resolution.disputeId
+  const action = resolution.action
+  if (!resolution.open || !disputeId || !auth.authed || !auth.isAdmin || submittingId.value !== '') return
   const requestHandle = actionTracker.begin()
-  submittingId.value = normalizedDisputeId
+  submittingId.value = disputeId
+  resolution.error = ''
   try {
-    await adminResolveMarketDispute(disputeId, action, { note: action === 'refund' ? 'refund' : 'release' })
-    if (!isCurrentAction(requestHandle, normalizedDisputeId)) return
+    await adminResolveMarketDispute(disputeId, action, { note: resolution.note.trim() })
+    if (!isCurrentAction(requestHandle, disputeId)) return
+    resolution.open = false
     await reload()
   } catch (e) {
-    if (!isCurrentAction(requestHandle, normalizedDisputeId)) return
-    error.value = e?.message || '处理争议失败'
+    if (!isCurrentAction(requestHandle, disputeId)) return
+    resolution.error = e?.message || '处理争议失败'
   } finally {
-    if (isCurrentAction(requestHandle, normalizedDisputeId)) submittingId.value = ''
+    if (isCurrentAction(requestHandle, disputeId)) submittingId.value = ''
   }
 }
 
@@ -110,6 +173,9 @@ function resetForSession() {
   error.value = ''
   submittingId.value = ''
   disputes.value = []
+  resolution.open = false
+  resolution.error = ''
+  resolution.note = ''
   if (auth.authed && auth.isAdmin) reload()
 }
 
@@ -170,6 +236,15 @@ onBeforeUnmount(() => {
 .market-admin-row p {
   margin: 0;
   color: var(--text-2);
+}
+
+.market-resolution-body {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.market-resolution-error {
+  margin: 0;
 }
 
 @media (max-width: 900px) {

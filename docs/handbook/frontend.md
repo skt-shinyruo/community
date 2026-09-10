@@ -205,6 +205,12 @@ role=status 播报结果，失败内联 alert。
 样式全部归属 scoped SFC 或对应 Ui 原语，市场视图对 `.btn` / `.input` / `.card` 等原语内部类零依赖
 （`tokens.test.js` 无市场视图基线登记），管理后台其余部分保持现状、不做重设计。
 
+争议裁定页（AdminMarketDisputesView）的「退回买家 / 放款卖家」直接动托管资金，作为资损动作先经
+确认弹窗（UiModalConfirm，danger 变体）复述订单金额与不可撤销后果，文案由 `marketState.js` 的
+`marketDisputeResolutionConfirmation` 生成；争议行内展示订单金额（dispute 投影的 `totalAmountText`，
+金额缺失时不展示）。裁定理由由管理员在弹窗默认 slot 中显式填写并随裁定提交，留空时后端不写入占位词、
+不覆盖卖家原始说明；提交失败内联在弹窗中（role=alert），成功后关闭弹窗并重取列表。
+
 新增页面时必须同步以下四处：
 
 1. `routeCatalog.js` 登记 workspace、权限和 active family 等稳定事实。
@@ -350,7 +356,7 @@ connect(accessToken)
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失联超时兜底、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
 | `conversationDetailPendingSends.js` | 私信 pending 发送的回执兜底计时（`PENDING_SEND_TIMEOUT_MS`）：arm / disarm / disarmAll，超时未决回调工作流把发送转为失败态。 |
-| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
+| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；争议投影含订单金额文案（`totalAmountText`）与裁定确认文案（`marketDisputeResolutionConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增与到底判定）和资损确认文案。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
@@ -393,7 +399,7 @@ connect(accessToken)
 
 `frontend/src/components/ui/UiState.vue` 只承担 empty / error / development 三种结果状态：empty 给出主要下一步，error 提供重试，development 标记未上线功能；不承担 loading。首载加载使用 `frontend/src/components/ui/UiSkeleton.vue`（list / card / detail 三档结构占位，`role="status"` 加 sr-only 标签向辅助技术播报），分页加载使用尾部指示，操作中状态使用按钮 loading；裸「加载中」文本已清零，`frontend/src/components/ui/loading-states.test.js` 收紧为零允许守卫（UiSkeleton 的 sr-only 标签是唯一受认可来源，任何新增直接失败）。
 
-浮层原语：`frontend/src/components/ui/UiModal.vue` 是统一的原生 `<dialog>` 外壳，提供 title、sm/md/lg 尺寸与 header/body/footer slots；Escape、backdrop 点击与关闭按钮只发出 close 请求，由使用方决定卸载时机，busy 期间禁止关闭。`frontend/src/components/ui/UiModalConfirm.vue` 已收敛到该外壳并保持既有确认语义（取消/确认文案、danger 变体），新增可选 busy 在异步确认期间禁用按钮与关闭路径。`frontend/src/components/ui/UiTooltip.vue` 提供 hover/focus 文字提示，自动做视口翻转与边界夹取，仅通过 `aria-describedby` 补充说明，trigger 保留自己的可访问名称，任何操作不依赖 tooltip 才能完成。`frontend/src/components/ui/UiDropdown.vue` 承载低频动作与入口菜单（关注 / 举报 / 屏蔽等治理动作，PostsView 工具栏的分类入口）：menu / menuitem 语义，trigger 携带 `aria-haspopup="menu"`、`aria-expanded` 与打开时的 `aria-controls`；click 与 Enter / Space / ↓ 打开并聚焦首个可用项（↑ 聚焦末项），菜单内 ↑/↓ 循环跳过禁用项、Home/End 跳转、Enter/Space 激活并经 `select` 事件交出被选项；Escape、选中、trigger 再点击与外部 pointerdown 关闭，Escape 与选中关闭后焦点返回 trigger。浮层 teleport 到 body，默认从 trigger 下缘对齐展开，视口空间不足时翻到上方并整体夹取在视口内（`--z-popover`、`--radius-lg`），危险动作以 `danger` 项标记；菜单只承载动作，不提供搜索或多选。
+浮层原语：`frontend/src/components/ui/UiModal.vue` 是统一的原生 `<dialog>` 外壳，提供 title、sm/md/lg 尺寸与 header/body/footer slots；Escape、backdrop 点击与关闭按钮只发出 close 请求，由使用方决定卸载时机，busy 期间禁止关闭。`frontend/src/components/ui/UiModalConfirm.vue` 已收敛到该外壳并保持既有确认语义（取消/确认文案、danger 变体），新增可选 busy 在异步确认期间禁用按钮与关闭路径；默认 slot 可承载复述文案之外的额外内容（如争议裁定的理由输入）。`frontend/src/components/ui/UiTooltip.vue` 提供 hover/focus 文字提示，自动做视口翻转与边界夹取，仅通过 `aria-describedby` 补充说明，trigger 保留自己的可访问名称，任何操作不依赖 tooltip 才能完成。`frontend/src/components/ui/UiDropdown.vue` 承载低频动作与入口菜单（关注 / 举报 / 屏蔽等治理动作，PostsView 工具栏的分类入口）：menu / menuitem 语义，trigger 携带 `aria-haspopup="menu"`、`aria-expanded` 与打开时的 `aria-controls`；click 与 Enter / Space / ↓ 打开并聚焦首个可用项（↑ 聚焦末项），菜单内 ↑/↓ 循环跳过禁用项、Home/End 跳转、Enter/Space 激活并经 `select` 事件交出被选项；Escape、选中、trigger 再点击与外部 pointerdown 关闭，Escape 与选中关闭后焦点返回 trigger。浮层 teleport 到 body，默认从 trigger 下缘对齐展开，视口空间不足时翻到上方并整体夹取在视口内（`--z-popover`、`--radius-lg`），危险动作以 `danger` 项标记；菜单只承载动作，不提供搜索或多选。
 
 `frontend/src/components/ui/UiTabs.vue` 是深链可接入的选项卡原语：tablist / tab / tabpanel 语义与 `aria-controls` / `aria-labelledby` 双向关联，左右方向键自动激活并循环、Home/End 跳转，禁用 tab 被跳过且不可选；漫游 tabindex 只把选中 tab 留在 Tab 序列，面板一次性渲染并随选中切换可见性，重内容可用 panel slot 的 `active` 标志懒挂载。它只提供受控 `v-model`（`modelValue` + `update:modelValue`）：调用方把选中值映射到路由 query 即获得深链形态（PostsView 的最新/最热排序是首个生产接入，Settings 的 `?section=` 深链导航随波次 5 接入）；modelValue 缺失或指向禁用 / 不存在的 tab 时回退展示第一个可用 tab，但不代调用方发事件。tablist 横向溢出时滚动收缩（`overflow-x: auto`），桌面与移动视口均不撑破布局。
 

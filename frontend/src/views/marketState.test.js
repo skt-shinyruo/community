@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMarketState, filterMarketListings, marketOrderCancelConfirmation, marketOrderConfirmConfirmation, nextTableSort, sortMarketInventory } from './marketState'
+import { buildMarketState, filterMarketListings, marketDisputeResolutionConfirmation, marketOrderCancelConfirmation, marketOrderConfirmConfirmation, nextTableSort, sortMarketInventory } from './marketState'
 
 describe('views/marketState', () => {
   it('should derive type labels and mixed fulfillment labels from goodsType', () => {
@@ -349,5 +349,44 @@ describe('views/marketState', () => {
     expect(cancel.message).toContain('500 积分')
     expect(cancel.message).toContain('退回')
     expect(cancel.message).toContain('不可撤销')
+  })
+
+  it('projects dispute order amount text only when the amount is known', () => {
+    const state = buildMarketState({
+      disputes: [
+        { disputeId: '1', status: 'SELLER_REJECTED', totalAmount: 12900 },
+        { disputeId: '2', status: 'SELLER_REJECTED', totalAmount: null },
+        { disputeId: '3', status: 'SELLER_REJECTED' }
+      ]
+    })
+
+    expect(state.disputes[0].totalAmountText).toBe('12900 积分')
+    expect(state.disputes[1].totalAmountText).toBe('')
+    expect(state.disputes[2].totalAmountText).toBe('')
+  })
+
+  it('builds dispute resolution confirmation copy that restates the amount and irreversible consequence', () => {
+    const refund = marketDisputeResolutionConfirmation({ action: 'refund', totalAmountText: '12900 积分' })
+    expect(refund).toMatchObject({
+      title: '退回买家',
+      confirmText: '退回买家',
+      variant: 'danger'
+    })
+    expect(refund.message).toContain('12900 积分')
+    expect(refund.message).toContain('退回买家')
+    expect(refund.message).toContain('不可撤销')
+
+    const release = marketDisputeResolutionConfirmation({ action: 'release', totalAmountText: '12900 积分' })
+    expect(release).toMatchObject({
+      title: '放款卖家',
+      confirmText: '放款卖家',
+      variant: 'danger'
+    })
+    expect(release.message).toContain('12900 积分')
+    expect(release.message).toContain('放款给卖家')
+    expect(release.message).toContain('不可撤销')
+
+    const fallback = marketDisputeResolutionConfirmation({ action: 'refund' })
+    expect(fallback.message).toContain('托管资金')
   })
 })

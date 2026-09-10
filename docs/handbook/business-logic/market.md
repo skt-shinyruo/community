@@ -216,6 +216,8 @@ replay 时只比较请求 `addressId` 与订单已持久化的 `addressIdSnapsho
 
 - `adminResolveRefund(...)`：裁退款，写 DISPUTE_REFUND wallet action。
 - `adminResolveRelease(...)`：裁放款，写 DISPUTE_RELEASE wallet action。
+- 裁定 note 由管理员显式填写：非空时（trim 后）写入 dispute 作为裁定理由进入审计记录；为空时不写入占位词、不覆盖卖家原始说明。
+- `GET /api/admin/market/disputes` 返回的 dispute 带关联订单 `totalAmount`（订单缺失时为 null），供裁定确认弹窗复述订单金额。
 
 active dispute 包括 `OPEN` 和 `SELLER_REJECTED`。
 

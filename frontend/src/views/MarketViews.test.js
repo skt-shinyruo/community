@@ -773,7 +773,15 @@ describe('Unified market views', () => {
     await wrapper.find('button').trigger('click')
     await flushPromises()
 
-    expect(adminResolveMarketDispute).toHaveBeenCalledWith(1, 'refund', { note: 'refund' })
+    // 裁定先经确认弹窗复述金额与不可撤销后果，确认后才调用统一 service。
+    expect(adminResolveMarketDispute).not.toHaveBeenCalled()
+    const dialog = wrapper.find('dialog')
+    expect(dialog.text()).toContain('不可撤销')
+    const confirm = dialog.findAll('button').find((item) => item.text() === '退回买家')
+    await confirm.trigger('click')
+    await flushPromises()
+
+    expect(adminResolveMarketDispute).toHaveBeenCalledWith('1', 'refund', { note: '' })
   })
 })
 

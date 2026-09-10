@@ -66,6 +66,27 @@ class AdminMarketControllerTest {
     }
 
     @Test
+    void adminResolutionApisShouldAcceptBlankNote() throws Exception {
+        UUID disputeId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID adminUserId = uuid(99);
+
+        mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-refund")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("{}"))
+                .andExpect(status().isOk());
+
+        mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-release")
+                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                        .contentType("application/json")
+                        .content("{\"note\":\"\"}"))
+                .andExpect(status().isOk());
+
+        verify(marketDisputeService).adminResolveRefund(disputeId, adminUserId, null);
+        verify(marketDisputeService).adminResolveRelease(disputeId, adminUserId, "");
+    }
+
+    @Test
     void adminResolutionApisShouldDelegateToService() throws Exception {
         UUID disputeId = UUID.fromString("00000000-0000-7000-8000-000000000001");
         UUID orderId = UUID.fromString("00000000-0000-7000-8000-000000000011");
@@ -75,6 +96,7 @@ class AdminMarketControllerTest {
         MarketDisputeResult dispute = new MarketDisputeResult(
                 disputeId,
                 orderId,
+                12_900L,
                 "PHYSICAL",
                 buyerUserId,
                 sellerUserId,
@@ -93,6 +115,7 @@ class AdminMarketControllerTest {
         when(marketDisputeService.adminResolveRelease(disputeId, adminUserId, "release")).thenReturn(new MarketDisputeResult(
                 disputeId,
                 orderId,
+                12_900L,
                 "PHYSICAL",
                 buyerUserId,
                 sellerUserId,
@@ -110,7 +133,8 @@ class AdminMarketControllerTest {
         mockMvc.perform(get("/api/admin/market/disputes")
                         .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN")))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.data[0].disputeId").value(disputeId.toString()));
+                .andExpect(jsonPath("$.data[0].disputeId").value(disputeId.toString()))
+                .andExpect(jsonPath("$.data[0].totalAmount").value(12_900L));
 
         mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-refund")
                         .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))

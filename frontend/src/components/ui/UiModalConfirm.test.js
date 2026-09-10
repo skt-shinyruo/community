@@ -40,6 +40,16 @@ describe('UiModalConfirm', () => {
     expect(wrapper.emitted('cancel')).toHaveLength(1)
   })
 
+  it('renders optional default slot content below the message', () => {
+    const wrapper = mount(UiModalConfirm, {
+      props: { message: '复述金额与后果' },
+      slots: { default: '<textarea data-test="extra-note" />' }
+    })
+
+    expect(wrapper.text()).toContain('复述金额与后果')
+    expect(wrapper.get('[data-test="extra-note"]').exists()).toBe(true)
+  })
+
   it('emits cancel when Escape is pressed', async () => {
     const wrapper = mount(UiModalConfirm)
 

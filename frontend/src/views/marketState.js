@@ -260,6 +260,12 @@ function amountText(amount) {
   return `${normalized} 积分`
 }
 
+// 争议列表的订单金额来自 dispute 关联的订单投影；金额缺失时不展示金额行，不伪造 0 积分。
+function disputeAmountText(totalAmount) {
+  const normalized = asNumber(totalAmount, NaN)
+  return Number.isFinite(normalized) && normalized > 0 ? amountText(normalized) : ''
+}
+
 function stockText(stockAvailable) {
   const normalized = asNumber(stockAvailable)
   if (normalized <= 0) return '库存紧张'
@@ -366,7 +372,8 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
       ...item,
       goodsTypeLabel: goodsTypeLabel(item?.goodsType),
       statusLabel: disputeStatusLabel(item?.status),
-      nextActionLabel: nextDisputeActionLabel(item)
+      nextActionLabel: nextDisputeActionLabel(item),
+      totalAmountText: disputeAmountText(item?.totalAmount)
     })),
     addresses: safeAddresses.map((item) => ({
       ...item,
@@ -403,6 +410,27 @@ export function marketOrderCancelConfirmation({ totalAmountText } = {}) {
     title: '取消订单',
     message: `取消后订单进入取消托管处理，托管的 ${amount} 将退回你的钱包，卖家不再继续履约；取消不可撤销。`,
     confirmText: '取消订单',
+    variant: 'danger'
+  }
+}
+
+// 管理员裁定（退回买家 / 放款卖家）直接动托管资金：先经确认弹窗复述订单金额与不可撤销后果
+// （延续订单确认 / 取消的确认写法），裁定理由由管理员在弹窗中显式填写，留空不覆盖卖家说明。
+export function marketDisputeResolutionConfirmation({ action, totalAmountText } = {}) {
+  const amount = String(totalAmountText || '').trim() || '托管资金'
+  const normalized = String(action || '').trim().toLowerCase()
+  if (normalized === 'release') {
+    return {
+      title: '放款卖家',
+      message: `放款卖家后，托管的 ${amount} 将放款给卖家，买家不可再就该订单发起申诉；裁定不可撤销。`,
+      confirmText: '放款卖家',
+      variant: 'danger'
+    }
+  }
+  return {
+    title: '退回买家',
+    message: `退回买家后，托管的 ${amount} 将退回买家钱包，卖家不再继续履约；裁定不可撤销。`,
+    confirmText: '退回买家',
     variant: 'danger'
   }
 }

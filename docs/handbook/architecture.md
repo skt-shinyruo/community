@@ -198,7 +198,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - 只为满足命名或调用跳数而存在的 pass-through API adapter、event bridge 或 ApplicationService
 - 语义和生命周期完全相同、每次都共同修改的镜像 command/result/API model
 
-旧 `service`、`entity`、`mapper`、`app` 包只能作为迁移表面。触碰相关代码时，应继续把业务规则迁向 `domain`，把 MyBatis 细节迁向 `infrastructure.persistence`，把同域入口迁向 `application.*ApplicationService`。
+根级 `service`、`entity`、`mapper` 旧包已全部移除，不得重建；根级 `app` 是启动包（Application 入口与 app 级 config/security），不承载业务规则。业务规则归 `domain`，MyBatis 细节归 `infrastructure.persistence`，同域入口归 `application.*ApplicationService`。
 
 ## 主要领域包
 
@@ -215,7 +215,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `growth`：任务模板、任务进度、等级规则、奖励发放协作。
 - `market`：listing、库存、订单、交付/发货、争议和自动确认。
 - `wallet`：钱包账户、测试积分发放/销毁、转账、冻结、总账双分录、冲正；未接入真实支付或外部出款。
-- `im.projection`：主站提供给 IM realtime 的用户处罚/拉黑 policy snapshot。
+- `im`：主站提供给 IM realtime 的用户处罚/拉黑 policy snapshot（`/internal/im/realtime/projections/**`）。
 
 ## 共享基础设施
 
@@ -242,7 +242,7 @@ MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deplo
 
 ## 守卫测试
 
-后端架构规则由 ArchUnit 测试守卫：
+后端架构规则由 ArchUnit 测试守卫，集中在 `backend/community-app/src/test/java/com/nowcoder/community/app/arch/`（另有 notice 域的 `NoticeModuleArchTest`）。核心边界守卫：
 
 - `DddLayeringArchTest`
 - `ControllerBoundaryArchTest`
@@ -253,21 +253,17 @@ MySQL 的 `community`、`community_oss`、`im_core` 空库结构统一由 `deplo
 - `SynchronousCollaborationArchTest`
 - `TransactionBoundaryArchTest`
 
-路径：
+同目录还有领域专项守卫（notice 契约、auth refresh 所有权、social 仓储、持久化异常翻译等）与模块清单、持久化实现守卫。新增守卫测试用 `*ArchTest` 命名，保证 `-Dtest='*ArchTest'` 完整覆盖。
 
-```text
-backend/community-app/src/test/java/com/nowcoder/community/app/arch
-```
-
-ArchUnit 守卫直接表达危险依赖，不为已经清零的迁移例外保留空白名单或空断言，也不规定一个用例必须经过多少个类。`SynchronousCollaborationArchTest` 只检查 business / adapter domain application 的跨域依赖必须进入 published `api.query` / `api.action` / `api.model`，以及核心域同步依赖图无环；它不维护逐类型 edge baseline。`InfraBoundaryArchTest` 另外把狭窄的 `infrastructure.api` 包作为 reviewed exception surface，避免 identity adapter 再次扩散；有实质转换的新 adapter 可以连同理由一起更新 reviewed set。新增或修改架构规则时，必须同步更新本文件、[system-design.md](system-design.md)、轻量领域分层设计 spec 和对应 ArchUnit 测试。
+ArchUnit 守卫直接表达危险依赖，不为已经清零的迁移例外保留空白名单或空断言，也不规定一个用例必须经过多少个类。`SynchronousCollaborationArchTest` 只检查 business / adapter domain application 的跨域依赖必须进入 published `api.query` / `api.action` / `api.model`，以及核心域同步依赖图无环；它不维护逐类型 edge baseline。`InfraBoundaryArchTest` 另外把狭窄的 `infrastructure.api` 包作为 reviewed exception surface，避免 identity adapter 再次扩散；有实质转换的新 adapter 可以连同理由一起更新 reviewed set。新增或修改架构规则时，必须同步更新本文件、根 `AGENTS.md`、[system-design.md](system-design.md)、轻量领域分层设计 spec 和对应 ArchUnit 测试。
 
 ## Architecture Verification
 
-Use the Maven reactor form when validating architecture rules from a fresh checkout or after changing shared modules:
+Use the Maven reactor form when validating architecture rules from a fresh checkout or after changing shared modules (`-Dsurefire.failIfNoSpecifiedTests=false` keeps upstream modules without arch tests from failing on an empty match):
 
 ```bash
 cd backend
-mvn test -pl :community-app -am -Dtest='*ArchTest'
+mvn test -pl :community-app -am -Dtest='*ArchTest' -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
 The narrower command below is still valid after local `0.0.1-SNAPSHOT` dependencies have been installed, but it can read stale artifacts from `~/.m2`:
@@ -279,7 +275,7 @@ mvn test -pl :community-app -Dtest='*ArchTest'
 
 ## 文档守卫
 
-架构规则变化必须同时更新 handbook 和守卫测试；业务实现变化不一定修改本文件，但只要改变了 owner、跨域协作入口、deployable 边界或禁止模式，就不能只改代码。
+架构规则变化必须同时更新根 `AGENTS.md`、handbook 和守卫测试；业务实现变化不一定修改本文件，但只要改变了 owner、跨域协作入口、deployable 边界或禁止模式，就不能只改代码。
 
 普通业务文档更新按职责分流：
 

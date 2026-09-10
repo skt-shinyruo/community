@@ -12,7 +12,7 @@ import java.util.TreeSet;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-class ArchitectureModuleInventoryTest {
+class ArchitectureModuleInventoryArchTest {
 
     @Test
     void tacticalRootDiscoveryMustUseExactPackageSegments() {
@@ -58,7 +58,7 @@ class ArchitectureModuleInventoryTest {
     }
 
     private static Path productionClassesPath() throws URISyntaxException {
-        Path testClasses = Path.of(ArchitectureModuleInventoryTest.class
+        Path testClasses = Path.of(ArchitectureModuleInventoryArchTest.class
                 .getProtectionDomain()
                 .getCodeSource()
                 .getLocation()

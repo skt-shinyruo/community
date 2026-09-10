@@ -35,7 +35,7 @@ owner ApplicationService
 | `backend/community-im-gateway/` | IM session bootstrap 与稳定 `/ws/im` edge。 |
 | `backend/community-im/` | `im-core`、`im-realtime`、共享 IM contract 与 session ticket 协议。 |
 | `backend/community-oss/` | 对象存储 owner；typed client 位于 `backend/community-oss-client/`。 |
-| `backend/community-common/` | 错误协议、安全、Web、幂等、outbox、可观测性等共享基础设施。 |
+| `backend/community-common/` | 9 个 `common-*` 模块：错误协议、安全、Web、幂等、outbox、JSON、Kafka 等共享基础设施。 |
 | `deploy/` | 本地拓扑、Nacos seed、业务 schema、观测配置与部署契约测试。 |
 | `tools/mock-data-studio/` | 仅用于本地开发的同步测试数据 CLI。 |
 | `tests/k6/` | k6 性能测试场景与结构契约。 |
@@ -120,11 +120,11 @@ npm test
 npm run build
 ```
 
-修改后端架构规则或包边界时，额外运行：
+修改后端架构规则或包边界时，额外运行（`-am` 保证读到共享模块的最新构件；末尾 flag 防止无架构测试的上游模块空匹配失败）：
 
 ```bash
 cd backend
-mvn test -pl :community-app -Dtest='*ArchTest'
+mvn test -pl :community-app -am -Dtest='*ArchTest' -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
 完整测试分层、数据库契约、Playwright、k6 与 Mock Data Studio 验证命令见

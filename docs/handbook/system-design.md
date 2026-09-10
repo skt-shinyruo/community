@@ -103,7 +103,7 @@ caller ApplicationService
 
 - `api.model` 是同步协作模型，不复用 `contracts.event`。
 - API request/result 可以嵌套在 API 接口中；Owner ApplicationService 可以直接实现 API。
-- 当前多数 owner API 由 ApplicationService 直接实现；`infrastructure.api` 只保留 4 个负责错误翻译、协议投影或配置策略的 reviewed adapter，不为纯 delegate 增加一层。
+- 当前所有 owner API 都由 ApplicationService 直接实现；`infrastructure.api` 没有保留任何 adapter，新增 reviewed adapter 必须承担实质的错误翻译、协议投影或配置策略，不为纯 delegate 增加一层。
 - domain 不依赖 `api.*`。
 - same-domain 调用不绕回 same-domain `api.*`。
 - 架构守卫检查 business / adapter domain application 跨域只能依赖 published API，并检查核心域同步依赖图无环；不冻结具体类到具体 API model 的 edge 清单。

@@ -22,7 +22,7 @@
 | --- | --- | --- |
 | 只改 handbook / README | `git diff --check -- docs README.md frontend/README.md backend/README.md deploy/README.md tools` | 视内容引用的命令，抽样运行相关测试。 |
 | 后端业务逻辑 | 定向 `mvn test -pl <module> -Dtest=<TestName>` | `cd backend && mvn verify` |
-| 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -Dtest='*ArchTest'` 和全量后端测试 |
+| 后端架构规则 / 包结构 | 对应 ArchUnit 测试 | `cd backend && mvn test -pl :community-app -am -Dtest='*ArchTest' -Dsurefire.failIfNoSpecifiedTests=false` 和全量后端测试 |
 | schema / Compose 依赖 | 三个 schema 契约和 `reset_mysql_contract.sh` | 可用 Docker 时运行各 owner MySQL/Testcontainers 契约和 clean topology smoke |
 | 幂等 / outbox / scheduler / saga | 定向可靠性测试 | `cd backend && mvn verify`，必要时本地 compose 演练 |
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm run lint && npm run typecheck && npm run test:coverage && npm run build` |
@@ -86,7 +86,7 @@ backend/community-app/src/test/java/com/nowcoder/community/app/arch
 
 ```bash
 cd backend
-mvn test -pl :community-app -Dtest='*ArchTest'
+mvn test -pl :community-app -am -Dtest='*ArchTest' -Dsurefire.failIfNoSpecifiedTests=false
 ```
 
 ## 可靠性关键测试

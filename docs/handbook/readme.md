@@ -66,7 +66,8 @@
 | 新增本地服务、端口、env、dev-only 能力 | [local-development.md](local-development.md)、[operations.md](operations.md) |
 | 新增观测字段、指标、trace/span 命名、告警规则或 SLO | [observability.md](observability.md)、[operations.md](operations.md)、必要时同步 `deploy/observability/contracts` 和 `deploy/tests` |
 | 新增测试层级、关键测试套件、验证命令或工具测试约定 | [testing.md](testing.md) |
-| 修改 backend 架构规则或包边界 | [architecture.md](architecture.md)、[system-design.md](system-design.md) 和 ArchUnit 测试 |
+| 修改 backend 架构规则或包边界 | [architecture.md](architecture.md)、[system-design.md](system-design.md)、根 `AGENTS.md` 和 ArchUnit 测试 |
+| 顶层模块、前置条件、启动命令、默认端口或文档入口变化 | 根 `README.md`、`AGENTS.md` 仓库地图 |
 
 文档应描述当前代码真实行为。未来设计和迁移说明也放在本目录，并明确标注状态；落地后必须把当前行为同步到对应 handbook 页面。
 

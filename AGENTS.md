@@ -1,261 +1,99 @@
-# Repository Instructions
+# 仓库说明
 
-These instructions apply to the whole repository.
+本文件适用于整个仓库。架构规则的完整表述以 [docs/handbook/architecture.md](docs/handbook/architecture.md) 为 SSOT；本文件只保留每次改动都会用到的核心规则、边界与入口。
 
-## Repository Map And Sources Of Truth
+## 仓库地图
 
-- `backend/` is the Java 17 / Spring Boot 4 Maven reactor. Run backend build and test commands from this directory.
-- `frontend/` is the Vue 3 / Vite SPA. Run frontend npm commands from this directory.
-- `deploy/` owns the supported local Compose topologies, the canonical business schema, Nacos seeds,
-  observability assets, and deployment contract tests.
-- `tools/mock-data-studio/`, `tests/k6/`, and `tests/playwright-single/` are independently tested Node-based tools or
-  suites; do not assume the frontend dependency installation covers them.
-- `docs/handbook` is the source of truth for current project behavior and the home of long-lived project documentation.
-  Root and subproject READMEs are concise entry points, while `docs/research` holds dated research notes.
-- Before changing behavior, read the owning module, its tests, and the relevant handbook page. A planned design or
-  migration document does not override current code and handbook behavior until the change lands.
+- `backend/`：Java 17 / Spring Boot 4 Maven reactor，后端构建与测试在此目录执行。
+  - `community-app`：主站业务 monolith，按业务域分包治理（见下文架构核心规则）。根级 `app` 包是启动包（Application 入口与 app 级 config/security），不承载业务规则。
+  - `community-gateway` / `community-im-gateway` / `community-im` / `community-oss` / `community-oss-client`：统一入口、IM 服务、OSS 服务与 typed client。
+  - `community-common`：9 个 `common-*` 模块，提供错误协议、安全、幂等、outbox、JSON、Kafka 等横切基础设施。
+- `frontend/`：Vue 3 / Vite SPA，前端 npm 命令在此目录执行。
+- `deploy/`：本地 Compose 拓扑（infra / single / cluster）、业务 schema、Nacos seed、观测资产与部署契约测试。
+- `tools/mock-data-studio/`、`tests/k6/`、`tests/playwright-single/`：独立安装与测试的 Node 工具/套件，frontend 的依赖安装不覆盖它们。
+- 行为事实来源：`docs/handbook/`、代码与 ArchUnit 守卫测试。`docs/research/` 是带日期的研究笔记；标注为计划的设计/迁移文档在落地前不代表现状。
 
-## Architecture Style
+## 改动前必读
 
-Backend business code in `backend/community-app` uses lightweight domain layering. The goal is to keep ownership,
-transaction, and infrastructure boundaries explicit without requiring one file for every tactical DDD role.
+- 改 `backend/community-app` 业务代码 → 先读 [docs/handbook/architecture.md](docs/handbook/architecture.md)（分层、包形态、禁止模式、守卫测试的完整规则）。
+- 改跨域同步/异步协作 → 再读 [docs/handbook/system-design.md](docs/handbook/system-design.md)。
+- 改前端 → 先读 [docs/handbook/frontend.md](docs/handbook/frontend.md)；领域术语以根目录 [CONTEXT.md](CONTEXT.md) 为准。
+- 测试分层与各工具验证命令 → [docs/handbook/testing.md](docs/handbook/testing.md)。
 
-Use the smallest flow that preserves the required boundary:
+## community-app 架构核心规则
 
-```text
-simple query: Controller -> ApplicationService -> query port / Repository
-local write: Controller -> ApplicationService -> Domain model / DomainService / Repository
-synchronous cross-domain: caller ApplicationService -> owner api -> owner ApplicationService
-durable asynchronous: owner ApplicationService -> contracts.event + outbox -> listener -> consumer ApplicationService
-```
-
-The available package shape for a business domain is shown below. Packages and types are created only when the
-responsibility exists; empty layers, standalone command/result files, domain events, and adapters are not mandatory.
+按保留边界所需的最小流组织代码：
 
 ```text
-com.nowcoder.community.<domain>
-  controller          # inbound HTTP adapter
-  application         # use-case orchestration
-    command           # optional; use nested records for use-case-local values
-    result            # optional; use nested records for use-case-local values
-  domain              # business model, rules, repository interfaces, domain events
-    model
-    service
-    repository
-    event             # optional internal domain events
-  infrastructure      # MyBatis, Redis, MQ, Spring event, outbox adapters
-    persistence
-      mapper
-      dataobject
-    event             # broker, outbox, or local-event adapters
-  api                 # published synchronous contracts for foreign domains only
-    query
-    action
-    model             # optional; API-local request/result may be nested in the API
-  contracts           # published asynchronous contracts for foreign domains only
-    event
+简单查询：Controller -> ApplicationService -> query port / Repository
+本地写入：Controller -> ApplicationService -> Domain model / DomainService / Repository
+同步跨域：caller ApplicationService -> owner api.query / api.action -> owner ApplicationService -> owner domain
+异步跨域：owner ApplicationService -> contracts.event + outbox -> listener -> consumer ApplicationService
 ```
 
-## Layer Rules
+包形态：`com.nowcoder.community.<domain>` 下按职责创建 `controller`、`application`、`domain`（model/service/repository/event）、`infrastructure`（persistence.mapper/dataobject、event 等）、`api`（query/action/model）、`contracts.event`，以及已批准的 `config` / `exception` / `logging` / `security` 根。层只在职责存在时创建，不要求填满；`interaction`、`profile`、`im` 等域有意从简。
 
-- `controller` only handles HTTP binding, authentication extraction, validation handoff, and DTO conversion when the
-  transport shape differs. It MAY return a transport-safe application result directly when the shapes and semantics match.
-- Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs.
-- Controllers call a same-domain `*ApplicationService`. A same-domain application `*Query` interface is also allowed when it is a pure read contract: no business rule, cross-domain orchestration, write transaction, idempotency, or transport type, and it returns a transport-free read model. Other inbound adapters call one public same-domain application entry; this is normally an `*ApplicationService`, but a focused application `*Handler`, `*Scheduler`, or `*Publisher` is allowed when it owns real application semantics rather than forwarding calls.
-- Inbound adapters MUST NOT perform foreign owner-domain `api.*`, foreign `application.*`, domain model/service/repository, infrastructure, persistence, mapper, or dataobject collaboration before entering the same-domain application boundary.
-- `application` owns use-case orchestration, transaction boundaries, idempotency, actor/viewer conversion, command/result assembly, domain calls, domain event publication, and foreign-domain `api.*` calls.
-- Application entry classes MAY implement their own domain's published `api.query` / `api.action` interface directly. Add an infrastructure API adapter only when protocol or model conversion is substantive.
-- `infrastructure.api` is a reviewed exception surface. A new adapter MUST document the conversion or policy it owns and update the reviewed adapter guard in `InfraBoundaryArchTest`; delegation alone is not sufficient.
-- Commands and results that belong to one use case SHOULD be nested records in the application entry or owner API. Use standalone `application.command` / `application.result` types only when they are reused, independently meaningful, or large enough to improve readability.
-- Application values and application-owned ports express application semantics only. They MUST NOT expose HTTP transport types such as `ResponseEntity`, `ResponseCookie`, `Resource`, `MediaType`, Servlet request/response types, or Spring Web upload types such as `MultipartFile`.
-- `application` MUST NOT depend directly on MyBatis mapper or dataobject types. Persistence goes through domain repository interfaces or explicit infrastructure ports.
-- Simple read models MAY use an application-owned query port and return application results directly; a domain model is not required when no domain rule is involved.
-- `domain` owns business concepts and rules. It MUST NOT depend on `controller`, `application`, `infrastructure`, MyBatis mapper/dataobject types, HTTP DTOs, Spring framework, or owner-domain `api.*`.
-- `domain` MUST NOT perform cross-domain orchestration or treat external API/event contracts as internal domain models.
-- `infrastructure` owns technical implementation details such as MyBatis mapper calls, Redis adapters, outbox adapters, and broker clients.
-- `infrastructure` may implement domain repository interfaces or application-owned technical ports, but MUST NOT leak mapper/dataobject types into the domain.
-- `api.query` and `api.action` are published synchronous entry contracts for foreign domains. Same-domain callers MUST NOT inject or call them as internal entry points. An `api.model` MAY also be returned by the same-domain ApplicationService/controller path when its semantics and lifecycle are identical; do not create a mirrored application result only for package purity.
-- `contracts.event` is the published asynchronous collaboration contract for foreign domains.
-- Synchronous `api.*` contracts MUST NOT import, return, or receive `contracts.event` types. If synchronous and asynchronous payloads share fields, define separate `api.model` and `contracts.event` models.
-- A domain event and local Spring event bridge are optional. For one durable external reaction, the owner ApplicationService SHOULD write the contract event through an outbox port in the same transaction. Use a local domain event only when there are independent local subscribers.
+以下红线由 ArchUnit 强制（`backend/community-app/src/test/java/com/nowcoder/community/app/arch/`），违反直接红灯：
 
-## Cross-Domain Collaboration
+- 入站适配器（controller、listener、outbox handler、bridge、enqueuer、job）只进入同域 application 入口——默认 `*ApplicationService`，纯读可以是同域 application 的 `*Query` 接口；不直接碰 domain、infrastructure、mapper/dataobject、外部域 `api.*` / `application.*`。
+- 跨域只有两个入口：同步走 owner `api.query` / `api.action`（核心域同步依赖图必须无环），异步走 owner `contracts.event` + outbox。domain、infrastructure、mapper/dataobject、producer 域内部 event 实现都不是跨域入口。
+- `domain` 不依赖 controller / application / infrastructure / Spring / `api.*`。
+- `application` 不依赖 MyBatis mapper/dataobject、HTTP 传输类型（`ResponseEntity`、`MultipartFile` 等）、Kafka/broker 包；端口与方法签名不暴露 broker 词汇（topic、offset 等）。application 与 domain 不依赖**外部域**的 `contracts.event`，事件转换由入站适配器承担。
+- 事务边界归 application：infrastructure 类不使用 `@Transactional`；read-check-write 不作并发互斥，前提条件（`expectedVersion` 等）传到 repository 由数据库 CAS / 行锁裁决；事务有界，不覆盖无界循环或 OSS / HTTP / MQ 远程 I/O。
+- `api.*` 与 `contracts.event` 互不引用；同步与异步字段相同也分别定义 `api.model` 和 event payload。
+- `infrastructure.api` 是评审例外面，当前没有任何 adapter：新增必须承担实质的协议/模型转换并登记 `InfraBoundaryArchTest` 的 reviewed 集合，纯转发不进该包。
 
-Synchronous cross-domain collaboration MUST follow this shape:
+命名：同域用例入口 `*ApplicationService`；跨实体的领域规则 `*DomainService` / `*Policy`；仓储接口 `*Repository`（`domain.repository`）；MyBatis 实现 `MyBatis*Repository`（`infrastructure.persistence`）；行对象 `*DataObject`（`infrastructure.persistence.dataobject`）。`*UseCase`、`*CommandService`、`*ActionService`、`*FacadeService` 与以域名命名的聚合门面 ApplicationService 都是禁止命名。根级 `service` / `entity` / `mapper` 旧包已全部移除，不得重建。
 
-```text
-caller ApplicationService
-  -> owner-domain api.query / api.action
-  -> owner ApplicationService implementing the API, or a substantive adapter
-  -> owner domain
-```
+完整层规则、禁止模式清单与领域包说明见 [docs/handbook/architecture.md](docs/handbook/architecture.md)；修改这些规则时必须同步该文件与 ArchUnit 测试。
 
-Asynchronous cross-domain collaboration MUST follow this shape:
+## 前端边界
 
-```text
-owner ApplicationService
-  -> owner contracts.event + outbox
-  -> outbox handler
-  -> broker
-  -> listener
-  -> consumer ApplicationService
-```
+- 浏览器流量统一走 gateway 的 `/api`、`/files`、`/ws/im`；视图和 store 不依赖后端服务内部地址。
+- 路由守卫是体验边界，不是授权边界；后端授权才是权威。
+- access token 只存 Pinia 内存，refresh token 只存 HttpOnly cookie；两者都不进 JS 可读的持久存储。
+- 主站 HTTP 用 `frontend/src/api/http.js`，IM HTTP 用 `frontend/src/api/imCoreHttp.js`；不建页面级私有 client，保持共享的 Result、刷新、endpoint 解析与错误语义。
+- API / WebSocket 地址走运行时 config 与 endpoint helper；IM WebSocket 的 `wsUrl` 与 ticket 从 `POST /api/im/sessions` 获取，不写死 IM worker 地址。
+- 复杂页面状态收拢到 `frontend/src/views/*State.js` 模块并配同目录测试；组件只负责渲染与交互。
+- 同一笔高风险写入的重试必须复用原 `Idempotency-Key`；换新 key 就是新的业务尝试。
 
-Do not use these as cross-domain entry points:
+## 数据与部署红线
 
-- `domain`
-- `infrastructure`
-- MyBatis mapper / dataobject
-- root legacy `service`
-- root legacy `entity`
-- root legacy `mapper`
-- producer-domain internal event implementation
+- Compose 入口只有 `./deploy/deployment.sh`；不文档化、不自动化绕开它的直接 `docker compose` 调用（deploy 工具自身需要时除外）。
+- `single` 是日常开发拓扑，`cluster` 用于多实例与集群路径验证；observability 对 `infra` / `single` 默认关、对 `cluster` 默认开，用 `--observability` / `--no-observability` 显式覆盖。
+- 真实 secret 与本地 `deploy/.env*` 不入库；Nacos seed 只放非敏感配置，凭据与签名密钥留在 env 文件或 secret manager。
+- 业务 schema 固定为 `community`、`community_oss`、`im_core`，空库结构以 `deploy/database/business/001_schema.sql` 为准。
+- 开发期业务 MySQL 数据可丢弃：schema 变更同步 `001_schema.sql`、H2/MyBatis fixture、schema 契约与 `docs/handbook/data-and-storage.md`，再用 `reset-mysql` 重建目标 volume；在第一个数据必须存活的环境之前建立前向迁移基线。
+- `reset-mysql` 与 `docker compose down -v` 是破坏性操作：仅在任务明确要求删除数据且已确认拓扑/项目时执行。
 
-## Prohibited New Patterns
+## 变更与验证
 
-Do not add new code that follows any of these patterns:
+- 改动限定在所属模块与既有边界内；聚焦的修复或文档更新不夹带顺手重构。
+- 行为变化要补回归覆盖；有聚焦测试时不用"编译通过"代替行为验证。
+- 后端：先跑受影响模块的聚焦测试；涉及共享契约、运行时装配或多模块时 `cd backend && mvn test`。
+- 前端：能跑聚焦 Vitest 就先跑；涉及共享路由、会话、API 或生产构建时 `cd frontend && npm test && npm run build`。
+- 部署、schema、Nacos、观测、k6、Playwright、Mock Data Studio 改动：使用 [docs/handbook/testing.md](docs/handbook/testing.md) 与所属 README 记载的契约/测试套件。
+- 文档类改动至少通过 `git diff --check -- AGENTS.md README.md docs frontend/README.md backend/README.md deploy/README.md tools`。
+- 不在开发者本地拓扑上做破坏性验证；优先 render、静态契约、单测与一次性容器检查，除非破坏性本身就是任务目标。
 
-- `Controller -> raw Service`
-- `Controller -> UseCase`
-- `Controller -> same-domain api.*`
-- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> foreign api.*`
-- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> foreign application.*`
-- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> domain repository/service/model`
-- `Controller / Listener / Handler / Bridge / Enqueuer / Job -> mapper/dataobject/persistence`
-- `ApplicationService -> MyBatis mapper`
-- `ApplicationService -> HTTP transport type`
-- `Domain -> infrastructure`
-- `Domain -> api.*`
-- `api.* -> contracts.event`
-- `UseCase + ApplicationService` as two competing use-case entry styles
-- `CommandService`, `ActionService`, or `FacadeService` as application entry naming
-- `app/query`, `app/command`, or new `*UseCase` packages
-- pass-through API adapters, event bridges, or ApplicationServices that exist only to satisfy a naming rule
-- mirrored command/result/API models with identical semantics and no independent evolution boundary
-
-Existing legacy packages such as `service`, `entity`, `mapper`, and `app` are migration-only surfaces. When touching affected code, move it toward the lightweight domain layering boundaries instead of extending the legacy style.
-
-## Naming
-
-- Same-domain use-case entry: `*ApplicationService` in the `application` package. Focused application helpers use their actual role, such as `*Assembler`, `*Scheduler`, or `*Publisher`.
-- Domain rule that does not naturally belong to one entity: `*DomainService` or `*Policy` in the `domain` package.
-- Domain persistence contract: `*Repository` interface in `domain.repository`.
-- MyBatis implementation: `MyBatis*Repository` in `infrastructure.persistence`.
-- Persistence row object: `*DataObject` in `infrastructure.persistence.dataobject`.
-
-## Frontend Boundaries
-
-- Browser traffic uses the gateway for `/api`, `/files`, and `/ws/im`; do not make views or stores depend on internal
-  backend service addresses.
-- Route guards are an experience boundary, not an authorization boundary. Backend authorization remains authoritative.
-- Access tokens stay in Pinia memory and refresh tokens stay in HttpOnly cookies. Do not copy either credential into
-  JavaScript-readable persistent storage.
-- Main-site HTTP calls use `frontend/src/api/http.js`; IM HTTP calls use `frontend/src/api/imCoreHttp.js`. Preserve the
-  shared Result, refresh, endpoint-resolution, and error semantics instead of creating page-local clients.
-- Resolve API and WebSocket endpoints through the existing runtime config and endpoint helpers. IM WebSocket clients
-  obtain `wsUrl` and a ticket from `POST /api/im/sessions`; do not hard-code an IM worker address.
-- Keep complex page state in focused `frontend/src/views/*State.js` modules with colocated tests. Components should own
-  rendering and interaction, not duplicate transport or session policy.
-- A retry of the same high-risk write attempt must reuse its `Idempotency-Key`; generating a new key changes the business
-  attempt.
-
-## Data And Deployment Rules
-
-- Use `./deploy/deployment.sh` as the supported Compose entry point. Do not document or automate a partial direct
-  `docker compose` invocation unless the deploy tooling itself requires it.
-- `single` is the normal development topology; `cluster` is for multi-instance and cluster-path validation.
-  Observability defaults off for `infra` / `single` and on for `cluster`; use `--observability` to enable it for
-  `single`, while `--no-observability` explicitly disables it for supported stacks.
-- Never commit real secrets or local `deploy/.env*` files. Nacos config seeds contain non-secret configuration only;
-  credentials and signing keys stay in env files or a secret manager.
-- The fixed business schemas are `community`, `community_oss`, and `im_core`. Their canonical empty-volume schema lives
-  in `deploy/database/business/001_schema.sql`.
-- During development, business MySQL data is disposable. A schema change updates `001_schema.sql`, the applicable
-  H2/MyBatis fixtures, schema contracts, and `docs/handbook/data-and-storage.md`; developers then recreate the target
-  MySQL volumes with `reset-mysql`. Establish a forward-migration baseline before the first environment whose data must
-  survive application upgrades.
-- Treat `reset-mysql` and `docker compose down -v` as destructive. Run them only when the task explicitly requires data
-  removal and the exact topology/project has been confirmed.
-
-## Change And Verification Workflow
-
-- Keep changes scoped to the owning module and existing boundaries. Do not mix opportunistic refactors into a focused
-  fix or documentation update.
-- Add regression coverage for behavior changes. Scale verification to the affected surface; do not substitute compilation
-  for behavior tests when a focused test exists.
-- Backend changes: run focused module tests first, then `cd backend && mvn test` when shared contracts, runtime wiring, or
-  multiple modules are affected.
-- Frontend changes: run focused Vitest files when possible, then `cd frontend && npm test && npm run build` for shared
-  routing, session, API, or production-build changes.
-- Architecture or package-boundary changes: run the ArchUnit command in the guardrail section below in addition to the
-  affected backend tests.
-- Deployment, schema, Nacos, observability, k6, Playwright, and Mock Data Studio changes use the matching contract or test
-  suites documented in `docs/handbook/testing.md` and in the owning README.
-- Documentation-only changes must at least pass
-  `git diff --check -- AGENTS.md README.md docs frontend/README.md backend/README.md deploy/README.md tools`.
-- Do not run destructive validation against a developer's local topology. Prefer render, static contract, unit, and
-  disposable-container checks unless destructive behavior is the explicit subject of the task.
-
-## Documentation And Guardrails
-
-Long-lived project documentation MUST live under:
-
-- `docs/handbook`
-
-Root and subproject READMEs remain navigational and operational entry points; they MUST link to handbook detail instead
-of becoming competing sources of truth. Update `README.md` when top-level modules, prerequisites, canonical startup
-commands, default ports, or primary document entry points change.
-
-Future design and migration documents also live under `docs/handbook` and MUST clearly state that they describe planned
-behavior. Once implemented, fold the resulting behavior into the owning handbook page.
-
-Architecture documentation must stay aligned with this file:
-
-- `docs/handbook/architecture.md`
-- `docs/handbook/system-design.md`
-
-Behavioral documentation must stay aligned with the owning code:
-
-- Business workflows: `docs/handbook/business-logic`, `docs/handbook/business-flows.md`, and
-  `docs/handbook/core-logic-index.md`
-- HTTP, synchronous API, and asynchronous event contracts: `docs/handbook/integration-contracts.md`
-- Frontend routes, session, endpoint, HTTP, realtime, and page-state behavior: `docs/handbook/frontend.md`
-- Security, reliability, storage, observability, operations, local development, and tests: their matching pages under
-  `docs/handbook`
-
-When adding or changing backend architecture rules, update or add ArchUnit tests under:
-
-```text
-backend/community-app/src/test/java/com/nowcoder/community/app/arch
-```
-
-The active architecture guardrails include:
-
-- `DddLayeringArchTest`
-- `ControllerBoundaryArchTest`
-- `DomainBoundaryArchTest`
-- `DtoBoundaryArchTest`
-- `InfraBoundaryArchTest`
-- `ListenerBoundaryArchTest`
-- `TransactionBoundaryArchTest`
-
-After changing backend architecture rules or package boundaries, run:
+架构或包边界变化时，除受影响测试外运行架构守卫：
 
 ```bash
 cd backend
-mvn test -pl :community-app -Dtest='*ArchTest'
+mvn test -pl :community-app -am -Dtest='*ArchTest' -Dsurefire.failIfNoSpecifiedTests=false
 ```
+
+`-am` 让共享模块使用最新构件，避免读到 `~/.m2` 旧版本；末尾的 flag 让没有架构测试的上游模块不因空匹配失败。本地 SNAPSHOT 依赖已安装过时，可用窄形式 `mvn test -pl :community-app -Dtest='*ArchTest'`。
+
+## 文档守卫
+
+- 长期文档只放 `docs/handbook`；根与子项目 README 是导航/操作入口，链接 handbook 而不另立事实来源。顶层模块、前置条件、启动命令、默认端口或文档入口变化时更新 `README.md`。
+- 计划性设计/迁移文档也放 `docs/handbook` 并明确标注描述的是计划行为；落地后把行为并入所属 handbook 页面。
+- 架构规则（分层、包边界、跨域入口、禁止模式）变化必须同步三处：本文件、[docs/handbook/architecture.md](docs/handbook/architecture.md)（按需含 system-design.md）、`app/arch/` 下的 ArchUnit 测试。
+- 行为文档跟随所属代码，按 [docs/handbook/readme.md](docs/handbook/readme.md) 的维护清单分流：业务链路 → `business-logic/` 与 `business-flows.md`，契约 → `integration-contracts.md`，前端 → `frontend.md`，其余各归其页。
 
 ## Agent skills
 
-### Issue tracker
-
-Issues are tracked in GitHub Issues. See `docs/agents/issue-tracker.md`.
-
-### Triage labels
-
-The default five-role triage vocabulary is used. See `docs/agents/triage-labels.md`.
-
-### Domain docs
-
-Domain documentation uses the single-context layout. See `docs/agents/domain.md`.
+- Issue tracker：GitHub Issues，见 [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md)。
+- Triage 标签：默认五角色词汇，见 [docs/agents/triage-labels.md](docs/agents/triage-labels.md)。
+- 域文档：single-context 布局，见 [docs/agents/domain.md](docs/agents/domain.md)。

@@ -98,6 +98,12 @@ class ControllerBoundaryArchTest {
                     .should(enterSameDomainApplicationThroughReviewedEntries());
 
     @ArchTest
+    static final ArchRule controllers_must_not_inject_owner_api_entries =
+            classes()
+                    .that().areAnnotatedWith(RestController.class)
+                    .should(notInjectOwnerApiEntries());
+
+    @ArchTest
     static final ArchRule drive_controllers_should_only_depend_on_drive_application_boundary =
             noClasses()
                     .that().resideInAnyPackage("..drive.controller..")
@@ -193,6 +199,25 @@ class ControllerBoundaryArchTest {
                         events.add(SimpleConditionEvent.violated(
                                 item,
                                 field.getFullName() + " is not a reviewed application entry"
+                        ));
+                    }
+                });
+            }
+        };
+    }
+
+    private static ArchCondition<JavaClass> notInjectOwnerApiEntries() {
+        return new ArchCondition<>("not inject owner api.query / api.action entries") {
+            @Override
+            public void check(JavaClass item, ConditionEvents events) {
+                item.getFields().forEach(field -> {
+                    String packageName = field.getRawType().getPackageName();
+                    if (packageName.startsWith(BASE_PACKAGE)
+                            && (packageName.contains(".api.query") || packageName.contains(".api.action"))) {
+                        events.add(SimpleConditionEvent.violated(
+                                item,
+                                field.getFullName()
+                                        + " injects an owner api entry; enter through the same-domain application boundary"
                         ));
                     }
                 });

@@ -90,7 +90,7 @@ com.nowcoder.community.<domain>
 - Inbound adapters include controllers, local event listeners, outbox handlers, event bridges, enqueuers, and scheduled jobs. They adapt input and enter the same-domain application layer; they must not perform foreign owner `api.*`, foreign `application.*`, domain model/service/repository, or persistence collaboration before that boundary.
 - controller 进入同域 `*ApplicationService`。其他入站适配器进入一个公开的同域 application entry；默认使用 `*ApplicationService`，当组件确实承担调度、投影或发布语义时也可以使用 `*Scheduler`、`*Handler`、`*Publisher`。
 - 不直接调用 raw service、repository、mapper、domain service、infrastructure adapter。
-- 不把 same-domain `api.*` 当内部入口使用。
+- 不把 same-domain `api.*` 当内部入口使用；controller 不注入、不调用任何域的 `api.query` / `api.action`。controller 读路径的返回类型可以直接暴露 owner API 的 model 类型（`api.model` 或 API 接口嵌套 record），语义和生命周期相同就不建镜像类型。
 
 ### Application
 

@@ -35,7 +35,7 @@
 
 以下红线由 ArchUnit 强制（`backend/community-app/src/test/java/com/nowcoder/community/app/arch/`），违反直接红灯：
 
-- 入站适配器（controller、listener、outbox handler、bridge、enqueuer、job）只进入同域 application 入口——默认 `*ApplicationService`，纯读可以是同域 application 的 `*Query` 接口；不直接碰 domain、infrastructure、mapper/dataobject、外部域 `api.*` / `application.*`。
+- 入站适配器（controller、listener、outbox handler、bridge、enqueuer、job）只进入同域 application 入口——默认 `*ApplicationService`，纯读可以是同域 application 的 `*Query` 接口；不直接碰 domain、infrastructure、mapper/dataobject，不注入/调用外部域 `api.*` / `application.*`。controller 读路径的返回类型可以直接暴露外部 API 的 model 类型，语义相同不建镜像。
 - 跨域只有两个入口：同步走 owner `api.query` / `api.action`（核心域同步依赖图必须无环），异步走 owner `contracts.event` + outbox。domain、infrastructure、mapper/dataobject、producer 域内部 event 实现都不是跨域入口。
 - `domain` 不依赖 controller / application / infrastructure / Spring / `api.*`。
 - `application` 不依赖 MyBatis mapper/dataobject、HTTP 传输类型（`ResponseEntity`、`MultipartFile` 等）、Kafka/broker 包；端口与方法签名不暴露 broker 词汇（topic、offset 等）。application 与 domain 不依赖**外部域**的 `contracts.event`，事件转换由入站适配器承担。

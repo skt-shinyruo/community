@@ -197,6 +197,7 @@ import { normalizeOpaqueId } from '../utils/opaqueId'
 import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
+import { moderationActionNeedsDuration, resolveModerationDurationSeconds } from './moderationState'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 
@@ -364,7 +365,7 @@ const actionForm = ref({
   durationSeconds: ''
 })
 
-const actionNeedsDuration = computed(() => actionForm.value.action === 'mute' || actionForm.value.action === 'ban')
+const actionNeedsDuration = computed(() => moderationActionNeedsDuration(actionForm.value.action))
 
 function openActionModal(report) {
   if (!hasModerationAccess.value) return
@@ -380,13 +381,6 @@ function closeActionModal() {
   actionError.value = ''
 }
 
-function resolveDurationSeconds() {
-  if (!actionNeedsDuration.value) return undefined
-  if (actionForm.value.durationPreset !== 'custom') return Number(actionForm.value.durationPreset || 0) || undefined
-  const n = Number(actionForm.value.durationSeconds || 0)
-  return n > 0 ? n : undefined
-}
-
 async function submitAction() {
   actionError.value = ''
   if (!hasModerationAccess.value) return
@@ -397,6 +391,11 @@ async function submitAction() {
     actionError.value = '请填写处置理由'
     return
   }
+  const durationResult = resolveModerationDurationSeconds(actionForm.value)
+  if (!durationResult.valid) {
+    actionError.value = durationResult.message
+    return
+  }
 
   const generation = ++actionGeneration
   const scope = viewScope.value
@@ -404,7 +403,7 @@ async function submitAction() {
     reportId,
     action: actionForm.value.action,
     reason,
-    durationSeconds: resolveDurationSeconds()
+    durationSeconds: durationResult.durationSeconds
   }
   actionLoading.value = true
   try {

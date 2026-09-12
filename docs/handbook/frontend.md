@@ -359,6 +359,7 @@ connect(accessToken)
 | `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；争议投影含订单金额文案（`totalAmountText`）与裁定确认文案（`marketDisputeResolutionConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增与到底判定）和资损确认文案。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
+| `moderationState.js` | 治理后台处置表单的时长解析与校验：自定义时长必须是正整数秒数，非法输入返回行内错误，不再静默回落到后端默认时长。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
 | `useUserProfilePage.js` | 用户主页的 route/session scope、并发加载、部分成功、关注/拉黑动作和生命周期隔离。 |
 | `userProfileSurface.js` / `userProfileTimeline.js` | 用户主页摘要和时间线的纯展示投影。 |

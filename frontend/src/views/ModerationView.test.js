@@ -108,6 +108,42 @@ describe('ModerationView', () => {
     })
   })
 
+  it('blocks submission with an inline error when the custom duration is invalid', async () => {
+    const wrapper = mountModerationView()
+    await flushPromises()
+
+    await wrapper.findAll('button').find((button) => button.text() === '处置').trigger('click')
+    await wrapper.find('select[name="moderation-action-type"]').setValue('mute')
+    await wrapper.find('select[name="moderation-duration-preset"]').setValue('custom')
+    await wrapper.find('textarea').setValue('confirmed spam')
+
+    const customDuration = () => wrapper.find('input[name="moderation-duration-seconds"]')
+    const submit = () => wrapper.findAll('button').find((button) => button.text() === '确认处置')
+
+    for (const invalid of ['', '0', '-5', 'abc', '1.5']) {
+      await customDuration().setValue(invalid)
+      await submit().trigger('click')
+      await flushPromises()
+
+      expect(takeAction).not.toHaveBeenCalled()
+      expect(wrapper.find('.moderation-modal-error').text()).toBe(
+        invalid === '' ? '请输入自定义时长（秒）' : '自定义时长必须是正整数（秒）'
+      )
+    }
+
+    await customDuration().setValue('600')
+    await submit().trigger('click')
+    await flushPromises()
+
+    expect(takeAction).toHaveBeenCalledTimes(1)
+    expect(takeAction).toHaveBeenCalledWith({
+      reportId: '22222222-2222-7222-8222-222222222222',
+      action: 'mute',
+      reason: 'confirmed spam',
+      durationSeconds: 600
+    })
+  })
+
   it('keeps reports visible and retries the same page after load-more fails', async () => {
     const firstPage = Array.from({ length: 20 }, (_, index) => ({
       id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,

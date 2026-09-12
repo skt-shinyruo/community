@@ -49,6 +49,12 @@ vi.mock('../api/services/taxonomyService', () => ({
   suggestTags: vi.fn().mockResolvedValue({ data: [] })
 }))
 
+vi.mock('../api/services/socialService', () => ({
+  setLike: vi.fn(),
+  getLikeCounts: vi.fn().mockResolvedValue({ data: {} }),
+  getLikeStatuses: vi.fn().mockResolvedValue({ data: {} })
+}))
+
 import PostsView from './PostsView.vue'
 import UiAutosuggestInput from '../components/ui/UiAutosuggestInput.vue'
 import UiTabs from '../components/ui/UiTabs.vue'
@@ -56,6 +62,7 @@ import PostBlockEditor from '../components/posts/PostBlockEditor.vue'
 import FeedToolbar from '../components/posts/FeedToolbar.vue'
 import { batchPostSummaries, createPost, listBoardFeed, listGlobalFeed } from '../api/services/postService'
 import { searchPosts } from '../api/services/searchService'
+import { setLike } from '../api/services/socialService'
 import { usePostsFeed } from './posts/usePostsFeed'
 
 const ORDER_TABS = [
@@ -72,6 +79,14 @@ describe('PostsView', () => {
       reject = rej
     })
     return { promise, resolve, reject }
+  }
+
+  function mockFeedPages(pages) {
+    for (const page of pages) {
+      listGlobalFeed.mockResolvedValueOnce({
+        data: { items: page.items, nextCursor: page.nextCursor || '' }
+      })
+    }
   }
 
   function createPostsPinia() {
@@ -135,6 +150,7 @@ describe('PostsView', () => {
     batchPostSummaries.mockResolvedValue({ data: [], traceId: 'trace-batch-summary' })
     searchPosts.mockClear()
     searchPosts.mockResolvedValue({ data: [], traceId: 'trace-search-posts' })
+    setLike.mockReset()
     window.localStorage.clear()
   })
 
@@ -789,5 +805,160 @@ describe('PostsView', () => {
         }
       ]
     }), expect.objectContaining({ writeAttempt: expect.any(Object) }))
+  })
+
+  it('ignores rapid repeat likes while a like request is in flight', async () => {
+    mockFeedPages([{ items: [{ id: 'post-1', title: 'first post', userId: 'user-1' }] }])
+    const inFlight = deferred()
+    setLike.mockReturnValueOnce(inFlight.promise)
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const likeButton = () => wrapper.get('.posts-card-like')
+    await likeButton().trigger('click')
+    expect(setLike).toHaveBeenCalledTimes(1)
+    expect(setLike).toHaveBeenCalledWith({ entityType: 1, entityId: 'post-1', liked: null })
+    expect(likeButton().attributes('disabled')).toBeDefined()
+
+    // 重复点击与程序化重入都被在途守卫忽略
+    await wrapper.vm.togglePostLike(wrapper.vm.items[0])
+    await wrapper.vm.togglePostLike(wrapper.vm.items[0])
+    expect(setLike).toHaveBeenCalledTimes(1)
+
+    inFlight.resolve({ data: { liked: true, likeCount: 4 } })
+    await flushPromises()
+
+    expect(likeButton().attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('4 赞')
+    const postMetaCache = usePostMetaCacheStore()
+    expect(postMetaCache.getLikeStatus(1, 'post-1')).toBe(true)
+    expect(postMetaCache.getLikeCount(1, 'post-1')).toBe(4)
+
+    // 请求落地后可以再次点赞，终态以来最新一次响应
+    setLike.mockResolvedValueOnce({ data: { liked: false, likeCount: 3 } })
+    await likeButton().trigger('click')
+    await flushPromises()
+
+    expect(setLike).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('3 赞')
+    expect(postMetaCache.getLikeStatus(1, 'post-1')).toBe(false)
+  })
+
+  it('releases the like guard after a failure so the user can retry', async () => {
+    mockFeedPages([{ items: [{ id: 'post-1', title: 'first post', userId: 'user-1' }] }])
+    setLike.mockRejectedValueOnce(new Error('network down'))
+
+    const wrapper = mountView()
+    await flushPromises()
+
+    const likeButton = () => wrapper.get('.posts-card-like')
+    await likeButton().trigger('click')
+    await flushPromises()
+
+    expect(setLike).toHaveBeenCalledTimes(1)
+    expect(likeButton().attributes('disabled')).toBeUndefined()
+    expect(wrapper.text()).toContain('0 赞')
+
+    setLike.mockResolvedValueOnce({ data: { liked: true, likeCount: 1 } })
+    await likeButton().trigger('click')
+    await flushPromises()
+
+    expect(setLike).toHaveBeenCalledTimes(2)
+    expect(wrapper.text()).toContain('1 赞')
+  })
+
+  it('accumulates the hidden blocked count across paginated loads', async () => {
+    mockFeedPages([
+      {
+        items: [
+          { id: 'post-1', title: 'visible one', userId: 'user-1' },
+          { id: 'post-2', title: 'hidden one', userId: 'blocked-user' }
+        ],
+        nextCursor: 'cursor-2'
+      },
+      {
+        items: [
+          { id: 'post-3', title: 'visible two', userId: 'user-2' },
+          { id: 'post-4', title: 'hidden two', userId: 'blocked-user' }
+        ]
+      }
+    ])
+
+    const wrapper = mountView()
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+
+    expect(wrapper.get('.posts-muted-note').text()).toContain('已隐藏 1 条')
+
+    await wrapper.vm.loadMore()
+    await flushPromises()
+
+    expect(wrapper.get('.posts-muted-note').text()).toContain('已隐藏 2 条')
+  })
+
+  it('does not double count a hidden post that reappears in a later page', async () => {
+    mockFeedPages([
+      {
+        items: [
+          { id: 'post-1', title: 'visible one', userId: 'user-1' },
+          { id: 'post-2', title: 'hidden one', userId: 'blocked-user' }
+        ],
+        nextCursor: 'cursor-2'
+      },
+      {
+        items: [
+          { id: 'post-2', title: 'hidden one shifted', userId: 'blocked-user' },
+          { id: 'post-3', title: 'visible two', userId: 'user-2' },
+          { id: 'post-5', title: 'hidden two', userId: 'blocked-user' }
+        ]
+      }
+    ])
+
+    const wrapper = mountView()
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+    await wrapper.vm.loadMore()
+    await flushPromises()
+
+    expect(wrapper.get('.posts-muted-note').text()).toContain('已隐藏 2 条')
+  })
+
+  it('resets the hidden blocked count on a fresh reload', async () => {
+    mockFeedPages([
+      {
+        items: [
+          { id: 'post-1', title: 'visible one', userId: 'user-1' },
+          { id: 'post-2', title: 'hidden one', userId: 'blocked-user' }
+        ],
+        nextCursor: 'cursor-2'
+      },
+      {
+        items: [
+          { id: 'post-3', title: 'visible two', userId: 'user-2' },
+          { id: 'post-4', title: 'hidden two', userId: 'blocked-user' }
+        ]
+      }
+    ])
+
+    const wrapper = mountView()
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+    await wrapper.vm.loadMore()
+    await flushPromises()
+    expect(wrapper.get('.posts-muted-note').text()).toContain('已隐藏 2 条')
+
+    mockFeedPages([
+      {
+        items: [
+          { id: 'post-9', title: 'fresh visible', userId: 'user-9' },
+          { id: 'post-10', title: 'fresh hidden', userId: 'blocked-user' }
+        ]
+      }
+    ])
+    await wrapper.vm.reload()
+    await flushPromises()
+
+    expect(wrapper.get('.posts-muted-note').text()).toContain('已隐藏 1 条')
   })
 })

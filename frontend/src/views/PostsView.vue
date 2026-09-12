@@ -264,6 +264,7 @@
                           variant="ghost"
                           class="posts-card-like"
                           :class="{ 'posts-card-like--active': p.liked }"
+                          :disabled="isLikePending(p)"
                           :aria-label="p.liked ? '取消点赞' : '点赞'"
                           @click.stop="togglePostLike(p)"
                         >
@@ -389,7 +390,8 @@ const {
   openPost,
   loadMore,
   reload,
-  togglePostLike
+  togglePostLike,
+  isLikePending
 } = feed
 const {
   lastSeenDividerRef,

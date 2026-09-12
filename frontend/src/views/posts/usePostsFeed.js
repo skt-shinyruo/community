@@ -1,4 +1,4 @@
-import { computed, onMounted, ref, watch } from 'vue'
+import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
@@ -95,6 +95,10 @@ export function usePostsFeed() {
   const socialPrefs = useSocialPrefsStore()
   const blockedSet = computed(() => socialPrefs.blockedSet)
   const blockedHiddenCount = ref(0)
+  // 已隐藏帖子的去重集合：翻页追加时累计口径，整页刷新时清空重计
+  const blockedHiddenIds = new Set()
+  // 点赞在途守卫：同一帖子的点赞请求未完成前忽略重复点击，避免乱序响应写回中间态
+  const likePendingIds = reactive(new Set())
 
   function goLogin() {
     router.push({ name: 'login', query: { redirect: route.fullPath || '/posts' } })
@@ -429,9 +433,23 @@ export function usePostsFeed() {
     }
   }
 
-  function applyBlockedFilter(base) {
-    const afterBlocked = blockedSet.value.size > 0 ? base.filter((p) => !blockedSet.value.has(normalizeOpaqueId(p?.userId))) : base
-    blockedHiddenCount.value = Math.max(0, base.length - afterBlocked.length)
+  function applyBlockedFilter(base, { append = false } = {}) {
+    if (!append) blockedHiddenIds.clear()
+    if (blockedSet.value.size === 0) {
+      blockedHiddenCount.value = blockedHiddenIds.size
+      return base
+    }
+    const afterBlocked = []
+    for (const p of base) {
+      if (!blockedSet.value.has(normalizeOpaqueId(p?.userId))) {
+        afterBlocked.push(p)
+        continue
+      }
+      // 与 mergeAppendedById 同口径：缺 id 的条目无法去重，不计入累计
+      const pid = normalizeOpaqueId(p?.id)
+      if (pid) blockedHiddenIds.add(pid)
+    }
+    blockedHiddenCount.value = blockedHiddenIds.size
     return afterBlocked
   }
 
@@ -458,7 +476,7 @@ export function usePostsFeed() {
         likeCount: Number(p?.likeCount || 0)
       }))
 
-      const newItems = applyBlockedFilter(base)
+      const newItems = applyBlockedFilter(base, { append })
 
       const responseNextCursor = String(pageData.nextCursor || '')
       hasNext.value = !!responseNextCursor
@@ -543,7 +561,7 @@ export function usePostsFeed() {
         })
         .filter((p) => normalizeOpaqueId(p?.id))
 
-      const newItems = applyBlockedFilter(base)
+      const newItems = applyBlockedFilter(base, { append })
 
       hasNext.value = hits.length >= pageSize
       searchPage.value = requestedPage
@@ -590,8 +608,15 @@ export function usePostsFeed() {
     await loadFeedStack('')
   }
 
+  function isLikePending(p) {
+    return likePendingIds.has(normalizeOpaqueId(p?.id))
+  }
+
   async function togglePostLike(p) {
     if (!authed.value || !p) return showToast({ type: 'warning', text: '请先登录' })
+    const postId = normalizeOpaqueId(p.id)
+    if (!postId || likePendingIds.has(postId)) return
+    likePendingIds.add(postId)
     const authScope = identityScope(auth)
     try {
        const resp = await setLike({
@@ -611,6 +636,8 @@ export function usePostsFeed() {
     } catch (e) {
       if (identityScope(auth) !== authScope) return
       showErrorToast(e, { type: 'error', text: e?.message || '点赞失败' }, showToast)
+    } finally {
+      likePendingIds.delete(postId)
     }
   }
 
@@ -745,7 +772,8 @@ export function usePostsFeed() {
     openPost,
     loadMore,
     reload,
-    togglePostLike
+    togglePostLike,
+    isLikePending
   }
   const unread = {
     lastSeenDividerRef,

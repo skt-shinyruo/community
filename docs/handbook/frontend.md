@@ -7,7 +7,7 @@
 | 目标 | 入口 |
 | --- | --- |
 | 应用启动 | `frontend/src/main.js`、`frontend/src/App.vue` |
-| 路由表和页面权限 | `frontend/src/router/index.js`、`frontend/src/router/routeCatalog.js`、`frontend/src/router/authGuard.js`、`frontend/src/router/navigation.js` |
+| 路由表和页面权限 | `frontend/src/router/index.js`、`frontend/src/router/routeCatalog.js`、`frontend/src/router/authGuard.js`、`frontend/src/router/navigation.js`、`frontend/src/router/scrollRestoration.js`、`frontend/src/router/documentTitle.js`、`frontend/src/router/chunkLoadFailure.js` |
 | 会话恢复 | `frontend/src/auth/session.js`、`frontend/src/auth/sessionHint.js`、`frontend/src/stores/auth.js` |
 | API base URL | `frontend/src/config/runtimeConfig.js`、`frontend/src/config/endpointResolution.js` |
 | HTTP 客户端 | `frontend/src/api/authenticatedHttp.js`、`frontend/src/api/http.js`、`frontend/src/api/imCoreHttp.js` |
@@ -30,6 +30,12 @@
 | `roles` | 需要任一角色，例如 `ROLE_ADMIN` 或 `ROLE_MODERATOR`。 |
 | `navGroup` | 导航分组，用于侧边栏 / 移动端入口。 |
 | `title` / `subtitle` | 页面标题和说明。 |
+
+router 还承载三个导航级全局行为，各有同名测试：
+
+- `scrollBehavior`（`frontend/src/router/scrollRestoration.js`）：跨路由导航默认回顶，前进 / 后退恢复 savedPosition，目标带 hash 时滚动到锚点元素，同路径 query 切换（如 `?section=` 深链 tab）保持当前位置。
+- `document.title`（`frontend/src/router/documentTitle.js`）：`afterEach` 在导航确认后把 `meta.title` 写入浏览器标签标题（`<页面标题> - Community`，基线与 `index.html` 一致），导航被取消或中止时不改标题。
+- `router.onError`（`frontend/src/router/chunkLoadFailure.js`）：识别发版后驻留旧标签页的动态 import 失败（各浏览器 chunk 加载错误文案与 `ChunkLoadError`），以常驻 warning toast（带「刷新页面」动作触发 reload）引导用户刷新，不再静默取消导航；其余导航错误交由 `console.error` 记录。
 
 `frontend/src/router/authGuard.js` 是体验层守卫：
 

@@ -20,15 +20,31 @@ function stubRouterGlobals() {
     search: '',
     hash: ''
   }
-  vi.stubGlobal('location', locationStub)
-  vi.stubGlobal('history', historyStub)
-  vi.stubGlobal('window', { location: locationStub, history: historyStub, addEventListener() {}, removeEventListener() {} })
-  vi.stubGlobal('document', {
+  const windowStub = {
+    location: locationStub,
+    history: historyStub,
+    scrollTo: vi.fn(),
+    addEventListener() {},
+    removeEventListener() {}
+  }
+  const documentStub = {
+    title: '',
+    documentElement: { style: { scrollBehavior: '' } },
     querySelector: () => null,
+    getElementById: () => null,
     addEventListener() {},
     removeEventListener() {},
     createElement: () => ({ relList: { supports: () => false } })
-  })
+  }
+  vi.stubGlobal('location', locationStub)
+  vi.stubGlobal('history', historyStub)
+  vi.stubGlobal('window', windowStub)
+  vi.stubGlobal('document', documentStub)
+  return { historyStub, locationStub, windowStub, documentStub }
+}
+
+function flushAsyncWork() {
+  return new Promise((resolve) => setTimeout(resolve, 0))
 }
 
 describe('router/index', () => {
@@ -36,6 +52,7 @@ describe('router/index', () => {
     vi.unstubAllGlobals()
     vi.resetModules()
     vi.doUnmock('./authGuard')
+    vi.doUnmock('../ui/toastService')
   })
 
   it('should keep the product entry on posts without preview or development routes', async () => {
@@ -204,5 +221,67 @@ describe('router/index', () => {
     expect(typeof routesByName.get('market')?.components?.default).toBe('function')
     expect(typeof routesByName.get('messages')?.components?.default).toBe('function')
     expect(typeof routesByName.get('moderation')?.components?.default).toBe('function')
+  })
+
+  it('updates document.title from the route meta on navigation', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    const { documentStub } = stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+
+    await router.push('/posts')
+    expect(documentStub.title).toBe('讨论首页 - Community')
+
+    await router.push('/search')
+    expect(documentStub.title).toBe('搜索 - Community')
+  })
+
+  it('scrolls to top when navigating across routes', async () => {
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+
+    const { windowStub } = stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    await router.push('/posts')
+    await flushAsyncWork()
+    windowStub.scrollTo.mockClear()
+
+    await router.push('/search')
+    await flushAsyncWork()
+
+    expect(windowStub.scrollTo).toHaveBeenCalledWith({ top: 0 })
+  })
+
+  it('shows a user-visible refresh prompt when a lazy route chunk fails to load', async () => {
+    const showToast = vi.fn()
+    vi.doMock('./authGuard', () => ({
+      authGuard: () => true
+    }))
+    vi.doMock('../ui/toastService', () => ({ showToast }))
+
+    stubRouterGlobals()
+
+    const { default: router } = await import('./index')
+    // 发版后驻留标签页的懒加载 chunk 已失效：import() 以 TypeError 拒绝，这里用等价 loader 模拟。
+    router.addRoute({
+      path: '/__stale-chunk',
+      name: '__staleChunk',
+      component: () =>
+        Promise.reject(new TypeError('Failed to fetch dynamically imported module: http://localhost:4173/assets/Stale-deadbeef.js'))
+    })
+
+    await router.push('/__stale-chunk').catch(() => {})
+
+    expect(showToast).toHaveBeenCalledTimes(1)
+    const payload = showToast.mock.calls[0][0]
+    expect(payload.type).toBe('warning')
+    expect(payload.duration).toBe(0)
+    expect(payload.actionText).toBe('刷新页面')
+    expect(typeof payload.onAction).toBe('function')
   })
 })

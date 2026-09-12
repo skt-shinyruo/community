@@ -1,6 +1,9 @@
 import { createRouter, createWebHashHistory } from 'vue-router'
 import { authGuard } from './authGuard'
+import { handleChunkLoadFailure } from './chunkLoadFailure'
+import { applyDocumentTitle } from './documentTitle'
 import { routeMeta } from './routeCatalog'
+import { resolveScrollPosition } from './scrollRestoration'
 
 const LoginView = () => import('../views/LoginView.vue')
 const PostsView = () => import('../views/PostsView.vue')
@@ -36,6 +39,7 @@ const NotFoundView = () => import('../views/NotFoundView.vue')
 
 const router = createRouter({
   history: createWebHashHistory(),
+  scrollBehavior: resolveScrollPosition,
   routes: [
     {
       path: '/auth/login',
@@ -267,5 +271,14 @@ const router = createRouter({
 })
 
 router.beforeEach(authGuard)
+
+router.afterEach((to, from, failure) => {
+  if (!failure) applyDocumentTitle(to)
+})
+
+router.onError((error) => {
+  if (handleChunkLoadFailure(error)) return
+  console.error(error)
+})
 
 export default router

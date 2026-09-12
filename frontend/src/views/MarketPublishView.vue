@@ -28,7 +28,7 @@
           <UiField label="描述" class="publish-field--span">
             <UiTextarea v-model="form.description" placeholder="说明交付内容与适用范围" :disabled="submitting" />
           </UiField>
-          <UiField label="价格" required help="单位：积分">
+          <UiField label="价格" required help="单位：积分" :error="priceError">
             <UiInput
               v-model.number="form.unitPrice"
               type="number"
@@ -89,6 +89,7 @@ import { createMarketListing } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
+import { parsePointsAmount } from '../utils/pointsAmount'
 
 const DEFAULT_MESSAGE = '发布后可从“我的出售”继续管理库存和订单。'
 const GOODS_TYPE_OPTIONS = Object.freeze([
@@ -109,6 +110,7 @@ const submitting = ref(false)
 const message = ref(DEFAULT_MESSAGE)
 const submitError = ref('')
 const preloadError = ref('')
+const priceError = ref('')
 
 const goodsTypeOptions = GOODS_TYPE_OPTIONS
 const deliveryModeOptions = DELIVERY_MODE_OPTIONS
@@ -143,11 +145,17 @@ async function submit() {
     .filter(Boolean)
 
   preloadError.value = ''
+  priceError.value = ''
   submitError.value = ''
+
+  const parsedPrice = parsePointsAmount(form.value.unitPrice)
+  if (!parsedPrice.valid) {
+    priceError.value = parsedPrice.message
+  }
   if (isVirtual.value && form.value.deliveryMode === 'PRELOADED' && payloads.length === 0) {
     preloadError.value = '自动交付商品至少需要一条预存内容。'
-    return
   }
+  if (priceError.value || preloadError.value) return
 
   const requestHandle = submitTracker.begin()
   const currentForm = { ...form.value }
@@ -158,7 +166,7 @@ async function submit() {
       goodsType: currentForm.goodsType,
       title: currentForm.title,
       description: currentForm.description,
-      unitPrice: Number(currentForm.unitPrice || 0),
+      unitPrice: parsedPrice.amount,
       stockTotal: Number(currentForm.stockTotal || 0),
       minPurchaseQuantity: Number(currentForm.minPurchaseQuantity || 1),
       maxPurchaseQuantity: Number(currentForm.maxPurchaseQuantity || 1)
@@ -192,10 +200,16 @@ watch(sessionScope, () => {
   message.value = DEFAULT_MESSAGE
   submitError.value = ''
   preloadError.value = ''
+  priceError.value = ''
 })
 
 watch(inventoryText, () => {
   if (preloadError.value) preloadError.value = ''
+})
+
+// 价格校验错误随输入即时清除，与预存内容字段的反馈语义一致。
+watch(() => form.value.unitPrice, () => {
+  if (priceError.value) priceError.value = ''
 })
 
 // 商品类型 / 交付方式切换会卸载预存字段，挂起的字段错误随之清除，避免回切后误报。

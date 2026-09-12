@@ -243,6 +243,29 @@ describe('WalletView', () => {
     expect(createTransfer).toHaveBeenCalledTimes(1)
   })
 
+  it('submits the amount restated in the confirmation even if the form changes while it is open', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
+    await inputs[3].setValue('25')
+    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await flushPromises()
+
+    const dialog = wrapper.find('[data-test="wallet-confirm"]')
+    expect(dialog.exists()).toBe(true)
+    expect(dialog.text()).toContain('25')
+
+    // 确认弹窗打开期间表单被改动（如弹窗变为非模态）：提交值必须仍是复述的 25。
+    await wrapper.findAll('input')[3].setValue('30')
+    await dialog.find('[data-test="wallet-confirm-ok"]').trigger('click')
+    await flushPromises()
+
+    expect(createTransfer).toHaveBeenCalledTimes(1)
+    expect(createTransfer.mock.calls[0][0]).toMatchObject({ amount: 25 })
+  })
+
   it('requires capital-loss confirmation before discarding test credits', async () => {
     const wrapper = mountWalletView()
     await flushPromises()
@@ -274,7 +297,49 @@ describe('WalletView', () => {
 
     expect(createWithdrawal).not.toHaveBeenCalled()
     expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
-    expect(wrapper.text()).toContain('请输入有效的测试积分数量')
+    expect(wrapper.text()).toContain('请输入正整数积分金额')
+  })
+
+  it('rejects a decimal recharge amount inline without calling the service', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[0].setValue('1.5')
+    await wrapper.findAll('button').find((button) => button.text() === '领取测试积分').trigger('click')
+    await flushPromises()
+
+    expect(createRecharge).not.toHaveBeenCalled()
+    expect(wrapper.text()).toContain('积分金额必须是整数，不支持小数')
+  })
+
+  it('rejects a decimal discard amount before opening the confirmation', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[1].setValue('1.5')
+    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await flushPromises()
+
+    expect(createWithdrawal).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('积分金额必须是整数，不支持小数')
+  })
+
+  it('rejects a decimal transfer amount before opening the confirmation', async () => {
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    const inputs = wrapper.findAll('input')
+    await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
+    await inputs[3].setValue('1.5')
+    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await flushPromises()
+
+    expect(createTransfer).not.toHaveBeenCalled()
+    expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
+    expect(wrapper.text()).toContain('积分金额必须是整数，不支持小数')
   })
 
   it('renders wallet as an asset and ledger surface without demo copy', async () => {

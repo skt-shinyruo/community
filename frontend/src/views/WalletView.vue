@@ -159,6 +159,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
+import { parsePointsAmount } from '../utils/pointsAmount'
 import {
   WALLET_FEED_PAGE_SIZE,
   buildWalletState,
@@ -265,14 +266,6 @@ function normalizeCapabilities(data) {
   }
 }
 
-function requirePositiveAmount(amount, fallbackMessage) {
-  const value = Number(amount || 0)
-  if (!Number.isFinite(value) || value <= 0) {
-    throw new Error(fallbackMessage)
-  }
-  return value
-}
-
 async function reload() {
   const generation = ++reloadGeneration
   const scope = sessionScope.value
@@ -374,14 +367,13 @@ function isCurrentActionIntent(generation, scope, requestedIntent, currentIntent
 }
 
 async function submitRecharge() {
-  let amount
-  try {
-    amount = requirePositiveAmount(rechargeForm.value.amount, '请输入有效的测试积分数量')
-  } catch (e) {
-    formErrors.value.recharge = e.message
+  const parsedAmount = parsePointsAmount(rechargeForm.value.amount)
+  if (!parsedAmount.valid) {
+    formErrors.value.recharge = parsedAmount.message
     actionErrors.value.recharge = ''
     return
   }
+  const amount = parsedAmount.amount
 
   const generation = ++actionGeneration
   const scope = sessionScope.value
@@ -406,29 +398,18 @@ async function submitRecharge() {
 function requestWithdrawal() {
   formErrors.value.withdraw = ''
   actionErrors.value.withdraw = ''
-  let amount
-  try {
-    amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
-  } catch (e) {
-    formErrors.value.withdraw = e.message
+  const parsedAmount = parsePointsAmount(withdrawForm.value.amount)
+  if (!parsedAmount.valid) {
+    formErrors.value.withdraw = parsedAmount.message
     return
   }
   openConfirmation(
-    { ...walletDiscardConfirmation({ amount }), variant: 'danger' },
-    () => submitWithdrawal()
+    { ...walletDiscardConfirmation({ amount: parsedAmount.amount }), variant: 'danger' },
+    () => submitWithdrawal(parsedAmount.amount)
   )
 }
 
-async function submitWithdrawal() {
-  let amount
-  try {
-    amount = requirePositiveAmount(withdrawForm.value.amount, '请输入有效的测试积分数量')
-  } catch (e) {
-    formErrors.value.withdraw = e.message
-    actionErrors.value.withdraw = ''
-    return
-  }
-
+async function submitWithdrawal(amount) {
   const generation = ++actionGeneration
   const scope = sessionScope.value
   const requestedIntent = withdrawalIntent()
@@ -459,38 +440,19 @@ function requestTransfer() {
     formErrors.value.transferToUserId = '请输入有效的目标用户 ID'
     valid = false
   }
-  let amount = 0
-  try {
-    amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')
-  } catch (e) {
-    formErrors.value.transferAmount = e.message
+  const parsedAmount = parsePointsAmount(transferForm.value.amount)
+  if (!parsedAmount.valid) {
+    formErrors.value.transferAmount = parsedAmount.message
     valid = false
   }
   if (!valid) return
   openConfirmation(
-    { ...walletTransferConfirmation({ toUserId, amount }), variant: 'danger' },
-    () => submitTransfer()
+    { ...walletTransferConfirmation({ toUserId, amount: parsedAmount.amount }), variant: 'danger' },
+    () => submitTransfer(toUserId, parsedAmount.amount)
   )
 }
 
-async function submitTransfer() {
-  const toUserId = normalizeOpaqueId(transferForm.value.toUserId)
-  let amount
-  try {
-    if (!isUuid(toUserId)) {
-      throw new Error('请输入有效的目标用户 ID')
-    }
-    amount = requirePositiveAmount(transferForm.value.amount, '请输入有效的转账金额')
-  } catch (e) {
-    if (isUuid(toUserId)) {
-      formErrors.value.transferAmount = e.message
-    } else {
-      formErrors.value.transferToUserId = e.message
-    }
-    actionErrors.value.transfer = ''
-    return
-  }
-
+async function submitTransfer(toUserId, amount) {
   const generation = ++actionGeneration
   const scope = sessionScope.value
   const requestedIntent = transferIntent()

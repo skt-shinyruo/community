@@ -188,7 +188,8 @@ buying / selling 状态互不串扰。订单卡为 8px 扁平列表语言：虚�
 卖家独占样式块随之删除，订单与后台争议页共享的 `market-*` 样式已在 pages.css 退役票中删除）。发布页按两级
 页面用「返回市场」ghost 链接承担层级，表单收敛到 UiField + UiSelect / UiInput / UiTextarea（标题 / 价格 /
 库存数量带原生 required 语义，字段 label 即控件可访问名称），「自动交付至少需要一条预存内容」内联在预存
-内容字段错误（role=alert，输入后即时清除），发布失败内联在提交区，说明与成功文案以 role=status 播报。
+内容字段错误（role=alert，输入后即时清除），价格只接受正整数积分（与钱包充值 / 转账 / 销毁共用
+`utils/pointsAmount.js` 校验，小数 / 非正数内联拒绝、输入后即时清除），发布失败内联在提交区，说明与成功文案以 role=status 播报。
 我的出售用 8px 扁平行卡（商品类型弱表面 chip + 状态 UiBadge + 履约 / 托管 / 库存 / 价格投影文本），首载
 UiSkeleton、可重试 UiState 错态与带「发布商品」下一步的空态齐备，分页尾部指示与按钮 loading 分离。库存
 管理是三级路由，routeCatalog 登记「市场 / 我的出售 / 库存管理」真实面包屑；追加库存表单同样走

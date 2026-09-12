@@ -690,6 +690,26 @@ describe('Unified market views', () => {
     }))
   })
 
+  it('rejects a decimal listing price inline without calling the service', async () => {
+    authenticate('token-a')
+    const wrapper = mountView(MarketPublishView)
+
+    await wrapper.findAll('input')[0].setValue('Steam 兑换码')
+    await wrapper.findAll('input')[1].setValue('19.9')
+    await wrapper.findAll('textarea')[1].setValue('CODE-001')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+
+    expect(createMarketListing).not.toHaveBeenCalled()
+    expect(wrapper.get('[role="alert"]').text()).toContain('积分金额必须是整数，不支持小数')
+
+    // 修正为整数后按原值提交，定价与实收一致。
+    await wrapper.findAll('input')[1].setValue('20')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+    expect(createMarketListing).toHaveBeenCalledWith(expect.objectContaining({ unitPrice: 20 }))
+  })
+
   it('keeps the preloaded-content validation inline on the field without calling the service', async () => {
     authenticate('token-a')
     const wrapper = mountView(MarketPublishView)

@@ -6,6 +6,7 @@ import { identityScope } from '../stores/identityScope'
 import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import { mergeAppendedById } from '../utils/mergeById'
 
 export function useBookmarksFeed() {
   const router = useRouter()
@@ -65,7 +66,7 @@ export function useBookmarksFeed() {
       hasNext.value = raw.length >= size
       if (append && raw.length === 0) return
       page.value = targetPage
-      items.value = append ? [...items.value, ...filtered] : filtered
+      items.value = append ? mergeAppendedById(items.value, filtered) : filtered
     } catch (e) {
       if (generation !== requestGeneration || scope !== sessionScope.value) return
       if (append) pageError.value = e?.message || '加载更多失败'

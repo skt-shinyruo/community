@@ -269,6 +269,48 @@ describe('DriveView', () => {
     expect(wrapper.text()).toContain('second-share.txt')
   })
 
+  it('dedupes page-shifted shares by shareId when appending the next page', async () => {
+    const share = (shareId, entryName, shareToken) => ({
+      shareId,
+      entryId: `file-${shareId}`,
+      shareToken,
+      entryName,
+      entryType: 'FILE',
+      expiresAt: '2026-05-10T00:00:00Z',
+      status: 'ACTIVE'
+    })
+    listDriveShares
+      .mockResolvedValueOnce({
+        data: { items: [share('share-1', 'first-share.txt', 'token-a')], hasNext: true, page: 0, size: 20 },
+        traceId: ''
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            share('share-1', 'shifted-copy.txt', 'token-a'),
+            share('share-2', 'second-share.txt', 'token-b')
+          ],
+          hasNext: false,
+          page: 1,
+          size: 20
+        },
+        traceId: ''
+      })
+
+    const wrapper = mountDrive(pinia)
+    await flushPromises()
+    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await flushPromises()
+
+    await findButton(wrapper, '加载更多').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.drive-share-item')).toHaveLength(2)
+    expect(wrapper.text()).toContain('first-share.txt')
+    expect(wrapper.text()).not.toContain('shifted-copy.txt')
+    expect(wrapper.text()).toContain('second-share.txt')
+  })
+
   it('creates a folder from the empty-state action and reports validation inline', async () => {
     const { createDriveFolder } = await import('../api/services/driveService')
     const wrapper = mountDrive(pinia)

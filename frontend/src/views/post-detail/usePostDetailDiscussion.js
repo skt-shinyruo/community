@@ -4,6 +4,7 @@ import { useRoute } from 'vue-router'
 import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
+import { mergeAppendedById, mergePrependedById } from '../../utils/mergeById'
 import { normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
 import { safeStorageGet, safeStorageRemove, safeStorageSet } from '../../utils/safeStorage'
 import { createWriteAttempt } from '../../api/writeAttempt'
@@ -206,23 +207,6 @@ export function usePostDetailDiscussion({
     }
   }
 
-  function mergeAppended(existing, fresh) {
-    const seen = new Set(existing.map((item) => normalizeOpaqueId(item?.id)))
-    const additions = fresh.filter((item) => {
-      const id = normalizeOpaqueId(item?.id)
-      if (!id || seen.has(id)) return false
-      seen.add(id)
-      return true
-    })
-    return [...existing, ...additions]
-  }
-
-  function mergePrepended(existing, fresh) {
-    const freshIds = new Set(fresh.map((item) => normalizeOpaqueId(item?.id)))
-    const rest = existing.filter((item) => !freshIds.has(normalizeOpaqueId(item?.id)))
-    return [...fresh, ...rest]
-  }
-
   async function maybeScrollFromRoute() {
     const rawHash = String(route.hash || '').trim()
     const anchor = rawHash.startsWith('#') ? rawHash.slice(1) : ''
@@ -280,7 +264,7 @@ export function usePostDetailDiscussion({
 
       const fresh = page.items.map((comment) => hydrateCommentItem(comment, { users, counts, statuses }))
       if (append && !reset) {
-        comments.value = mergeAppended(comments.value, fresh)
+        comments.value = mergeAppendedById(comments.value, fresh)
       } else {
         comments.value = fresh
       }
@@ -307,7 +291,7 @@ export function usePostDetailDiscussion({
 
       const fresh = page.items.map((comment) => hydrateCommentItem(comment, { users, counts, statuses }))
       const hadItems = comments.value.length > 0
-      comments.value = mergePrepended(comments.value, fresh)
+      comments.value = mergePrependedById(comments.value, fresh)
       if (!hadItems) commentsNextCursor.value = page.nextCursor
 
       const targetId = normalizeOpaqueId(revealId)
@@ -342,7 +326,7 @@ export function usePostDetailDiscussion({
 
       const fresh = page.items.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
       if (append && !reset) {
-        replyList.items = mergeAppended(replyList.items, fresh)
+        replyList.items = mergeAppendedById(replyList.items, fresh)
       } else {
         replyList.items = fresh
       }
@@ -369,7 +353,7 @@ export function usePostDetailDiscussion({
 
       const fresh = page.items.map((reply) => hydrateReplyItem(reply, { users, counts, statuses }))
       const hadItems = replyList.items.length > 0
-      replyList.items = mergePrepended(replyList.items, fresh)
+      replyList.items = mergePrependedById(replyList.items, fresh)
       replyList.loaded = true
       if (!hadItems) replyList.nextCursor = page.nextCursor
 

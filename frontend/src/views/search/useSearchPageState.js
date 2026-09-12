@@ -7,6 +7,7 @@ import { useTagSuggestions } from '../../composables/useTagSuggestions'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
+import { mergeAppendedById } from '../../utils/mergeById'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import {
   applySearchHydration,
@@ -153,7 +154,7 @@ export function useSearchPageState() {
       hasNext.value = rawItems.length >= pageSize
       if (requestedPage > page.value && rawItems.length === 0) return false
       page.value = requestedPage
-      items.value = append ? [...items.value, ...nextItems] : nextItems
+      items.value = append ? mergeAppendedById(items.value, nextItems, (item) => item?.postId) : nextItems
       return true
     } catch (cause) {
       if (!searchRequestTracker.isCurrent(token)) return false

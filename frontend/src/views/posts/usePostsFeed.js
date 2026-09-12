@@ -15,6 +15,7 @@ import {
   serializePostsRouteQuery
 } from '../postsViewState'
 import { getPostReadAt, getPostsListBaselineAt, markPostRead, touchPostsListSeen } from '../../utils/readTracker'
+import { mergeAppendedById } from '../../utils/mergeById'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
@@ -463,7 +464,7 @@ export function usePostsFeed() {
       hasNext.value = !!responseNextCursor
 
       if (append) {
-        items.value = [...items.value, ...newItems]
+        items.value = mergeAppendedById(items.value, newItems)
       } else {
         items.value = newItems
       }
@@ -549,7 +550,7 @@ export function usePostsFeed() {
       nextCursor.value = ''
 
       if (append) {
-        items.value = [...items.value, ...newItems]
+        items.value = mergeAppendedById(items.value, newItems)
       } else {
         items.value = newItems
       }

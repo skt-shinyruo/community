@@ -100,6 +100,26 @@ describe('BookmarksView pagination', () => {
     expect(wrapper.vm.items).toHaveLength(11)
   })
 
+  it('dedupes page-shifted bookmarks by id when appending the next page', async () => {
+    const firstPage = Array.from({ length: 10 }, (_, index) => bookmark(index))
+    listBookmarks
+      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
+      .mockResolvedValueOnce({
+        data: [{ ...bookmark(9), title: 'shifted-copy-of-bookmark-10' }, bookmark(10)],
+        traceId: 'trace-page-1'
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.vm.loadMore()
+
+    const ids = wrapper.vm.items.map((item) => item.id)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(wrapper.vm.items).toHaveLength(11)
+    expect(wrapper.text()).not.toContain('shifted-copy-of-bookmark-10')
+    expect(wrapper.text()).toContain('bookmark-11')
+  })
+
   it('discards a previous account response after the session changes', async () => {
     const previousAccountRequest = deferred()
     const currentAccountRequest = deferred()

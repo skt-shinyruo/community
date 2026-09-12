@@ -2,6 +2,7 @@
 import { reactive, ref } from 'vue'
 import { createDriveShare, listDriveShares, revokeDriveShare } from '../../api/services/driveService'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
+import { mergeAppendedById } from '../../utils/mergeById'
 import { normalizeCreatedDriveShare, validateShareForm } from '../driveState'
 
 const ONE_DAY_MS = 24 * 60 * 60 * 1000
@@ -63,7 +64,7 @@ export function useDriveShareWorkflow({ workspace, session, runAction, reloadPag
       return { stale: true }
     }
     const nextItems = (Array.isArray(data?.items) ? data.items : []).map(normalizeShare)
-    items.value = reset ? nextItems : [...items.value, ...nextItems]
+    items.value = reset ? nextItems : mergeAppendedById(items.value, nextItems, (item) => item?.shareId)
     page.value = targetPage
     hasNext.value = data?.hasNext === true
     return { stale: false, successCount: 1, failures: [] }

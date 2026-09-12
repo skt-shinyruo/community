@@ -480,6 +480,55 @@ describe('PostsView', () => {
     expect(wrapper.find('.posts-load-more-btn').exists()).toBe(false)
   })
 
+  it('dedupes page-shifted hits when the search index updates between tag pages', async () => {
+    routerState.route.query = { tag: 'Java' }
+    const firstPage = Array.from({ length: 10 }, (_, index) => ({
+      postId: `post-${index}`,
+      userId: 'user-1',
+      title: `hit ${index}`,
+      tags: ['Java']
+    }))
+    searchPosts
+      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
+      .mockResolvedValueOnce({
+        data: [
+          { postId: 'post-9', userId: 'user-1', title: 'hit 9', tags: ['Java'] },
+          { postId: 'post-10', userId: 'user-1', title: 'hit 10', tags: ['Java'] }
+        ],
+        traceId: 'trace-page-1'
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.vm.loadMore()
+
+    expect(wrapper.findAll('.posts-card')).toHaveLength(11)
+    expect(wrapper.text()).toContain('hit 10')
+  })
+
+  it('dedupes overlapping posts when a cursor page repeats a loaded post', async () => {
+    listGlobalFeed
+      .mockResolvedValueOnce({
+        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2' }
+      })
+      .mockResolvedValueOnce({
+        data: {
+          items: [
+            { id: 'post-1', title: 'first batch' },
+            { id: 'post-2', title: 'second batch' }
+          ],
+          nextCursor: ''
+        }
+      })
+
+    const wrapper = mountView()
+    await flushPromises()
+    await wrapper.vm.loadMore()
+
+    expect(wrapper.findAll('.posts-card')).toHaveLength(2)
+    expect(wrapper.text()).toContain('second batch')
+  })
+
   it('keeps unread locating affordances off the filtered views', async () => {
     window.localStorage.setItem('community.read.posts.v1.7', JSON.stringify({ lastSeenAt: 1, items: {} }))
     routerState.route.query = { order: 'hot' }

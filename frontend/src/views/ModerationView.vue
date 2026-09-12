@@ -194,6 +194,7 @@ import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { normalizeOpaqueId } from '../utils/opaqueId'
+import { mergeAppendedById } from '../utils/mergeById'
 import { formatTime } from '../utils/time'
 import { showToast } from '../ui/toastService'
 import { listActions, listReports, takeAction } from '../api/services/moderationService'
@@ -283,7 +284,7 @@ async function loadReports(append = false, targetPage = reportsPage.value) {
     reportsHasNext.value = list.length >= reportsSize
     if (append && list.length === 0) return
     reportsPage.value = targetPage
-    reports.value = append ? [...reports.value, ...list] : list
+    reports.value = append ? mergeAppendedById(reports.value, list) : list
   } catch (e) {
     if (!isCurrentLoad(generation, scope)) return
     error.value = e?.message || '加载失败'
@@ -313,7 +314,7 @@ async function loadActions(append = false, targetPage = actionsPage.value) {
     actionsHasNext.value = list.length >= actionsSize
     if (append && list.length === 0) return
     actionsPage.value = targetPage
-    actions.value = append ? [...actions.value, ...list] : list
+    actions.value = append ? mergeAppendedById(actions.value, list) : list
   } catch (e) {
     if (!isCurrentLoad(generation, scope)) return
     error.value = e?.message || '加载失败'

@@ -380,6 +380,8 @@ connect(accessToken)
 
 `utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 
+追加式分页的页间去重收敛到 `utils/mergeById.js`：`mergeAppendedById` 保留已加载项并丢弃 id 重复或缺 id 的新页条目（id 经 `normalizeOpaqueId` 归一，列表键非 `id` 时传入访问器，如搜索页按 `postId`、关系列表按 `targetId`、网盘分享按 `shareId`），`mergePrependedById` 承载评论 / 回复发布后重读首页的头部归并。评论区、帖子流（游标栈与 tag 搜索栈）、搜索页、通知主题流、收藏流、关注 / 粉丝列表、治理举报 / 处置审计与网盘分享管理全部共用该语义，数据活跃变化导致页间位移时不再出现重复卡片；新增消费流追加分页不得再直接拼接数组。
+
 ## 全局 Store
 
 | Store | 文件 | 语义 |

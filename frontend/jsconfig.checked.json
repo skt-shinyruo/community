@@ -20,6 +20,7 @@
     "src/config/runtimeConfig.js",
     "src/ui/toastService.js",
     "src/utils/latestRequest.js",
+    "src/utils/mergeById.js",
     "src/utils/opaqueId.js",
     "src/utils/safeJson.js",
     "src/utils/settledRequests.js",

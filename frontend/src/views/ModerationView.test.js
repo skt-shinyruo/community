@@ -144,6 +144,86 @@ describe('ModerationView', () => {
     })
   })
 
+  it('dedupes page-shifted reports by id when a report flows between pages', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({
+      id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+      reporterId: '11111111-1111-7111-8111-111111111111',
+      targetType: 1,
+      targetId: '33333333-3333-7333-8333-333333333333',
+      reason: `report-${index + 1}`,
+      status: 0,
+      createTime: '2026-04-29T00:00:00Z'
+    }))
+    listReports
+      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
+      .mockResolvedValueOnce({
+        data: [
+          { ...firstPage[19], reason: 'shifted-copy-of-report-20' },
+          {
+            id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+            reporterId: '11111111-1111-7111-8111-111111111111',
+            targetType: 1,
+            targetId: '33333333-3333-7333-8333-333333333333',
+            reason: 'page-two-report',
+            status: 0,
+            createTime: '2026-04-29T00:00:00Z'
+          }
+        ],
+        traceId: 'trace-page-1'
+      })
+
+    const wrapper = mountModerationView()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === '加载更多').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.moderation-report-card')).toHaveLength(21)
+    expect(wrapper.text()).toContain('report-20')
+    expect(wrapper.text()).not.toContain('shifted-copy-of-report-20')
+    expect(wrapper.text()).toContain('page-two-report')
+  })
+
+  it('dedupes page-shifted moderation actions by id when appending the next page', async () => {
+    const firstPage = Array.from({ length: 20 }, (_, index) => ({
+      id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
+      reportId: '10000000-0000-7000-8000-000000000001',
+      action: 'warn',
+      actorId: '11111111-1111-7111-8111-111111111111',
+      reason: `action-${index + 1}`,
+      durationSeconds: 0,
+      createTime: '2026-04-29T00:00:00Z'
+    }))
+    listActions
+      .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-actions-0' })
+      .mockResolvedValueOnce({
+        data: [
+          { ...firstPage[19], reason: 'shifted-copy-of-action-20' },
+          {
+            id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+            reportId: '10000000-0000-7000-8000-000000000001',
+            action: 'warn',
+            actorId: '11111111-1111-7111-8111-111111111111',
+            reason: 'page-two-action',
+            durationSeconds: 0,
+            createTime: '2026-04-29T00:00:00Z'
+          }
+        ],
+        traceId: 'trace-actions-1'
+      })
+
+    const wrapper = mountModerationView()
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === '处置审计').trigger('click')
+    await flushPromises()
+    await wrapper.findAll('button').find((button) => button.text() === '加载更多').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.findAll('.moderation-action-card')).toHaveLength(21)
+    expect(wrapper.text()).toContain('action-20')
+    expect(wrapper.text()).not.toContain('shifted-copy-of-action-20')
+    expect(wrapper.text()).toContain('page-two-action')
+  })
+
   it('keeps reports visible and retries the same page after load-more fails', async () => {
     const firstPage = Array.from({ length: 20 }, (_, index) => ({
       id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,

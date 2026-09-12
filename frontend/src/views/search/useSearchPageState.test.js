@@ -146,6 +146,31 @@ describe('useSearchPageState', () => {
     expect(state.hasNext.value).toBe(false)
   })
 
+  it('dedupes page-shifted hits by postId when appending the next page', async () => {
+    routerState.route.query = { q: 'paging' }
+    const firstPage = Array.from({ length: 10 }, (_, index) =>
+      searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `first-${index}`)
+    )
+    searchPosts
+      .mockResolvedValueOnce({ data: firstPage })
+      .mockResolvedValueOnce({
+        data: [
+          searchItem('00000000-0000-7000-8000-000000000010', 'shifted-copy-of-first-9'),
+          searchItem('10000000-0000-7000-8000-000000000001', 'second-0')
+        ]
+      })
+    const { state } = mountState()
+    await flushPromises()
+
+    await state.loadMore()
+
+    const ids = state.items.value.map((item) => item.postId)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(state.items.value).toHaveLength(11)
+    expect(state.items.value[9].title).toBe('first-9')
+    expect(state.items.value[10].title).toBe('second-0')
+  })
+
   it('keeps appended results and surfaces pageError when loading more fails', async () => {
     routerState.route.query = { q: 'paging' }
     const firstPage = Array.from({ length: 10 }, (_, index) =>

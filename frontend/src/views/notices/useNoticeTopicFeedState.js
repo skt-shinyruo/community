@@ -8,6 +8,7 @@ import { useInboxUnreadStore } from '../../stores/inboxUnread'
 import { identityScope } from '../../stores/identityScope'
 import { listNotices, markRead } from '../../api/services/noticeService'
 import { safeJsonParse } from '../../utils/safeJson'
+import { mergeAppendedById } from '../../utils/mergeById'
 import { normalizeOpaqueId, normalizeOpaqueIds } from '../../utils/opaqueId'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 
@@ -141,7 +142,7 @@ export function useNoticeTopicFeedState({ topic }) {
       hasNext.value = nextItems.length >= size
       if (append && nextItems.length === 0) return
       page.value = targetPage
-      items.value = append ? [...items.value, ...nextItems] : nextItems
+      items.value = append ? mergeAppendedById(items.value, nextItems) : nextItems
     } catch (e) {
       if (!loadRequestTracker.isCurrent(token)) return
       if (append) pageError.value = e?.message || '加载更多失败'

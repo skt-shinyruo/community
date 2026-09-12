@@ -148,6 +148,24 @@ describe('follow relation load-more feed', () => {
   it.each([
     ['followees', listFollowees],
     ['followers', listFollowers]
+  ])('dedupes page-shifted %s entries by targetId when appending the next page', async (relationKind, listRelations) => {
+    const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
+    listRelations
+      .mockResolvedValueOnce(relationPage(firstPage, 'cursor-page-1', 'trace-page-0'))
+      .mockResolvedValueOnce(relationPage([relation(9), relation(10)], '', 'trace-page-1'))
+
+    const wrapper = mountView(relationKind)
+    await flushPromises()
+    await wrapper.vm.loadMore()
+
+    const ids = wrapper.vm.items.map((item) => item.targetId)
+    expect(new Set(ids).size).toBe(ids.length)
+    expect(wrapper.vm.items).toHaveLength(11)
+  })
+
+  it.each([
+    ['followees', listFollowees],
+    ['followers', listFollowers]
   ])('keeps loaded %s items and retries the same cursor after a load-more failure', async (relationKind, listRelations) => {
     const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
     listRelations

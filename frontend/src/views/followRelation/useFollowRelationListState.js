@@ -4,6 +4,7 @@ import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
 import { listFollowees, listFollowers, followUser, unfollowUser } from '../../api/services/socialService'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { mergeAppendedById } from '../../utils/mergeById'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { hydrateFollowRelations } from '../followRelationHydration'
 
@@ -83,7 +84,7 @@ export function useFollowRelationListState({ relationKind, profileUserId }) {
         : ''
       nextCursor.value = cursor
       hasNext.value = Boolean(cursor)
-      items.value = append ? [...items.value, ...hydrated] : hydrated
+      items.value = append ? mergeAppendedById(items.value, hydrated, (item) => item?.targetId) : hydrated
     } catch (e) {
       if (!requestTracker.isCurrent(request)) return
       if (append) pageError.value = e?.message || '加载更多失败'

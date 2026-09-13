@@ -6,6 +6,7 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import { useAuthStore } from '../stores/auth'
 import { usePostMetaCacheStore } from '../stores/postMetaCache'
+import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 
 const routerState = vi.hoisted(() => ({
@@ -59,7 +60,7 @@ describe('SearchView', () => {
     return { promise, resolve, reject }
   }
 
-  function mountView({ admin = false } = {}) {
+  function mountView({ admin = false, authed = false } = {}) {
     const pinia = createPinia()
     setActivePinia(pinia)
 
@@ -71,6 +72,12 @@ describe('SearchView', () => {
         username: 'admin',
         authorities: ['ROLE_ADMIN']
       })
+    }
+
+    const socialPrefs = useSocialPrefsStore()
+    if (authed) {
+      auth.installSession({ accessToken: 'token' })
+      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
     }
 
     const taxonomy = useTaxonomyStore()
@@ -101,10 +108,10 @@ describe('SearchView', () => {
     return [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
   }
 
-  function searchItem(id, title) {
+  function searchItem(id, title, userId = '11111111-1111-7111-8111-111111111111') {
     return {
       postId: id,
-      userId: '11111111-1111-7111-8111-111111111111',
+      userId,
       title,
       highlightedTitle: title,
       createTime: Date.now(),
@@ -388,5 +395,25 @@ describe('SearchView', () => {
     expect(wrapper.find('.search-reindex-btn').exists()).toBe(false)
     expect(wrapper.text()).not.toContain('重建索引')
     expect(wrapper.find('[role="dialog"]').exists()).toBe(false)
+  })
+
+  it('hides results from blocked users and shows the hidden-count note', async () => {
+    routerState.route.query = { q: 'blocked' }
+    searchPosts.mockResolvedValueOnce({
+      data: [
+        searchItem('33333333-3333-7333-8333-333333333333', 'Visible result'),
+        searchItem('44444444-4444-7444-8444-444444444444', 'Blocked author result', 'blocked-user')
+      ],
+      traceId: 'trace-blocked'
+    })
+
+    const wrapper = mountView({ authed: true })
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+    await flushPromises()
+
+    expect(wrapper.text()).toContain('Visible result')
+    expect(wrapper.text()).not.toContain('Blocked author result')
+    expect(wrapper.get('.search-muted-note').text()).toContain('已隐藏 1 条')
   })
 })

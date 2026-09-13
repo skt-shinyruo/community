@@ -4,7 +4,9 @@ import { defineComponent } from 'vue'
 import { createPinia, setActivePinia } from 'pinia'
 import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { useAuthStore } from '../../stores/auth'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
+import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 
 const routerState = vi.hoisted(() => ({
@@ -43,7 +45,7 @@ import {
 describe('useSearchPageState', () => {
   const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
 
-  function mountState() {
+  function mountState({ authed = false } = {}) {
     const pinia = createPinia()
     setActivePinia(pinia)
     const taxonomy = useTaxonomyStore()
@@ -54,6 +56,13 @@ describe('useSearchPageState', () => {
     postMetaCache.ensureUserSummaries = vi.fn().mockResolvedValue({})
     postMetaCache.ensureLikeCounts = vi.fn().mockResolvedValue({})
 
+    const socialPrefs = useSocialPrefsStore()
+    if (authed) {
+      const auth = useAuthStore()
+      auth.installSession({ accessToken: 'token' })
+      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+    }
+
     let state
     const Harness = defineComponent({
       setup() {
@@ -62,13 +71,13 @@ describe('useSearchPageState', () => {
       }
     })
     const wrapper = mount(Harness, { global: { plugins: [pinia] } })
-    return { state, wrapper }
+    return { state, wrapper, socialPrefs }
   }
 
-  function searchItem(id, title) {
+  function searchItem(id, title, userId = '11111111-1111-7111-8111-111111111111') {
     return {
       postId: id,
-      userId: '11111111-1111-7111-8111-111111111111',
+      userId,
       title
     }
   }
@@ -228,5 +237,126 @@ describe('useSearchPageState', () => {
     expect(state.page.value).toBe(0)
     expect(state.items.value[0].title).toBe('stable result')
     expect(state.error.value).toBe('search unavailable')
+  })
+
+  it('hides hits authored by blocked users', async () => {
+    routerState.route.query = { q: 'blocked' }
+    searchPosts.mockResolvedValueOnce({
+      data: [
+        searchItem('33333333-3333-7333-8333-333333333333', 'visible result'),
+        searchItem('44444444-4444-7444-8444-444444444444', 'blocked author result', 'blocked-user')
+      ]
+    })
+    const { state } = mountState({ authed: true })
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+
+    expect(state.items.value.map((item) => item.title)).toEqual(['visible result'])
+    expect(state.blockedHiddenCount.value).toBe(1)
+  })
+
+  it('accumulates the hidden blocked count across pages without double counting page-shifted hits', async () => {
+    routerState.route.query = { q: 'paging' }
+    const visiblePage = (prefix, count) =>
+      Array.from({ length: count }, (_, index) =>
+        searchItem(`${prefix}-0000-7000-8000-${String(index).padStart(12, '0')}`, `visible-${prefix}-${index}`)
+      )
+    searchPosts
+      .mockResolvedValueOnce({
+        data: [
+          searchItem('00000000-0000-7000-8000-0000000000b1', 'hidden one', 'blocked-user'),
+          ...visiblePage('10000000', 9)
+        ]
+      })
+      .mockResolvedValueOnce({
+        data: [
+          searchItem('00000000-0000-7000-8000-0000000000b1', 'hidden one shifted', 'blocked-user'),
+          searchItem('00000000-0000-7000-8000-0000000000b2', 'hidden two', 'blocked-user'),
+          searchItem('20000000-0000-7000-8000-000000000000', 'visible last')
+        ]
+      })
+    const { state } = mountState({ authed: true })
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+
+    expect(state.items.value).toHaveLength(9)
+    expect(state.blockedHiddenCount.value).toBe(1)
+
+    await state.loadMore()
+    expect(state.items.value).toHaveLength(10)
+    expect(state.items.value[9].title).toBe('visible last')
+    expect(state.blockedHiddenCount.value).toBe(2)
+    expect(state.hasNext.value).toBe(false)
+  })
+
+  it('resets the hidden blocked count on a fresh reload', async () => {
+    routerState.route.query = { q: 'reload' }
+    searchPosts
+      .mockResolvedValueOnce({
+        data: [searchItem('55555555-5555-7555-8555-555555555555', 'hidden', 'blocked-user')]
+      })
+      .mockResolvedValueOnce({
+        data: [searchItem('66666666-6666-7666-8666-666666666666', 'fresh visible')]
+      })
+    const { state } = mountState({ authed: true })
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+    expect(state.blockedHiddenCount.value).toBe(1)
+
+    await state.reload()
+    expect(state.items.value.map((item) => item.title)).toEqual(['fresh visible'])
+    expect(state.blockedHiddenCount.value).toBe(0)
+  })
+
+  it('does not filter hits for anonymous viewers', async () => {
+    routerState.route.query = { q: 'anon' }
+    searchPosts.mockResolvedValueOnce({
+      data: [searchItem('77777777-7777-7777-8777-777777777777', 'anonymous visible', 'blocked-user')]
+    })
+    const { state } = mountState()
+    await flushPromises()
+
+    expect(state.items.value).toHaveLength(1)
+    expect(state.blockedHiddenCount.value).toBe(0)
+  })
+
+  it('still shows search results when loading the blocklist fails', async () => {
+    routerState.route.query = { q: 'resilient' }
+    searchPosts.mockResolvedValueOnce({
+      data: [searchItem('88888888-8888-7888-8888-888888888888', 'still visible')]
+    })
+    const { state, socialPrefs } = mountState({ authed: true })
+    socialPrefs.ensureBlocked.mockRejectedValueOnce(new Error('blocklist unavailable'))
+    await flushPromises()
+
+    expect(state.items.value).toHaveLength(1)
+    expect(state.error.value).toBe('')
+  })
+
+  it('clears the hidden blocked count when the search state resets', async () => {
+    routerState.route.query = { q: 'blocked' }
+    searchPosts.mockResolvedValueOnce({
+      data: [searchItem('99999999-9999-7999-8999-999999999999', 'hidden', 'blocked-user')]
+    })
+    const { state } = mountState({ authed: true })
+    useSocialPrefsStore().blockedUserIds = ['blocked-user']
+    await flushPromises()
+    expect(state.blockedHiddenCount.value).toBe(1)
+
+    state.clearSearch()
+    expect(state.items.value).toEqual([])
+    expect(state.blockedHiddenCount.value).toBe(0)
+
+    routerState.route.query = { q: 'again' }
+    searchPosts.mockResolvedValueOnce({
+      data: [searchItem('99999999-9999-7999-8999-999999999999', 'hidden again', 'blocked-user')]
+    })
+    state.applyRouteSearch()
+    await flushPromises()
+    expect(state.blockedHiddenCount.value).toBe(1)
+
+    routerState.route.query = {}
+    state.applyRouteSearch()
+    expect(state.blockedHiddenCount.value).toBe(0)
   })
 })

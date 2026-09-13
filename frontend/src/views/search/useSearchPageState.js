@@ -4,7 +4,9 @@ import { searchPosts } from '../../api/services/searchService'
 import { batchPostSummaries } from '../../api/services/postService'
 import { suggestTags as apiSuggestTags } from '../../api/services/taxonomyService'
 import { useTagSuggestions } from '../../composables/useTagSuggestions'
+import { useAuthStore } from '../../stores/auth'
 import { usePostMetaCacheStore } from '../../stores/postMetaCache'
+import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { mergeAppendedById } from '../../utils/mergeById'
@@ -54,9 +56,17 @@ export function serializeSearchRouteQuery(currentQuery = {}, changes = {}) {
 export function useSearchPageState() {
   const route = useRoute()
   const router = useRouter()
+  const auth = useAuthStore()
   const taxonomy = useTaxonomyStore()
   const postMetaCache = usePostMetaCacheStore()
   const searchRequestTracker = createLatestRequestTracker()
+
+  const authed = computed(() => !!auth.accessToken)
+  const socialPrefs = useSocialPrefsStore()
+  const blockedSet = computed(() => socialPrefs.blockedSet)
+  const blockedHiddenCount = ref(0)
+  // 已隐藏结果的去重集合：翻页追加时累计口径，整页刷新时清空重计
+  const blockedHiddenIds = new Set()
 
   const keyword = ref('')
   const categoryId = ref('')
@@ -101,6 +111,39 @@ export function useSearchPageState() {
     })
   }
 
+  async function ensureBlockedReady() {
+    if (authed.value) {
+      try {
+        await socialPrefs.ensureBlocked()
+      } catch {
+        // ignore：拉黑列表失败不阻塞搜索
+      }
+    } else {
+      socialPrefs.clear()
+    }
+  }
+
+  // 与帖子流同口径：已屏蔽作者的结果不进列表；搜索命中自带 userId，可在补水前过滤
+  function applyBlockedFilter(base, { append = false } = {}) {
+    if (!append) blockedHiddenIds.clear()
+    if (blockedSet.value.size === 0) {
+      blockedHiddenCount.value = blockedHiddenIds.size
+      return base
+    }
+    const afterBlocked = []
+    for (const hit of base) {
+      if (!blockedSet.value.has(normalizeOpaqueId(hit?.userId))) {
+        afterBlocked.push(hit)
+        continue
+      }
+      // 与 mergeAppendedById 同口径：缺 postId 的条目无法去重，不计入累计
+      const pid = normalizeOpaqueId(hit?.postId)
+      if (pid) blockedHiddenIds.add(pid)
+    }
+    blockedHiddenCount.value = blockedHiddenIds.size
+    return afterBlocked
+  }
+
   async function resolveSearchItems(data) {
     const baseItems = Array.isArray(data) ? data : []
     let summaries = []
@@ -139,6 +182,8 @@ export function useSearchPageState() {
       loading.value = true
     }
     try {
+      await ensureBlockedReady()
+
       const { data } = await searchPosts({
         keyword: keyword.value,
         categoryId: normalizeOpaqueId(categoryId.value),
@@ -148,7 +193,7 @@ export function useSearchPageState() {
       })
       if (!searchRequestTracker.isCurrent(token)) return false
       const rawItems = Array.isArray(data) ? data : []
-      const nextItems = await resolveSearchItems(rawItems)
+      const nextItems = await resolveSearchItems(applyBlockedFilter(rawItems, { append }))
       if (!searchRequestTracker.isCurrent(token)) return false
 
       hasNext.value = rawItems.length >= pageSize
@@ -211,6 +256,8 @@ export function useSearchPageState() {
     pageError.value = ''
     loading.value = false
     loadingMore.value = false
+    blockedHiddenIds.clear()
+    blockedHiddenCount.value = 0
   }
 
   function clearSearch() {
@@ -268,6 +315,7 @@ export function useSearchPageState() {
     pageError,
     items,
     hasNext,
+    blockedHiddenCount,
     submitSearch,
     changeCategory,
     commitTag,

@@ -81,6 +81,10 @@
       </UiState>
       <div v-else-if="error" class="error search-inline-error">{{ error }}</div>
 
+      <div v-if="blockedHiddenCount > 0" class="search-muted-note">
+        已隐藏 {{ blockedHiddenCount }} 条来自已屏蔽用户的帖子
+      </div>
+
       <UiState v-if="!loading && items.length === 0 && !error">
         暂无结果
         <template #description>换个关键词试试，或回到帖子列表浏览。</template>
@@ -212,6 +216,7 @@ const {
   pageError,
   items,
   hasNext,
+  blockedHiddenCount,
   submitSearch,
   changeCategory,
   commitTag,
@@ -325,6 +330,12 @@ function onCardEnter(event, item) {
 
 .search-inline-error {
   font-size: var(--text-sm);
+}
+
+.search-muted-note {
+  padding: 0 2px;
+  font-size: var(--text-xs);
+  color: var(--text-3);
 }
 
 .search-results-meta {

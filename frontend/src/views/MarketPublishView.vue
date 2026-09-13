@@ -86,6 +86,7 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import UiTextarea from '../components/ui/UiTextarea.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { createMarketListing } from '../api/services/marketService'
+import { createWriteAttempt } from '../api/writeAttempt'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
@@ -118,6 +119,8 @@ const deliveryModeOptions = DELIVERY_MODE_OPTIONS
 const isVirtual = computed(() => form.value.goodsType === 'VIRTUAL')
 const sessionScope = computed(() => identityScope(auth))
 const submitTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
+// 发布是一次高风险写：表单 + 预存内容共享一个 WriteAttempt，模糊失败后人工重试复用同一幂等键。
+const publishAttempt = createWriteAttempt()
 
 function emptyListingForm() {
   return {
@@ -180,8 +183,9 @@ async function submit() {
       }
     }
 
-    await createMarketListing(payload)
+    await createMarketListing(payload, { writeAttempt: publishAttempt })
     if (!isCurrentSubmit(requestHandle)) return
+    publishAttempt.succeed()
     message.value = '发布成功，继续前往我的出售查看商品状态。'
     inventoryText.value = ''
   } catch (e) {
@@ -194,6 +198,7 @@ async function submit() {
 
 watch(sessionScope, () => {
   submitTracker.invalidate()
+  publishAttempt.cancel()
   form.value = emptyListingForm()
   inventoryText.value = ''
   submitting.value = false
@@ -204,8 +209,14 @@ watch(sessionScope, () => {
 })
 
 watch(inventoryText, () => {
+  publishAttempt.changeIntent()
   if (preloadError.value) preloadError.value = ''
 })
+
+// 任何表单字段变化都构成新的业务意图，下一次提交必须换新的幂等键。
+watch(form, () => {
+  publishAttempt.changeIntent()
+}, { deep: true })
 
 // 价格校验错误随输入即时清除，与预存内容字段的反馈语义一致。
 watch(() => form.value.unitPrice, () => {
@@ -219,6 +230,7 @@ watch([isVirtual, () => form.value.deliveryMode], () => {
 
 onBeforeUnmount(() => {
   submitTracker.invalidate()
+  publishAttempt.cancel()
 })
 </script>
 

@@ -130,6 +130,7 @@ import {
   invalidateMarketInventory,
   listMarketInventory
 } from '../api/services/marketService'
+import { createWriteAttempt } from '../api/writeAttempt'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId } from '../utils/opaqueId'
@@ -169,6 +170,8 @@ const hasNext = ref(false)
 const pageSize = 20
 let requestGeneration = 0
 let actionGeneration = 0
+// 追加库存是同一批卡密的高风险写：WriteAttempt 让模糊失败后的人工重试复用同一幂等键。
+const appendAttempt = createWriteAttempt()
 
 const inventoryItems = computed(() => (Array.isArray(inventory.value) ? inventory.value : []))
 const state = computed(() => buildMarketState({ inventory: inventoryItems.value }))
@@ -269,8 +272,9 @@ async function submitInventory() {
     await addMarketInventory(listingId, {
       payloadType: payloadType.value,
       payloads
-    })
+    }, { writeAttempt: appendAttempt })
     if (!isCurrentAction(generation, scope)) return
+    appendAttempt.succeed()
     inventoryText.value = ''
     message.value = '库存已追加。'
     await reload()
@@ -324,6 +328,7 @@ watch(
   () => {
     requestGeneration += 1
     actionGeneration += 1
+    appendAttempt.cancel()
     inventory.value = []
     inventorySort.value = { key: '', direction: 'asc' }
     invalidateTarget.value = null
@@ -345,12 +350,19 @@ watch(
 )
 
 watch(inventoryText, () => {
+  appendAttempt.changeIntent()
   if (inventoryError.value) inventoryError.value = ''
+})
+
+// 内容类型变化同样构成新的业务意图，下一次提交必须换新的幂等键。
+watch(payloadType, () => {
+  appendAttempt.changeIntent()
 })
 
 onBeforeUnmount(() => {
   requestGeneration += 1
   actionGeneration += 1
+  appendAttempt.cancel()
 })
 </script>
 

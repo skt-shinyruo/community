@@ -3,8 +3,8 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.MarketListingApplicationService.UpdateMarketListingCommand;
 import com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
@@ -169,6 +169,7 @@ class MarketListingApplicationServiceTest {
         MarketListingApplicationService service = new MarketListingApplicationService(
                 repository,
                 mock(MarketInventoryApplicationService.class),
+                mock(IdempotencyGuard.class),
                 new UuidV7Generator()
         );
 
@@ -259,12 +260,7 @@ class MarketListingApplicationServiceTest {
         marketInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
         assertListingStatusAndStock(listingId, expectedStatus, 0);
 
-        marketInventoryService.appendInventory(new AddMarketInventoryBatchCommand(
-                listingId,
-                sellerUserId,
-                "TEXT",
-                List.of("replacement-code")
-        ));
+        marketInventoryService.appendInventory(listingId, sellerUserId, "TEXT", List.of("replacement-code"));
     }
 
     private void assertListingStatusAndStock(UUID listingId, String status, int stockAvailable) {

@@ -3,7 +3,7 @@ import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
-import { createWriteAttempt } from '../writeAttempt'
+import { createWriteAttempt, IDEMPOTENCY_HEADER } from '../writeAttempt'
 import * as marketService from './marketService'
 
 describe('api/services/marketService', () => {
@@ -88,6 +88,68 @@ describe('api/services/marketService', () => {
     expect(resp.traceId).toBe('trace-create-order')
     expect(resp.data.orderId).toBe(31)
     expect(resp.data.goodsType).toBe('PHYSICAL')
+  })
+
+  it('createMarketListing should send the WriteAttempt Idempotency-Key header', async () => {
+    mock = new MockAdapter(http)
+    const writeAttempt = createWriteAttempt()
+    mock.onPost('/api/market/listings').reply((config) => {
+      expect(config.headers?.[IDEMPOTENCY_HEADER]).toBe(writeAttempt.begin())
+      expect(JSON.parse(config.data)).toEqual({
+        goodsType: 'VIRTUAL',
+        title: 'Steam 兑换码',
+        inventory: { payloadType: 'CODE', payloads: ['CODE-1'] }
+      })
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: {
+          listingId: '11111111-1111-7111-8111-111111111111',
+          status: 'ACTIVE'
+        },
+        traceId: 'trace-create-listing',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.createMarketListing({
+      goodsType: 'VIRTUAL',
+      title: 'Steam 兑换码',
+      inventory: { payloadType: 'CODE', payloads: ['CODE-1'] }
+    }, { writeAttempt })
+
+    expect(resp.traceId).toBe('trace-create-listing')
+    expect(resp.data.listingId).toBe('11111111-1111-7111-8111-111111111111')
+  })
+
+  it('addMarketInventory should send the WriteAttempt Idempotency-Key header', async () => {
+    mock = new MockAdapter(http)
+    const writeAttempt = createWriteAttempt()
+    mock.onPost('/api/market/listings/21/inventory').reply((config) => {
+      expect(config.headers?.[IDEMPOTENCY_HEADER]).toBe(writeAttempt.begin())
+      expect(JSON.parse(config.data)).toEqual({
+        payloadType: 'CODE',
+        payloads: ['CODE-1', 'CODE-2']
+      })
+      return [200, {
+        code: 0,
+        message: 'OK',
+        httpStatus: 200,
+        data: { appended: 2 },
+        traceId: 'trace-add-inventory',
+        timestamp: 1774060182920
+      }]
+    })
+
+    const resp = await marketService.addMarketInventory(
+      21,
+      { payloadType: 'CODE', payloads: ['CODE-1', 'CODE-2'] },
+      { writeAttempt }
+    )
+
+    expect(resp.traceId).toBe('trace-add-inventory')
+    expect(resp.data.appended).toBe(2)
   })
 
   it('deliverMarketOrder should post manual virtual delivery content', async () => {

@@ -7,6 +7,7 @@ public record AddMarketInventoryBatchCommand(
         UUID listingId,
         UUID sellerUserId,
         String payloadType,
-        List<String> payloads
+        List<String> payloads,
+        String idempotencyKey
 ) {
 }

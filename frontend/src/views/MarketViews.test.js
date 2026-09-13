@@ -800,7 +800,7 @@ describe('Unified market views', () => {
       title: '二手键盘',
       unitPrice: 12900,
       stockTotal: 1
-    }))
+    }), expect.objectContaining({ writeAttempt: expect.any(Object) }))
   })
 
   it('rejects a decimal listing price inline without calling the service', async () => {
@@ -820,7 +820,10 @@ describe('Unified market views', () => {
     await wrapper.findAll('input')[1].setValue('20')
     await wrapper.get('[data-test="publish-submit"]').trigger('click')
     await flushPromises()
-    expect(createMarketListing).toHaveBeenCalledWith(expect.objectContaining({ unitPrice: 20 }))
+    expect(createMarketListing).toHaveBeenCalledWith(
+      expect.objectContaining({ unitPrice: 20 }),
+      expect.objectContaining({ writeAttempt: expect.any(Object) })
+    )
   })
 
   it('keeps the preloaded-content validation inline on the field without calling the service', async () => {
@@ -852,6 +855,40 @@ describe('Unified market views', () => {
 
     expect(wrapper.get('[role="alert"]').text()).toContain('发布服务不可用')
     expect(wrapper.text()).not.toContain('发布成功')
+  })
+
+  it('reuses the write-attempt key when a failed publish is manually retried and renews it after success', async () => {
+    authenticate('token-a')
+    const observedKeys = []
+    createMarketListing
+      .mockImplementationOnce((_payload, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.reject(new Error('网关超时'))
+      })
+      .mockImplementation((_payload, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.resolve({ data: { listingId: LISTING_A }, traceId: '' })
+      })
+    const wrapper = mountView(MarketPublishView)
+
+    await wrapper.findAll('input')[0].setValue('Steam 兑换码')
+    await wrapper.findAll('textarea')[1].setValue('CODE-001')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('网关超时')
+
+    // 模糊失败后人工重试：同一 payload 复用同一幂等键，服务端按重放去重。
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+    expect(observedKeys[1]).toBe(observedKeys[0])
+    expect(wrapper.text()).toContain('发布成功')
+
+    // 成功后修改意图再次发布属于新的业务尝试，必须生成新 key。
+    await wrapper.findAll('input')[0].setValue('另一个兑换码商品')
+    await wrapper.findAll('textarea')[1].setValue('CODE-002')
+    await wrapper.get('[data-test="publish-submit"]').trigger('click')
+    await flushPromises()
+    expect(observedKeys[2]).not.toBe(observedKeys[1])
   })
 
   it('clears the publish draft and ignores an old submission after the authenticated identity changes', async () => {

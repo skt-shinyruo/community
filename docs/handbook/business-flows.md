@@ -784,13 +784,14 @@ Entry：
 
 - `/api/market/**`
 - `/api/admin/market/**`
-- `POST /api/market/orders` 使用 `Idempotency-Key`。
+- `POST /api/market/orders`、`POST /api/market/listings` 和 `POST /api/market/listings/{listingId}/inventory` 使用 `Idempotency-Key`。
 
 Listing / inventory：
 
 - listing 表达商品发布状态。
 - 虚拟商品和实物商品创建差异不同。
 - 预加载库存只允许 `goodsType=VIRTUAL` 且 `deliveryMode=PRELOADED` 的 listing 使用。
+- 发布商品与追加库存是幂等写：同 key 同参数重放直接返回首次成功结果，不重复创建 listing，也不把同一批卡密重复入库；同 key 不同参数返回 replay conflict。
 - `POST /api/market/listings/{listingId}/inventory` 只允许 listing 卖家追加库存。
 - 每个 payload 会创建一个 `market_inventory_unit`，状态为 `AVAILABLE`，并增加 listing `stock_total` / `stock_available`。
 - 如果 listing 追加库存前是 `SOLD_OUT`，追加成功后恢复为 `ACTIVE`。

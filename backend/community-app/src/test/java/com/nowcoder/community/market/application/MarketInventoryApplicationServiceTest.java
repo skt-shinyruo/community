@@ -2,7 +2,7 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.repository.MarketInventoryRepository;
 import com.nowcoder.community.market.domain.repository.MarketListingRepository;
@@ -28,6 +28,7 @@ class MarketInventoryApplicationServiceTest {
         MarketInventoryApplicationService service = new MarketInventoryApplicationService(
                 mock(MarketListingRepository.class),
                 mock(MarketInventoryRepository.class),
+                mock(IdempotencyGuard.class),
                 new UuidV7Generator()
         );
 
@@ -56,15 +57,11 @@ class MarketInventoryApplicationServiceTest {
         MarketInventoryApplicationService service = new MarketInventoryApplicationService(
                 listingRepository,
                 inventoryRepository,
+                mock(IdempotencyGuard.class),
                 new UuidV7Generator()
         );
 
-        assertThatThrownBy(() -> service.appendInventory(new AddMarketInventoryBatchCommand(
-                listingId,
-                sellerUserId,
-                "TEXT",
-                List.of("replacement-code")
-                )))
+        assertThatThrownBy(() -> service.appendInventory(listingId, sellerUserId, "TEXT", List.of("replacement-code")))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.LISTING_TRANSITION_CONFLICT));

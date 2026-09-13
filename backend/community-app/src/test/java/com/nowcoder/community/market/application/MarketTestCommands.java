@@ -19,6 +19,15 @@ public final class MarketTestCommands {
             CreateMarketListingRequest request,
             AddMarketInventoryBatchRequest inventoryRequest
     ) {
+        return listingCommand(sellerUserId, request, inventoryRequest, "test:listing:" + UUID.randomUUID());
+    }
+
+    public static CreateMarketListingCommand listingCommand(
+            UUID sellerUserId,
+            CreateMarketListingRequest request,
+            AddMarketInventoryBatchRequest inventoryRequest,
+            String idempotencyKey
+    ) {
         return new CreateMarketListingCommand(
                 sellerUserId,
                 request.goodsType(),
@@ -30,7 +39,8 @@ public final class MarketTestCommands {
                 request.stockTotal(),
                 request.minPurchaseQuantity(),
                 request.maxPurchaseQuantity(),
-                inventoryCommand(null, sellerUserId, inventoryRequest)
+                inventoryCommand(null, sellerUserId, inventoryRequest),
+                idempotencyKey
         );
     }
 
@@ -42,7 +52,7 @@ public final class MarketTestCommands {
         if (request == null) {
             return null;
         }
-        return new AddMarketInventoryBatchCommand(listingId, sellerUserId, request.payloadType(), request.payloads());
+        return new AddMarketInventoryBatchCommand(listingId, sellerUserId, request.payloadType(), request.payloads(), null);
     }
 
     public static CreateMarketAddressCommand addressCommand(UUID userId, CreateMarketAddressRequest request) {

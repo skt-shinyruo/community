@@ -26,8 +26,8 @@ export async function getMarketListingDetail(listingId) {
   return { data: data || {}, traceId }
 }
 
-export async function createMarketListing(payload) {
-  const resp = await http.post('/api/market/listings', payload)
+export async function createMarketListing(payload, { writeAttempt } = {}) {
+  const resp = await http.post('/api/market/listings', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '创建市场商品')
   return { data: data || {}, traceId }
 }
@@ -50,8 +50,12 @@ export async function listMarketInventory(listingId, params = {}) {
   return { ...marketPage(data), traceId }
 }
 
-export async function addMarketInventory(listingId, payload) {
-  const resp = await http.post(`/api/market/listings/${encodeURIComponent(listingId)}/inventory`, payload)
+export async function addMarketInventory(listingId, payload, { writeAttempt } = {}) {
+  const resp = await http.post(
+    `/api/market/listings/${encodeURIComponent(listingId)}/inventory`,
+    payload,
+    writeAttemptConfig(writeAttempt)
+  )
   const { data, traceId } = unwrapResultBody(resp.data, '追加库存')
   return { data: data || {}, traceId }
 }

@@ -6,6 +6,9 @@ import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.common.web.GlobalExceptionHandler;
 import com.nowcoder.community.common.web.SecurityExceptionHandler;
 import com.nowcoder.community.market.application.MarketAddressApplicationService.CreateMarketAddressCommand;
+import com.nowcoder.community.market.application.MarketInventoryApplicationService.AppendInventoryResult;
+import com.nowcoder.community.market.application.MarketListingApplicationService.CreateMarketListingCommand;
+import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.application.result.MarketListingDetailResult;
 import com.nowcoder.community.market.application.result.MarketListingResult;
@@ -38,6 +41,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.support.TestUuids.uuid;
+import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentCaptor.forClass;
 import static org.mockito.ArgumentMatchers.any;
@@ -455,5 +459,121 @@ class MarketControllerTest {
                                 """.formatted(listingId, addressId)))
                 .andExpect(status().isConflict())
                 .andExpect(jsonPath("$.code").value(MarketErrorCode.REQUEST_REPLAY_CONFLICT.getCode()));
+    }
+
+    @Test
+    void createListingApiShouldBindIdempotencyKeyHeader() throws Exception {
+        UUID sellerUserId = uuid(7);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        when(marketListingService.createListing(any(CreateMarketListingCommand.class)))
+                .thenReturn(new MarketListingResult(
+                        listingId,
+                        sellerUserId,
+                        "PHYSICAL",
+                        "二手键盘",
+                        "九成新",
+                        12_900L,
+                        null,
+                        null,
+                        3,
+                        3,
+                        1,
+                        1,
+                        "ACTIVE"
+                ));
+
+        mockMvc.perform(post("/api/market/listings")
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:listing-header-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "goodsType": "PHYSICAL",
+                                  "title": "二手键盘",
+                                  "description": "九成新",
+                                  "unitPrice": 12900,
+                                  "stockTotal": 3,
+                                  "minPurchaseQuantity": 1,
+                                  "maxPurchaseQuantity": 1
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.listingId").value(listingId.toString()));
+
+        var commandCaptor = forClass(CreateMarketListingCommand.class);
+        verify(marketListingService).createListing(commandCaptor.capture());
+        assertEquals("market:listing-header-1", commandCaptor.getValue().idempotencyKey());
+        assertEquals(sellerUserId, commandCaptor.getValue().sellerUserId());
+    }
+
+    @Test
+    void createListingApiShouldRejectBodyRequestId() throws Exception {
+        UUID sellerUserId = uuid(7);
+
+        mockMvc.perform(post("/api/market/listings")
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:listing-req-body")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "market:listing-req-body",
+                                  "goodsType": "PHYSICAL",
+                                  "title": "二手键盘",
+                                  "description": "九成新",
+                                  "unitPrice": 12900,
+                                  "stockTotal": 3,
+                                  "minPurchaseQuantity": 1,
+                                  "maxPurchaseQuantity": 1
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
+    }
+
+    @Test
+    void addInventoryApiShouldBindIdempotencyKeyHeader() throws Exception {
+        UUID sellerUserId = uuid(7);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+        when(marketInventoryService.appendInventory(any(AddMarketInventoryBatchCommand.class)))
+                .thenReturn(new AppendInventoryResult(2));
+
+        mockMvc.perform(post("/api/market/listings/" + listingId + "/inventory")
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:inventory-header-1")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "payloadType": "CODE",
+                                  "payloads": ["CODE-1", "CODE-2"]
+                                }
+                                """))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.data.appended").value(2));
+
+        var commandCaptor = forClass(AddMarketInventoryBatchCommand.class);
+        verify(marketInventoryService).appendInventory(commandCaptor.capture());
+        assertEquals("market:inventory-header-1", commandCaptor.getValue().idempotencyKey());
+        assertEquals(listingId, commandCaptor.getValue().listingId());
+        assertEquals(sellerUserId, commandCaptor.getValue().sellerUserId());
+    }
+
+    @Test
+    void addInventoryApiShouldRejectBodyRequestId() throws Exception {
+        UUID sellerUserId = uuid(7);
+        UUID listingId = UUID.fromString("00000000-0000-7000-8000-000000000011");
+
+        mockMvc.perform(post("/api/market/listings/" + listingId + "/inventory")
+                        .with(jwt().jwt(jwt -> jwt.subject(sellerUserId.toString()).claim("username", "seller7")))
+                        .header(IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, "market:inventory-req-body")
+                        .contentType("application/json")
+                        .content("""
+                                {
+                                  "requestId": "market:inventory-req-body",
+                                  "payloadType": "CODE",
+                                  "payloads": ["CODE-1"]
+                                }
+                                """))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.code").value(400));
     }
 }

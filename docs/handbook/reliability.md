@@ -61,6 +61,8 @@ operation + userId + Idempotency-Key
 | 测试积分销毁 | `POST /api/wallet/withdrawals` | `wallet:withdraw` | `amount` |
 | 钱包转账 | `POST /api/wallet/transfers` | `wallet:transfer` | `toUserId`, `amount` |
 | 市场下单 | `POST /api/market/orders` | `market:create_order` | `listingId`, `quantity`, `addressId` |
+| 发布市场商品 | `POST /api/market/listings` | `market:create_listing` | `goodsType`, `title`, `description`, `unitPrice`, `deliveryMode`, `stockMode`, `stockTotal`, `minPurchaseQuantity`, `maxPurchaseQuantity`, `inventory` |
+| 追加市场库存 | `POST /api/market/listings/{listingId}/inventory` | `market:append_inventory` | `listingId`, `payloadType`, `payloads` |
 
 客户端契约：
 
@@ -71,11 +73,11 @@ operation + userId + Idempotency-Key
 - 不要每次 HTTP 发送都生成新 key。
 - 建议使用 UUID、ULID、雪花 ID 等高碰撞安全随机 key。
 - 服务端 trim key，长度不能超过 128。
-- 测试积分发放/销毁、钱包转账和市场下单不接收 body `requestId`，幂等键只来自 header。
+- 测试积分发放/销毁、钱包转账、市场下单、商品发布和库存追加不接收 body `requestId`，幂等键只来自 header。
 
 当前仓库前端状态：
 
-- `frontend/src/api/http.js` 不生成 `Idempotency-Key`；发帖、评论、钱包写接口和市场下单由页面持有 `WriteAttempt` 并把 key 显式传给 API service。
+- `frontend/src/api/http.js` 不生成 `Idempotency-Key`；发帖、评论、钱包写接口、市场下单、商品发布和库存追加由页面持有 `WriteAttempt` 并把 key 显式传给 API service。
 - 首次发送激活 attempt；传输失败和用户人工重试保留同一个 key，成功、取消、切换账号 / 页面或修改业务意图后结束旧 attempt。
 - 高风险 API service 缺少 `WriteAttempt` 时直接报错，避免 axios retry 或按钮重复点击静默变成新的业务尝试。
 
@@ -98,7 +100,11 @@ wallet:recharge|amount=<amount>
 wallet:withdraw|amount=<amount>
 wallet:transfer|toUserId=<toUserId>|amount=<amount>
 market:create_order|listingId=<listingId>|quantity=<quantity>|addressId=<addressId-or-empty>
+market:create_listing|goodsType=<goodsType>|title=<title>|description=<description>|unitPrice=<unitPrice>|deliveryMode=<deliveryMode>|stockMode=<stockMode>|stockTotal=<stockTotal>|minPurchaseQuantity=<minPurchaseQuantity>|maxPurchaseQuantity=<maxPurchaseQuantity>|payloadType=<payloadType>|payloads=[<length>:<payload>,...]
+market:append_inventory|listingId=<listingId>|payloadType=<payloadType>|payloads=[<length>:<payload>,...]
 ```
+
+`payloads` 逐条 trim 后按 `<length>:<payload>` 长度前缀拼接，避免不同批次拼出同一 canonical string。
 
 匹配语义：
 

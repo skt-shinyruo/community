@@ -205,6 +205,8 @@ Idempotency-Key: <unique-key>
 - `POST /api/wallet/withdrawals`
 - `POST /api/wallet/transfers`
 - `POST /api/market/orders`
+- `POST /api/market/listings`
+- `POST /api/market/listings/{listingId}/inventory`
 
 客户端必须：
 
@@ -233,7 +235,7 @@ Idempotency-Key: <unique-key>
 - API base 优先读 runtime config，其次读 Vite env，最后在本地 `5173` / `12881` / `12888` 场景推断 `localhost:12880`。
 - access token 只保存在内存；refresh token 由 HttpOnly cookie 承载。业务请求 `401` 后前端会调用 `/api/auth/refresh`，成功后重试原请求。
 - 全局错误展示优先使用后端 `Result.message` 和 `traceId`。
-- 通用 axios interceptor 不生成 `Idempotency-Key`；发帖、评论、钱包写接口和市场下单由页面级 `WriteAttempt` 显式提供，同一次人工重试复用 key。
+- 通用 axios interceptor 不生成 `Idempotency-Key`；发帖、评论、钱包写接口、市场下单、商品发布和库存追加由页面级 `WriteAttempt` 显式提供，同一次人工重试复用 key。
 
 字段约定：
 

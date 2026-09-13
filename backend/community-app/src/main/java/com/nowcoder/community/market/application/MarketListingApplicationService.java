@@ -2,6 +2,9 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.result.MarketListingResult;
 import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
@@ -38,7 +41,8 @@ public class MarketListingApplicationService {
             Integer stockTotal,
             Integer minPurchaseQuantity,
             Integer maxPurchaseQuantity,
-            AddMarketInventoryBatchCommand inventory
+            AddMarketInventoryBatchCommand inventory,
+            String idempotencyKey
     ) {
     }
 
@@ -55,21 +59,38 @@ public class MarketListingApplicationService {
 
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryApplicationService marketInventoryService;
+    private final IdempotencyGuard idempotencyGuard;
     private final UuidV7Generator idGenerator;
     private final MarketListingDomainService listingDomainService = new MarketListingDomainService();
 
     @Autowired
     public MarketListingApplicationService(MarketListingRepository marketListingRepository,
                                            MarketInventoryApplicationService marketInventoryService,
+                                           IdempotencyGuard idempotencyGuard,
                                            UuidV7Generator idGenerator) {
         this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
         this.marketInventoryService = Objects.requireNonNull(marketInventoryService, "marketInventoryService must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional
     public MarketListingResult createListing(CreateMarketListingCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String requestHash = RequestFingerprint.sha256(createListingFingerprint(command));
+        return idempotencyGuard.executeRequired(
+                "market:create_listing",
+                command.sellerUserId(),
+                effective,
+                requestHash,
+                MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                MarketListingResult.class,
+                () -> createListingInternal(command)
+        );
+    }
+
+    private MarketListingResult createListingInternal(CreateMarketListingCommand command) {
         validateCreateRequest(command);
         listingDomainService.validateListingBasics(command.sellerUserId(), command.title(), command.unitPrice());
 
@@ -91,15 +112,38 @@ public class MarketListingApplicationService {
 
         if (listing.goodsType().isVirtual() && listing.isPreloadedDelivery()) {
             AddMarketInventoryBatchCommand inventory = command.inventory();
-            marketInventoryService.appendInventory(new AddMarketInventoryBatchCommand(
+            marketInventoryService.appendInventory(
                     listing.getListingId(),
                     command.sellerUserId(),
                     inventory.payloadType(),
                     inventory.payloads()
-            ));
+            );
         }
 
         return MarketListingResult.from(requireOwnedListing(listing.getListingId(), command.sellerUserId()));
+    }
+
+    private static String createListingFingerprint(CreateMarketListingCommand command) {
+        StringBuilder builder = new StringBuilder("market:create_listing")
+                .append("|goodsType=").append(trimToEmpty(command.goodsType()))
+                .append("|title=").append(trimToEmpty(command.title()))
+                .append("|description=").append(trimToEmpty(command.description()))
+                .append("|unitPrice=").append(command.unitPrice())
+                .append("|deliveryMode=").append(trimToEmpty(command.deliveryMode()))
+                .append("|stockMode=").append(trimToEmpty(command.stockMode()))
+                .append("|stockTotal=").append(command.stockTotal())
+                .append("|minPurchaseQuantity=").append(command.minPurchaseQuantity())
+                .append("|maxPurchaseQuantity=").append(command.maxPurchaseQuantity());
+        AddMarketInventoryBatchCommand inventory = command.inventory();
+        if (inventory != null) {
+            builder.append("|payloadType=").append(trimToEmpty(inventory.payloadType()))
+                    .append("|payloads=").append(MarketInventoryApplicationService.payloadsFingerprint(inventory.payloads()));
+        }
+        return builder.toString();
+    }
+
+    private static String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     @Transactional

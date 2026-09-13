@@ -17,6 +17,7 @@ import com.nowcoder.community.market.application.MarketListingApplicationService
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
+import com.nowcoder.community.market.application.MarketInventoryApplicationService.AppendInventoryResult;
 import com.nowcoder.community.market.application.MarketInventoryApplicationService.MarketInventoryUnitResult;
 import com.nowcoder.community.market.application.result.MarketListingDetailResult;
 import com.nowcoder.community.market.application.result.MarketListingResult;
@@ -79,12 +80,13 @@ public class MarketController {
     private static AddMarketInventoryBatchCommand toCommand(
             UUID listingId,
             UUID sellerUserId,
-            AddMarketInventoryBatchRequest request
+            AddMarketInventoryBatchRequest request,
+            String idempotencyKey
     ) {
         if (request == null) {
             return null;
         }
-        return new AddMarketInventoryBatchCommand(listingId, sellerUserId, request.payloadType(), request.payloads());
+        return new AddMarketInventoryBatchCommand(listingId, sellerUserId, request.payloadType(), request.payloads(), idempotencyKey);
     }
 
     @GetMapping("/listings")
@@ -114,6 +116,7 @@ public class MarketController {
 
     @PostMapping("/listings")
     public Result<MarketListingResult> createListing(Authentication authentication,
+                                                       @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
                                                        @RequestBody @Valid CreateMarketListingRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.createListing(new CreateMarketListingCommand(
@@ -127,7 +130,8 @@ public class MarketController {
                 request.stockTotal(),
                 request.minPurchaseQuantity(),
                 request.maxPurchaseQuantity(),
-                toCommand(null, sellerUserId, request.inventory())
+                toCommand(null, sellerUserId, request.inventory(), null),
+                idempotencyKey
         )));
     }
 
@@ -177,12 +181,12 @@ public class MarketController {
     }
 
     @PostMapping("/listings/{listingId}/inventory")
-    public Result<Void> addInventory(Authentication authentication,
+    public Result<AppendInventoryResult> addInventory(Authentication authentication,
                                      @PathVariable UUID listingId,
+                                     @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
                                      @RequestBody @Valid AddMarketInventoryBatchRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
-        marketInventoryService.appendInventory(toCommand(listingId, sellerUserId, request));
-        return Result.ok();
+        return Result.ok(marketInventoryService.appendInventory(toCommand(listingId, sellerUserId, request, idempotencyKey)));
     }
 
     @PostMapping("/inventory/{inventoryUnitId}/invalidate")

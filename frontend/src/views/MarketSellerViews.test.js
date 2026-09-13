@@ -329,7 +329,7 @@ describe('Unified market seller views', () => {
     expect(addMarketInventory).toHaveBeenCalledWith('21', {
       payloadType: 'LINK',
       payloads: ['https://example.com/key-1', 'https://example.com/key-2']
-    })
+    }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(wrapper.text()).toContain('库存已追加。')
 
     addMarketInventory.mockRejectedValueOnce(new Error('库存服务不可用'))
@@ -338,6 +338,38 @@ describe('Unified market seller views', () => {
     await flushPromises()
 
     expect(wrapper.get('[role="alert"]').text()).toContain('库存服务不可用')
+  })
+
+  it('reuses the write-attempt key when a failed inventory append is manually retried and renews it after success', async () => {
+    const observedKeys = []
+    addMarketInventory
+      .mockImplementationOnce((_listingId, _payload, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.reject(new Error('网关超时'))
+      })
+      .mockImplementation((_listingId, _payload, { writeAttempt }) => {
+        observedKeys.push(writeAttempt.begin())
+        return Promise.resolve({ data: { appended: 1 }, traceId: '' })
+      })
+    const wrapper = mountView(MarketInventoryView)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('CODE-1')
+    await wrapper.get('[data-test="inventory-add-submit"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[role="alert"]').text()).toContain('网关超时')
+
+    // 模糊失败后人工重试：同一批卡密复用同一幂等键，服务端按重放去重，不产生重复库存。
+    await wrapper.get('[data-test="inventory-add-submit"]').trigger('click')
+    await flushPromises()
+    expect(observedKeys[1]).toBe(observedKeys[0])
+    expect(wrapper.text()).toContain('库存已追加。')
+
+    // 成功后追加下一批属于新的业务尝试，必须生成新 key。
+    await wrapper.get('textarea').setValue('CODE-2')
+    await wrapper.get('[data-test="inventory-add-submit"]').trigger('click')
+    await flushPromises()
+    expect(observedKeys[2]).not.toBe(observedKeys[1])
   })
 
   it('requires a confirmation before invalidating an available unit', async () => {

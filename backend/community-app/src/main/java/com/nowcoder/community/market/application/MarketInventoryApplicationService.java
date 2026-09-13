@@ -2,6 +2,9 @@ package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.exception.BusinessException;
+import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.idempotency.IdempotencyKeyResolver;
+import com.nowcoder.community.common.idempotency.RequestFingerprint;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
 import com.nowcoder.community.market.application.result.MarketPageResult;
 import com.nowcoder.community.market.domain.model.MarketInventoryUnit;
@@ -18,6 +21,7 @@ import java.util.List;
 import java.util.Date;
 import java.util.Objects;
 import java.util.UUID;
+import java.util.stream.Collectors;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.FORBIDDEN;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
@@ -53,25 +57,50 @@ public class MarketInventoryApplicationService {
         }
     }
 
+    public record AppendInventoryResult(int appended) {
+    }
+
     private static final String INVENTORY_STATUS_AVAILABLE = "AVAILABLE";
     private static final String INVENTORY_STATUS_INVALID = "INVALID";
 
     private final MarketListingRepository marketListingRepository;
     private final MarketInventoryRepository marketInventoryRepository;
+    private final IdempotencyGuard idempotencyGuard;
     private final UuidV7Generator idGenerator;
 
     @Autowired
     public MarketInventoryApplicationService(MarketListingRepository marketListingRepository,
                                               MarketInventoryRepository marketInventoryRepository,
+                                              IdempotencyGuard idempotencyGuard,
                                               UuidV7Generator idGenerator) {
         this.marketListingRepository = Objects.requireNonNull(marketListingRepository, "marketListingRepository must not be null");
         this.marketInventoryRepository = Objects.requireNonNull(marketInventoryRepository, "marketInventoryRepository must not be null");
+        this.idempotencyGuard = Objects.requireNonNull(idempotencyGuard, "idempotencyGuard must not be null");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
     }
 
     @Transactional
-    public void appendInventory(AddMarketInventoryBatchCommand command) {
+    public AppendInventoryResult appendInventory(AddMarketInventoryBatchCommand command) {
         Objects.requireNonNull(command, "command must not be null");
+        String effective = IdempotencyKeyResolver.resolve(command.idempotencyKey());
+        String requestHash = RequestFingerprint.sha256(appendInventoryFingerprint(command));
+        return idempotencyGuard.executeRequired(
+                "market:append_inventory",
+                command.sellerUserId(),
+                effective,
+                requestHash,
+                MarketErrorCode.REQUEST_REPLAY_CONFLICT,
+                AppendInventoryResult.class,
+                () -> appendInventoryInternal(command)
+        );
+    }
+
+    @Transactional
+    public AppendInventoryResult appendInventory(UUID listingId, UUID sellerUserId, String payloadType, List<String> payloads) {
+        return appendInventoryInternal(new AddMarketInventoryBatchCommand(listingId, sellerUserId, payloadType, payloads, null));
+    }
+
+    private AppendInventoryResult appendInventoryInternal(AddMarketInventoryBatchCommand command) {
         validateInventoryRequest(command);
         MarketListing listing = requireOwnedListingForUpdate(command.listingId(), command.sellerUserId());
         ensurePreloadedListing(listing);
@@ -90,6 +119,30 @@ public class MarketInventoryApplicationService {
         int delta = command.payloads().size();
         String nextStatus = listing.statusAfterStockRestoredBy(delta);
         requireStockAdjusted(listing, delta, delta, nextStatus);
+        return new AppendInventoryResult(delta);
+    }
+
+    private static String appendInventoryFingerprint(AddMarketInventoryBatchCommand command) {
+        return "market:append_inventory|listingId=" + command.listingId()
+                + "|payloadType=" + trimToEmpty(command.payloadType())
+                + "|payloads=" + payloadsFingerprint(command.payloads());
+    }
+
+    // 长度前缀拼接，避免 ["A\nB"] 与 ["A","B"] 之类不同批次拼出同一 canonical string。
+    static String payloadsFingerprint(List<String> payloads) {
+        if (payloads == null) {
+            return "";
+        }
+        return payloads.stream()
+                .map(payload -> {
+                    String trimmed = trimToEmpty(payload);
+                    return trimmed.length() + ":" + trimmed;
+                })
+                .collect(Collectors.joining("\n"));
+    }
+
+    private static String trimToEmpty(String value) {
+        return value == null ? "" : value.trim();
     }
 
     public MarketPageResult<MarketInventoryUnitResult> listInventory(

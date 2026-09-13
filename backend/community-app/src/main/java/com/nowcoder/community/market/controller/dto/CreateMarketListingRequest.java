@@ -1,5 +1,6 @@
 package com.nowcoder.community.market.controller.dto;
 
+import com.fasterxml.jackson.annotation.JsonAnySetter;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.Min;
 import jakarta.validation.constraints.NotBlank;
@@ -17,4 +18,9 @@ public record CreateMarketListingRequest(
         @NotNull @Min(1) Integer maxPurchaseQuantity,
         @Valid AddMarketInventoryBatchRequest inventory
 ) {
+
+    @JsonAnySetter
+    public void rejectUnknown(String name, Object value) {
+        throw new IllegalArgumentException("Unknown market listing request field: " + name);
+    }
 }

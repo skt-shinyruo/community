@@ -4,9 +4,11 @@ import {
   buildCanonicalConversationId,
   advanceConversationSeqWaterline,
   commitPendingConversationMessage,
+  confirmOwnPendingConversationEcho,
   createPendingConversationMessage,
   failPendingConversationMessage,
   findLatestConversationSeq,
+  findOwnPendingEchoMatch,
   mapConversationMessage,
   mapRealtimeConversationMessage,
   mergeConversations,
@@ -409,5 +411,124 @@ describe('conversationDetailState', () => {
       { seq: 11 },
       { seq: 10 }
     ])).toBe(11)
+  })
+
+  it('claims the oldest matching own pending bubble for a server echo frame', () => {
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const toId = '22222222-2222-7222-8222-222222222222'
+    const olderPending = createPendingConversationMessage({
+      clientMsgId: 'client-echo-older',
+      fromId,
+      toId,
+      content: '相同内容',
+      createTime: 100
+    })
+    const newerPending = createPendingConversationMessage({
+      clientMsgId: 'client-echo-newer',
+      fromId,
+      toId,
+      content: '相同内容',
+      createTime: 200
+    })
+    const echo = mapRealtimeConversationMessage({
+      type: 'privateMessage',
+      conversationId: `${fromId}_${toId}`,
+      seq: 9,
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      fromUserId: fromId,
+      toUserId: toId,
+      content: '相同内容',
+      createdAtEpochMillis: 150
+    })
+
+    expect(findOwnPendingEchoMatch([newerPending, olderPending], echo)?.clientMsgId).toBe('client-echo-older')
+  })
+
+  it('does not claim committed, failed, peer, or different-content messages for a server echo', () => {
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const toId = '22222222-2222-7222-8222-222222222222'
+    const echo = mapRealtimeConversationMessage({
+      type: 'privateMessage',
+      conversationId: `${fromId}_${toId}`,
+      seq: 9,
+      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
+      fromUserId: fromId,
+      toUserId: toId,
+      content: 'hello',
+      createdAtEpochMillis: 150
+    })
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-echo',
+      fromId,
+      toId,
+      content: 'hello',
+      createTime: 100
+    })
+    const committed = commitPendingConversationMessage(pending, {
+      clientMsgId: 'client-echo',
+      requestId: 'request-echo',
+      messageId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      seq: 8
+    })
+    const failed = failPendingConversationMessage(pending)
+    const otherContent = createPendingConversationMessage({
+      clientMsgId: 'client-echo-other',
+      fromId,
+      toId,
+      content: 'another message',
+      createTime: 50
+    })
+
+    expect(findOwnPendingEchoMatch([committed], echo)).toBeNull()
+    expect(findOwnPendingEchoMatch([failed], echo)).toBeNull()
+    expect(findOwnPendingEchoMatch([otherContent], echo)).toBeNull()
+    expect(findOwnPendingEchoMatch([], echo)).toBeNull()
+    expect(findOwnPendingEchoMatch([pending], { ...echo, fromId: toId, toId: fromId })).toBeNull()
+    expect(findOwnPendingEchoMatch([pending], echo)?.clientMsgId).toBe('client-echo')
+  })
+
+  it('confirms an own pending bubble from its server echo while keeping the clientMsgId alias', () => {
+    const fromId = '11111111-1111-7111-8111-111111111111'
+    const toId = '22222222-2222-7222-8222-222222222222'
+    const pending = createPendingConversationMessage({
+      clientMsgId: 'client-echo-confirm',
+      fromId,
+      toId,
+      content: 'echo confirms me',
+      createTime: 100
+    })
+    const echo = mapRealtimeConversationMessage({
+      type: 'privateMessage',
+      conversationId: `${fromId}_${toId}`,
+      seq: 9,
+      messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      fromUserId: fromId,
+      toUserId: toId,
+      content: 'echo confirms me',
+      createdAtEpochMillis: 150
+    })
+
+    const confirmed = confirmOwnPendingConversationEcho(pending, echo)
+    expect(confirmed).toMatchObject({
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      seq: 9,
+      clientMsgId: 'client-echo-confirm',
+      deliveryState: 'committed',
+      createTime: 150
+    })
+
+    const merged = mergeConversationMessages([pending], [confirmed])
+    expect(merged).toHaveLength(1)
+    expect(merged[0]).toMatchObject({
+      id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      seq: 9,
+      clientMsgId: 'client-echo-confirm',
+      deliveryState: 'committed',
+      messageIdentity: {
+        serverMessageIds: ['cccccccc-cccc-7ccc-8ccc-cccccccccccc'],
+        clientMessageIds: [{ fromId, clientMsgId: 'client-echo-confirm' }],
+        sequences: [9]
+      }
+    })
   })
 })

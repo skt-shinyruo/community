@@ -118,6 +118,43 @@ export function failPendingConversationMessage(message) {
   return { ...(message || {}), deliveryState: 'failed' }
 }
 
+/**
+ * 服务端回声帧（privateMessage）不携带 clientMsgId，无法按身份别名认领仍在途的
+ * pending 气泡；按发送者、对端与内容匹配最早一条本端 pending 消息。
+ * 只匹配 deliveryState=pending 的本端消息：对方消息、已提交或已失败的消息不会被误认领。
+ * @param {Array<Record<string, any>>} items
+ * @param {{ fromId?: unknown, toId?: unknown, content?: unknown }} realtimeMessage
+ * @returns {Record<string, any> | null}
+ */
+export function findOwnPendingEchoMatch(items, realtimeMessage) {
+  const fromId = normalizeOpaqueId(realtimeMessage?.fromId)
+  const toId = normalizeOpaqueId(realtimeMessage?.toId)
+  if (!fromId || !toId) return null
+  const content = String(realtimeMessage?.content ?? '')
+  let match = null
+  for (const item of Array.isArray(items) ? items : []) {
+    if (item?.deliveryState !== 'pending') continue
+    if (!sameOpaqueId(item?.fromId, fromId) || !sameOpaqueId(item?.toId, toId)) continue
+    if (String(item?.content ?? '') !== content) continue
+    if (!match || Number(item?.createTime || 0) < Number(match?.createTime || 0)) match = item
+  }
+  return match
+}
+
+/**
+ * 自己消息的服务端回声先于 committed 回执到达时，回声本身就是持久化事实：
+ * 以回声的身份字段确认 pending 气泡，保留 clientMsgId 别名， committed 回执随后幂等落地。
+ * @param {Record<string, any>} message 本端 pending 消息
+ * @param {Record<string, any>} echoMessage 已映射的服务端回声消息
+ */
+export function confirmOwnPendingConversationEcho(message, echoMessage) {
+  return withConversationMessageIdentity({
+    ...(echoMessage || {}),
+    clientMsgId: String(message?.clientMsgId || echoMessage?.clientMsgId || '').trim(),
+    deliveryState: 'committed'
+  })
+}
+
 /** 重试是同一个写尝试：保留 clientMsgId / 身份别名，只把交付状态退回 pending。 */
 export function retryFailedConversationMessage(message) {
   return { ...(message || {}), deliveryState: 'pending' }

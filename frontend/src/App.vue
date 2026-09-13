@@ -24,7 +24,7 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useRoute, RouterView } from 'vue-router'
 import { ensureSessionReady, shouldBootstrapSession } from './auth/session'
 import { useAuthStore } from './stores/auth'
-import { useInboxUnreadStore } from './stores/inboxUnread'
+import { useInboxUnreadStore, shouldRefreshUnreadForPrivateMessage } from './stores/inboxUnread'
 import { identityScope } from './stores/identityScope'
 import { imRealtimeClient } from './im/imRealtimeClient'
 import { setToastHandler } from './ui/toastService'
@@ -115,8 +115,10 @@ onMounted(() => {
       text: `${n} 个群聊有新消息（点击进入群聊查看内容）`
     })
   })
-  offPrivateMessage = imRealtimeClient.on('privateMessage', () => {
-    void inboxUnread.refresh()
+  offPrivateMessage = imRealtimeClient.on('privateMessage', (msg) => {
+    // 高频消息下防抖合并刷新；自己消息的服务端回声不改变我的未读计数，不触发刷新。
+    if (!shouldRefreshUnreadForPrivateMessage(msg, auth.identityUserId)) return
+    inboxUnread.scheduleRefresh()
   })
 })
 

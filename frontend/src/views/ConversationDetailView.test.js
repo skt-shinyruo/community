@@ -51,7 +51,7 @@ vi.mock('../im/imRealtimeClient', () => ({
 }))
 
 import { useAuthStore } from '../stores/auth'
-import { useInboxUnreadStore } from '../stores/inboxUnread'
+import { INBOX_UNREAD_REFRESH_DEBOUNCE_MS, useInboxUnreadStore } from '../stores/inboxUnread'
 import ConversationDetailView from './ConversationDetailView.vue'
 
 // vitest 默认连 setImmediate 一起 fake 会让 flushPromises 挂起，这里只 fake 超时器相关的四类。
@@ -173,6 +173,7 @@ describe('ConversationDetailView', () => {
   })
 
   it('refreshes the shell unread badge after the loaded tail is marked read', async () => {
+    useViewFakeTimers()
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
     topicSummary.mockResolvedValue({ data: [{ topic: 'comment', unreadCount: 2 }] })
     getImUnreadSummary.mockResolvedValue({
@@ -184,6 +185,11 @@ describe('ConversationDetailView', () => {
     await flushPromises()
 
     expect(markImConversationRead).toHaveBeenCalledWith(conversationId, 8)
+
+    // 角标刷新走防抖合并，标记已读后的一个防抖窗口内发出。
+    await vi.advanceTimersByTimeAsync(INBOX_UNREAD_REFRESH_DEBOUNCE_MS)
+    await flushPromises()
+
     const inboxUnread = useInboxUnreadStore()
     expect(inboxUnread.noticeUnread).toBe(2)
     expect(inboxUnread.messageUnread).toBe(6)
@@ -223,7 +229,9 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).toContain('历史响应')
     expect(wrapper.text()).toContain('加载期间到达')
     expect(wrapper.findAll('.message-row')).toHaveLength(2)
-    expect(markImConversationRead).toHaveBeenLastCalledWith(conversationId, 9)
+    // 加载期间到达的实时帧（seq 9）与 HTTP 基线（seq 3）之间有缺口：
+    // 已读只按连续水位 3 上报，缺口由重连 backfill 补齐后再推进。
+    expect(markImConversationRead).toHaveBeenLastCalledWith(conversationId, 3)
   })
 
   it('keeps a successful history load usable when marking it read fails', async () => {
@@ -402,6 +410,159 @@ describe('ConversationDetailView', () => {
 
     expect(wrapper.findAll('.message-row')).toHaveLength(3)
     expect(chatArea.scrollTop).toBe(800)
+  })
+
+  it('clears the stale inline send error after a later send succeeds', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('会被拒绝的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    listeners.sendRejected({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1', message: '发送频率过高' })
+    await flushPromises()
+    expect(wrapper.get('.chat-inline-error').text()).toContain('发送频率过高')
+
+    // 下一次发送成功后，上一次残留的行内错误文案必须清除。
+    await wrapper.get('textarea').setValue('随后成功的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+
+    expect(wrapper.find('.chat-inline-error').exists()).toBe(false)
+    expect(wrapper.text()).not.toContain('发送频率过高')
+    expect(wrapper.text()).toContain('随后成功的消息')
+  })
+
+  it('reports read markers by contiguous seq waterline when realtime frames arrive out of order', async () => {
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+    expect(markImConversationRead).toHaveBeenCalledTimes(1)
+    expect(markImConversationRead).toHaveBeenLastCalledWith(conversationId, 8)
+
+    // 帧乱序：seq 10 先到但 9 尚未收到，不能把中间消息提前标读。
+    await listeners.privateMessage({
+      type: 'privateMessage',
+      conversationId,
+      seq: 10,
+      messageId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '乱序先到的 10',
+      createdAtEpochMillis: 1774060188920
+    })
+    await flushPromises()
+    expect(wrapper.text()).toContain('乱序先到的 10')
+    expect(markImConversationRead).toHaveBeenCalledTimes(1)
+
+    // 缺口 9 补齐后，连续水位一次性推进到 10。
+    await listeners.privateMessage({
+      type: 'privateMessage',
+      conversationId,
+      seq: 9,
+      messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      fromUserId: '22222222-2222-7222-8222-222222222222',
+      toUserId: '11111111-1111-7111-8111-111111111111',
+      content: '补回缺口的 9',
+      createdAtEpochMillis: 1774060187920
+    })
+    await flushPromises()
+    expect(markImConversationRead).toHaveBeenCalledTimes(2)
+    expect(markImConversationRead).toHaveBeenLastCalledWith(conversationId, 10)
+  })
+
+  it('claims the pending bubble when the server echo arrives before the committed frame', async () => {
+    useViewFakeTimers()
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('回声先到的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).toContain('发送中')
+
+    // 生产 privateMessage 帧不携带 clientMsgId：回声先于 committed 回执到达。
+    await listeners.privateMessage({
+      type: 'privateMessage',
+      conversationId,
+      seq: 9,
+      messageId: '99999999-9999-7999-8999-999999999999',
+      fromUserId: '11111111-1111-7111-8111-111111111111',
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: '回声先到的消息',
+      createdAtEpochMillis: 1774060187920
+    })
+    await flushPromises()
+
+    // 回声认领 pending 气泡：不出现短暂的重复气泡，且按已提交呈现。
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).toContain('回声先到的消息')
+    expect(wrapper.text()).not.toContain('发送中')
+
+    // 回声本身即持久化事实：兜底计时器已解除，超时不能再把它误转失败。
+    await vi.advanceTimersByTimeAsync(20_000)
+    await flushPromises()
+    expect(wrapper.text()).not.toContain('发送失败')
+    expect(wrapper.text()).not.toContain('发送超时')
+
+    // 迟到的 committed 回执幂等落地，仍然只有一条气泡。
+    listeners.sendCommitted({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: '99999999-9999-7999-8999-999999999999',
+      seq: 9,
+      requestId: 'req-echo-first-1'
+    })
+    await flushPromises()
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).not.toContain('发送中')
+    expect(wrapper.text()).not.toContain('发送失败')
+  })
+
+  it('keeps a single bubble when the committed frame arrives before the server echo', async () => {
+    imRealtimeClient.state.connected = true
+    imRealtimeClient.state.authed = true
+    const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    const wrapper = mountView(conversationId)
+    await flushPromises()
+
+    await wrapper.get('textarea').setValue('回执先到的消息')
+    await wrapper.get('button[aria-label="发送消息"]').trigger('click')
+    await flushPromises()
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+
+    listeners.sendCommitted({
+      cmd: 'sendPrivateText',
+      clientMsgId: 'client-msg-1',
+      messageId: '99999999-9999-7999-8999-999999999999',
+      seq: 9,
+      requestId: 'req-committed-first-1'
+    })
+    await flushPromises()
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).not.toContain('发送中')
+
+    // 随后到达的服务端回声按 messageId / seq 别名归并，不产生重复气泡。
+    await listeners.privateMessage({
+      type: 'privateMessage',
+      conversationId,
+      seq: 9,
+      messageId: '99999999-9999-7999-8999-999999999999',
+      fromUserId: '11111111-1111-7111-8111-111111111111',
+      toUserId: '22222222-2222-7222-8222-222222222222',
+      content: '回执先到的消息',
+      createdAtEpochMillis: 1774060187920
+    })
+    await flushPromises()
+    expect(wrapper.findAll('.message-row')).toHaveLength(3)
+    expect(wrapper.text()).toContain('回执先到的消息')
   })
 
   it('does not send or clear the composer before realtime authentication completes', async () => {

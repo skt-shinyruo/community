@@ -1,5 +1,6 @@
 import { createPinia, setActivePinia } from 'pinia'
-import { beforeEach, describe, expect, it, vi } from 'vitest'
+import { flushPromises } from '@vue/test-utils'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { topicSummary, getImUnreadSummary } = vi.hoisted(() => ({
   topicSummary: vi.fn(),
@@ -10,7 +11,12 @@ vi.mock('../api/services/noticeService', () => ({ topicSummary }))
 vi.mock('../api/services/imCoreChatService', () => ({ getImUnreadSummary }))
 
 import { useAuthStore } from './auth'
-import { formatUnreadCount, useInboxUnreadStore } from './inboxUnread'
+import {
+  formatUnreadCount,
+  INBOX_UNREAD_REFRESH_DEBOUNCE_MS,
+  shouldRefreshUnreadForPrivateMessage,
+  useInboxUnreadStore
+} from './inboxUnread'
 
 function deferred() {
   let resolve
@@ -32,6 +38,10 @@ describe('inboxUnread store', () => {
     vi.clearAllMocks()
     topicSummary.mockResolvedValue({ data: [] })
     getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [] })
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   it('formats unread counts for compact badges', () => {
@@ -132,6 +142,59 @@ describe('inboxUnread store', () => {
 
     expect(store.noticeUnread).toBe(1)
     expect(store.messageUnread).toBe(2)
+  })
+
+  it('coalesces a burst of scheduled refreshes into a single trailing refresh', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const auth = useAuthStore()
+    const store = useInboxUnreadStore()
+    login(auth)
+    topicSummary.mockResolvedValue({ data: [{ topic: 'comment', unreadCount: 2 }] })
+    getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [{ conversationId: 'c1', unreadCount: 5 }] })
+
+    store.scheduleRefresh()
+    store.scheduleRefresh()
+    store.scheduleRefresh()
+    await vi.advanceTimersByTimeAsync(INBOX_UNREAD_REFRESH_DEBOUNCE_MS - 1)
+
+    expect(topicSummary).not.toHaveBeenCalled()
+    expect(getImUnreadSummary).not.toHaveBeenCalled()
+
+    await vi.advanceTimersByTimeAsync(1)
+    await flushPromises()
+
+    expect(topicSummary).toHaveBeenCalledTimes(1)
+    expect(getImUnreadSummary).toHaveBeenCalledTimes(1)
+    expect(store.noticeUnread).toBe(2)
+    expect(store.messageUnread).toBe(5)
+  })
+
+  it('cancels a scheduled refresh when the badge state resets', async () => {
+    vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] })
+    const auth = useAuthStore()
+    const store = useInboxUnreadStore()
+    login(auth)
+
+    store.scheduleRefresh()
+    store.reset()
+    await vi.advanceTimersByTimeAsync(INBOX_UNREAD_REFRESH_DEBOUNCE_MS + 100)
+
+    expect(topicSummary).not.toHaveBeenCalled()
+    expect(getImUnreadSummary).not.toHaveBeenCalled()
+    expect(store.noticeUnread).toBe(0)
+    expect(store.messageUnread).toBe(0)
+  })
+
+  it('only schedules badge refreshes for incoming peer messages, not own echoes', () => {
+    const meId = '11111111-1111-7111-8111-111111111111'
+    const peerId = '22222222-2222-7222-8222-222222222222'
+
+    expect(shouldRefreshUnreadForPrivateMessage({ fromUserId: peerId, toUserId: meId }, meId)).toBe(true)
+    // 自己消息的服务端回声（多端同步）不改变我的未读计数。
+    expect(shouldRefreshUnreadForPrivateMessage({ fromUserId: meId, toUserId: peerId }, meId)).toBe(false)
+    // 身份未解析时不臆断发送者归属，保留刷新。
+    expect(shouldRefreshUnreadForPrivateMessage({ fromUserId: peerId }, '')).toBe(true)
+    expect(shouldRefreshUnreadForPrivateMessage(null, meId)).toBe(true)
   })
 
   it('shares one in-flight refresh round when login triggers fire at once', async () => {

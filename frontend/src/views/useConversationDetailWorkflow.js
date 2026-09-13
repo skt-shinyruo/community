@@ -1,8 +1,7 @@
 import { computed, nextTick, reactive, ref, unref, watch } from 'vue'
-import { listImConversationHistory, markImConversationRead } from '../api/services/imCoreChatService'
+import { listImConversationHistory } from '../api/services/imCoreChatService'
 import { imRealtimeClient } from '../im/imRealtimeClient'
 import { useAuthStore } from '../stores/auth'
-import { useInboxUnreadStore } from '../stores/inboxUnread'
 import { identityScope } from '../stores/identityScope'
 import { showToast } from '../ui/toastService'
 import { createLatestRequestTracker } from '../utils/latestRequest'
@@ -10,9 +9,11 @@ import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import {
   advanceConversationSeqWaterline,
   commitPendingConversationMessage,
+  confirmOwnPendingConversationEcho,
   createPendingConversationMessage,
   failPendingConversationMessage,
   findLatestConversationSeq,
+  findOwnPendingEchoMatch,
   mapConversationMessage,
   mapRealtimeConversationMessage,
   mergeConversationMessages,
@@ -25,6 +26,7 @@ import {
   resetHistoryFlowState
 } from './conversationDetailHistoryFlow'
 import { createPendingSendTimers } from './conversationDetailPendingSends'
+import { createConversationReadMarker } from './conversationDetailReadMarker'
 
 /** @typedef {Record<string, any>} ConversationMessage */
 /** @typedef {number | { token: number, scope: unknown }} RequestToken */
@@ -47,6 +49,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
   const realtimeState = ref({ ...imRealtimeClient.state })
   const pendingClientMsgIds = new Set(/** @type {string[]} */ ([]))
   const pendingSendTimers = createPendingSendTimers({ onTimeout: failLostPendingSend })
+  const readMarker = createConversationReadMarker()
   const loadRequestTracker = createLatestRequestTracker()
   const unsubscribers = /** @type {Array<() => void>} */ ([])
   /** @type {(() => void) | null} */
@@ -133,14 +136,6 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     return running
   }
 
-  /** 已读落库后刷新壳层未读角标；已读与角标失败都静默，不影响会话流程。 */
-  async function markConversationRead(conversationId, lastReadSeq) {
-    try {
-      await markImConversationRead(conversationId, lastReadSeq)
-      void useInboxUnreadStore().refresh()
-    } catch {}
-  }
-
   /** @param {ConversationViewContext} context */
   async function loadLatestHistory(context) {
     const token = loadRequestTracker.begin()
@@ -172,10 +167,8 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       nextBeforeSeq.value = response?.nextBeforeSeq ?? null
       hasMoreHistory.value = Boolean(response?.hasMore && nextBeforeSeq.value != null)
 
-      const maxSeq = findLatestConversationSeq(items.value)
-      if (maxSeq > 0) {
-        await markConversationRead(context.conversationId, maxSeq)
-      }
+      // 已读按连续水位上报：HTTP 历史页为锚，乱序实时帧只在连续覆盖时推进。
+      await readMarker.anchorAndReport(context.conversationId, historyFlow.waterline, items.value)
       if (isCurrentRequest(token, context)) scrollToBottom(context.scope)
     } catch (cause) {
       if (isCurrentRequest(token, context)) error.value = cause?.message || '加载失败'
@@ -261,6 +254,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
         scrollToBottom()
       }
       content.value = ''
+      error.value = ''
     } catch (cause) {
       error.value = cause?.message || '发送失败'
     } finally {
@@ -314,6 +308,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     error.value = ''
     content.value = ''
     sending.value = false
+    readMarker.reset()
     pendingClientMsgIds.clear()
     pendingSendTimers.disarmAll()
     if (auth.authed && conversationId.value && meId.value && targetId.value) refresh()
@@ -348,20 +343,30 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       (sameOpaqueId(message.fromId, context.targetId) && sameOpaqueId(message.toId, context.meId))
     if (!belongsToCurrentParticipants || currentViewScope() !== context.scope) return
 
+    // 自己消息的服务端回声（不携带 clientMsgId）与 committed 回执可能乱序：
+    // 认领仍在途的 pending 气泡并直接确认，避免回声先到时出现短暂的重复气泡。
+    let incoming = { ...message, seq }
+    const pendingEcho = findOwnPendingEchoMatch(items.value, message)
+    const echoClientMsgId = pendingEcho ? String(pendingEcho.clientMsgId || '') : ''
+    if (pendingEcho && pendingClientMsgIds.has(echoClientMsgId)) {
+      incoming = confirmOwnPendingConversationEcho(pendingEcho, incoming)
+      pendingClientMsgIds.delete(echoClientMsgId)
+      pendingSendTimers.disarm(echoClientMsgId)
+    }
+
     if (latestLoadBuffer && isCurrentRequest(latestLoadBuffer.token, latestLoadBuffer.context)) {
-      latestLoadBuffer.messages.push(message)
+      latestLoadBuffer.messages.push(incoming)
     }
     const previousMaxSeq = findLatestConversationSeq(items.value)
     const previousLength = items.value.length
-    const mergedItems = mergeConversationMessages(items.value, [{ ...message, seq }])
+    const mergedItems = mergeConversationMessages(items.value, [incoming])
     items.value = mergedItems
     const nextMaxSeq = findLatestConversationSeq(mergedItems)
     const isNewTail = mergedItems.length > previousLength && nextMaxSeq > previousMaxSeq
     if (isNewTail) scrollToBottom(context.scope)
 
-    if (isNewTail && seq === nextMaxSeq && sameOpaqueId(message.toId, context.meId)) {
-      await markConversationRead(context.conversationId, seq)
-    }
+    // 已读按连续水位上报：乱序帧不提前标读缺口之后的消息。
+    if (sameOpaqueId(message.toId, context.meId)) await readMarker.advanceAndReport(context.conversationId, mergedItems)
   }
 
   function handleSendCommitted(message) {
@@ -422,7 +427,6 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     })
     subscribe('sendCommitted', handleSendCommitted)
     subscribe('sendRejected', handleSendFailed)
-    subscribe('sendError', handleSendFailed)
     if (auth.authed && conversationId.value && meId.value && targetId.value) refresh()
   }
 

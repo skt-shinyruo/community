@@ -32,5 +32,7 @@ public interface NoticeRepository {
 
     int markUnreadAsRead(UUID userId, List<UUID> ids);
 
+    int markTopicUnreadAsRead(UUID userId, String topic);
+
     int revokeLikeNotice(UUID recipientUserId, String relationKey, int revokedStatus);
 }

@@ -1,15 +1,16 @@
-// 通知主题详情页状态：按 topic 的追加式消费流、标记已读与壳层未读角标联动。
-// 身份或 topic 变化时重置并丢弃过期响应；已读操作成功后本地翻转为已读（结果立即可见，
-// 走静默更新），并触发 inboxUnread 刷新，不引入轮询。
+// 通知主题详情页状态：按 topic 的追加式消费流、主题全量标记已读与壳层未读角标联动。
+// 身份或 topic 变化时重置并丢弃过期响应；标记已读把当前主题（含未加载页）的未读全部清零，
+// 可用性以服务端主题未读数为准（计数失败时回退到已加载项判定），成功后本地翻转已加载项
+// 为已读（结果立即可见，走静默更新），并触发 inboxUnread 刷新，不引入轮询。
 
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { useInboxUnreadStore } from '../../stores/inboxUnread'
 import { identityScope } from '../../stores/identityScope'
-import { listNotices, markRead } from '../../api/services/noticeService'
+import { listNotices, markTopicRead, unreadCount } from '../../api/services/noticeService'
 import { safeJsonParse } from '../../utils/safeJson'
 import { mergeAppendedById } from '../../utils/mergeById'
-import { normalizeOpaqueId, normalizeOpaqueIds } from '../../utils/opaqueId'
+import { normalizeOpaqueId } from '../../utils/opaqueId'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
 
 const TOPIC_POLICY = Object.freeze({
@@ -100,6 +101,7 @@ export function useNoticeTopicFeedState({ topic }) {
   const error = ref('')
   const pageError = ref('')
   const items = ref([])
+  const topicUnread = ref(0)
 
   const loadRequestTracker = createLatestRequestTracker({
     getScope: () => `${identityScope(auth)}:${topic.value}`
@@ -109,7 +111,7 @@ export function useNoticeTopicFeedState({ topic }) {
   })
 
   const policy = computed(() => TOPIC_POLICY[topic.value] || FALLBACK_TOPIC_POLICY)
-  const hasUnread = computed(() => items.value.some((n) => !isNoticeRead(n)))
+  const hasUnread = computed(() => topicUnread.value > 0 || items.value.some((n) => !isNoticeRead(n)))
 
   const cards = computed(() => items.value.map((notice) => {
     const presentation = describeNoticeContent(notice)
@@ -136,9 +138,12 @@ export function useNoticeTopicFeedState({ topic }) {
       error.value = ''
     }
     try {
-      const { data } = await listNotices(requestedTopic, { page: targetPage, size })
+      const requests = [listNotices(requestedTopic, { page: targetPage, size })]
+      if (!append) requests.push(unreadCount(requestedTopic).catch(() => null))
+      const [listResult, unreadResult] = await Promise.all(requests)
       if (!loadRequestTracker.isCurrent(token)) return
-      const nextItems = Array.isArray(data) ? data : []
+      if (unreadResult) topicUnread.value = unreadResult.data
+      const nextItems = Array.isArray(listResult.data) ? listResult.data : []
       hasNext.value = nextItems.length >= size
       if (append && nextItems.length === 0) return
       page.value = targetPage
@@ -171,11 +176,10 @@ export function useNoticeTopicFeedState({ topic }) {
     error.value = ''
     markingRead.value = true
     try {
-      const ids = normalizeOpaqueIds(items.value.filter((n) => !isNoticeRead(n)).map((x) => x?.id))
-      await markRead(ids)
+      await markTopicRead(topic.value)
       if (!markReadRequestTracker.isCurrent(token)) return
-      const readIds = new Set(ids)
-      items.value = items.value.map((n) => (readIds.has(normalizeOpaqueId(n?.id)) ? { ...n, status: 1 } : n))
+      topicUnread.value = 0
+      items.value = items.value.map((n) => (isNoticeRead(n) ? n : { ...n, status: 1 }))
       // 已读操作后刷新壳层未读角标（不依赖轮询）。
       void inboxUnread.refresh()
     } catch (e) {
@@ -199,6 +203,7 @@ export function useNoticeTopicFeedState({ topic }) {
     error.value = ''
     pageError.value = ''
     items.value = []
+    topicUnread.value = 0
     if (auth.authed && topic.value) load(false, 0)
   }
 

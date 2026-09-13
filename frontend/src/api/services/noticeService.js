@@ -20,8 +20,14 @@ export async function listNotices(topic, { page = 0, size = 10 } = {}) {
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
-export async function markRead(ids) {
-  const resp = await http.put('/api/notices/read', { ids })
+export async function unreadCount(topic) {
+  const resp = await http.get('/api/notices/unread-count', { params: { topic } })
+  const { data, traceId } = unwrapResultBody(resp.data, '查询通知未读数')
+  return { data: Number(data) || 0, traceId }
+}
+
+export async function markTopicRead(topic) {
+  const resp = await http.put('/api/notices/read-all', { topic })
   const { traceId } = unwrapResultBody(resp.data, '通知标记已读')
   return { traceId }
 }

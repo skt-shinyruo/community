@@ -7,6 +7,7 @@ import com.nowcoder.community.notice.application.NoticeApplicationService;
 import com.nowcoder.community.notice.application.NoticeApplicationService.ListNoticeItemsCommand;
 import com.nowcoder.community.notice.application.NoticeApplicationService.NoticeTopicSummaryResult;
 import com.nowcoder.community.notice.application.result.NoticeItemResult;
+import com.nowcoder.community.notice.controller.dto.MarkNoticeTopicReadRequest;
 import com.nowcoder.community.notice.controller.dto.NoticeItemResponse;
 import com.nowcoder.community.notice.controller.dto.NoticeTopicSummaryResponse;
 import org.junit.jupiter.api.BeforeEach;
@@ -95,6 +96,16 @@ class NoticeControllerUnitTest {
         );
         assertThat(latestFields).doesNotContain("noticeTopic");
         assertThat(summary.path("latest").path("topic").asText()).isEqualTo("comment");
+    }
+
+    @Test
+    void markTopicReadShouldDelegateToApplicationService() {
+        UUID userId = uuid(7);
+
+        Result<Void> result = controller.markTopicRead(authentication(userId), new MarkNoticeTopicReadRequest("comment"));
+
+        assertThat(result.getCode()).isEqualTo(0);
+        verify(noticeApplicationService).markTopicRead(userId, "comment");
     }
 
     private Authentication authentication(UUID userId) {

@@ -4,17 +4,19 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { listNotices, markRead, topicSummary, getImUnreadSummary } = vi.hoisted(() => ({
+const { listNotices, markTopicRead, topicSummary, unreadCount, getImUnreadSummary } = vi.hoisted(() => ({
   listNotices: vi.fn(),
-  markRead: vi.fn(),
+  markTopicRead: vi.fn(),
   topicSummary: vi.fn(),
+  unreadCount: vi.fn(),
   getImUnreadSummary: vi.fn()
 }))
 
 vi.mock('../api/services/noticeService', () => ({
   listNotices,
-  markRead,
-  topicSummary
+  markTopicRead,
+  topicSummary,
+  unreadCount
 }))
 
 vi.mock('../api/services/imCoreChatService', () => ({
@@ -89,8 +91,9 @@ describe('NoticeDetailView', () => {
       ],
       traceId: 'trace-notices'
     })
-    markRead.mockResolvedValue({ traceId: 'trace-mark-read' })
+    markTopicRead.mockResolvedValue({ traceId: 'trace-mark-read' })
     topicSummary.mockResolvedValue({ data: [] })
+    unreadCount.mockResolvedValue({ data: 0, traceId: 'trace-unread-count' })
     getImUnreadSummary.mockResolvedValue({ rooms: [], conversations: [] })
   })
 
@@ -195,7 +198,7 @@ describe('NoticeDetailView', () => {
     expect(wrapper.text()).toContain('你收到了新的关注')
   })
 
-  it('marks only the loaded unread notices read and flips them locally without a reload', async () => {
+  it('marks the whole topic read via the topic API and flips loaded items locally without a reload', async () => {
     listNotices.mockResolvedValueOnce({
       data: [
         notice(0),
@@ -210,7 +213,7 @@ describe('NoticeDetailView', () => {
     await findButton(wrapper, '标记已读').trigger('click')
     await flushPromises()
 
-    expect(markRead).toHaveBeenCalledWith(['00000000-0000-7000-8000-000000000001'])
+    expect(markTopicRead).toHaveBeenCalledWith('comment')
     expect(listNotices).toHaveBeenCalledTimes(1)
     const cards = wrapper.findAll('.notice-card')
     expect(cards[0].classes()).not.toContain('unread')
@@ -234,7 +237,7 @@ describe('NoticeDetailView', () => {
   })
 
   it('keeps the unread state and reports the failure when mark-read fails', async () => {
-    markRead.mockRejectedValueOnce(new Error('mark read exploded'))
+    markTopicRead.mockRejectedValueOnce(new Error('mark read exploded'))
 
     const wrapper = mountNoticeDetailView()
     await flushPromises()
@@ -257,6 +260,40 @@ describe('NoticeDetailView', () => {
     await flushPromises()
 
     expect(findButton(wrapper, '标记已读').attributes('disabled')).toBeDefined()
+  })
+
+  it('enables mark-read from the server unread count when loaded items are all read', async () => {
+    listNotices.mockResolvedValueOnce({
+      data: [notice(0, { status: 1 })],
+      traceId: 'trace-all-read'
+    })
+    unreadCount.mockResolvedValueOnce({ data: 2, traceId: 'trace-unread-count' })
+
+    const wrapper = mountNoticeDetailView()
+    await flushPromises()
+
+    const button = findButton(wrapper, '标记已读')
+    expect(button.attributes('disabled')).toBeUndefined()
+
+    await button.trigger('click')
+    await flushPromises()
+
+    expect(markTopicRead).toHaveBeenCalledWith('comment')
+    expect(topicSummary).toHaveBeenCalledWith({ silent: true })
+    expect(findButton(wrapper, '标记已读').attributes('disabled')).toBeDefined()
+  })
+
+  it('falls back to loaded unread items when the unread count request fails', async () => {
+    unreadCount.mockRejectedValueOnce(new Error('unread count exploded'))
+
+    const wrapper = mountNoticeDetailView()
+    await flushPromises()
+
+    expect(wrapper.findAll('.notice-card')).toHaveLength(2)
+    await findButton(wrapper, '标记已读').trigger('click')
+    await flushPromises()
+
+    expect(markTopicRead).toHaveBeenCalledWith('comment')
   })
 
   it('ignores the previous topic response after the route reuses the component', async () => {
@@ -293,13 +330,13 @@ describe('NoticeDetailView', () => {
     listNotices
       .mockResolvedValueOnce({ data: [notice(0)], traceId: 'trace-user-a' })
       .mockResolvedValueOnce({ data: [notice(1, { type: 'FollowCreated' })], traceId: 'trace-user-b' })
-    markRead.mockImplementationOnce(() => new Promise((resolve) => { resolveOldMarkRead = resolve }))
+    markTopicRead.mockImplementationOnce(() => new Promise((resolve) => { resolveOldMarkRead = resolve }))
 
     const wrapper = mountNoticeDetailView()
     await flushPromises()
     await findButton(wrapper, '标记已读').trigger('click')
     await vi.waitFor(() => {
-      expect(markRead).toHaveBeenCalledTimes(1)
+      expect(markTopicRead).toHaveBeenCalledTimes(1)
       expect(resolveOldMarkRead).toBeTypeOf('function')
     })
 
@@ -318,7 +355,7 @@ describe('NoticeDetailView', () => {
     expect(topicSummary).not.toHaveBeenCalled()
   })
 
-  it('submits UUID notice ids unchanged when marking the page read', async () => {
+  it('flips every loaded unread card read after the topic-wide call succeeds', async () => {
     listNotices.mockResolvedValueOnce({
       data: [
         {
@@ -343,9 +380,7 @@ describe('NoticeDetailView', () => {
     await findButton(wrapper, '标记已读').trigger('click')
     await flushPromises()
 
-    expect(markRead).toHaveBeenCalledWith([
-      'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
-      'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
-    ])
+    expect(markTopicRead).toHaveBeenCalledWith('comment')
+    expect(wrapper.findAll('.notice-card.unread')).toHaveLength(0)
   })
 })

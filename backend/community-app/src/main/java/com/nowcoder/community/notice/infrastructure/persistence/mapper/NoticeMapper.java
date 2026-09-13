@@ -33,6 +33,13 @@ public interface NoticeMapper {
             @Param("userId") UUID userId
     );
 
+    int updateTopicNoticesStatusForRecipient(
+            @Param("userId") UUID userId,
+            @Param("topic") String topic,
+            @Param("unreadStatus") int unreadStatus,
+            @Param("readStatus") int readStatus
+    );
+
     int revokeLikeNotice(
             @Param("recipientUserId") UUID recipientUserId,
             @Param("topic") String topic,

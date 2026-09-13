@@ -7,8 +7,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 vi.mock('../../api/services/noticeService', () => ({
   listNotices: vi.fn(),
-  markRead: vi.fn(),
-  topicSummary: vi.fn().mockResolvedValue({ data: [] })
+  markTopicRead: vi.fn(),
+  topicSummary: vi.fn().mockResolvedValue({ data: [] }),
+  unreadCount: vi.fn().mockResolvedValue({ data: 0 })
 }))
 
 import { listNotices } from '../../api/services/noticeService'

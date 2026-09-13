@@ -240,7 +240,7 @@ Idempotency-Key: <unique-key>
 - profile 用户资料：`GET /api/users/{userId}` 只返回查看者无关的身份、等级和聚合计数字段，不返回 `hasFollowed`；当前查看者的关注关系由 `/api/follows/status` 返回。
 - content 批量摘要：`POST /api/posts/batch-summary` 的 `postIds` 最多 `200` 个；超过上限返回 `400`，同一限制也由 application entry 执行。
 - social 公共关注列表使用 `/api/follows/{userId}/followees/page` 或 `/followers/page` 的 opaque `cursor`，响应包含 `items`、`nextCursor`、`hasNext`，并保存游标历史支持前后翻页。
-- notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组。
+- notice 批量已读：`PUT /api/notices/read` 的 `ids` 是 UUID 字符串数组；`PUT /api/notices/read-all` 按 `topic` 把当前用户该主题下全部未读（含未分页加载的记录）标记为已读。
 - market 地址：创建/更新只使用 `defaultAddress`。
 - market 订单：物理商品下单需要 active `addressId`，服务端保存地址快照；订单成功后可能处于资金 pending 状态。
 - wallet 转账：`toUserId` 是用户 UUID 字符串，不是数字 id 或用户名。

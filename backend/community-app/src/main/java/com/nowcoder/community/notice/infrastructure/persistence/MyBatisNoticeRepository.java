@@ -58,6 +58,12 @@ public class MyBatisNoticeRepository implements NoticeRepository {
     }
 
     @Override
+    public int markTopicUnreadAsRead(UUID userId, String topic) {
+        return noticeMapper.updateTopicNoticesStatusForRecipient(
+                userId, topic, NoticeDomainService.STATUS_UNREAD, NoticeDomainService.STATUS_READ);
+    }
+
+    @Override
     public int revokeLikeNotice(UUID recipientUserId, String relationKey, int revokedStatus) {
         return noticeMapper.revokeLikeNotice(
                 recipientUserId,

@@ -240,6 +240,55 @@ class NoticeApplicationServiceTest {
     }
 
     @Test
+    void markTopicReadShouldMarkAllUnreadNoticesOfTheTopicRead() {
+        UUID recipientUserId = uuid(9);
+        insertNotice(NOTICE_ID_1, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-2\"}", NoticeApplicationService.STATUS_READ);
+        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "like", "{\"eventId\":\"evt-3\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_4, uuid(1), uuid(10), "comment", "{\"eventId\":\"evt-4\"}", NoticeApplicationService.STATUS_UNREAD);
+
+        noticeService.markTopicRead(recipientUserId, "comment");
+
+        assertThat(noticeService.unreadCount(recipientUserId, "comment")).isZero();
+        assertThat(noticeService.unreadCount(recipientUserId, "like")).isEqualTo(1);
+        assertThat(noticeService.unreadCount(uuid(10), "comment")).isEqualTo(1);
+    }
+
+    @Test
+    void markTopicReadShouldLeaveRevokedNoticeRevoked() {
+        UUID recipientUserId = uuid(9);
+        insertNotice(
+                NOTICE_ID_4,
+                ZERO_UUID,
+                recipientUserId,
+                "like",
+                "{\"eventId\":\"evt-revoked\"}",
+                NoticeApplicationService.STATUS_REVOKED
+        );
+
+        noticeService.markTopicRead(recipientUserId, "like");
+
+        Integer status = jdbcTemplate.queryForObject(
+                "select status from notice_record where id = ?",
+                Integer.class,
+                BinaryUuidCodec.toBytes(NOTICE_ID_4)
+        );
+        assertThat(status).isEqualTo(NoticeApplicationService.STATUS_REVOKED);
+    }
+
+    @Test
+    void markTopicReadShouldIgnoreBlankTopic() {
+        NoticeRepository repository = mock(NoticeRepository.class);
+        NoticeApplicationService service = new NoticeApplicationService(
+                repository, new UuidV7Generator(), Clock.systemUTC());
+
+        service.markTopicRead(uuid(1), " ");
+        service.markTopicRead(uuid(1), null);
+
+        verifyNoMoreInteractions(repository);
+    }
+
+    @Test
     void markReadShouldLeaveRevokedNoticeRevoked() {
         UUID recipientUserId = uuid(9);
         insertNotice(

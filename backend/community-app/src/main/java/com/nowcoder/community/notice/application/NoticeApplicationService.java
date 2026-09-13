@@ -122,6 +122,13 @@ public class NoticeApplicationService {
         noticeRepository.markUnreadAsRead(userId, normalizedIds);
     }
 
+    public void markTopicRead(UUID userId, String topic) {
+        if (topic == null || topic.isBlank()) {
+            return;
+        }
+        noticeRepository.markTopicUnreadAsRead(userId, topic);
+    }
+
     public void revokeLikeNotice(UUID recipientUserId, String relationKey) {
         if (recipientUserId == null || relationKey == null || relationKey.isBlank()) {
             return;

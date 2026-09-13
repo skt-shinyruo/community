@@ -81,6 +81,13 @@
         </foreach>
     </update>
 
+    <update id="updateTopicNoticesStatusForRecipient">
+        update notice_record set status = #{readStatus}
+        where recipient_user_id = #{userId}
+          and topic = #{topic}
+          and status = #{unreadStatus}
+    </update>
+
     <update id="revokeLikeNotice">
         update notice_record
         set status = #{revokedStatus}

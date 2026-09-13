@@ -1,5 +1,6 @@
 export function backendErrorCode(error) {
-  return Number(error?.response?.data?.code ?? error?.code ?? 0)
+  const code = Number(error?.response?.data?.code ?? error?.code ?? 0)
+  return Number.isFinite(code) ? code : 0
 }
 
 export function backendErrorMessage(error, fallback = '') {

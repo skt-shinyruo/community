@@ -1,6 +1,7 @@
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest'
 import { createPinia, setActivePinia } from 'pinia'
 import MockAdapter from 'axios-mock-adapter'
+import { CanceledError } from 'axios'
 
 const refreshTransport = vi.hoisted(() => ({
   requestRefreshToken: vi.fn(),
@@ -251,6 +252,68 @@ describe('http', () => {
 
     await expect(imCoreHttp.get('/api/im/unread/summary', { skipGlobalErrorToast: true })).rejects.toBeTruthy()
     expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('should show a global timeout toast when a request times out', async () => {
+    mock.onGet('/api/slow').timeoutOnce()
+
+    await expect(http.get('/api/slow')).rejects.toMatchObject({ code: 'ECONNABORTED' })
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'error',
+      title: '请求超时',
+      text: '请求超时，请稍后重试。'
+    }))
+  })
+
+  it('should suppress the timeout toast when the request opts out', async () => {
+    mock.onGet('/api/slow').timeoutOnce()
+
+    await expect(http.get('/api/slow', { skipGlobalErrorToast: true })).rejects.toMatchObject({ code: 'ECONNABORTED' })
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('should stay silent for deliberately canceled requests', async () => {
+    mock.onGet('/api/canceled').replyOnce((config) => Promise.reject(
+      Object.assign(new CanceledError('canceled'), { config })
+    ))
+
+    await expect(http.get('/api/canceled')).rejects.toMatchObject({ code: 'ERR_CANCELED' })
+    expect(toast).not.toHaveBeenCalled()
+  })
+
+  it('should show a global timeout toast for IM client timeouts', async () => {
+    imMock.onGet('/api/im/slow').timeoutOnce()
+
+    await expect(imCoreHttp.get('/api/im/slow')).rejects.toMatchObject({ code: 'ECONNABORTED' })
+    expect(toast).toHaveBeenCalledTimes(1)
+    expect(toast).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'error',
+      title: '请求超时',
+      text: '请求超时，请稍后重试。'
+    }))
+  })
+
+  it('should keep the current page in the redirect query when the session terminally expires', async () => {
+    const auth = useAuthStore()
+    auth.installSession({ accessToken: 'old-token' })
+    refreshTransport.requestRefreshToken.mockRejectedValueOnce({ response: { status: 401 } })
+    globalThis.location.hash = '#/settings?section=addresses'
+    mock.onGet('/api/terminal').replyOnce(401)
+
+    await expect(http.get('/api/terminal')).rejects.toMatchObject({ sessionRefreshState: 'terminal' })
+    expect(globalThis.location.href).toBe('/#/auth/login?redirect=%2Fsettings%3Fsection%3Daddresses')
+  })
+
+  it('should not add a redirect query when the session expires on an auth page', async () => {
+    const auth = useAuthStore()
+    auth.installSession({ accessToken: 'old-token' })
+    refreshTransport.requestRefreshToken.mockRejectedValueOnce({ response: { status: 401 } })
+    globalThis.location.hash = '#/auth/login'
+    mock.onGet('/api/terminal').replyOnce(401)
+
+    await expect(http.get('/api/terminal')).rejects.toMatchObject({ sessionRefreshState: 'terminal' })
+    expect(globalThis.location.href).toBe('/#/auth/login')
   })
 
   it('should not attempt refresh for any auth endpoint 401 response', async () => {

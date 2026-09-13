@@ -4,7 +4,19 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
 import { createWriteAttempt } from '../writeAttempt'
-import { addComment, createPost, listBoardFeed, listComments, listGlobalFeed, updatePost } from './postService'
+import {
+  addComment,
+  createPost,
+  getPostDetail,
+  listBoardFeed,
+  listComments,
+  listGlobalFeed,
+  listReplies,
+  moderationDelete,
+  moderationTop,
+  moderationWonderful,
+  updatePost
+} from './postService'
 
 describe('api/services/postService', () => {
   let mock
@@ -155,5 +167,40 @@ describe('api/services/postService', () => {
     expect(seen[0].blocks[5]).not.toHaveProperty('caption')
     expect(seen[0].blocks[5]).not.toHaveProperty('displayName')
     expect(seen[0].blocks[5]).not.toHaveProperty('metadata')
+  })
+
+  it.each([
+    ['getPostDetail', (postId) => getPostDetail(postId), 'get'],
+    ['listComments', (postId) => listComments(postId), 'get'],
+    ['listReplies', (postId) => listReplies(postId, 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'), 'get'],
+    ['moderationTop', (postId) => moderationTop(postId), 'post'],
+    ['moderationWonderful', (postId) => moderationWonderful(postId), 'post'],
+    ['moderationDelete', (postId) => moderationDelete(postId), 'post']
+  ])('%s should reject invalid postId without issuing a request', async (_name, invoke, method) => {
+    mock = new MockAdapter(http)
+
+    for (const invalid of ['', '  ', '0', 'null', 'undefined', 'NaN', null, undefined]) {
+      await expect(invoke(invalid)).rejects.toThrow('postId 非法')
+    }
+    expect(mock.history[method]).toHaveLength(0)
+  })
+
+  it('listReplies should reject invalid commentId without issuing a request', async () => {
+    mock = new MockAdapter(http)
+
+    await expect(listReplies('bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', '0')).rejects.toThrow('commentId 非法')
+    expect(mock.history.get).toHaveLength(0)
+  })
+
+  it('moderation actions should call the post endpoints with the validated id', async () => {
+    const postId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    mock = new MockAdapter(http)
+    for (const action of ['top', 'wonderful', 'delete']) {
+      mock.onPost(`/api/posts/${postId}/${action}`).replyOnce(200, { code: 0, data: null, traceId: `trace-${action}` })
+    }
+
+    await expect(moderationTop(postId)).resolves.toEqual({ traceId: 'trace-top' })
+    await expect(moderationWonderful(postId)).resolves.toEqual({ traceId: 'trace-wonderful' })
+    await expect(moderationDelete(postId)).resolves.toEqual({ traceId: 'trace-delete' })
   })
 })

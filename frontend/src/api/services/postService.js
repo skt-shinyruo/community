@@ -47,7 +47,8 @@ export async function batchPostSummaries(postIds) {
 }
 
 export async function getPostDetail(postId) {
-  const resp = await http.get(`/api/posts/${postId}`)
+  const pid = requireOpaqueId(postId, 'postId')
+  const resp = await http.get(`/api/posts/${pid}`)
   return unwrapResultBody(resp.data, '获取帖子详情')
 }
 
@@ -76,19 +77,22 @@ export async function deletePostByAuthor(postId) {
 }
 
 export async function listComments(postId, { cursor = '', size = 10 } = {}) {
+  const pid = requireOpaqueId(postId, 'postId')
   const params = {}
   if (cursor) params.cursor = cursor
   if (size != null) params.size = size
-  const resp = await http.get(`/api/posts/${postId}/comments`, { params })
+  const resp = await http.get(`/api/posts/${pid}/comments`, { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询评论')
   return { data: normalizeCommentPage(data), traceId }
 }
 
 export async function listReplies(postId, commentId, { cursor = '', size = 10 } = {}) {
+  const pid = requireOpaqueId(postId, 'postId')
+  const cid = requireOpaqueId(commentId, 'commentId')
   const params = {}
   if (cursor) params.cursor = cursor
   if (size != null) params.size = size
-  const resp = await http.get(`/api/posts/${postId}/comments/${commentId}/replies`, { params })
+  const resp = await http.get(`/api/posts/${pid}/comments/${cid}/replies`, { params })
   const { data, traceId } = unwrapResultBody(resp.data, '查询回复')
   return { data: normalizeCommentPage(data), traceId }
 }
@@ -143,19 +147,22 @@ export async function updateComment(postId, commentId, { content } = {}) {
 }
 
 export async function moderationTop(postId) {
-  const resp = await http.post(`/api/posts/${postId}/top`)
+  const pid = requireOpaqueId(postId, 'postId')
+  const resp = await http.post(`/api/posts/${pid}/top`)
   const { traceId } = unwrapResultBody(resp.data, '置顶')
   return { traceId }
 }
 
 export async function moderationWonderful(postId) {
-  const resp = await http.post(`/api/posts/${postId}/wonderful`)
+  const pid = requireOpaqueId(postId, 'postId')
+  const resp = await http.post(`/api/posts/${pid}/wonderful`)
   const { traceId } = unwrapResultBody(resp.data, '加精')
   return { traceId }
 }
 
 export async function moderationDelete(postId) {
-  const resp = await http.post(`/api/posts/${postId}/delete`)
+  const pid = requireOpaqueId(postId, 'postId')
+  const resp = await http.post(`/api/posts/${pid}/delete`)
   const { traceId } = unwrapResultBody(resp.data, '删除')
   return { traceId }
 }

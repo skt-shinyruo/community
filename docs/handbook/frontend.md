@@ -298,7 +298,9 @@ Auth store 使用 `identityState=anonymous|unresolved|resolved` 表达身份快�
 - 请求 interceptor 注入 `Authorization: Bearer <accessToken>`。
 - 请求发出时记录 `tokenGeneration`；即使当时没有 access token，也能识别请求返回 `401` 前已经完成的并发登录 / refresh。
 - 非 `/api/auth/**` 响应 `401` 时单飞行调用 `/api/auth/refresh`，成功后重试原请求；登录、注册、密码重置等 auth 自身入口不触发 refresh 重试。
-- 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`。同一个 Error 对象只能被 `showErrorToast` 认领一次，页面 catch 不重复弹出同一错误。
+- refresh 终端失败（terminal）把浏览器带到登录页时，把当前 hash 路径编码为 `redirect` query（已在 auth 页面时不附加），重新登录后回到原位置。
+- 全局错误 toast 优先展示后端 `Result.message` 和 `traceId`，覆盖 5xx、断网（`ERR_NETWORK`）与超时（`ECONNABORTED` / `ETIMEDOUT`，标题「请求超时」）；页面主动取消的请求（`ERR_CANCELED`）明确豁免，不做全局提示。同一个 Error 对象只能被 `showErrorToast` 认领一次，页面 catch 不重复弹出同一错误。
+- 登录 / 注册 / 找回密码等已做行内错误展示的表单提交调用（`authService` 的 login / register / resendRegisterCode / verifyRegisterCode / requestPasswordReset / confirmPasswordReset）统一携带 `skipGlobalErrorToast`，不再 toast + 行内双重提示；`issueCaptcha` 与 `me` 保留全局提示。
 - 通用 HTTP 层不生成 `Idempotency-Key`；高风险写必须由调用方提供 `WriteAttempt`。
 
 IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
@@ -306,6 +308,7 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 - `baseURL` 来自 `resolveImHttpBaseUrl()`。
 - 请求同样注入 access token。
 - `401` 时复用 `refreshCoordinator` 刷新 access token，再重试 IM HTTP 请求。
+- 全局错误 toast 覆盖 4xx / 5xx 与超时（同主站「请求超时」反馈），同样豁免主动取消。
 
 上传不经过带 15 秒超时的主站 `http`。`uploadTransport.js` 会把浏览器 origin 和 runtime API origin 都视为可信主站：可信上传使用 `timeout=0`，只复用鉴权内核的请求快照与一次恢复 helper；其他绝对 URL 使用无 cookie、不注入主站 `Authorization`、不触发 refresh 的独立客户端，但保留 upload session 明确提供的存储服务签名头。`uploadSession.js` 在发送字节前校验服务端 session 的 `maxBytes` / `mimeTypes`；`POST` 指令构造 multipart，预签名 `PUT` 指令发送原始文件。页面通过 `AbortSignal` 和规范化进度回调提供取消与进度状态。
 

@@ -19,6 +19,19 @@ function isAuthEndpointUrl(url) {
   return path === '/api/auth' || path.startsWith('/api/auth/')
 }
 
+function isTimeoutError(error) {
+  return error?.code === 'ECONNABORTED' || error?.code === 'ETIMEDOUT'
+}
+
+function loginUrlWithRedirect(location) {
+  const hash = typeof location?.hash === 'string' ? location.hash : ''
+  const currentPath = hash.replace(/^#/, '')
+  const redirectQuery = currentPath.startsWith('/') && !currentPath.startsWith('/auth')
+    ? `?redirect=${encodeURIComponent(currentPath)}`
+    : ''
+  return `/#/auth/login${redirectQuery}`
+}
+
 installAuthenticatedHttpInterceptors(http, {
   authProvider: useAuthStore,
   unauthorizedRecovery: recoverUnauthorized,
@@ -27,7 +40,7 @@ installAuthenticatedHttpInterceptors(http, {
     if (error?.sessionRefreshState !== 'terminal' || auth.accessToken) return
     try {
       if (typeof globalThis !== 'undefined' && globalThis.location) {
-        globalThis.location.href = '/#/auth/login'
+        globalThis.location.href = loginUrlWithRedirect(globalThis.location)
       }
     } catch { }
   }
@@ -42,14 +55,16 @@ http.interceptors.response.use(
     const result = error?.response?.data
     const resultMessage = typeof result?.message === 'string' ? result.message : ''
     const traceId = typeof result?.traceId === 'string' ? result.traceId : ''
+    const timeoutError = isTimeoutError(error)
 
-    // Global Error Toast for non-2xx / network errors (prefer backend Result.message + traceId)
-    if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK')) {
-      const text = resultMessage || error.message || '服务异常，请稍后重试。'
+    // Global Error Toast for non-2xx / network / timeout errors (prefer backend Result.message + traceId).
+    // 主动取消（ERR_CANCELED）是页面有意的生命周期动作，不做全局提示。
+    if (!skipGlobalErrorToast && (status >= 500 || error.code === 'ERR_NETWORK' || timeoutError)) {
+      const text = resultMessage || (timeoutError ? '请求超时，请稍后重试。' : error.message || '服务异常，请稍后重试。')
       const traceSuffix = traceId ? ` (traceId=${traceId})` : ''
       showErrorToast(error, {
         type: 'error',
-        title: '系统错误',
+        title: timeoutError ? '请求超时' : '系统错误',
         text: `${text}${traceSuffix}`
       })
     }

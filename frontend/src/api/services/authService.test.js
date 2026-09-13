@@ -1,10 +1,11 @@
-import { afterEach, describe, expect, it } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import MockAdapter from 'axios-mock-adapter'
 import { createPinia, setActivePinia } from 'pinia'
 
 import http from '../http'
 import * as authService from './authService'
-import { register, resendRegisterCode, verifyRegisterCode } from './authService'
+import { issueCaptcha, login, register, requestPasswordReset, confirmPasswordReset, resendRegisterCode, verifyRegisterCode } from './authService'
+import { setToastHandler } from '../../ui/toastService'
 
 describe('api/services/authService', () => {
   let mock
@@ -109,6 +110,43 @@ describe('api/services/authService', () => {
     expect(resp.traceId).toBe('trace-verify')
     expect(resp.data).toEqual({
       accessToken: 'access-token'
+    })
+  })
+
+  describe('auth form global error toast opt-out', () => {
+    let toast
+
+    beforeEach(() => {
+      setActivePinia(createPinia())
+      toast = vi.fn()
+      setToastHandler(toast)
+    })
+
+    afterEach(() => {
+      setToastHandler(null)
+    })
+
+    it.each([
+      ['login', '/api/auth/login', () => login('alice', 'secret')],
+      ['register', '/api/auth/register', () => register({ username: 'alice', password: 'secret', email: 'alice@example.com' })],
+      ['resendRegisterCode', '/api/auth/register/code/resend', () => resendRegisterCode('token')],
+      ['verifyRegisterCode', '/api/auth/register/code/verify', () => verifyRegisterCode('token', '123456')],
+      ['requestPasswordReset', '/api/auth/password/reset/request', () => requestPasswordReset('alice@example.com')],
+      ['confirmPasswordReset', '/api/auth/password/reset/confirm', () => confirmPasswordReset('token', 'new-secret')]
+    ])('skips the global error toast for %s failures (shown inline by the form)', async (_name, url, invoke) => {
+      mock = new MockAdapter(http)
+      mock.onPost(url).replyOnce(400, { code: 10001, message: '表单错误', traceId: 'trace-form' })
+
+      await expect(invoke()).rejects.toBeTruthy()
+      expect(toast).not.toHaveBeenCalled()
+    })
+
+    it('keeps the global error toast for captcha loading failures', async () => {
+      mock = new MockAdapter(http)
+      mock.onGet('/api/auth/captcha').replyOnce(500, { code: 500, message: '服务异常', traceId: 'trace-captcha' })
+
+      await expect(issueCaptcha()).rejects.toBeTruthy()
+      expect(toast).toHaveBeenCalledTimes(1)
     })
   })
 })

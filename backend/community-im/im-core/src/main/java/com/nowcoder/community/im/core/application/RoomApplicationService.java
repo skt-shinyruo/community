@@ -1,6 +1,5 @@
 package com.nowcoder.community.im.core.application;
 
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
 import com.nowcoder.community.im.common.projection.RoomMembershipSnapshot;
 import com.nowcoder.community.im.core.application.result.RoomResults;
 import com.nowcoder.community.im.core.domain.event.RoomMemberChangePublisher;
@@ -43,7 +42,7 @@ public class RoomApplicationService {
     public RoomResults.Created createRoom(UUID creatorUserId, String name) {
         MembershipChange change = membershipService.createRoom(creatorUserId, name);
         userInboxRepository.ensureRoomMemberInbox(change.roomId(), creatorUserId);
-        AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(change.roomId(), creatorUserId, change.version()));
+        changePublisher.publishJoined(change.roomId(), creatorUserId, change.version());
         return new RoomResults.Created(change.roomId());
     }
 
@@ -52,7 +51,7 @@ public class RoomApplicationService {
         MembershipChange change = membershipService.joinRoom(userId, roomId);
         if (change.changed()) {
             userInboxRepository.ensureRoomMemberInbox(roomId, userId);
-            AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishJoined(roomId, userId, change.version()));
+            changePublisher.publishJoined(roomId, userId, change.version());
         }
     }
 
@@ -61,7 +60,7 @@ public class RoomApplicationService {
         MembershipChange change = membershipService.leaveRoom(userId, roomId);
         userInboxRepository.removeRoomMemberInbox(roomId, userId);
         if (change.changed()) {
-            AfterCommitExecutor.runAfterCommit(() -> changePublisher.publishLeft(roomId, userId, change.version()));
+            changePublisher.publishLeft(roomId, userId, change.version());
         }
     }
 

@@ -139,7 +139,7 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 - `RoomApplicationService.createRoom(...)` 创建房间并把创建者加入，房间成员规则由 `RoomMembershipDomainService` 承担。
 - `joinRoom(...)` 加入房间。
 - `leaveRoom(...)` 退出房间。
-- 成员变化发布 `RoomMemberChanged`。
+- 成员变化发布 `RoomMemberChanged`：outbox row 与成员事实、inbox 更新在同一个 owner transaction 内写入，任一写入失败整体回滚，不存在"事实已提交但事件丢失"的窗口；提交后由 outbox worker 异步投递到 Kafka。无状态变化的重复 join / leave 不会生成新事件。
 
 群消息发送：
 
@@ -232,6 +232,7 @@ projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构�
 - Kafka command accepted 后，客户端仍需等待 committed/rejected 或通过 history 回查。
 - persisted event 是消息事实事件，event id 分别形如 `im:pf:<messageId>` 和 `im:rf:<roomId>:<seq>`。
 - committed / rejected 是发送结果事件，event id 分别形如 `im:psr:<attemptHash>` 和 `im:rsr:<attemptHash>`，attemptHash 来自 `fromUserId + requestId + clientMsgId`。
+- `RoomMemberChanged` 遵循同事务 outbox 与至少一次投递语义：outbox row 随成员变更事务一起提交，worker 可能重复投递，realtime 消费端必须按 `version` 幂等去重。
 - 在线推送不是持久化保证。
 - 重连后客户端应通过 HTTP history 和 read watermark 修复本地状态。
 

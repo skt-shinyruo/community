@@ -211,7 +211,7 @@ class ImCoreKafkaIntegrationTest {
         long beforeJoin = System.currentTimeMillis();
         roomApplicationService.joinRoom(member, roomId);
 
-        // createRoom queues the owner's JOINED event via the after-commit publisher; it can
+        // createRoom enqueues the owner's JOINED event in the same transaction; it can
         // land before or after any seek, so wait specifically for this member's JOINED record.
         ConsumerRecord<String, String> changedRecord =
                 pollForJoinedRecord(consumer, member, Duration.ofSeconds(30));

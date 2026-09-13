@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 
-import { buildMarketState, filterMarketListings, marketDisputeResolutionConfirmation, marketOrderCancelConfirmation, marketOrderConfirmConfirmation, nextTableSort, sortMarketInventory } from './marketState'
+import { buildMarketState, filterMarketListings, marketDisputeResolutionConfirmation, marketOrderCancelConfirmation, marketOrderConfirmConfirmation, marketOrderQuantityError, nextTableSort, sortMarketInventory } from './marketState'
 
 describe('views/marketState', () => {
   it('should derive type labels and mixed fulfillment labels from goodsType', () => {
@@ -388,5 +388,16 @@ describe('views/marketState', () => {
 
     const fallback = marketDisputeResolutionConfirmation({ action: 'refund' })
     expect(fallback.message).toContain('托管资金')
+  })
+
+  it.each([0, -1, -3, 1.5, '', 'abc', null, undefined])(
+    'rejects the invalid order quantity %s inline instead of silently coercing to 1',
+    (raw) => {
+      expect(marketOrderQuantityError(raw)).toBe('购买数量必须是大于 0 的整数')
+    }
+  )
+
+  it.each([1, 2, '3'])('accepts the positive integer order quantity %s', (raw) => {
+    expect(marketOrderQuantityError(raw)).toBe('')
   })
 })

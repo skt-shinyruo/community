@@ -80,10 +80,11 @@ import UiButton from '../components/ui/UiButton.vue'
 import UiState from '../components/ui/UiState.vue'
 import { settleNamedRequests } from '../utils/settledRequests'
 import { createLatestRequestTracker } from '../utils/latestRequest'
+import { formatLocalDate } from '../utils/time'
 
 const auth = useAuthStore()
 
-const today = new Date().toISOString().slice(0, 10)
+const today = formatLocalDate()
 const start = ref(today)
 const end = ref(today)
 

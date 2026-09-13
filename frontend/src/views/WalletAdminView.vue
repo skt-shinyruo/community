@@ -14,7 +14,7 @@
           <p>对风险用户做人工止损，避免继续转账、测试积分销毁或消费。</p>
           <input v-model.trim="freezeForm.userId" class="input" placeholder="目标用户 ID" />
           <input v-model.trim="freezeForm.reason" class="input" placeholder="冻结原因" />
-          <UiButton :disabled="submittingKey !== ''" @click="submitFreeze">
+          <UiButton :disabled="submittingKey !== ''" @click="requestFreeze">
             {{ submittingKey === 'freeze' ? '提交中…' : '执行冻结' }}
           </UiButton>
         </section>
@@ -24,7 +24,7 @@
           <p>只追加反向交易，不直接篡改原始余额。</p>
           <input v-model.trim="reverseForm.txnRef" class="input" placeholder="交易请求号，如 transfer:req-1" />
           <input v-model.trim="reverseForm.reason" class="input" placeholder="回滚原因" />
-          <UiButton :disabled="submittingKey !== ''" @click="submitReverse">
+          <UiButton :disabled="submittingKey !== ''" @click="requestReverse">
             {{ submittingKey === 'reverse' ? '提交中…' : '执行回滚' }}
           </UiButton>
         </section>
@@ -49,20 +49,32 @@
         </div>
       </section>
     </UiCard>
+
+    <UiModalConfirm
+      v-if="confirmation.open"
+      :title="confirmation.title"
+      :message="confirmation.message"
+      :confirm-text="confirmation.confirmText"
+      :confirm-variant="confirmation.variant"
+      @cancel="closeConfirmation"
+      @confirm="runConfirmation"
+    />
   </div>
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { freezeWallet, reverseWalletTxn } from '../api/services/walletService'
 import UiButton from '../components/ui/UiButton.vue'
 import UiCard from '../components/ui/UiCard.vue'
+import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { createLatestRequestTracker } from '../utils/latestRequest'
-import { normalizeOpaqueId } from '../utils/opaqueId'
+import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
+import { walletFreezeConfirmation, walletReverseConfirmation } from './walletState'
 
 const auth = useAuthStore()
 const error = ref('')
@@ -82,6 +94,39 @@ const reverseForm = ref({
   reason: ''
 })
 
+// 冻结钱包 / 回滚交易是资损动作：先经 UiModalConfirm（danger）复述对象与不可撤销后果，
+// 确认后才进入提交流程（延续 WalletView 转账 / 销毁的确认写法）。
+const confirmation = reactive({
+  open: false,
+  title: '',
+  message: '',
+  confirmText: '确认',
+  variant: 'primary',
+  action: /** @type {null | (() => Promise<void> | void)} */ (null)
+})
+
+function openConfirmation({ title, message, confirmText, variant = 'primary' }, action) {
+  if (submittingKey.value !== '' || typeof action !== 'function') return
+  confirmation.title = title
+  confirmation.message = message
+  confirmation.confirmText = confirmText
+  confirmation.variant = variant
+  confirmation.action = action
+  confirmation.open = true
+}
+
+function closeConfirmation() {
+  confirmation.open = false
+  confirmation.action = null
+}
+
+async function runConfirmation() {
+  const action = confirmation.action
+  if (!action) return
+  closeConfirmation()
+  await action()
+}
+
 function pushAction(label, text) {
   actions.value = [
     {
@@ -93,10 +138,10 @@ function pushAction(label, text) {
   ].slice(0, 10)
 }
 
-async function submitFreeze() {
+function requestFreeze() {
   const userId = normalizeOpaqueId(freezeForm.value.userId)
   const reason = String(freezeForm.value.reason || '').trim()
-  if (!userId) {
+  if (!isUuid(userId)) {
     error.value = '请输入有效的目标用户 ID'
     return
   }
@@ -104,7 +149,14 @@ async function submitFreeze() {
     error.value = '请输入冻结原因'
     return
   }
+  error.value = ''
+  openConfirmation(
+    { ...walletFreezeConfirmation({ userId }), variant: 'danger' },
+    () => submitFreeze(userId, reason)
+  )
+}
 
+async function submitFreeze(userId, reason) {
   const requestHandle = actionTracker.begin()
   submittingKey.value = 'freeze'
   error.value = ''
@@ -122,7 +174,7 @@ async function submitFreeze() {
   }
 }
 
-async function submitReverse() {
+function requestReverse() {
   const txnRef = String(reverseForm.value.txnRef || '').trim()
   const reason = String(reverseForm.value.reason || '').trim()
   if (!txnRef) {
@@ -133,7 +185,14 @@ async function submitReverse() {
     error.value = '请输入回滚原因'
     return
   }
+  error.value = ''
+  openConfirmation(
+    { ...walletReverseConfirmation({ txnRef }), variant: 'danger' },
+    () => submitReverse(txnRef, reason)
+  )
+}
 
+async function submitReverse(txnRef, reason) {
   const requestHandle = actionTracker.begin()
   submittingKey.value = 'reverse'
   error.value = ''
@@ -158,6 +217,7 @@ watch(sessionScope, () => {
   actions.value = []
   freezeForm.value = { userId: '', reason: '' }
   reverseForm.value = { txnRef: '', reason: '' }
+  closeConfirmation()
 })
 onBeforeUnmount(() => {
   actionTracker.invalidate()

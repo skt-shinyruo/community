@@ -549,6 +549,26 @@ describe('WalletView', () => {
     expect(wrapper.text()).toContain('已经到底了')
   })
 
+  it('marks the feed tail explicitly when the window grows to the backend limit cap', async () => {
+    getWalletTransactions.mockImplementation((limit) =>
+      Promise.resolve({ data: txnItems(Math.min(limit, 50), `cap-${limit}`), traceId: `trace-${limit}` })
+    )
+    const wrapper = mountWalletView()
+    await flushPromises()
+
+    // 窗口 12 → 24 → 36 → 48 → 50，每次返回都是满页，无法证明是否到底。
+    for (const expected of [24, 36, 48, 50]) {
+      await findButton(wrapper, '加载更多').trigger('click')
+      await flushPromises()
+      expect(getWalletTransactions).toHaveBeenLastCalledWith(expected)
+    }
+
+    expect(wrapper.findAll('.wallet-feed-item').length).toBe(50)
+    expect(findButton(wrapper, '加载更多')).toBeFalsy()
+    expect(wrapper.text()).toContain('已显示最近 50 条流水')
+    expect(wrapper.text()).not.toContain('已经到底了')
+  })
+
   it('retries a failed initial load from the error state action', async () => {
     getWalletSummary.mockRejectedValueOnce(new Error('summary down'))
     getWalletTransactions.mockRejectedValueOnce(new Error('ledger down'))

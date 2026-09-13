@@ -34,7 +34,7 @@
           <p class="market-detail-intro">下单后资金进入钱包托管，按履约方式跟进交付、收货或争议处理。</p>
 
           <div class="market-order-form">
-            <UiField label="购买数量">
+            <UiField label="购买数量" :error="quantityError" data-test="market-quantity-field">
               <UiInput v-model.number="quantity" type="number" min="1" :disabled="submitting" />
             </UiField>
             <UiField v-if="detail.goodsType === 'PHYSICAL' && auth.authed" label="收货地址" :error="addressError" data-test="market-address-field">
@@ -47,10 +47,18 @@
                 :disabled="submitting || addressLoading"
                 :loading="addressLoading"
               />
-              <p v-else-if="!addressError" class="market-address-empty" data-test="market-address-empty">
+              <p v-else-if="!addressLoadError" class="market-address-empty" data-test="market-address-empty">
                 暂无收货地址，
                 <RouterLink class="market-address-link" :to="{ name: 'settings', query: { section: 'addresses' } }">到设置添加</RouterLink>
               </p>
+              <UiButton
+                v-else
+                variant="secondary"
+                class="market-address-retry"
+                data-test="market-address-retry"
+                :disabled="addressLoading || submitting"
+                @click="retryLoadAddresses"
+              >重试加载地址</UiButton>
             </UiField>
             <div class="market-risk-note">
               <strong>钱包托管</strong>
@@ -112,7 +120,7 @@ import {
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-import { buildMarketState } from './marketState'
+import { buildMarketState, marketOrderQuantityError } from './marketState'
 import { createWriteAttempt } from '../api/writeAttempt'
 
 const route = useRoute()
@@ -122,7 +130,9 @@ const loading = ref(false)
 const addressLoading = ref(false)
 const submitting = ref(false)
 const error = ref('')
-const addressError = ref('')
+const addressLoadError = ref('')
+const addressValidationError = ref('')
+const quantityError = ref('')
 const orderError = ref('')
 const orderMessage = ref('')
 const createdOrderId = ref('')
@@ -143,11 +153,14 @@ const addressSelectOptions = computed(() => addressOptions.value.map((item) => (
   label: `${item.receiverName} · ${item.city} · ${item.detailAddress}`
 })))
 const authScope = computed(() => identityScope(auth))
+// addressError 合并展示加载失败与校验提示：加载错误只能由重试结果更新，下单动作不得覆盖。
+const addressError = computed(() => addressLoadError.value || addressValidationError.value)
 
 function resetAddressState() {
   addressSequence += 1
   addressLoading.value = false
-  addressError.value = ''
+  addressLoadError.value = ''
+  addressValidationError.value = ''
   addresses.value = []
   selectedAddressId.value = ''
 }
@@ -177,7 +190,7 @@ function orderIntent(listingId = normalizeOpaqueId(route.params.listingId)) {
     : ''
   return JSON.stringify([
     listingId,
-    Math.max(1, Number(quantity.value || 1)),
+    Number(quantity.value || 0),
     addressId
   ])
 }
@@ -194,7 +207,8 @@ function signalStaleAddressResponse() {
 async function loadAddressesFor({ listingId, goodsType, requestedAuthScope }) {
   const sequence = ++addressSequence
   addressLoading.value = false
-  addressError.value = ''
+  addressLoadError.value = ''
+  addressValidationError.value = ''
   addresses.value = []
   selectedAddressId.value = ''
 
@@ -217,12 +231,23 @@ async function loadAddressesFor({ listingId, goodsType, requestedAuthScope }) {
       signalStaleAddressResponse()
       return
     }
-    addressError.value = e?.message || '加载收货地址失败'
+    addressLoadError.value = e?.message || '加载收货地址失败'
   } finally {
     if (isCurrentAddressRequest(sequence, listingId, requestedAuthScope)) {
       addressLoading.value = false
     }
   }
+}
+
+function retryLoadAddresses() {
+  if (addressLoading.value || submitting.value) return
+  const listingId = normalizeOpaqueId(listing.value?.listingId) || normalizeOpaqueId(route.params.listingId)
+  if (!listingId) return
+  loadAddressesFor({
+    listingId,
+    goodsType: String(listing.value?.goodsType || '').trim().toUpperCase(),
+    requestedAuthScope: authScope.value
+  })
 }
 
 async function loadDetail(requestedListingId = normalizeOpaqueId(route.params.listingId)) {
@@ -273,12 +298,20 @@ async function submitOrder() {
 
   const listingId = normalizeOpaqueId(route.params.listingId)
   const addressId = detail.value.goodsType === 'PHYSICAL' ? normalizeOpaqueId(selectedAddressId.value) : undefined
+  const quantityMessage = marketOrderQuantityError(quantity.value)
+  if (quantityMessage) {
+    quantityError.value = quantityMessage
+    return
+  }
   if (!listingId) {
     error.value = '商品 ID 无效'
     return
   }
   if (detail.value.goodsType === 'PHYSICAL' && !addressId) {
-    addressError.value = '请选择收货地址'
+    // 地址加载失败时保留加载错误与重试入口，不用「请选择收货地址」覆盖。
+    if (!addressLoadError.value) {
+      addressValidationError.value = '请选择收货地址'
+    }
     return
   }
   const sequence = ++orderSequence
@@ -286,13 +319,12 @@ async function submitOrder() {
   const requestedIntent = orderIntent(listingId)
   submitting.value = true
   orderError.value = ''
-  addressError.value = ''
   orderMessage.value = ''
   createdOrderId.value = ''
   try {
     const { data } = await createMarketOrder({
       listingId,
-      quantity: Math.max(1, Number(quantity.value || 1)),
+      quantity: Number(quantity.value),
       addressId
     }, { writeAttempt: orderAttempt })
     if (!isCurrentOrderIntent(sequence, listingId, requestedAuthScope, requestedIntent)) return
@@ -346,7 +378,11 @@ watch(
   { immediate: true }
 )
 
-watch([quantity, selectedAddressId], () => orderAttempt.changeIntent())
+watch([quantity, selectedAddressId], () => {
+  quantityError.value = ''
+  addressValidationError.value = ''
+  orderAttempt.changeIntent()
+})
 
 onBeforeUnmount(() => {
   listingSequence += 1
@@ -416,6 +452,10 @@ onBeforeUnmount(() => {
   margin: 0;
   color: var(--text-3);
   font-size: var(--text-sm);
+}
+
+.market-address-retry {
+  justify-self: start;
 }
 
 .market-address-link {

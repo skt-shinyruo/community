@@ -5,8 +5,11 @@ import {
   buildWalletState,
   nextWalletFeedLimit,
   walletDiscardConfirmation,
+  walletFeedCapped,
   walletFeedExhausted,
   walletFeedHasMore,
+  walletFreezeConfirmation,
+  walletReverseConfirmation,
   walletTransferConfirmation
 } from './walletState'
 
@@ -113,6 +116,13 @@ describe('wallet feed append pagination', () => {
     expect(walletFeedExhausted({ count: 50, limit: WALLET_FEED_MAX_LIMIT })).toBe(false)
   })
 
+  it('flags a full window at the backend cap as capped instead of silently truncated', () => {
+    expect(walletFeedCapped({ count: 50, limit: WALLET_FEED_MAX_LIMIT })).toBe(true)
+    expect(walletFeedCapped({ count: 50, limit: 48 })).toBe(false)
+    expect(walletFeedCapped({ count: 49, limit: WALLET_FEED_MAX_LIMIT })).toBe(false)
+    expect(walletFeedCapped({ count: 0, limit: WALLET_FEED_MAX_LIMIT })).toBe(false)
+  })
+
   it('proves exhaustion only when the backend returns fewer items than requested', () => {
     expect(walletFeedExhausted({ count: 7, limit: 12 })).toBe(true)
     expect(walletFeedExhausted({ count: 12, limit: 12 })).toBe(false)
@@ -137,6 +147,24 @@ describe('wallet capital-loss confirmation copy', () => {
     expect(copy.title).toBe('确认销毁测试积分')
     expect(copy.confirmText).toBe('确认销毁')
     expect(copy.message).toContain('7')
+    expect(copy.message).toContain('不可撤销')
+  })
+
+  it('restates the freeze target and the frozen capabilities', () => {
+    const copy = walletFreezeConfirmation({ userId: ' 11111111-1111-7111-8111-111111111111 ' })
+
+    expect(copy.title).toBe('确认冻结钱包')
+    expect(copy.confirmText).toBe('确认冻结')
+    expect(copy.message).toContain('11111111-1111-7111-8111-111111111111')
+    expect(copy.message).toContain('无法转账')
+  })
+
+  it('restates the reversal target transaction and its irreversible consequence', () => {
+    const copy = walletReverseConfirmation({ txnRef: ' transfer:req-1 ' })
+
+    expect(copy.title).toBe('确认回滚交易')
+    expect(copy.confirmText).toBe('确认回滚')
+    expect(copy.message).toContain('transfer:req-1')
     expect(copy.message).toContain('不可撤销')
   })
 })

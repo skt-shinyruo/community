@@ -14,7 +14,7 @@
 | 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
 | 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
-| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js`、`frontend/src/views/conversationDetailPendingSends.js` |
+| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js`、`frontend/src/views/conversationDetailPendingSends.js`、`frontend/src/views/conversationDetailReadMarker.js` |
 | 页面纯状态 | `frontend/src/views/*State.js` |
 | 全局读侧缓存 | `frontend/src/stores/*.js` |
 
@@ -152,7 +152,8 @@ reject 回执直接解除兜底计时，重连 backfill 命中后把 clientMsgId
 正常路径不被超时器误伤。失败重试是同一个写尝试：
 `retrySend` 复用原 clientMsgId 重新下发同一条
 sendPrivateText command（IM 幂等键语义，不生成新 key），committed 回执与 HTTP backfill 仍经
-`messageIdentity` 别名合并，重试不产生重复消息。视图不承载 IM 协议或状态机：会话 bootstrap
+`messageIdentity` 别名合并，重试不产生重复消息。发送成功后清除上一次残留的行内错误文案。
+视图不承载 IM 协议或状态机：会话 bootstrap
 （`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，pending 回执兜底计时由
 `conversationDetailPendingSends.js` 承载，页面流程继续由
 `useConversationDetailWorkflow.js` 的 `model/actions/lifecycle`（新增 `retrySend`）承载。
@@ -167,11 +168,12 @@ UiState 空态给出「清除搜索」下一步。商品卡是 8px 扁平列表�
 失败保留已加载列表并内联报错、按钮即重试入口、到底显示结束标记），首载 UiSkeleton（list variant），
 首载错态与空态走 UiState（错态带重试、空态带「发布商品」下一步），裸加载文本清零。详情页按两级页面用
 「返回市场」ghost 链接承担层级（不再渲染只显示「首页」的空面包屑）；价格 / 状态 / 库存 / 托管摘要为扁平
-横条，下单与交易说明是两个并列扁平分区（不再是 UiCard 套 UiPageHeader）；购买数量收敛到 UiField + UiInput，
-收货地址收敛到 UiField + UiSelect（APG combobox/listbox 语义，默认地址自动选中，加载中禁用并以后备
-placeholder 提示，空地址给出「到设置添加」链接，加载失败与「请选择收货地址」校验都内联在字段错误）；
-下单失败不再整页替换为错态，改为下单区内联 alert，写重试继续复用同一 WriteAttempt 幂等键；首载
-UiSkeleton（detail variant）、可重试的 UiState 错态齐备。
+横条，下单与交易说明是两个并列扁平分区（不再是 UiCard 套 UiPageHeader）；购买数量收敛到 UiField + UiInput
+（0 / 负数 / 小数 / 空输入由 `marketState.js` 的 `marketOrderQuantityError` 内联报错，不再静默按 1 下单，
+输入后即时清除），收货地址收敛到 UiField + UiSelect（APG combobox/listbox 语义，默认地址自动选中，加载中
+禁用并以后备 placeholder 提示，空地址给出「到设置添加」链接，加载失败内联在字段错误并提供重试入口，
+「请选择收货地址」校验与下单动作都不覆盖加载错误）；下单失败不再整页替换为错态，改为下单区内联 alert，
+写重试继续复用同一 WriteAttempt 幂等键；首载 UiSkeleton（detail variant）、可重试的 UiState 错态齐备。
 
 `/market/orders/buying`、`/market/orders/selling` 与 `/market/orders/:orderId` 订单路由已随波次 9 完成
 迁移（页面合同与 `allowedActions` 权限语义不变）。买入 / 卖出是域内 UiTabs（tablist/tab/tabpanel 与
@@ -236,7 +238,7 @@ role=status 播报结果，失败内联 alert。
 
 导航选中态使用 `--accent-weak` 背景、`--accent-text` 文字和 3px accent 左轨；壳层图标统一为 `lucide-vue-next` 按需命名导入，`components/layout/navIcons.js` 只做导航 icon key 到 lucide 组件的映射，不新增本地 path 表或包装层。
 
-侧边栏通知 / 私信入口和移动端对应入口显示未读角标（超过 99 显示 `99+`），计数由 `frontend/src/stores/inboxUnread.js` 聚合通知（`GET /api/notices/summary`）与私信（`GET /api/im/unread/summary`，群聊未读不计入私信角标）。角标在登录恢复 / 登出（身份变化）、窗口重新聚焦、通知已读操作（`NoticeDetailView`）、私信已读操作（会话详情 workflow）、会话列表首载 / 刷新（`ConversationsView`）和 IM `privateMessage` 实时事件后刷新，不引入轮询；后台刷新通过 `skipGlobalErrorToast` 静默失败，身份切换时在途结果被丢弃。
+侧边栏通知 / 私信入口和移动端对应入口显示未读角标（超过 99 显示 `99+`），计数由 `frontend/src/stores/inboxUnread.js` 聚合通知（`GET /api/notices/summary`）与私信（`GET /api/im/unread/summary`，群聊未读不计入私信角标）。角标在登录恢复 / 登出（身份变化）、窗口重新聚焦、通知已读操作（`NoticeDetailView`）、私信已读操作（会话详情 workflow）、会话列表首载 / 刷新（`ConversationsView`）和 IM `privateMessage` 实时事件后刷新，不引入轮询；实时事件触发的刷新经 `scheduleRefresh` 防抖合并（`INBOX_UNREAD_REFRESH_DEBOUNCE_MS`），自己消息的服务端回声不改变我的未读计数、不触发刷新（`shouldRefreshUnreadForPrivateMessage`）；后台刷新通过 `skipGlobalErrorToast` 静默失败，身份切换时在途结果被丢弃；同一身份 scope 的在途刷新单飞合并（登录 / 会话恢复瞬间多个触发点同时开火只发起一轮请求），完成后的新触发正常再刷。
 
 ## 主题、密度与设计令牌
 
@@ -322,6 +324,8 @@ IM HTTP 客户端是 `frontend/src/api/imCoreHttp.js`：
 | 评论 / 回复 | 输入框或回复草稿持有 `WriteAttempt`；同一草稿重试复用 key。 |
 | 测试积分领取 / 销毁、钱包转账 | 每个动作表单分别持有 `WriteAttempt`。 |
 | 市场下单 | 商品详情的下单表单持有一个 `WriteAttempt`。 |
+| 发布商品（含预库存） | 发布表单持有一个 `WriteAttempt`；表单或预存内容被修改后视为新业务意图，下次提交换新 key。 |
+| 追加卡密库存 | 库存页追加表单持有一个 `WriteAttempt`；切换 listing / 账号后取消旧 attempt。 |
 
 `frontend/src/api/writeAttempt.js` 拥有一次高风险写尝试的完整 key 生命周期。首次发送生成 key；传输失败不结束 attempt，人工重试继续使用同一个 key；成功、取消、切换账号 / 页面或修改业务意图后清除旧 key，下次发送再生成。不要按 URL、payload 指纹或时间窗口缓存 key，两个内容相同但由用户分别发起的动作仍是两个业务尝试。高风险 service 缺少 `WriteAttempt` 时直接报错，以便在开发期暴露生命周期遗漏。
 
@@ -351,9 +355,10 @@ connect(accessToken)
 
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
-- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject / send error 将其标成失败，不能把 WebSocket send 当成落库成功。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。pending 发送有 10 秒回执兜底（`conversationDetailPendingSends.js` 的 `PENDING_SEND_TIMEOUT_MS`）：帧写入后连接立刻死亡且服务端从未收到时不会有任何回执，超时仍未决即转失败态；committed / reject 回执直接解除计时，重连 backfill 命中会把 clientMsgId 移出 pending 集合（迟到的超时回调落空），会话切换 / 卸载解除全部计时。残缺无法在本地落账的 committed 帧不算确认，pending 与兜底计时保留。
+- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject 帧将其标成失败，不能把 WebSocket send 当成落库成功。自己消息的服务端回声（`privateMessage` 帧不携带 `clientMsgId`）与 `committed` 回执可能乱序：回声先到时按发送者、对端与内容认领仍在途的 pending 气泡并直接确认（回声即持久化事实，兜底计时随之解除），不出现短暂的重复气泡，迟到的 `committed` 回执幂等落地。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。pending 发送有 10 秒回执兜底（`conversationDetailPendingSends.js` 的 `PENDING_SEND_TIMEOUT_MS`）：帧写入后连接立刻死亡且服务端从未收到时不会有任何回执，超时仍未决即转失败态；committed / reject 回执直接解除计时，重连 backfill 命中会把 clientMsgId 移出 pending 集合（迟到的超时回调落空），会话切换 / 卸载解除全部计时。残缺无法在本地落账的 committed 帧不算确认，pending 与兜底计时保留。
 - 会话详情流程集中在 `frontend/src/views/useConversationDetailWorkflow.js`，只向组件公开 `model/actions/lifecycle`；HTTP/WS transport、请求竞态、订阅清理和滚动锚定不由组件直接管理。一个 `historyFlow` 统一记录 scope generation、基线阶段与轮次、连续 `seq` waterline、重连请求/完成轮次和实际补拉轮次；scope 切换会推进 generation，使旧异步执行失效。该流程先等待首次 `limit=50` history 建立基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
 - backfill 按会话 scope 单飞串行执行；每次重连上升沿推进请求轮次，当前执行按开始时覆盖的最新轮次完成，期间任意多次重连合并为下一轮，从最新水位继续补；空页同样完成其覆盖轮次，不能吞掉后续恢复请求。
+- 已读标记按连续 `seq` 水位上报（`conversationDetailReadMarker.js`）：首载 / 刷新以 HTTP 历史页确认的连续水位为锚上报，实时帧只在已知消息连续覆盖时推进；帧乱序时缺口之后的消息不被提前标读，缺口补齐后水位一次性推进。已读落库后调度壳层未读角标刷新（防抖合并高频帧）；已读与角标失败都静默。
 - pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`（HTTP history 响应是 `createdAtEpochMs`），由 `conversationDetailState.js` 的 `mapRealtimeConversationMessage` 归一后再走同一份消息映射与校验。
 - 每条内部消息通过可枚举的 `messageIdentity` 记录显式保留 `serverMessageIds`、发送者作用域的 `clientMessageIds`、`requestIds` 和 `sequences` 别名。消息合并和排序逻辑在 `frontend/src/views/conversationDetailState.js`，任一别名命中都更新同一条消息，排序仍优先使用 `seq`，再回退到时间 / id；身份元数据不进入组件渲染模型。
 
@@ -367,12 +372,13 @@ connect(accessToken)
 | `useBookmarksFeed.js` | 收藏流的会话 scope、页码追加分页、请求竞态丢弃、拉黑过滤和打开帖子动作；组件只保留卡片渲染与键盘 Enter 守卫。 |
 | `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
-| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、去重和排序。 |
+| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、服务端回声对本端 pending 气泡的认领与确认（`findOwnPendingEchoMatch` / `confirmOwnPendingConversationEcho`）、去重和排序。 |
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失联超时兜底、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
 | `conversationDetailPendingSends.js` | 私信 pending 发送的回执兜底计时（`PENDING_SEND_TIMEOUT_MS`）：arm / disarm / disarmAll，超时未决回调工作流把发送转为失败态。 |
-| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；争议投影含订单金额文案（`totalAmountText`）与裁定确认文案（`marketDisputeResolutionConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
-| `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增与到底判定）和资损确认文案。 |
+| `conversationDetailReadMarker.js` | 私信已读上报的连续 seq 水位：HTTP 历史页锚定基线（`anchorAndReport`），实时帧连续推进（`advanceAndReport`），乱序帧不提前标读缺口之后的消息；已读落库后防抖调度壳层未读角标刷新。 |
+| `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）、下单数量校验（`marketOrderQuantityError`，0 / 负数 / 小数 / 空输入内联拒绝）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；争议投影含订单金额文案（`totalAmountText`）与裁定确认文案（`marketDisputeResolutionConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
+| `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增、到底判定与到达后端上限的明示）和资损确认文案（含管理员冻结钱包 / 回滚交易）。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `moderationState.js` | 治理后台处置表单的时长解析与校验：自定义时长必须是正整数秒数，非法输入返回行内错误，不再静默回落到后端默认时长。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
@@ -384,7 +390,7 @@ connect(accessToken)
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
 
-跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型与危险操作确认（`useDriveConfirmation`），目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation（两条路由复用同一组件实例，`relationKind` 并入视图 scope，切换类型即重置并重取）；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型与危险操作确认（`useDriveConfirmation`），目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 `utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 
@@ -399,7 +405,7 @@ connect(accessToken)
 | Taxonomy | `frontend/src/stores/taxonomy.js` | 分类和热门标签轻缓存。 |
 | Post Meta Cache | `frontend/src/stores/postMetaCache.js` | 用户摘要、点赞数、点赞状态 TTL 缓存。 |
 | Social Prefs | `frontend/src/stores/socialPrefs.js` | 拉黑读侧状态。 |
-| Inbox Unread | `frontend/src/stores/inboxUnread.js` | 壳层通知 / 私信未读角标计数；按身份 scope 隔离，触发式刷新（身份变化、窗口聚焦、已读操作、IM 实时事件），不轮询。 |
+| Inbox Unread | `frontend/src/stores/inboxUnread.js` | 壳层通知 / 私信未读角标计数；按身份 scope 隔离，触发式刷新（身份变化、窗口聚焦、已读操作、IM 实时事件防抖合并且跳过自己消息的回声帧），不轮询。 |
 
 `postMetaCache` 的 TTL 约定：
 
@@ -435,7 +441,7 @@ button（click 与 Enter / Space 激活）发出 `sort(columnKey)` 事件，排�
 布局。MarketInventoryView 的库存内容表是它的首个生产接入（类型 / 状态列排序由 `marketState.js` 的
 `nextTableSort` + `sortMarketInventory` 在已加载投影上本地完成）。
 
-`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。BookmarksView 已随波次 3 完成迁移：列表卡为 8px 扁平表面（无容器卡片嵌套），首载骨架、空/错态与尾部加载指示全部走 Ui 原语，裸「加载中」文本登记随之删除。PostDetailView 与评论 / 回复组件已完成波次 3 迁移：详情、评论区和回复编辑器全部使用 Ui 原语与 scoped 样式（`frontend/src/views/post-detail/*.css`），令牌取自 `variables.css`。SearchView 已随波次 4 完成迁移：关键词、分类与标签筛选收敛到 UiInput / UiSelect / UiAutosuggestInput，结果卡片使用 8px 扁平列表语言，首载骨架、空 / 错态与「加载更多」尾部指示全部走 Ui 原语，页面级暗色覆盖与原语内部类使用清零。SettingsView 已随波次 5 完成迁移：section 导航接入 UiTabs，地址表单收敛到 UiField + UiInput，地址簿首载骨架、可重试错态与空态全部走 Ui 原语，`.input` 内部类与 `market-*` 全局页面样式依赖清零，`tokens.test.js` 的 Settings 基线登记随之移除。NoticesView 与 NoticeDetailView 已随波次 6 完成迁移：两个视图改用 8px 扁平列表语言（不再裹容器卡片），未读条目以 3px accent 左轨加弱色 chip 表达，首载骨架、可重试错态、带主要下一步的空态全部走 Ui 原语；主题详情从 `UiPagination` 翻页改为「加载更多」追加（`useNoticeTopicFeedState`），「标记已读」把当前主题（含未加载页）的全部未读清零，成功后本地翻转已加载项为已读并刷新壳层未读角标（结果立即可见、静默更新，不弹 toast），返回层级由页顶「返回通知汇总」链接承担；手写 `<svg>` 图标换成 lucide 命名导入，`.btn` 链接外观按钮收敛到 `UiButton` 的 `to` 形态，`loading-states.test.js` 的 `NoticeDetailView.vue` 裸「加载中」登记随之移除。DriveView 已随波次 7 完成迁移：工作区模式（我的文件 / 分享管理 / 回收站）收敛到 UiTabs 并获得方向键 / Home/End 键盘语义，分享管理从详情侧栏迁入自己的 tab 面板；页顶只显示「首页」的路由面包屑按空面包屑规则移除，文件夹路径改用 UiBreadcrumb 新增的受控 `items` + `select` 形态（非末级项为可键盘操作按钮，末级项带 `aria-current`）；搜索、新建文件夹、重命名和分享表单收敛到 UiField + UiInput（校验与写失败内联在对应字段），上传触发从 `.btn` label 换成 UiButton + 隐藏 file input，上传进度另以 `role="progressbar"` 进度条播报；删除到回收站、彻底删除和撤销分享经 `useDriveConfirmation` 接 UiModalConfirm 二次确认，成功结果在列表 / 分享项状态中立即可见、静默更新不弹 toast，复制链接、上传完成与取消走 toast；首载 UiSkeleton、可重试错态与带主要下一步的空态全部走 Ui 原语，选中行与分享链接等硬编码 rgba 清零、只保留 variables.css 令牌，`tokens.test.js` 的 DriveView `.input` 基线登记随之移除。DriveShareView（匿名公开分享页 `/drive/s/:shareToken`）已随波次 7 完成迁移：提取码表单收敛到 UiField + UiInput，空提取码与提取码错误 / 验证失败内联在字段错误（role=alert），与页面级错态区分；分享链接加载失败（含失效 / 已撤销）与文件列表加载失败由带「重试」的 UiState 错态承担，首载与文件列表加载使用 UiSkeleton，已验证的空文件夹获得带「返回上一级」下一步的 UiState 空态，下载失败以独立内联 alert 呈现；面包屑与文件夹条目链接只使用 `--link-color` 语义令牌，间距、圆角、文本与边框色全部走 variables.css 令牌，`tokens.test.js` 的 DriveShareView `.input` 基线登记随之移除；分享 API、提取码与 ticket 语义不变。WalletView 已随波次 8 完成迁移：余额摘要与流水继续由业务状态驱动（金额正负、状态文案与 feed key 来自 `walletState.js`，不由视觉层推断）；四个裸 `.input` 收敛到 UiField + UiInput，字段 label 成为控件可访问名称，校验错误内联在字段（role=alert）、写失败内联在对应操作卡，页面级加载错态由带「重试」的 UiState 承担，首载改用 UiSkeleton；流水从固定 12 条改为「加载更多」窗口追加（请求 limit 按 12 递增、上限 50，返回不足一页即到底并显示结束标记），分页尾部指示与按钮 loading 分离；转账与销毁测试积分作为资损动作先经 UiModalConfirm 二次确认（复述金额、对方与不可撤销性，danger 变体），确认后仍走原 WriteAttempt 幂等提交流程，失败重试复用同一 Idempotency-Key；`.wallet-label` 字距归零并移除中文界面无意义的全大写，间距与圆角全部走 variables.css 令牌，`tokens.test.js` 的 WalletView `.input` 基线登记随之移除；亮色视觉基线在固定环境重建并完成人工 diff 审查。MarketListView 与 MarketDetailView 已随波次 9 完成迁移（`/market` 目录与 `/market/listings/:listingId` 详情，订单路由仍属后续票）：目录页头操作从 `.btn` 链接收敛到 `UiButton` 的 `to` 形态，新增市场自己的页内搜索（即时过滤已加载商品，无匹配空态带「清除搜索」），商品卡为 8px 扁平列表语言并以 UiBadge 变体区分在售 / 售罄状态，「加载更多」追加分页保留页码归并与失败内联重试语义，首载骨架、可重试错态与带下一步的空态全部走 Ui 原语；详情页层级改由「返回市场」链接承担（移除只显示「首页」的空面包屑），数量与收货地址收敛到 UiField + UiInput / UiSelect，下单失败从整页错态改为下单区内联 alert，首载使用 UiSkeleton（detail variant）；两个视图样式全部迁入 `<style scoped>` 并只使用 variables.css 令牌，`pages.css` 中仅被这两个视图使用的市场样式块随之删除（其余 `market-*` 全局样式已在 pages.css 退役票中删除），`tokens.test.js` 的 MarketDetailView `.input` 基线登记与 `loading-states.test.js` 的 MarketListView 裸加载文本登记随之移除。MarketPublishView、MarketMyListingsView 与 MarketInventoryView 也已随波次 9 完成迁移：发布表单与追加库存表单收敛到 UiField + UiSelect / UiInput / UiTextarea（原生 required 语义、字段错误与操作区 alert 内联），我的出售改用 8px 扁平行卡与状态 UiBadge，库存内容收敛到裁剪版 UiTable（类型 / 状态列挂排序钩子，本地排序不新增请求），失效库存先经 UiModalConfirm（danger）复述内容再执行；三个视图的首载骨架、可重试错态、带下一步的空态与分页尾部指示全部走 Ui 原语，样式全部位于 `<style scoped>`，`tokens.test.js` 的 MarketPublishView `.input` 基线登记与 `loading-states.test.js` 的两个卖家视图裸加载文本登记随之移除。波次 10 完成全站收尾：`components.css` 与 `pages.css` 退役（原语样式迁入各 Ui SFC 的 `<style scoped>`，类名不变；孤儿规则删除；壳搜索输入基座收拢进 `layout.css` 并顺带修复壳搜索图标与文本重叠），路由 fade 过渡收拢进 `base.css`；迁移侧对原语内部类、源代码手写 `<svg>`（UiScrollTop / UiToast 换成 lucide 命名导入并补齐 `aria-label`）、只显示「首页」的空面包屑（Wallet / 治理后台 / 钱包后台 / 争议裁定）、裸加载文本（管理后台两页改走 UiSkeleton，按钮 loading 文案统一「正在加载…」）、消费流 UiPagination（本就零使用）与非零字距（壳层与 UiBadge 归零，仅管理后台 eyebrow 保留登记）全部清零；`transition: all` 全仓清零；`tokens.test.js` 升级为全量守卫，`loading-states.test.js` 收紧为零允许；管理后台只做行为等价的机械调整（样式 scoped 搬移、ModerationView 弹窗收敛 UiModal、空面包屑移除），不重设计。
+`frontend/src/components/ui/UiButton.vue` 在原生 button 之外提供 `to` / `href` 链接形态，吸收“链接外观按钮”：链接形态复用同一 variant 命名与 `.btn` 外观，`disabled` 时阻止导航并以 `aria-disabled` 标记。登录、注册和密码重置页已收敛到 `UiField` + `UiInput` + `UiButton`：字段 label 成为控件的可访问名称，表单级错误文案与提交、验证码刷新和返回社区流程保持既有语义；验证码位图由真实 button 承载，可点击也可键盘触发刷新。403 / 404 页使用 `UiState`（error variant）与共享壳层，挂载后焦点移入状态区域（`tabindex="-1"`，不显示额外轮廓），返回帖子列表的入口是可键盘操作的 `UiButton` 链接。PostsView 已完成波次 2 试点迁移：发布 composer 收敛到 `UiField` + `UiInput` + `UiAutosuggestInput`，首载骨架使用 `UiSkeleton`（card variant），分页尾部指示与按钮 loading 分离，视图样式全部位于 `<style scoped src="./posts/PostsView.css">`，不再使用 `.btn` / `.input` / `.card` / `.skeleton` 原语内部类。BookmarksView 已随波次 3 完成迁移：列表卡为 8px 扁平表面（无容器卡片嵌套），首载骨架、空/错态与尾部加载指示全部走 Ui 原语，裸「加载中」文本登记随之删除。PostDetailView 与评论 / 回复组件已完成波次 3 迁移：详情、评论区和回复编辑器全部使用 Ui 原语与 scoped 样式（`frontend/src/views/post-detail/*.css`），令牌取自 `variables.css`。SearchView 已随波次 4 完成迁移：关键词、分类与标签筛选收敛到 UiInput / UiSelect / UiAutosuggestInput，结果卡片使用 8px 扁平列表语言，首载骨架、空 / 错态与「加载更多」尾部指示全部走 Ui 原语，页面级暗色覆盖与原语内部类使用清零。SettingsView 已随波次 5 完成迁移：section 导航接入 UiTabs，地址表单收敛到 UiField + UiInput，地址簿首载骨架、可重试错态与空态全部走 Ui 原语，`.input` 内部类与 `market-*` 全局页面样式依赖清零，`tokens.test.js` 的 Settings 基线登记随之移除。NoticesView 与 NoticeDetailView 已随波次 6 完成迁移：两个视图改用 8px 扁平列表语言（不再裹容器卡片），未读条目以 3px accent 左轨加弱色 chip 表达，首载骨架、可重试错态、带主要下一步的空态全部走 Ui 原语；主题详情从 `UiPagination` 翻页改为「加载更多」追加（`useNoticeTopicFeedState`），「标记已读」把当前主题（含未加载页）的全部未读清零，成功后本地翻转已加载项为已读并刷新壳层未读角标（结果立即可见、静默更新，不弹 toast），返回层级由页顶「返回通知汇总」链接承担；手写 `<svg>` 图标换成 lucide 命名导入，`.btn` 链接外观按钮收敛到 `UiButton` 的 `to` 形态，`loading-states.test.js` 的 `NoticeDetailView.vue` 裸「加载中」登记随之移除。DriveView 已随波次 7 完成迁移：工作区模式（我的文件 / 分享管理 / 回收站）收敛到 UiTabs 并获得方向键 / Home/End 键盘语义，分享管理从详情侧栏迁入自己的 tab 面板；页顶只显示「首页」的路由面包屑按空面包屑规则移除，文件夹路径改用 UiBreadcrumb 新增的受控 `items` + `select` 形态（非末级项为可键盘操作按钮，标记 `disabled` 的非末级项渲染为静态文本，末级项带 `aria-current`）；全局搜索命中进入文件夹时只保留可验证的真实层级（命中当前目录直属子级正常续接、命中根目录直属重置为根级路径），其余情况面包屑以「我的文件 / … / 当前文件夹」隐藏未知前缀，不虚构位置；搜索、新建文件夹、重命名和分享表单收敛到 UiField + UiInput（校验与写失败内联在对应字段），上传触发从 `.btn` label 换成 UiButton + 隐藏 file input，上传进度另以 `role="progressbar"` 进度条播报；删除到回收站、彻底删除和撤销分享经 `useDriveConfirmation` 接 UiModalConfirm 二次确认，成功结果在列表 / 分享项状态中立即可见、静默更新不弹 toast，复制链接、上传完成与取消走 toast；首载 UiSkeleton、可重试错态与带主要下一步的空态全部走 Ui 原语，选中行与分享链接等硬编码 rgba 清零、只保留 variables.css 令牌，`tokens.test.js` 的 DriveView `.input` 基线登记随之移除。DriveShareView（匿名公开分享页 `/drive/s/:shareToken`）已随波次 7 完成迁移：提取码表单收敛到 UiField + UiInput，空提取码与提取码错误 / 验证失败内联在字段错误（role=alert），与页面级错态区分；分享链接加载失败（含失效 / 已撤销）与文件列表加载失败由带「重试」的 UiState 错态承担，首载与文件列表加载使用 UiSkeleton，已验证的空文件夹获得带「返回上一级」下一步的 UiState 空态，下载失败以独立内联 alert 呈现；面包屑与文件夹条目链接只使用 `--link-color` 语义令牌，间距、圆角、文本与边框色全部走 variables.css 令牌，`tokens.test.js` 的 DriveShareView `.input` 基线登记随之移除；分享 API、提取码与 ticket 语义不变。WalletView 已随波次 8 完成迁移：余额摘要与流水继续由业务状态驱动（金额正负、状态文案与 feed key 来自 `walletState.js`，不由视觉层推断）；四个裸 `.input` 收敛到 UiField + UiInput，字段 label 成为控件可访问名称，校验错误内联在字段（role=alert）、写失败内联在对应操作卡，页面级加载错态由带「重试」的 UiState 承担，首载改用 UiSkeleton；流水从固定 12 条改为「加载更多」窗口追加（请求 limit 按 12 递增、上限 50，返回不足一页即到底并显示结束标记），分页尾部指示与按钮 loading 分离；转账与销毁测试积分作为资损动作先经 UiModalConfirm 二次确认（复述金额、对方与不可撤销性，danger 变体），确认后仍走原 WriteAttempt 幂等提交流程，失败重试复用同一 Idempotency-Key；`.wallet-label` 字距归零并移除中文界面无意义的全大写，间距与圆角全部走 variables.css 令牌，`tokens.test.js` 的 WalletView `.input` 基线登记随之移除；亮色视觉基线在固定环境重建并完成人工 diff 审查。MarketListView 与 MarketDetailView 已随波次 9 完成迁移（`/market` 目录与 `/market/listings/:listingId` 详情，订单路由仍属后续票）：目录页头操作从 `.btn` 链接收敛到 `UiButton` 的 `to` 形态，新增市场自己的页内搜索（即时过滤已加载商品，无匹配空态带「清除搜索」），商品卡为 8px 扁平列表语言并以 UiBadge 变体区分在售 / 售罄状态，「加载更多」追加分页保留页码归并与失败内联重试语义，首载骨架、可重试错态与带下一步的空态全部走 Ui 原语；详情页层级改由「返回市场」链接承担（移除只显示「首页」的空面包屑），数量与收货地址收敛到 UiField + UiInput / UiSelect，下单失败从整页错态改为下单区内联 alert，首载使用 UiSkeleton（detail variant）；两个视图样式全部迁入 `<style scoped>` 并只使用 variables.css 令牌，`pages.css` 中仅被这两个视图使用的市场样式块随之删除（其余 `market-*` 全局样式已在 pages.css 退役票中删除），`tokens.test.js` 的 MarketDetailView `.input` 基线登记与 `loading-states.test.js` 的 MarketListView 裸加载文本登记随之移除。MarketPublishView、MarketMyListingsView 与 MarketInventoryView 也已随波次 9 完成迁移：发布表单与追加库存表单收敛到 UiField + UiSelect / UiInput / UiTextarea（原生 required 语义、字段错误与操作区 alert 内联），我的出售改用 8px 扁平行卡与状态 UiBadge，库存内容收敛到裁剪版 UiTable（类型 / 状态列挂排序钩子，本地排序不新增请求），失效库存先经 UiModalConfirm（danger）复述内容再执行；三个视图的首载骨架、可重试错态、带下一步的空态与分页尾部指示全部走 Ui 原语，样式全部位于 `<style scoped>`，`tokens.test.js` 的 MarketPublishView `.input` 基线登记与 `loading-states.test.js` 的两个卖家视图裸加载文本登记随之移除。波次 10 完成全站收尾：`components.css` 与 `pages.css` 退役（原语样式迁入各 Ui SFC 的 `<style scoped>`，类名不变；孤儿规则删除；壳搜索输入基座收拢进 `layout.css` 并顺带修复壳搜索图标与文本重叠），路由 fade 过渡收拢进 `base.css`；迁移侧对原语内部类、源代码手写 `<svg>`（UiScrollTop / UiToast 换成 lucide 命名导入并补齐 `aria-label`）、只显示「首页」的空面包屑（Wallet / 治理后台 / 钱包后台 / 争议裁定）、裸加载文本（管理后台两页改走 UiSkeleton，按钮 loading 文案统一「正在加载…」）、消费流 UiPagination（本就零使用）与非零字距（壳层与 UiBadge 归零，仅管理后台 eyebrow 保留登记）全部清零；`transition: all` 全仓清零；`tokens.test.js` 升级为全量守卫，`loading-states.test.js` 收紧为零允许；管理后台只做行为等价的机械调整（样式 scoped 搬移、ModerationView 弹窗收敛 UiModal、空面包屑移除），不重设计。
 
 所有 dialog 的焦点由 `frontend/src/composables/useModalFocus.js` 管理：打开后聚焦 `[data-autofocus]` 或首个可操作控件，Tab / Shift+Tab 保持在弹窗内，关闭或卸载后恢复触发控件焦点；同时保留 `role=dialog`、`aria-modal`、可关联标题 / 描述和 Escape 关闭语义。UiModal / UiModalConfirm / ReportModal / EditContentModal 已接入；ModerationView 的处置弹窗也已在波次 10 收敛到 UiModal 外壳（原全局 `modal-mask` / `modal-card` 样式随之删除）。
 
@@ -451,7 +457,7 @@ button（click 与 Enter / Space 激活）发出 `sort(columnKey)` 事件，排�
 | --- | --- |
 | Notice | 通知是 owner Kafka 驱动的最终一致投影，写操作成功后可能稍后出现；失败由 consumer retry / `.dlq` 处理。 |
 | Search | 搜索结果来自 ES 投影，发帖 / 改帖后搜索可短暂落后；必要时查 `content.events` consumer/DLQ 或 reindex。 |
-| IM | WS 推送是 best-effort；pending send 以 committed / reject frame 更新，10 秒无回执的失联发送转失败态并可手动重试，断线重连后从 HTTP 已确认的连续 `seq` 水位分页补拉并合并。 |
+| IM | WS 推送是 best-effort；pending send 以 committed / reject frame 或服务端回声更新，10 秒无回执的失联发送转失败态并可手动重试，断线重连后从 HTTP 已确认的连续 `seq` 水位分页补拉并合并。 |
 | Market 下单 | HTTP 成功可能只是订单创建成功，资金可能处于 `ESCROW_PENDING`。 |
 | Market 确认 / 取消 / 争议 | 资金放款 / 退款由 `market_wallet_action` processor / recovery 推进，`ESCROW_CANCEL_PENDING`、`RELEASE_PENDING`、`REFUND_PENDING`、`DISPUTE_RELEASE_PENDING`、`DISPUTE_REFUND_PENDING` 都应展示为处理中。 |
 | Wallet | 钱包 ledger 是资金 owner；市场页面不要自行推断余额变化。 |

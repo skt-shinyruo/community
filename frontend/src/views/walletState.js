@@ -75,6 +75,15 @@ export function walletFeedExhausted({ count, limit } = {}) {
   return size < current
 }
 
+// 窗口到达后端上限且返回条数仍满：无法证明是否到底，但必须给出明示（只展示最近 N 条），
+// 不能既无「加载更多」也无结尾标记地无声截断。
+export function walletFeedCapped({ count, limit, maxLimit = WALLET_FEED_MAX_LIMIT } = {}) {
+  const size = normalizeLimit(count, 0)
+  const current = normalizeLimit(limit, WALLET_FEED_PAGE_SIZE)
+  const cap = normalizeLimit(maxLimit, WALLET_FEED_MAX_LIMIT)
+  return size >= current && current >= cap
+}
+
 // 资损动作（转账转出、销毁测试积分）的二次确认文案：金额与对方在确认弹窗中复述，
 // 确认后才进入对应 WriteAttempt 的提交流程。
 export function walletTransferConfirmation({ toUserId, amount } = {}) {
@@ -93,6 +102,26 @@ export function walletDiscardConfirmation({ amount } = {}) {
     title: '确认销毁测试积分',
     message: `将销毁 ${value} 测试积分并永久减少钱包余额；该操作不可撤销。`,
     confirmText: '确认销毁'
+  }
+}
+
+// 管理员冻结钱包 / 回滚交易同样直接动资金：先经 UiModalConfirm 复述对象与后果（danger 变体由视图传入），
+// 确认后才进入提交流程。
+export function walletFreezeConfirmation({ userId } = {}) {
+  const target = String(userId || '').trim()
+  return {
+    title: '确认冻结钱包',
+    message: `将冻结用户 ${target} 的钱包：冻结后该用户无法转账、消费或领取 / 销毁测试积分，仅保留查询能力；请确认风控对象无误。`,
+    confirmText: '确认冻结'
+  }
+}
+
+export function walletReverseConfirmation({ txnRef } = {}) {
+  const ref = String(txnRef || '').trim()
+  return {
+    title: '确认回滚交易',
+    message: `将为交易 ${ref} 追加一笔反向流水以抵销原交易；回滚不可撤销，请确认交易请求号无误。`,
+    confirmText: '确认回滚'
   }
 }
 

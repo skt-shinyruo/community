@@ -39,3 +39,13 @@ export function formatConversationTime(ts) {
   }
   return d.toLocaleDateString()
 }
+
+// 本地日历日（YYYY-MM-DD）：数据看板默认「今天」等场景按用户本地时区取日；
+// 不能用 toISOString().slice(0, 10)（UTC 口径，UTC+8 用户每天 0-8 点会看到昨天）。
+export function formatLocalDate(value = new Date()) {
+  const date = value instanceof Date ? value : new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${date.getFullYear()}-${month}-${day}`
+}

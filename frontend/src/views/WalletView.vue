@@ -120,6 +120,7 @@
             <UiButton v-else variant="secondary" class="wallet-feed-more-btn" @click="loadMore">加载更多</UiButton>
           </div>
           <p v-else-if="feedExhausted" class="wallet-feed-end">已经到底了</p>
+          <p v-else-if="feedCapped" class="wallet-feed-end" data-test="wallet-feed-capped">已显示最近 {{ WALLET_FEED_MAX_LIMIT }} 条流水</p>
         </template>
       </UiCard>
     </div>
@@ -161,10 +162,12 @@ import { identityScope } from '../stores/identityScope'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import { parsePointsAmount } from '../utils/pointsAmount'
 import {
+  WALLET_FEED_MAX_LIMIT,
   WALLET_FEED_PAGE_SIZE,
   buildWalletState,
   nextWalletFeedLimit,
   walletDiscardConfirmation,
+  walletFeedCapped,
   walletFeedExhausted,
   walletFeedHasMore,
   walletTransferConfirmation
@@ -227,6 +230,9 @@ const hasMoreFeed = computed(() =>
 )
 const feedExhausted = computed(() =>
   walletFeedExhausted({ count: txns.value.length, limit: feedLimit.value })
+)
+const feedCapped = computed(() =>
+  walletFeedCapped({ count: txns.value.length, limit: feedLimit.value })
 )
 
 function normalizeSummary(data) {

@@ -442,6 +442,119 @@ describe('Unified market views', () => {
     expect(wrapper.text()).toContain('Physical without address')
   })
 
+  it('offers a retry when address loading fails and never overwrites the load error on order attempts', async () => {
+    authenticate()
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'PHYSICAL', 'Retry address listing'),
+      traceId: 'trace-market-detail'
+    })
+    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务暂不可用'))
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+
+    const field = wrapper.get('[data-test="market-address-field"]')
+    expect(field.text()).toContain('地址服务暂不可用')
+    const retry = wrapper.get('[data-test="market-address-retry"]')
+
+    // 下单不会创建订单，也不会用「请选择收货地址」覆盖加载错误。
+    await findOrderButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(createMarketOrder).not.toHaveBeenCalled()
+    expect(field.text()).toContain('地址服务暂不可用')
+    expect(field.text()).not.toContain('请选择收货地址')
+
+    // 重试成功后可正常选中默认地址下单。
+    listMarketAddresses.mockResolvedValueOnce({
+      data: [marketAddress(ADDRESS_A, '张三')],
+      traceId: 'trace-addresses-retry'
+    })
+    await retry.trigger('click')
+    await flushPromises()
+
+    expect(listMarketAddresses).toHaveBeenCalledTimes(2)
+    expect(wrapper.find('[data-test="market-address-retry"]').exists()).toBe(false)
+    expect(field.text()).not.toContain('地址服务暂不可用')
+    expect(wrapper.get('[data-test="market-address-select"]').text()).toContain('张三')
+
+    await findOrderButton(wrapper).trigger('click')
+    await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
+    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
+      listingId: LISTING_A,
+      quantity: 1,
+      addressId: ADDRESS_A
+    })
+  })
+
+  it('keeps the load failure visible when the retry fails again', async () => {
+    authenticate()
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'PHYSICAL', 'Retry failing listing'),
+      traceId: 'trace-market-detail'
+    })
+    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务暂不可用'))
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+    expect(wrapper.get('[data-test="market-address-field"]').text()).toContain('地址服务暂不可用')
+
+    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务仍不可用'))
+    await wrapper.get('[data-test="market-address-retry"]').trigger('click')
+    await flushPromises()
+
+    expect(listMarketAddresses).toHaveBeenCalledTimes(2)
+    expect(wrapper.get('[data-test="market-address-field"]').text()).toContain('地址服务仍不可用')
+    expect(wrapper.get('[data-test="market-address-retry"]').exists()).toBe(true)
+  })
+
+  it.each(['0', '-2', '1.5'])('rejects the invalid order quantity %s inline without creating an order', async (raw) => {
+    authenticate()
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Quantity guard listing'),
+      traceId: 'trace-market-detail'
+    })
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+
+    const quantityInput = wrapper.get('input')
+    await quantityInput.setValue(raw)
+    await findOrderButton(wrapper).trigger('click')
+    await flushPromises()
+
+    expect(createMarketOrder).not.toHaveBeenCalled()
+    expect(wrapper.get('[data-test="market-quantity-field"]').text()).toContain('购买数量必须是大于 0 的整数')
+  })
+
+  it('clears the quantity error on input and submits the corrected quantity', async () => {
+    authenticate()
+    getMarketListingDetail.mockResolvedValue({
+      data: marketListing(LISTING_A, 'VIRTUAL', 'Quantity recover listing'),
+      traceId: 'trace-market-detail'
+    })
+    createMarketOrder.mockResolvedValueOnce({
+      data: { orderId: '99999999-9999-7999-8999-999999999999', status: 'ESCROWED' },
+      traceId: 'trace-create-order'
+    })
+
+    const wrapper = mountView(MarketDetailView)
+    await flushPromises()
+
+    const quantityInput = wrapper.get('input')
+    await quantityInput.setValue('0')
+    await findOrderButton(wrapper).trigger('click')
+    await flushPromises()
+    expect(wrapper.get('[data-test="market-quantity-field"]').text()).toContain('购买数量必须是大于 0 的整数')
+    expect(createMarketOrder).not.toHaveBeenCalled()
+
+    await quantityInput.setValue('2')
+    expect(wrapper.get('[data-test="market-quantity-field"]').text()).not.toContain('购买数量必须是大于 0 的整数')
+
+    await findOrderButton(wrapper).trigger('click')
+    await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
+    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({ listingId: LISTING_A, quantity: 2 })
+  })
+
   it('redirects an anonymous order attempt to login without creating an order', async () => {
     getMarketListingDetail.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Anonymous virtual listing'),

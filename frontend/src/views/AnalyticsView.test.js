@@ -66,6 +66,21 @@ describe('AnalyticsView', () => {
     dau.mockResolvedValue({ data: 567, traceId: 'trace-dau' })
   })
 
+  it('defaults the range to the viewer local calendar day', () => {
+    vi.useFakeTimers()
+    try {
+      // 本地 2026-09-13 凌晨 02:30：UTC+8 之类的时区此时 UTC 仍是 09-12。
+      vi.setSystemTime(new Date(2026, 8, 13, 2, 30))
+      const wrapper = mountView()
+      const inputs = wrapper.findAll('input')
+
+      expect(inputs[0].element.value).toBe('2026-09-13')
+      expect(inputs[1].element.value).toBe('2026-09-13')
+    } finally {
+      vi.useRealTimers()
+    }
+  })
+
   it('queries uv/dau for the selected range and renders the readout', async () => {
     const wrapper = mountView()
     const inputs = wrapper.findAll('input')

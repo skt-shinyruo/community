@@ -414,6 +414,13 @@ export function marketOrderCancelConfirmation({ totalAmountText } = {}) {
   }
 }
 
+// 下单数量校验：0 / 负数 / 小数 / 空输入一律内联报错，不再静默按 1 下单。
+export function marketOrderQuantityError(raw) {
+  const value = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim())
+  if (!Number.isInteger(value) || value < 1) return '购买数量必须是大于 0 的整数'
+  return ''
+}
+
 // 管理员裁定（退回买家 / 放款卖家）直接动托管资金：先经确认弹窗复述订单金额与不可撤销后果
 // （延续订单确认 / 取消的确认写法），裁定理由由管理员在弹窗中显式填写，留空不覆盖卖家说明。
 export function marketDisputeResolutionConfirmation({ action, totalAmountText } = {}) {

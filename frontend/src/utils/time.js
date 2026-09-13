@@ -3,7 +3,10 @@
 export function formatTime(value) {
   if (!value) return '-'
   try {
-    return new Date(value).toLocaleString()
+    const date = new Date(value)
+    // Invalid Date 不会抛错而是渲染出 "Invalid Date"，必须显式拦截。
+    if (!Number.isFinite(date.getTime())) return '-'
+    return date.toLocaleString()
   } catch {
     return String(value)
   }
@@ -26,10 +29,11 @@ export function formatTimeAgo(value) {
   return shortDate.format(new Date(t))
 }
 
-// 会话列表时间：当天显示时分，跨天显示日期。
+// 会话列表时间：当天显示时分，跨天显示日期；非法输入兜底为占位符，不渲染 "Invalid Date"。
 export function formatConversationTime(ts) {
   if (!ts) return ''
   const d = new Date(ts)
+  if (!Number.isFinite(d.getTime())) return '-'
   const now = new Date()
   const isToday =
     d.getDate() === now.getDate() && d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear()

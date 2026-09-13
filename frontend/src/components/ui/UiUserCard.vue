@@ -193,18 +193,19 @@ async function toggleBlock() {
   const targetId = resolvedUserId.value
   const authScope = identityScope(auth)
   const requestId = ++actionRequestId
+  const wasBlocked = isBlocked.value
   actionLoading.value = true
   try {
-    if (isBlocked.value) {
+    if (wasBlocked) {
       await unblockUser(targetId)
-      if (!isCurrentAction(requestId, targetId, authScope)) return
-      showToast({ type: 'success', text: '已解除屏蔽' })
     } else {
       await blockUser(targetId)
-      if (!isCurrentAction(requestId, targetId, authScope)) return
-      showToast({ type: 'success', text: '已屏蔽该用户' })
     }
-    await prefs.ensureBlocked(true)
+    if (!isCurrentAction(requestId, targetId, authScope)) return
+    // 读侧屏蔽列表重同步失败不把已成功的写操作报成失败：静默重同步，避免成功 toast 与错误 toast 同时出现。
+    await prefs.ensureBlocked(true, { silent: true }).catch(() => {})
+    if (!isCurrentAction(requestId, targetId, authScope)) return
+    showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
   } catch (e) {
     if (!isCurrentAction(requestId, targetId, authScope)) return
     showErrorToast(e, { type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })

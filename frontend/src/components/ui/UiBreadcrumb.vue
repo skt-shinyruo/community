@@ -4,6 +4,7 @@
       <template v-for="(item, index) in items" :key="index">
         <span v-if="index > 0" class="crumb-sep">/</span>
         <span v-if="index === items.length - 1" class="crumb-text" aria-current="page">{{ item.label }}</span>
+        <span v-else-if="item.disabled" class="crumb-static">{{ item.label }}</span>
         <button
           v-else
           type="button"
@@ -31,9 +32,9 @@ import { getRouteBreadcrumbItems } from '../../router/routeCatalog'
 
 // items 缺省时沿用路由面包屑（首页 + routeCatalog 登记项）；传入 items 进入受控模式，
 // 用于 Drive 文件夹路径这类状态驱动路径：非末级项是可键盘操作的按钮，点击发出 select(index)，
-// 末级项是带 aria-current 的当前位置文本。
+// 标记 disabled 的非末级项渲染为静态文本（用于未知层级的省略占位），末级项是带 aria-current 的当前位置文本。
 const props = defineProps({
-  items: { type: Array, default: null }, // [{ label }]
+  items: { type: Array, default: null }, // [{ label, disabled? }]
   disabled: { type: Boolean, default: false }
 })
 
@@ -69,6 +70,9 @@ const resolvedItems = computed(() => getRouteBreadcrumbItems(String(route?.name 
   color: var(--muted);
   cursor: not-allowed;
   text-decoration: none;
+}
+.crumb-static {
+  color: var(--muted);
 }
 .crumb-sep {
   margin: 0 6px;

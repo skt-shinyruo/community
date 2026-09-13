@@ -160,11 +160,25 @@ describe('usePostDetailActions', () => {
     await subject.model.toggleBlockAuthor()
     expect(blockUser).toHaveBeenCalledWith(AUTHOR_ID)
     expect(toasts.showToast).toHaveBeenCalledWith({ type: 'success', text: '已屏蔽该用户' })
+    expect(prefs.ensureBlocked).toHaveBeenCalledWith(true, { silent: true })
 
     prefs.blockedUserIds = [AUTHOR_ID]
     await subject.model.toggleBlockAuthor()
     expect(unblockUser).toHaveBeenCalledWith(AUTHOR_ID)
     expect(prefs.ensureBlocked).toHaveBeenCalledTimes(2)
+  })
+
+  it('reports a block success only once when the blocklist resync fails silently', async () => {
+    const subject = createSubject()
+    const prefs = useSocialPrefsStore()
+    prefs.ensureBlocked = vi.fn().mockRejectedValue(new Error('blocklist unavailable'))
+
+    await subject.model.toggleBlockAuthor()
+
+    expect(blockUser).toHaveBeenCalledWith(AUTHOR_ID)
+    expect(toasts.showToast).toHaveBeenCalledTimes(1)
+    expect(toasts.showToast).toHaveBeenCalledWith({ type: 'success', text: '已屏蔽该用户' })
+    expect(subject.error.value).toBe('')
   })
 
   it('opens only eligible post/comment editors and submits both edit modes', async () => {

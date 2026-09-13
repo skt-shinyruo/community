@@ -139,4 +139,13 @@ describe('router/navigation', () => {
     expect(authedWithoutUserId.map((it) => it.key)).toEqual(['posts', 'search', 'notices', 'messages', 'me'])
     expect(authedWithoutUserId.find((it) => it.key === 'me')?.to).toEqual({ name: 'wallet' })
   })
+
+  it('getMobileNavigation should keep the me entry active on every admin route', () => {
+    const admin = getMobileNavigation({ authed: true, userId: 8, roles: ['ROLE_ADMIN'] })
+    const me = admin.find((it) => it.key === 'me')
+
+    for (const name of ['moderation', 'analytics', 'userManagement', 'walletAdmin', 'adminMarketDisputes']) {
+      expect(isNavItemActive({ name }, me)).toBe(true)
+    }
+  })
 })

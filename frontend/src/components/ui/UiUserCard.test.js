@@ -4,21 +4,33 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { createPinia, setActivePinia } from 'pinia'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
-const { getUserProfile, listBlockedUsers, blockUser, unblockUser } = vi.hoisted(() => ({
+const { getUserProfile, listBlockedUsers, blockUser, unblockUser, showToast, showErrorToast } = vi.hoisted(() => ({
   getUserProfile: vi.fn(),
   listBlockedUsers: vi.fn(),
   blockUser: vi.fn(),
-  unblockUser: vi.fn()
+  unblockUser: vi.fn(),
+  showToast: vi.fn(),
+  showErrorToast: vi.fn()
 }))
 
 vi.mock('../../api/services/userService', () => ({ getUserProfile }))
 vi.mock('../../api/services/blockService', () => ({ listBlockedUsers, blockUser, unblockUser }))
+vi.mock('../../ui/toastService', () => ({ showToast, showErrorToast, setToastHandler: vi.fn() }))
 
 import UiUserCard from './UiUserCard.vue'
+import { useAuthStore } from '../../stores/auth'
 
-function mountCard(user) {
+const VIEWER_ID = '99999999-9999-7999-8999-999999999999'
+
+function mountCard(user, { authed = false } = {}) {
   const pinia = createPinia()
   setActivePinia(pinia)
+  if (authed) {
+    useAuthStore().installSession({
+      accessToken: 'token-a',
+      me: { userId: VIEWER_ID, username: 'viewer' }
+    })
+  }
 
   return mount(UiUserCard, {
     props: { user },
@@ -81,5 +93,41 @@ describe('UiUserCard', () => {
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('late A')
+  })
+
+  it('shows a single success toast when the block succeeds but the blocklist resync fails', async () => {
+    const target = { id: '33333333-3333-7333-8333-333333333333', username: 'target', createTime: '2026-01-01', likeCount: 0 }
+    const wrapper = mountCard(target, { authed: true })
+    await wrapper.get('.user-card-wrapper').trigger('mouseenter')
+    await flushPromises()
+
+    // 写操作成功、读侧屏蔽列表重同步失败：只出现成功 toast，不再叠加「操作失败」。
+    listBlockedUsers.mockRejectedValueOnce(new Error('blocklist unavailable'))
+    const blockButton = wrapper.findAll('button').find((button) => button.text() === '屏蔽')
+    await blockButton.trigger('click')
+    await flushPromises()
+
+    expect(blockUser).toHaveBeenCalledWith('33333333-3333-7333-8333-333333333333')
+    expect(showToast).toHaveBeenCalledTimes(1)
+    expect(showToast).toHaveBeenCalledWith({ type: 'success', text: '已屏蔽该用户' })
+    expect(showErrorToast).not.toHaveBeenCalled()
+    // 重同步走静默通道，不触发全局错误 toast。
+    expect(listBlockedUsers.mock.calls.at(-1)).toEqual([{ silent: true }])
+  })
+
+  it('shows a single error toast when the block itself fails', async () => {
+    const target = { id: '33333333-3333-7333-8333-333333333333', username: 'target', createTime: '2026-01-01', likeCount: 0 }
+    const wrapper = mountCard(target, { authed: true })
+    await wrapper.get('.user-card-wrapper').trigger('mouseenter')
+    await flushPromises()
+
+    blockUser.mockRejectedValueOnce(new Error('server rejected'))
+    const blockButton = wrapper.findAll('button').find((button) => button.text() === '屏蔽')
+    await blockButton.trigger('click')
+    await flushPromises()
+
+    expect(showToast).not.toHaveBeenCalled()
+    expect(showErrorToast).toHaveBeenCalledTimes(1)
+    expect(showErrorToast).toHaveBeenCalledWith(expect.any(Error), expect.objectContaining({ title: '操作失败' }))
   })
 })

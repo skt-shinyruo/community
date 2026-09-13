@@ -252,7 +252,8 @@ export function useUserProfilePage({ userId: userIdSource }) {
     const wasBlocked = prefs.blockedSet.has(action.targetId)
     try {
       await (wasBlocked ? unblockUser(action.targetId) : blockUser(action.targetId))
-      if (action.authScope === authScope.value) await prefs.ensureBlocked(true)
+      // 读侧屏蔽列表重同步失败不把已成功的写操作报成失败：静默重同步，成功反馈只出现一次。
+      if (action.authScope === authScope.value) await prefs.ensureBlocked(true, { silent: true }).catch(() => {})
       if (!actionIsCurrent(action)) return
       showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
     } catch (cause) {

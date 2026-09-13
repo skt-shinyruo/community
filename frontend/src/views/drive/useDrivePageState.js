@@ -99,7 +99,7 @@ export function useDrivePageState() {
     }
   }
 
-  const workflowContext = { workspace: workspaceState, session, runAction, reloadPage: reload, confirm, notify }
+  const workflowContext = { workspace: workspaceState, session, runAction, reloadPage: reload, confirm, notify, notifyError }
   entryWorkflow = useDriveEntryWorkflow(workflowContext)
   uploadWorkflow = useDriveUploadWorkflow({ ...workflowContext, cancelAction })
   shareWorkflow = useDriveShareWorkflow(workflowContext)
@@ -116,6 +116,7 @@ export function useDrivePageState() {
     renameDraft: workspaceState.renameDraft,
     currentFolderLabel: workspaceState.currentFolderLabel,
     breadcrumbItems: workspaceState.breadcrumbItems,
+    breadcrumbNav: workspaceState.breadcrumbNav,
     visibleEntries: workspaceState.visibleEntries,
     selectedEntry: workspaceState.selectedEntry,
     select: workspaceState.selectEntry,

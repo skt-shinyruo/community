@@ -33,7 +33,7 @@ function statusLabel(status) {
   return '状态待确认'
 }
 
-export function useDriveShareWorkflow({ workspace, session, runAction, reloadPage, confirm, notify }) {
+export function useDriveShareWorkflow({ workspace, session, runAction, reloadPage, confirm, notify, notifyError }) {
   const requestTracker = createLatestRequestTracker()
   const password = ref('')
   const expiresAt = ref(toDatetimeLocalValue(new Date(Date.now() + ONE_DAY_MS)))
@@ -142,7 +142,13 @@ export function useDriveShareWorkflow({ workspace, session, runAction, reloadPag
     if (!item?.shareUrl) return
     const scope = session.capture()
     if (typeof navigator !== 'undefined' && navigator.clipboard?.writeText) {
-      await navigator.clipboard.writeText(item.shareUrl)
+      // 剪贴板可能因权限拒绝或文档失焦而拒绝：给出可见反馈并退化为手动复制提示。
+      try {
+        await navigator.clipboard.writeText(item.shareUrl)
+      } catch {
+        if (session.isCurrent(scope)) notifyError(`复制失败，请手动复制：${item.shareUrl}`)
+        return
+      }
       if (session.isCurrent(scope)) notify('分享链接已复制')
       return
     }

@@ -133,4 +133,46 @@ describe('inboxUnread store', () => {
     expect(store.noticeUnread).toBe(1)
     expect(store.messageUnread).toBe(2)
   })
+
+  it('shares one in-flight refresh round when login triggers fire at once', async () => {
+    const auth = useAuthStore()
+    const store = useInboxUnreadStore()
+    login(auth)
+    topicSummary.mockResolvedValueOnce({ data: [{ topic: 'comment', unreadCount: 2 }] })
+    getImUnreadSummary.mockResolvedValueOnce({ rooms: [], conversations: [{ conversationId: 'c1', unreadCount: 5 }] })
+
+    // 身份 watcher、窗口聚焦与落地页首载在同一瞬间同时触发：只发起一轮请求。
+    await Promise.all([store.refresh(), store.refresh()])
+
+    expect(topicSummary).toHaveBeenCalledTimes(1)
+    expect(getImUnreadSummary).toHaveBeenCalledTimes(1)
+    expect(store.noticeUnread).toBe(2)
+    expect(store.messageUnread).toBe(5)
+
+    // 在途刷新完成后，新的触发（如已读操作）正常再刷一轮。
+    await store.refresh()
+    expect(topicSummary).toHaveBeenCalledTimes(2)
+  })
+
+  it('does not share in-flight refreshes across identity scopes', async () => {
+    const auth = useAuthStore()
+    const store = useInboxUnreadStore()
+    login(auth, { token: 'token-a', userId: 'user-a' })
+    const staleNotices = deferred()
+    topicSummary.mockReturnValueOnce(staleNotices.promise)
+    const staleRefresh = store.refresh()
+
+    // 换账号后触发的是新身份 scope 的刷新，不复用旧账号的在途请求。
+    login(auth, { token: 'token-b', userId: 'user-b' })
+    topicSummary.mockResolvedValueOnce({ data: [{ topic: 'comment', unreadCount: 1 }] })
+    getImUnreadSummary.mockResolvedValueOnce({ rooms: [], conversations: [{ conversationId: 'c9', unreadCount: 2 }] })
+    await store.refresh()
+
+    staleNotices.resolve({ data: [{ topic: 'like', unreadCount: 8 }] })
+    await staleRefresh
+
+    expect(topicSummary).toHaveBeenCalledTimes(2)
+    expect(store.noticeUnread).toBe(1)
+    expect(store.messageUnread).toBe(2)
+  })
 })

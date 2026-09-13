@@ -69,4 +69,25 @@ describe('UiBreadcrumb', () => {
       expect(button.attributes('disabled')).toBeDefined()
     }
   })
+
+  it('renders disabled middle items as static text without emitting select', async () => {
+    const onSelect = vi.fn()
+    const wrapper = mount(UiBreadcrumb, {
+      props: {
+        items: [{ label: '我的文件' }, { label: '…', disabled: true }, { label: '深层文件夹' }],
+        onSelect
+      },
+      global: { stubs: { RouterLink: routerLinkStub } }
+    })
+
+    // 未知层级的省略占位渲染为静态文本，不是可聚焦按钮。
+    const buttons = wrapper.findAll('button')
+    expect(buttons.map((button) => button.text())).toEqual(['我的文件'])
+    expect(wrapper.text()).toContain('…')
+    expect(wrapper.get('[aria-current="page"]').text()).toBe('深层文件夹')
+
+    await buttons[0].trigger('click')
+    expect(onSelect).toHaveBeenCalledTimes(1)
+    expect(onSelect).toHaveBeenCalledWith(0)
+  })
 })

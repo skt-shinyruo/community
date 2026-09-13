@@ -308,7 +308,8 @@ export function getMobileNavigation(ctx = {}) {
     ...(profile ? [profile] : []),
     ...(((personalGroupDef && personalGroupDef.items) || []).filter((item) => item?.key === 'wallet' || item?.key === 'drive' || item?.key === 'settings')),
     ...(((accountGroupDef && accountGroupDef.items) || []).filter((item) => item?.key === 'login')),
-    ...(((adminGroupDef && adminGroupDef.items) || []).filter((item) => item?.key === 'userManagement'))
+    // 移动端底栏没有管理入口：全部管理路由都归入「我」的选中态，保持一致。
+    ...(((adminGroupDef && adminGroupDef.items) || []))
   ])
 
   const me = {

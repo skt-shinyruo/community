@@ -226,16 +226,13 @@ export function usePostDetailActions({
     const wasBlocked = isBlockedAuthor.value
     loading.value = true
     try {
-      if (wasBlocked) {
-        await unblockUser(userId)
-        if (!isCurrentViewScope(scope)) return
-        showToast({ type: 'success', text: '已解除屏蔽' })
-      } else {
-        await blockUser(userId)
-        if (!isCurrentViewScope(scope)) return
-        showToast({ type: 'success', text: '已屏蔽该用户' })
-      }
-      await prefs.ensureBlocked(true)
+      if (wasBlocked) await unblockUser(userId)
+      else await blockUser(userId)
+      if (!isCurrentViewScope(scope)) return
+      // 读侧屏蔽列表重同步失败不把已成功的写操作报成失败：静默重同步，成功 toast 只出现一次。
+      await prefs.ensureBlocked(true, { silent: true }).catch(() => {})
+      if (!isCurrentViewScope(scope)) return
+      showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
     } catch (cause) {
       if (isCurrentViewScope(scope)) error.value = cause?.message || '屏蔽操作失败'
     } finally {

@@ -161,7 +161,7 @@
                     <UiBreadcrumb
                       :items="breadcrumbNavItems"
                       :disabled="page.isBusy"
-                      @select="workspace.goBreadcrumb"
+                      @select="onBreadcrumbSelect"
                     />
                   </nav>
 
@@ -300,8 +300,15 @@ const modeTabs = [
 ]
 
 const breadcrumbNavItems = computed(() =>
-  workspace.breadcrumbItems.map((item) => ({ label: item.name }))
+  workspace.breadcrumbNav.map((item) => ({ label: item.label, disabled: item.trailIndex == null }))
 )
+
+// 面包屑导航项携带 trailIndex：省略占位与当前位置（trailIndex 为空）不触发导航。
+function onBreadcrumbSelect(index) {
+  const item = workspace.breadcrumbNav[index]
+  if (!item || item.trailIndex == null) return
+  workspace.goBreadcrumb(item.trailIndex)
+}
 
 const fileInputRef = ref(null)
 

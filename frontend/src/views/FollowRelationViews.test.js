@@ -385,6 +385,28 @@ describe('follow relation load-more feed', () => {
     expect(wrapper.vm.items[0].hasFollowed).toBe(false)
   })
 
+  it('reloads with the new policy when relationKind switches on the same component instance', async () => {
+    listFollowees.mockResolvedValue(relationPage([relation(0)], '', 'trace-followees'))
+    listFollowers.mockResolvedValue(relationPage([relation(5)], '', 'trace-followers'))
+
+    const wrapper = mountView('followees')
+    await flushPromises()
+    expect(listFollowees).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.items.map((item) => item.targetId)).toEqual([relation(0).targetId])
+    expect(wrapper.text()).toContain('关注')
+
+    // 两条路由复用同一组件实例：切换类型必须重置并按新类型重取。
+    await wrapper.setProps({ relationKind: 'followers' })
+    await flushPromises()
+
+    expect(listFollowees).toHaveBeenCalledTimes(1)
+    expect(listFollowers).toHaveBeenCalledTimes(1)
+    expect(wrapper.vm.items.map((item) => item.targetId)).toEqual([relation(5).targetId])
+    expect(wrapper.text()).toContain('粉丝')
+    expect(wrapper.vm.error).toBe('')
+    expect(wrapper.vm.pageError).toBe('')
+  })
+
   it.each([
     ['followees', listFollowees],
     ['followers', listFollowers]

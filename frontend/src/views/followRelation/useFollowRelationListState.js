@@ -52,7 +52,8 @@ export function useFollowRelationListState({ relationKind, profileUserId }) {
   let mutationGeneration = 0
   const activeMutations = new Map()
 
-  const viewScope = computed(() => [userId.value, identityScope(auth)].join(':'))
+  // relationKind 属于视图 scope：两条路由复用同一组件实例，切换关注/粉丝必须重置并重取。
+  const viewScope = computed(() => [relationKind.value, userId.value, identityScope(auth)].join(':'))
   const requestTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 
   async function load({ append = false } = {}) {

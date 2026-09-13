@@ -25,7 +25,7 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
       this.blockedRequestId += 1
     },
 
-    async ensureBlocked(force = false) {
+    async ensureBlocked(force = false, { silent = false } = {}) {
       const auth = useAuthStore()
       const requestScope = identityScope(auth)
       if (this.blockedScope !== requestScope) {
@@ -41,10 +41,10 @@ export const useSocialPrefsStore = defineStore('socialPrefs', {
       if (this.blockedLoaded && !force) return
 
       const requestId = ++this.blockedRequestId
-      const resp = await listBlockedUsers()
+      const resp = await listBlockedUsers({ silent })
       const currentScope = identityScope(useAuthStore())
       if (currentScope !== requestScope) {
-        return this.ensureBlocked(false)
+        return this.ensureBlocked(false, { silent })
       }
       if (requestId !== this.blockedRequestId) return
       this.blockedUserIds = Array.isArray(resp?.data) ? resp.data : []

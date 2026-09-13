@@ -28,6 +28,8 @@ function scrollToTop() {
 }
 
 onMounted(() => {
+  // 挂载时即按当前滚动位置初始化显隐（例如恢复滚动位置后页面已在下方），不等到首次滚动事件。
+  checkScroll()
   window.addEventListener('scroll', checkScroll)
 })
 

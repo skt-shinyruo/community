@@ -551,4 +551,25 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.vm.model.actionLoading).toBe(false)
     expect(wrapper.vm.model.error).toBe('')
   })
+
+  it('shows a single success toast when blocking succeeds but the blocklist resync fails', async () => {
+    authState.accessToken = 'viewer-token'
+    authState.userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+    authState.authed = true
+    authState.identityUserId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
+
+    const wrapper = mountProfile(userId)
+    await flushPromises()
+
+    // 写操作成功、读侧屏蔽列表重同步失败：只出现成功 toast，不再叠加错误反馈。
+    socialPrefsState.ensureBlocked.mockRejectedValueOnce(new Error('blocklist unavailable'))
+    await wrapper.vm.actions.toggleBlocked()
+    await flushPromises()
+
+    expect(blockUser).toHaveBeenCalledWith(userId)
+    expect(socialPrefsState.ensureBlocked).toHaveBeenLastCalledWith(true, { silent: true })
+    expect(showToast).toHaveBeenCalledTimes(1)
+    expect(showToast).toHaveBeenCalledWith({ type: 'success', text: '已屏蔽该用户' })
+    expect(wrapper.vm.model.error).toBe('')
+  })
 })

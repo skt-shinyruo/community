@@ -446,6 +446,116 @@ describe('DriveView', () => {
     expect(listDriveEntries).toHaveBeenLastCalledWith({ parentId: '' })
   })
 
+  it('elides the unknown prefix when entering a folder from global search results', async () => {
+    const { searchDriveEntries } = await import('../api/services/driveService')
+    listDriveEntries.mockResolvedValue({
+      data: [{ entryId: 'folder-a', name: 'Folder A', type: 'FOLDER', status: 'ACTIVE', parentId: '' }],
+      traceId: ''
+    })
+    const wrapper = mountDrive(pinia)
+    await flushPromises()
+
+    // 全局搜索命中了其他分支的文件夹（parentId 既不是当前目录也不是根目录）。
+    searchDriveEntries.mockResolvedValueOnce({
+      data: [{ entryId: 'folder-deep', name: '深层文件夹', type: 'FOLDER', status: 'ACTIVE', parentId: 'folder-other' }],
+      traceId: ''
+    })
+    await wrapper.find('.drive-search input').setValue('深层')
+    await findButton(wrapper, '搜索').trigger('click')
+    await flushPromises()
+    expect(searchDriveEntries).toHaveBeenCalledWith({ keyword: '深层' })
+
+    await findButton(wrapper, '进入').trigger('click')
+    await flushPromises()
+    expect(listDriveEntries).toHaveBeenLastCalledWith({ parentId: 'folder-deep' })
+
+    // 面包屑不虚构「Folder A / 深层文件夹」：根级保持可导航，未知前缀用省略占位。
+    const crumbs = wrapper.get('.drive-path nav').findAll('button')
+    expect(crumbs.map((crumb) => crumb.text())).toEqual(['我的文件', '…', '深层文件夹'])
+    expect(wrapper.text()).not.toContain('我的文件 / 深层文件夹')
+
+    await crumbs[0].trigger('click')
+    await flushPromises()
+    expect(listDriveEntries).toHaveBeenLastCalledWith({ parentId: '' })
+    expect(wrapper.get('.drive-path nav').findAll('button').map((crumb) => crumb.text())).toEqual(['我的文件'])
+  })
+
+  it('keeps the verified hierarchy when a search hit is a direct child of the current folder', async () => {
+    const { searchDriveEntries } = await import('../api/services/driveService')
+    listDriveEntries.mockResolvedValue({
+      data: [{ entryId: 'folder-a', name: 'Folder A', type: 'FOLDER', status: 'ACTIVE', parentId: '' }],
+      traceId: ''
+    })
+    const wrapper = mountDrive(pinia)
+    await flushPromises()
+    await findButton(wrapper, '进入').trigger('click')
+    await flushPromises()
+
+    searchDriveEntries.mockResolvedValueOnce({
+      data: [{ entryId: 'folder-inner', name: 'Inner', type: 'FOLDER', status: 'ACTIVE', parentId: 'folder-a' }],
+      traceId: ''
+    })
+    await wrapper.find('.drive-search input').setValue('Inner')
+    await findButton(wrapper, '搜索').trigger('click')
+    await flushPromises()
+
+    await findButton(wrapper, '进入').trigger('click')
+    await flushPromises()
+
+    const crumbs = wrapper.get('.drive-path nav').findAll('button')
+    expect(crumbs.map((crumb) => crumb.text())).toEqual(['我的文件', 'Folder A', 'Inner'])
+  })
+
+  it('falls back to a visible manual-copy toast when the clipboard write is rejected', async () => {
+    listDriveShares.mockResolvedValue({
+      data: {
+        items: [{
+          shareId: 'share-1',
+          entryId: 'file-1',
+          shareToken: 'token-a',
+          entryName: 'shared.txt',
+          entryType: 'FILE',
+          expiresAt: '2026-05-10T00:00:00Z',
+          status: 'ACTIVE'
+        }],
+        hasNext: false,
+        page: 0,
+        size: 20
+      },
+      traceId: ''
+    })
+    const writeText = vi.fn().mockResolvedValue(undefined)
+    const originalClipboard = navigator.clipboard
+    Object.defineProperty(navigator, 'clipboard', { value: { writeText }, configurable: true })
+    try {
+      const wrapper = mountDrive(pinia)
+      await flushPromises()
+      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+      await vi.waitFor(() => expect(wrapper.text()).toContain('shared.txt'))
+      await vi.waitFor(() => expect(findButton(wrapper, '复制链接').attributes('disabled')).toBeUndefined())
+
+      await findButton(wrapper, '复制链接').trigger('click')
+      await flushPromises()
+      expect(writeText).toHaveBeenCalledWith(expect.stringContaining('/#/drive/s/token-a'))
+      expect(showToast).toHaveBeenCalledWith({ type: 'success', text: '分享链接已复制' })
+
+      // 剪贴板权限拒绝 / 文档失焦：给出可见反馈并退化为手动复制提示。
+      writeText.mockRejectedValueOnce(new Error('denied'))
+      await findButton(wrapper, '复制链接').trigger('click')
+      await flushPromises()
+      expect(showToast).toHaveBeenCalledWith({
+        type: 'error',
+        text: expect.stringContaining('复制失败，请手动复制')
+      })
+      expect(showToast).toHaveBeenCalledWith({
+        type: 'error',
+        text: expect.stringContaining('/#/drive/s/token-a')
+      })
+    } finally {
+      Object.defineProperty(navigator, 'clipboard', { value: originalClipboard, configurable: true })
+    }
+  })
+
   it('does not let a previous identity load overwrite the refreshed drive', async () => {
     const previousGenerationLoad = deferred()
     listDriveEntries

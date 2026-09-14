@@ -318,6 +318,25 @@ class ImCoreApiControllerTest {
     }
 
     @Test
+    void room_create_shouldExposeRoomIdField() throws Exception {
+        UUID owner = uuid(21);
+
+        String res = mockMvc.perform(post("/api/im/rooms")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content("{\"name\":\"contract-room\"}")
+                        .header("Authorization", bearer(owner)))
+                .andExpect(status().isOk())
+                .andReturn()
+                .getResponse()
+                .getContentAsString();
+        JsonNode json = objectMapper.readTree(res);
+        assertThat(json.path("code").asInt(-1)).isEqualTo(0);
+        JsonNode data = json.path("data");
+        assertThat(data.size()).isEqualTo(1);
+        assertThat(UUID.fromString(data.path("roomId").asText())).isNotNull();
+    }
+
+    @Test
     void room_history_and_markRead_should_require_membership() throws Exception {
         UUID owner = uuid(1);
         UUID member = uuid(2);

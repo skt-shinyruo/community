@@ -11,7 +11,6 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
-import java.util.List;
 import java.util.UUID;
 
 @RestController
@@ -25,44 +24,11 @@ public class UnreadController {
     }
 
     @GetMapping("/summary")
-    public Result<UnreadSummaryResponse> summary(
+    public Result<UnreadSummaryResult> summary(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "limit", required = false, defaultValue = "500") int limit
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        return Result.ok(toResponse(unreadApplicationService.summary(me, limit)));
-    }
-
-    private static UnreadSummaryResponse toResponse(UnreadSummaryResult summary) {
-        return new UnreadSummaryResponse(
-                summary.rooms().stream()
-                        .map(item -> new RoomUnreadItem(
-                                item.roomId(),
-                                item.lastSeq(),
-                                item.lastReadSeq(),
-                                item.unreadCount()
-                        ))
-                        .toList(),
-                summary.conversations().stream()
-                        .map(item -> new ConversationUnreadItem(
-                                item.conversationId(),
-                                item.lastSeq(),
-                                item.lastReadSeq(),
-                                item.unreadCount()
-                        ))
-                        .toList()
-        );
-    }
-
-    public record UnreadSummaryResponse(
-            List<RoomUnreadItem> rooms,
-            List<ConversationUnreadItem> conversations
-    ) {
-    }
-
-    public record RoomUnreadItem(UUID roomId, long lastSeq, long lastReadSeq, long unreadCount) {
-    }
-
-    public record ConversationUnreadItem(String conversationId, long lastSeq, long lastReadSeq, long unreadCount) {
+        return Result.ok(unreadApplicationService.summary(me, limit));
     }
 }

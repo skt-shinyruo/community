@@ -22,49 +22,45 @@ public class ConversationController {
     }
 
     @GetMapping
-    public Result<List<ConversationListItem>> listConversations(
+    public Result<List<ConversationResults.ListItem>> listConversations(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "page", required = false, defaultValue = "0") int page,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        return Result.ok(conversationApplicationService.listConversations(me, page, size).stream()
-                .map(ConversationController::toListItem)
-                .toList());
+        return Result.ok(conversationApplicationService.listConversations(me, page, size));
     }
 
     @GetMapping("/page")
-    public Result<ConversationPageResponse> listConversationPage(
+    public Result<ConversationResults.Page> listConversationPage(
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "cursor", required = false, defaultValue = "") String cursor,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        return Result.ok(toConversationPageResponse(conversationApplicationService.listConversationPage(me, cursor, size)));
+        return Result.ok(conversationApplicationService.listConversationPage(me, cursor, size));
     }
 
     @GetMapping("/{conversationId}/messages/history")
-    public Result<ConversationHistoryResponse> listMessageHistory(
+    public Result<ConversationResults.History> listMessageHistory(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String conversationId,
             @RequestParam(name = "beforeSeq", required = false) Long beforeSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        return Result.ok(toConversationHistoryResponse(
-                conversationApplicationService.listMessageHistory(me, conversationId, beforeSeq, limit)
-        ));
+        return Result.ok(conversationApplicationService.listMessageHistory(me, conversationId, beforeSeq, limit));
     }
 
     @GetMapping("/{conversationId}/messages")
-    public Result<ConversationMessagesResponse> listMessages(
+    public Result<ConversationResults.Messages> listMessages(
             @AuthenticationPrincipal Jwt jwt,
             @PathVariable String conversationId,
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
         UUID me = CurrentUser.userIdOrThrow(jwt);
-        return Result.ok(toMessagesResponse(conversationApplicationService.listMessages(me, conversationId, afterSeq, limit)));
+        return Result.ok(conversationApplicationService.listMessages(me, conversationId, afterSeq, limit));
     }
 
     @PostMapping("/{conversationId}/read")
@@ -79,131 +75,6 @@ public class ConversationController {
         return Result.ok();
     }
 
-    private static ConversationListItem toListItem(ConversationResults.ListItem item) {
-        return new ConversationListItem(
-                item.conversationId(),
-                item.otherUserId(),
-                item.lastSeq(),
-                item.lastReadSeq(),
-                item.unreadCount(),
-                toLastMessage(item.lastMessage())
-        );
-    }
-
-    private static LastMessage toLastMessage(ConversationResults.LastMessage lastMessage) {
-        if (lastMessage == null) {
-            return null;
-        }
-        return new LastMessage(
-                lastMessage.messageId(),
-                lastMessage.fromUserId(),
-                lastMessage.toUserId(),
-                lastMessage.content(),
-                lastMessage.createdAtEpochMs()
-        );
-    }
-
-    private static ConversationPageResponse toConversationPageResponse(ConversationResults.Page page) {
-        return new ConversationPageResponse(
-                page.items().stream()
-                        .map(ConversationController::toListItem)
-                        .toList(),
-                page.nextCursor(),
-                page.hasMore()
-        );
-    }
-
-    private static ConversationMessagesResponse toMessagesResponse(ConversationResults.Messages messages) {
-        return new ConversationMessagesResponse(
-                messages.conversationId(),
-                messages.items().stream()
-                        .map(ConversationController::toMessageItem)
-                        .toList(),
-                messages.nextAfterSeq(),
-                messages.lastReadSeq()
-        );
-    }
-
-    private static ConversationHistoryResponse toConversationHistoryResponse(ConversationResults.History history) {
-        return new ConversationHistoryResponse(
-                history.conversationId(),
-                history.items().stream()
-                        .map(ConversationController::toMessageItem)
-                        .toList(),
-                history.nextBeforeSeq(),
-                history.hasMore(),
-                history.lastReadSeq()
-        );
-    }
-
-    private static ConversationMessageItem toMessageItem(ConversationResults.MessageItem item) {
-        return new ConversationMessageItem(
-                item.conversationId(),
-                item.seq(),
-                item.messageId(),
-                item.fromUserId(),
-                item.toUserId(),
-                item.content(),
-                item.clientMsgId(),
-                item.createdAtEpochMs()
-        );
-    }
-
     public record MarkReadRequest(long lastReadSeq) {
-    }
-
-    public record ConversationMessagesResponse(
-            String conversationId,
-            List<ConversationMessageItem> items,
-            long nextAfterSeq,
-            long lastReadSeq
-    ) {
-    }
-
-    public record ConversationPageResponse(
-            List<ConversationListItem> items,
-            String nextCursor,
-            boolean hasMore
-    ) {
-    }
-
-    public record ConversationHistoryResponse(
-            String conversationId,
-            List<ConversationMessageItem> items,
-            Long nextBeforeSeq,
-            boolean hasMore,
-            long lastReadSeq
-    ) {
-    }
-
-    public record ConversationListItem(
-            String conversationId,
-            UUID otherUserId,
-            long lastSeq,
-            long lastReadSeq,
-            long unreadCount,
-            LastMessage lastMessage
-    ) {
-    }
-
-    public record LastMessage(
-            UUID messageId,
-            UUID fromUserId,
-            UUID toUserId,
-            String content,
-            long createdAtEpochMs
-    ) {
-    }
-
-    public record ConversationMessageItem(
-            String conversationId,
-            long seq,
-            UUID messageId,
-            UUID fromUserId,
-            UUID toUserId,
-            String content,
-            String clientMsgId,
-            long createdAtEpochMs
-    ) {
     }
 }

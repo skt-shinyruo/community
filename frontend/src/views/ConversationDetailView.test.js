@@ -452,7 +452,7 @@ describe('ConversationDetailView', () => {
       fromUserId: '22222222-2222-7222-8222-222222222222',
       toUserId: '11111111-1111-7111-8111-111111111111',
       content: '乱序先到的 10',
-      createdAtEpochMillis: 1774060188920
+      createdAtEpochMs: 1774060188920
     })
     await flushPromises()
     expect(wrapper.text()).toContain('乱序先到的 10')
@@ -467,7 +467,7 @@ describe('ConversationDetailView', () => {
       fromUserId: '22222222-2222-7222-8222-222222222222',
       toUserId: '11111111-1111-7111-8111-111111111111',
       content: '补回缺口的 9',
-      createdAtEpochMillis: 1774060187920
+      createdAtEpochMs: 1774060187920
     })
     await flushPromises()
     expect(markImConversationRead).toHaveBeenCalledTimes(2)
@@ -497,7 +497,7 @@ describe('ConversationDetailView', () => {
       fromUserId: '11111111-1111-7111-8111-111111111111',
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: '回声先到的消息',
-      createdAtEpochMillis: 1774060187920
+      createdAtEpochMs: 1774060187920
     })
     await flushPromises()
 
@@ -558,7 +558,7 @@ describe('ConversationDetailView', () => {
       fromUserId: '11111111-1111-7111-8111-111111111111',
       toUserId: '22222222-2222-7222-8222-222222222222',
       content: '回执先到的消息',
-      createdAtEpochMillis: 1774060187920
+      createdAtEpochMs: 1774060187920
     })
     await flushPromises()
     expect(wrapper.findAll('.message-row')).toHaveLength(3)
@@ -893,7 +893,7 @@ describe('ConversationDetailView', () => {
     expect(wrapper.text()).not.toContain('发送超时')
   })
 
-  it('keeps the delivery fallback armed when the committed frame is incomplete', async () => {
+  it('fails a pending send when no receipt arrives before the fallback timeout', async () => {
     useViewFakeTimers()
     imRealtimeClient.state.connected = true
     imRealtimeClient.state.authed = true
@@ -901,17 +901,12 @@ describe('ConversationDetailView', () => {
     const wrapper = mountView(conversationId)
     await flushPromises()
 
-    await wrapper.get('textarea').setValue('回执残缺的消息')
+    await wrapper.get('textarea').setValue('没有回执的消息')
     await wrapper.get('button[aria-label="发送消息"]').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('发送中')
 
-    // 残缺 committed 帧无法在本地落账：不算确认，发送中状态不能被永远挂起。
-    listeners.sendCommitted({ cmd: 'sendPrivateText', clientMsgId: 'client-msg-1' })
-    await flushPromises()
-    expect(wrapper.text()).toContain('发送中')
-    expect(wrapper.text()).not.toContain('发送失败')
-
+    // 帧写入后连接立刻死亡时不会有任何回执：pending 不能永远挂起，兜底超时转失败态。
     await vi.advanceTimersByTimeAsync(10_000)
     await flushPromises()
     expect(wrapper.text()).toContain('发送失败')
@@ -1166,14 +1161,14 @@ describe('ConversationDetailView', () => {
     expect(listImConversationMessages).toHaveBeenCalledWith(conversationId, { afterSeq: 80, limit: 100 })
   })
 
-  it('renders realtime private messages carrying the production createdAtEpochMillis field', async () => {
+  it('renders realtime private messages from normalized client events', async () => {
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
     const wrapper = mountView(conversationId)
     const chatArea = wrapper.get('.chat-area').element
     Object.defineProperty(chatArea, 'scrollHeight', { configurable: true, value: 640 })
     await flushPromises()
 
-    // 生产 WS privateMessage 帧的时间戳字段是 createdAtEpochMillis（与 HTTP history 不同名）。
+    // realtime client 已把 WS 帧的 createdAtEpochMillis 归一为与 HTTP history 同名的 createdAtEpochMs。
     await listeners.privateMessage({
       type: 'privateMessage',
       conversationId,
@@ -1182,7 +1177,7 @@ describe('ConversationDetailView', () => {
       fromUserId: '22222222-2222-7222-8222-222222222222',
       toUserId: '11111111-1111-7111-8111-111111111111',
       content: '实时帧时间戳字段',
-      createdAtEpochMillis: 1774060187920
+      createdAtEpochMs: 1774060187920
     })
     await flushPromises()
 
@@ -1197,6 +1192,7 @@ describe('ConversationDetailView', () => {
     mountView(conversationId)
     await flushPromises()
 
+    // handler 对无法落账的消息必须 reject（realtime client 据此上报 listener 错误），不能静默吞掉。
     await expect(listeners.privateMessage({
       conversationId,
       messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',

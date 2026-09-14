@@ -15,7 +15,6 @@ import {
   findLatestConversationSeq,
   findOwnPendingEchoMatch,
   mapConversationMessage,
-  mapRealtimeConversationMessage,
   mergeConversationMessages,
   parseConversationTargetId,
   retryFailedConversationMessage
@@ -333,11 +332,12 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
     scrollToBottom
   })
 
-  async function handlePrivateMessage(rawMessage) {
+  async function handlePrivateMessage(frame) {
     const context = captureViewContext()
-    if (!auth.authed || !context.targetId || !rawMessage || rawMessage.conversationId !== context.conversationId) return
-    const seq = Number(rawMessage?.seq || 0)
-    const message = mapRealtimeConversationMessage(rawMessage)
+    if (!auth.authed || !context.targetId || !frame || frame.conversationId !== context.conversationId) return
+    // 入站帧已在 realtime client 内完成校验与归一（含 createdAtEpochMs 时间戳字段），
+    // 这里与 HTTP history 共用同一份消息映射。
+    const message = mapConversationMessage(frame)
     const belongsToCurrentParticipants =
       (sameOpaqueId(message.fromId, context.meId) && sameOpaqueId(message.toId, context.targetId)) ||
       (sameOpaqueId(message.fromId, context.targetId) && sameOpaqueId(message.toId, context.meId))
@@ -345,7 +345,7 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
 
     // 自己消息的服务端回声（不携带 clientMsgId）与 committed 回执可能乱序：
     // 认领仍在途的 pending 气泡并直接确认，避免回声先到时出现短暂的重复气泡。
-    let incoming = { ...message, seq }
+    let incoming = message
     const pendingEcho = findOwnPendingEchoMatch(items.value, message)
     const echoClientMsgId = pendingEcho ? String(pendingEcho.clientMsgId || '') : ''
     if (pendingEcho && pendingClientMsgIds.has(echoClientMsgId)) {
@@ -377,13 +377,9 @@ export function useConversationDetailWorkflow({ conversationId: conversationIdSo
       item.clientMsgId === clientMsgId && sameOpaqueId(item.fromId, meId.value)
     )
     if (!pending) return
-    try {
-      items.value = mergeConversationMessages(items.value, [commitPendingConversationMessage(pending, message)])
-    } catch {
-      // 残缺的 committed 帧无法在本地落账，不算确认：保留 pending 与兜底计时，
-      // 由超时转失败或重连 backfill 以 HTTP 事实收敛。
-      return
-    }
+    // committed 事件由 realtime client 归一（seq / messageId 已校验），这里必然能落账；
+    // 收不到回执的 pending 仍由超时兜底与重连 backfill 以 HTTP 事实收敛。
+    items.value = mergeConversationMessages(items.value, [commitPendingConversationMessage(pending, message)])
     pendingSendTimers.disarm(clientMsgId)
     pendingClientMsgIds.delete(clientMsgId)
   }

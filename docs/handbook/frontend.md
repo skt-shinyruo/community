@@ -14,7 +14,7 @@
 | 高风险写尝试 | `frontend/src/api/writeAttempt.js` |
 | 上传链路 | `frontend/src/api/uploadSession.js`、`frontend/src/api/uploadTransport.js` |
 | API service | `frontend/src/api/services/*.js` |
-| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js`、`frontend/src/views/conversationDetailPendingSends.js`、`frontend/src/views/conversationDetailReadMarker.js` |
+| IM 长连与会话详情流程 | `frontend/src/im/imRealtimeClient.js`、`frontend/src/im/imRealtimeFrames.js`、`frontend/src/views/useConversationDetailWorkflow.js`、`frontend/src/views/conversationDetailState.js`、`frontend/src/views/conversationDetailPendingSends.js`、`frontend/src/views/conversationDetailReadMarker.js` |
 | 页面纯状态 | `frontend/src/views/*State.js` |
 | 全局读侧缓存 | `frontend/src/stores/*.js` |
 
@@ -154,7 +154,8 @@ reject 回执直接解除兜底计时，重连 backfill 命中后把 clientMsgId
 sendPrivateText command（IM 幂等键语义，不生成新 key），committed 回执与 HTTP backfill 仍经
 `messageIdentity` 别名合并，重试不产生重复消息。发送成功后清除上一次残留的行内错误文案。
 视图不承载 IM 协议或状态机：会话 bootstrap
-（`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，pending 回执兜底计时由
+（`/api/im/sessions` + ticket）、重连退避和帧编解码留在 `imRealtimeClient`，入站帧的版本闸门、
+字段校验与归一收在 `imRealtimeFrames.js` 一个 seam，pending 回执兜底计时由
 `conversationDetailPendingSends.js` 承载，页面流程继续由
 `useConversationDetailWorkflow.js` 的 `model/actions/lifecycle`（新增 `retrySend`）承载。
 
@@ -353,15 +354,40 @@ connect(accessToken)
 - 断开后按指数退避重连，最大基础延迟 5 秒并带 jitter。
 - `sendPrivateText` 和 `sendRoomText` 会生成或复用 `clientMsgId`。
 
+入站帧在一个 seam 内归一（`frontend/src/im/imRealtimeFrames.js` 的 `normalizeInboundFrame`）：
+先过 `schemaVersion: 1` 版本闸门（版本缺失或非法 → `protocolError` 事件 + 按 1002 关闭连接），
+再对已知帧做必填字段与精确 JSON 类型校验，通过才归一为语义事件。数据帧的字段级 malformed 只产生
+`protocolError` 事件（`invalid_frame`），连接保持可用；握手帧（`connected` / connect `reject`）
+malformed 额外按 1002 关闭连接，否则开着 socket 不发认证、重连又只由 onclose 触发，客户端会永远
+卡在「认证中」。消费方只订阅归一后的语义事件，不再解析
+raw wire fields：
+
+- `stateChanged`：`{ connected, authed, userId, sessionId }`（连接生命周期与 `connected` /
+  connect `reject` 帧驱动；`authed: false -> true` 上升沿触发会话详情的重连 backfill）。
+- `privateMessage`：`{ conversationId, seq, messageId, fromUserId, toUserId, content, createdAtEpochMs }`；
+  WS 帧的 `createdAtEpochMillis` 在归一时改名为与 HTTP history 同名的 `createdAtEpochMs`，
+  下游与历史页共用 `mapConversationMessage` 一份映射。
+- `sendCommitted`：`{ cmd, clientMsgId, requestId, conversationId, roomId, messageId, seq }`（发送终态确认）。
+- `sendRejected`：`{ cmd, clientMsgId, requestId, code, reasonCode, message, traceId }`（发送终态拒绝）。
+- `roomUpdatedBatch`：`{ items: [{ roomId, lastSeq }] }`。该帧线上当前不携带 `schemaVersion`
+  （im-realtime `RoomUpdateCoalescer` 未写出版本），归一层对它容忍版本缺失或 1，其余帧严格闸门。
+- `protocolError`：`{ reasonCode, frameType, field? }`（malformed 帧的统一可观察出口）。
+
+未知或无消费方的帧类型（`ack`、`pong`、未来扩展）静默忽略，不算 malformed。事件 handler 的
+同步异常与 async rejection 都会经 client 构造参数 `onListenerError` 上报（默认 `console.error`），
+单个 handler 失败不影响其他 handler，也不会留下 unhandled rejection。WebSocket 创建通过构造参数
+`webSocketFactory` 注入，测试不 stub 全局 `WebSocket`；导出的 `imRealtimeClient` 单例仍是生产
+application wiring。
+
 正确性边界：
 
 - WebSocket command 被发送不表示消息已经落库。
 - `im-core` 是消息持久化、顺序号和已读状态 owner。
-- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject 帧将其标成失败，不能把 WebSocket send 当成落库成功。自己消息的服务端回声（`privateMessage` 帧不携带 `clientMsgId`）与 `committed` 回执可能乱序：回声先到时按发送者、对端与内容认领仍在途的 pending 气泡并直接确认（回声即持久化事实，兜底计时随之解除），不出现短暂的重复气泡，迟到的 `committed` 回执幂等落地。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。pending 发送有 10 秒回执兜底（`conversationDetailPendingSends.js` 的 `PENDING_SEND_TIMEOUT_MS`）：帧写入后连接立刻死亡且服务端从未收到时不会有任何回执，超时仍未决即转失败态；committed / reject 回执直接解除计时，重连 backfill 命中会把 clientMsgId 移出 pending 集合（迟到的超时回调落空），会话切换 / 卸载解除全部计时。残缺无法在本地落账的 committed 帧不算确认，pending 与兜底计时保留。
+- 发送后先插入带 `clientMsgId` 的 pending message；`committed` frame 将其转为已提交，reject 帧将其标成失败，不能把 WebSocket send 当成落库成功。自己消息的服务端回声（`privateMessage` 帧不携带 `clientMsgId`）与 `committed` 回执可能乱序：回声先到时按发送者、对端与内容认领仍在途的 pending 气泡并直接确认（回声即持久化事实，兜底计时随之解除），不出现短暂的重复气泡，迟到的 `committed` 回执幂等落地。失败消息的重试是同一个写尝试：视图层 `retrySend` 复用原 `clientMsgId` 重新下发，不生成新幂等键；实时链路未就绪时重试入口禁用。pending 发送有 10 秒回执兜底（`conversationDetailPendingSends.js` 的 `PENDING_SEND_TIMEOUT_MS`）：帧写入后连接立刻死亡且服务端从未收到时不会有任何回执，超时仍未决即转失败态；committed / reject 回执直接解除计时，重连 backfill 命中会把 clientMsgId 移出 pending 集合（迟到的超时回调落空），会话切换 / 卸载解除全部计时。malformed committed 帧在 client 归一层就进入 `protocolError`、不会到达 workflow，pending 与兜底计时保留，由超时或重连 backfill 以 HTTP 事实收敛。
 - 会话详情流程集中在 `frontend/src/views/useConversationDetailWorkflow.js`，只向组件公开 `model/actions/lifecycle`；HTTP/WS transport、请求竞态、订阅清理和滚动锚定不由组件直接管理。一个 `historyFlow` 统一记录 scope generation、基线阶段与轮次、连续 `seq` waterline、重连请求/完成轮次和实际补拉轮次；scope 切换会推进 generation，使旧异步执行失效。该流程先等待首次 `limit=50` history 建立基线，再在 `authed: false -> true` 后从最近一次由 HTTP history 确认的连续水位调用 after-seq backfill，并按每页 100 条推进；实时帧和 `committed` 回执不能跨越缺口推进该水位，HTTP 页内出现缺口时停在缺口前并在下次重连继续补拉。
 - backfill 按会话 scope 单飞串行执行；每次重连上升沿推进请求轮次，当前执行按开始时覆盖的最新轮次完成，期间任意多次重连合并为下一轮，从最新水位继续补；空页同样完成其覆盖轮次，不能吞掉后续恢复请求。
 - 已读标记按连续 `seq` 水位上报（`conversationDetailReadMarker.js`）：首载 / 刷新以 HTTP 历史页确认的连续水位为锚上报，实时帧只在已知消息连续覆盖时推进；帧乱序时缺口之后的消息不被提前标读，缺口补齐后水位一次性推进。上报触发点为新到的对端消息帧（自己消息的回声不触发，避免发消息放大已读请求），缺口由自己消息的回声补齐时水位顺延到下一个对端帧一次性推进；重连 backfill 的已读上报仍由 historyFlow 按 HTTP 确认水位独立承担。已读落库后调度壳层未读角标刷新（防抖合并高频帧）；已读与角标失败都静默。
-- pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`（HTTP history 响应是 `createdAtEpochMs`），由 `conversationDetailState.js` 的 `mapRealtimeConversationMessage` 归一后再走同一份消息映射与校验。
+- pending、committed、实时推送和 HTTP history 的消息观察通过 `seq`、服务端 `messageId`、`fromId + clientMsgId` 或发送 `requestId` 合并；`clientMsgId` 的唯一性是发送者作用域，peer 使用相同值不能替换或提交本地 pending。初始 history 慢响应也不能覆盖期间产生的 pending / failed 消息。WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`（HTTP history 响应是 `createdAtEpochMs`），由 client 归一层改名为 `createdAtEpochMs` 后再走 `conversationDetailState.js` 的同一份消息映射与校验。
 - 每条内部消息通过可枚举的 `messageIdentity` 记录显式保留 `serverMessageIds`、发送者作用域的 `clientMessageIds`、`requestIds` 和 `sequences` 别名。消息合并和排序逻辑在 `frontend/src/views/conversationDetailState.js`，任一别名命中都更新同一条消息，排序仍优先使用 `seq`，再回退到时间 / id；身份元数据不进入组件渲染模型。
 
 ## 页面状态模块
@@ -374,7 +400,7 @@ connect(accessToken)
 | `useBookmarksFeed.js` | 收藏流的会话 scope、页码追加分页、请求竞态丢弃、拉黑过滤和打开帖子动作；组件只保留卡片渲染与键盘 Enter 守卫。 |
 | `postsViewState.js` | 帖子流路由 query 解析/序列化（含 `boardId` 退役归一）与 feed/搜索栈数据源选择；发帖标签规范化、标签限制、帖子列表 hydration id 收集。 |
 | `postDetailState.js` | 评论 / 回复 hydration id 收集、引用预览、回复内容组合，以及 `replyEditor`、`replyList`、`like` 三组评论 UI 状态初始化。 |
-| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / WS 消息映射（WS 帧时间戳字段归一）、pending / failed / committed 交付状态迁移、服务端回声对本端 pending 气泡的认领与确认（`findOwnPendingEchoMatch` / `confirmOwnPendingConversationEcho`）、去重和排序。 |
+| `conversationDetailState.js` | 私信 conversation id 解析、Java UUID 排序、HTTP / 实时消息映射、pending / failed / committed 交付状态迁移、服务端回声对本端 pending 气泡的认领与确认（`findOwnPendingEchoMatch` / `confirmOwnPendingConversationEcho`）、去重和排序。 |
 | `useConversationsFeed.js` | 私信会话列表的游标追加分页、会话 scope 竞态丢弃、待处理计数和壳层未读角标同步；组件只保留渲染与格式化。 |
 | `useConversationDetailWorkflow.js` | 私信详情的 HTTP/WS transport、历史分页、pending send、失联超时兜底、失败重试（复用原 clientMsgId）、重连补拉、水位线、订阅和滚动生命周期。 |
 | `conversationDetailPendingSends.js` | 私信 pending 发送的回执兜底计时（`PENDING_SEND_TIMEOUT_MS`）：arm / disarm / disarmAll，超时未决回调工作流把发送转为失败态。 |

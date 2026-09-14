@@ -10,7 +10,6 @@ import {
   findLatestConversationSeq,
   findOwnPendingEchoMatch,
   mapConversationMessage,
-  mapRealtimeConversationMessage,
   mergeConversations,
   mergeConversationMessages,
   parseConversationTargetId,
@@ -64,31 +63,6 @@ describe('conversationDetailState', () => {
       clientMsgId: 'client-12',
       createTime: 123456789
     })
-  })
-
-  it('maps realtime privateMessage frames whose timestamp field is createdAtEpochMillis', () => {
-    expect(mapRealtimeConversationMessage({
-      type: 'privateMessage',
-      conversationId: '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222',
-      seq: 13,
-      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
-      fromUserId: '11111111-1111-7111-8111-111111111111',
-      toUserId: '22222222-2222-7222-8222-222222222222',
-      content: 'realtime hello',
-      createdAtEpochMillis: 123456789
-    })).toMatchObject({
-      id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
-      seq: 13,
-      content: 'realtime hello',
-      createTime: 123456789
-    })
-
-    expect(() => mapRealtimeConversationMessage({
-      seq: 13,
-      messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
-      fromUserId: '11111111-1111-7111-8111-111111111111',
-      toUserId: '22222222-2222-7222-8222-222222222222'
-    })).toThrow('createdAtEpochMs 非法')
   })
 
   it('rejects conversation messages that violate the API identity contract', () => {    const valid = {
@@ -430,15 +404,14 @@ describe('conversationDetailState', () => {
       content: '相同内容',
       createTime: 200
     })
-    const echo = mapRealtimeConversationMessage({
-      type: 'privateMessage',
+    const echo = mapConversationMessage({
       conversationId: `${fromId}_${toId}`,
       seq: 9,
       messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       fromUserId: fromId,
       toUserId: toId,
       content: '相同内容',
-      createdAtEpochMillis: 150
+      createdAtEpochMs: 150
     })
 
     expect(findOwnPendingEchoMatch([newerPending, olderPending], echo)?.clientMsgId).toBe('client-echo-older')
@@ -447,15 +420,14 @@ describe('conversationDetailState', () => {
   it('does not claim committed, failed, peer, or different-content messages for a server echo', () => {
     const fromId = '11111111-1111-7111-8111-111111111111'
     const toId = '22222222-2222-7222-8222-222222222222'
-    const echo = mapRealtimeConversationMessage({
-      type: 'privateMessage',
+    const echo = mapConversationMessage({
       conversationId: `${fromId}_${toId}`,
       seq: 9,
       messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
       fromUserId: fromId,
       toUserId: toId,
       content: 'hello',
-      createdAtEpochMillis: 150
+      createdAtEpochMs: 150
     })
     const pending = createPendingConversationMessage({
       clientMsgId: 'client-echo',
@@ -497,15 +469,14 @@ describe('conversationDetailState', () => {
       content: 'echo confirms me',
       createTime: 100
     })
-    const echo = mapRealtimeConversationMessage({
-      type: 'privateMessage',
+    const echo = mapConversationMessage({
       conversationId: `${fromId}_${toId}`,
       seq: 9,
       messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
       fromUserId: fromId,
       toUserId: toId,
       content: 'echo confirms me',
-      createdAtEpochMillis: 150
+      createdAtEpochMs: 150
     })
 
     const confirmed = confirmOwnPendingConversationEcho(pending, echo)

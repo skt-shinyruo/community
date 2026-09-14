@@ -158,11 +158,11 @@ Contract inventory：
 | Send-result events | `PrivateMessageCommittedEvent`, `RoomMessageCommittedEvent`, `PrivateMessageRejectedEvent`, `RoomMessageRejectedEvent` |
 | Projection events | `RoomMemberChanged`, `UserMessagingPolicyChanged`, `UserBlockRelationChanged` |
 | Projection snapshots | `RoomMembershipSnapshot` / `RoomMembershipEntry`, `UserMessagingPolicySnapshot` / `UserMessagingPolicyEntry`, `UserBlockRelationSnapshot` / `UserBlockRelationEntry` |
-| Browser WebSocket frames | `ConnectFrame`, `ConnectedFrame`, `SendPrivateTextFrame`, `SendRoomTextFrame`, `AckFrame`, `RejectFrame`, `CommittedFrame`, `PrivateMessageFrame`, `PingFrame`, `PongFrame` |
+| Browser WebSocket frames | `ConnectFrame`, `ConnectedFrame`, `SendPrivateTextFrame`, `SendRoomTextFrame`, `AckFrame`, `RejectFrame`, `CommittedFrame`, `PrivateMessageFrame`, `PingFrame`, `PongFrame`, `RoomUpdateCoalescer.RoomUpdatedBatch` |
 
 Versioning and schema evolution：
 
-- command、event、projection 和 WebSocket frame 都显式写出 JSON integer `schemaVersion: 1`。
+- command、event、projection 和 WebSocket frame 都显式写出 JSON integer `schemaVersion: 1`。例外（现状偏差）：`roomUpdatedBatch`（im-realtime `RoomUpdateCoalescer` 的 coalesced 房间更新推送）当前不携带 `schemaVersion`；浏览器端归一层只对这一种帧容忍版本缺失或 1，其余已知帧严格执行版本闸门。
 - 只接受 integer `1`；字段缺失、`null`、非数值、非正数或未来版本都必须在业务处理前失败。
 - WebSocket 入站 frame 的必填字段必须存在且 JSON 类型精确（`connect.ticket`、`sendPrivateText.clientMsgId/toUserId/content`、`sendRoomText.clientMsgId/roomId/content` 为 string，`ping.sentAtEpochMillis` 为 integer）；realtime 在 dispatch 后、任何业务判断前校验，缺失或类型错误返回 `invalid_frame` protocol reject（发送 frame 的 reject 回显合法文本 `clientMsgId` 以便发送端关联），不用默认值修复，也不触发 command ingress、membership/policy 判断等副作用。
 - 所有 v1 contract 忽略未知 JSON properties，但已知字段的名字、类型和语义必须保持精确。

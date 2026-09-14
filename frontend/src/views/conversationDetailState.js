@@ -72,18 +72,6 @@ export function mapConversationMessage(raw) {
 }
 
 /**
- * WS `privateMessage` 帧的时间戳字段是 `createdAtEpochMillis`，与 HTTP 历史响应的
- * `createdAtEpochMs` 不同名；在这里归一后再走同一份消息映射。
- */
-export function mapRealtimeConversationMessage(frame) {
-  const raw = frame || {}
-  return mapConversationMessage({
-    ...raw,
-    createdAtEpochMs: raw.createdAtEpochMs ?? raw.createdAtEpochMillis
-  })
-}
-
-/**
  * @param {{ clientMsgId?: unknown, fromId?: unknown, toId?: unknown, content?: unknown, createTime?: number }} [message]
  */
 export function createPendingConversationMessage({ clientMsgId, fromId, toId, content, createTime = Date.now() } = {}) {

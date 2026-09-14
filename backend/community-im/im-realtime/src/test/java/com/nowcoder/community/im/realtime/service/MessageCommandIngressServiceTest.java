@@ -1,111 +1,169 @@
 package com.nowcoder.community.im.realtime.service;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.fasterxml.jackson.databind.ObjectMapper;
-import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
+import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
-import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
 import org.junit.jupiter.api.Test;
+import org.mockito.ArgumentCaptor;
 import org.mockito.Mockito;
 import org.springframework.kafka.support.SendResult;
-import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.publisher.Mono;
+import reactor.test.StepVerifier;
 
 import java.time.Duration;
 import java.util.UUID;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.atomic.AtomicReference;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 
+/**
+ * Contract: each send attempt emits exactly one terminal {@link CommandIngressResult}
+ * through the returned Mono — ack on Kafka success, reject on failure or timeout.
+ * Tests observe only the public interface; the ingress signature takes no connection,
+ * so a hidden connection side effect is unrepresentable.
+ */
 class MessageCommandIngressServiceTest {
 
-    private final ObjectMapper objectMapper = new ObjectMapper();
-
     @Test
-    void sendPrivate_shouldWaitForKafkaSendSuccessBeforeAck() throws Exception {
+    void sendPrivate_shouldEmitAckTerminalWhenKafkaSendSucceeds() {
         CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer);
+        AtomicReference<CommandIngressResult> observed = new AtomicReference<>();
 
-        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(jsonCodec()));
-        WsConnection connection = newConnection(uuid(1));
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c1", "hello").doOnNext(observed::set))
+                .then(() -> future.complete(null))
+                .assertNext(result -> {
+                    assertThat(result.acked()).isTrue();
+                    assertThat(result.cmd()).isEqualTo("sendPrivateText");
+                    assertThat(result.clientMsgId()).isEqualTo("c1");
+                    assertThat(result.requestId()).isNotBlank();
+                })
+                .verifyComplete();
 
-        service.sendPrivate(connection, uuid(2), "c1", "hello").block(Duration.ofSeconds(1));
-
-        assertThat(connection.outboundBacklog()).isZero();
-
-        future.complete(null);
-
-        JsonNode ackFrame = objectMapper.readTree(connection.outboundSink().asFlux().next().block(Duration.ofSeconds(1)));
-        assertThat(ackFrame.path("type").asText("")).isEqualTo("ack");
-        assertThat(ackFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
-        assertThat(ackFrame.path("clientMsgId").asText("")).isEqualTo("c1");
-        assertThat(ackFrame.path("requestId").asText("")).isNotBlank();
+        ArgumentCaptor<SendPrivateTextCommand> command = ArgumentCaptor.forClass(SendPrivateTextCommand.class);
+        Mockito.verify(commandProducer).sendPrivateText(command.capture());
+        assertThat(command.getValue().fromUserId()).isEqualTo(uuid(1));
+        assertThat(observed.get().requestId())
+                .as("terminal must correlate with the enqueue attempt")
+                .isEqualTo(command.getValue().requestId());
     }
 
     @Test
-    void sendPrivate_shouldRejectWhenKafkaSendFailsAsync() throws Exception {
+    void sendPrivate_shouldEmitRejectTerminalWhenKafkaSendFails() {
         CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer);
 
-        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, new ImFrameCodec(jsonCodec()));
-        WsConnection connection = newConnection(uuid(1));
-
-        service.sendPrivate(connection, uuid(2), "c2", "hello").block(Duration.ofSeconds(1));
-        future.completeExceptionally(new IllegalStateException("broker unavailable"));
-
-        JsonNode rejectFrame = objectMapper.readTree(connection.outboundSink().asFlux().next().block(Duration.ofSeconds(1)));
-        assertThat(rejectFrame.path("type").asText("")).isEqualTo("reject");
-        assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
-        assertThat(rejectFrame.path("clientMsgId").asText("")).isEqualTo("c2");
-        assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("kafka_send_failed");
-        assertThat(rejectFrame.path("requestId").asText("")).isNotBlank();
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c2", "hello"))
+                .then(() -> future.completeExceptionally(new IllegalStateException("broker unavailable")))
+                .assertNext(result -> {
+                    assertThat(result.acked()).isFalse();
+                    assertThat(result.cmd()).isEqualTo("sendPrivateText");
+                    assertThat(result.clientMsgId()).isEqualTo("c2");
+                    assertThat(result.requestId()).isNotBlank();
+                    assertThat(result.code()).isEqualTo(503);
+                    assertThat(result.reasonCode()).isEqualTo("kafka_send_failed");
+                })
+                .verifyComplete();
     }
 
     @Test
-    void sendPrivate_shouldRejectWhenKafkaSendDoesNotCompleteBeforeTimeout() throws Exception {
+    void sendPrivate_shouldEmitRejectTerminalWhenProducerReturnsNoFuture() {
+        CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
+        Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(null);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer);
+
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c-null", "hello"))
+                .assertNext(result -> {
+                    assertThat(result.acked()).isFalse();
+                    assertThat(result.code()).isEqualTo(503);
+                    assertThat(result.reasonCode()).isEqualTo("kafka_send_failed");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void sendPrivate_shouldEmitExactlyOneTerminalWhenKafkaSendTimesOut() {
         CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
         CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
         Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, 50L);
 
-        MessageCommandIngressService service = new MessageCommandIngressService(
-                commandProducer,
-                new ImFrameCodec(jsonCodec()),
-                10L
-        );
-        WsConnection connection = newConnection(uuid(1));
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c3", "hello"))
+                .assertNext(result -> {
+                    assertThat(result.acked()).isFalse();
+                    assertThat(result.cmd()).isEqualTo("sendPrivateText");
+                    assertThat(result.clientMsgId()).isEqualTo("c3");
+                    assertThat(result.code()).isEqualTo(503);
+                    assertThat(result.reasonCode()).isEqualTo("kafka_send_timeout");
+                })
+                .verifyComplete();
 
-        service.sendPrivate(connection, uuid(2), "c3", "hello").block(Duration.ofSeconds(1));
-
-        JsonNode rejectFrame = objectMapper.readTree(connection.outboundSink().asFlux().next().block(Duration.ofSeconds(1)));
-        assertThat(rejectFrame.path("type").asText("")).isEqualTo("reject");
-        assertThat(rejectFrame.path("cmd").asText("")).isEqualTo("sendPrivateText");
-        assertThat(rejectFrame.path("clientMsgId").asText("")).isEqualTo("c3");
-        assertThat(rejectFrame.path("reasonCode").asText("")).isEqualTo("kafka_send_timeout");
-        assertThat(rejectFrame.path("requestId").asText("")).isNotBlank();
-
-        assertThat(connection.outboundBacklog()).isEqualTo(1);
-        future.complete(null);
-        assertThat(connection.outboundBacklog()).isEqualTo(1);
+        assertThat(future)
+                .as("timeout must release the enqueue future observation, so a late completion cannot emit a second terminal")
+                .isCancelled();
     }
 
-    private WsConnection newConnection(UUID userId) {
-        WebSocketSession session = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session.close()).thenReturn(Mono.empty());
-        WsConnection connection = new WsConnection("c1", session, 10);
-        connection.bindUser(userId);
-        return connection;
+    @Test
+    void sendPrivate_shouldStopObservingKafkaSendWhenSubscriberCancels() {
+        CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
+        CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
+        Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer, 60_000L);
+
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c4", "hello"))
+                .expectSubscription()
+                .expectNoEvent(Duration.ofMillis(100L))
+                .thenCancel()
+                .verify();
+
+        assertThat(future)
+                .as("cancellation must release the enqueue future observation")
+                .isCancelled();
+    }
+
+    @Test
+    void sendPrivate_shouldDeferTerminalUntilDownstreamRequests() {
+        CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
+        CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
+        Mockito.when(commandProducer.sendPrivateText(any(SendPrivateTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer);
+
+        StepVerifier.create(service.sendPrivate(uuid(1), uuid(2), "c6", "hello"), 0)
+                .expectSubscription()
+                .then(() -> future.complete(null))
+                .expectNoEvent(Duration.ofMillis(100L))
+                .thenRequest(1)
+                .assertNext(result -> {
+                    assertThat(result.acked()).isTrue();
+                    assertThat(result.clientMsgId()).isEqualTo("c6");
+                })
+                .verifyComplete();
+    }
+
+    @Test
+    void sendRoom_shouldEmitAckTerminalWhenKafkaSendSucceeds() {
+        CommandProducer commandProducer = Mockito.mock(CommandProducer.class);
+        CompletableFuture<SendResult<String, Object>> future = new CompletableFuture<>();
+        Mockito.when(commandProducer.sendRoomText(any(SendRoomTextCommand.class))).thenReturn(future);
+        MessageCommandIngressService service = new MessageCommandIngressService(commandProducer);
+
+        StepVerifier.create(service.sendRoom(uuid(1), uuid(9), "c5", "room hello"))
+                .then(() -> future.complete(null))
+                .assertNext(result -> {
+                    assertThat(result.acked()).isTrue();
+                    assertThat(result.cmd()).isEqualTo("sendRoomText");
+                    assertThat(result.clientMsgId()).isEqualTo("c5");
+                    assertThat(result.requestId()).isNotBlank();
+                })
+                .verifyComplete();
     }
 
     private static UUID uuid(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
-    }
-
-    private static JacksonJsonCodec jsonCodec() {
-        return new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
     }
 }

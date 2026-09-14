@@ -543,7 +543,7 @@ Main path：
 7. 客户端发送 `sendPrivateText`。
 8. `im-realtime` 确认连接已鉴权。
 9. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
-10. 判定通过后写 `im.command.private-text`。
+10. 判定通过后写 `im.command.private-text`，enqueue 终态（ack / `kafka_send_failed` / `kafka_send_timeout` reject）实时回给发送端。
 11. `im-core` 消费 command，先按 `(conversationId, fromUserId, clientMsgId)` 查幂等。
 12. 如果已存在，`im-core` 返回既有消息事实并发布当前 request 的 `im.event.private-persisted`。
 13. 如果不存在，`im-core` 调用 `community-app` internal owner decision 做最终校验。

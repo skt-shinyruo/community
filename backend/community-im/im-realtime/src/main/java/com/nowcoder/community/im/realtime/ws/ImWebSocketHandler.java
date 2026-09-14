@@ -7,6 +7,7 @@ import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
+import com.nowcoder.community.im.common.ws.AckFrame;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.common.ws.ConnectedFrame;
 import com.nowcoder.community.im.common.ws.PingFrame;
@@ -21,6 +22,7 @@ import com.nowcoder.community.im.realtime.projection.MembershipProjectionService
 import com.nowcoder.community.im.realtime.projection.PolicyDecision;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.nowcoder.community.im.realtime.service.CommandIngressResult;
 import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import com.nowcoder.community.im.ticket.SessionTicketCodec;
@@ -291,7 +293,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
             );
             return Mono.empty();
         }
-        return commandIngressService.sendPrivate(conn, frame.toUserId(), clientMsgId, frame.content());
+        return commandIngressService.sendPrivate(conn.userId(), frame.toUserId(), clientMsgId, frame.content())
+                .flatMap(result -> sendIngressResult(conn, result));
     }
 
     private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
@@ -326,7 +329,8 @@ public class ImWebSocketHandler implements WebSocketHandler {
             sendReject(conn, "sendRoomText", clientMsgId, "", 400, "content_too_long", "content too long");
             return Mono.empty();
         }
-        return commandIngressService.sendRoom(conn, frame.roomId(), clientMsgId, frame.content());
+        return commandIngressService.sendRoom(conn.userId(), frame.roomId(), clientMsgId, frame.content())
+                .flatMap(result -> sendIngressResult(conn, result));
     }
 
     private Mono<Void> handlePing(WsConnection conn, JsonNode node) {
@@ -401,6 +405,15 @@ public class ImWebSocketHandler implements WebSocketHandler {
     ) {
         sendReject(conn, cmd, clientMsgId, requestId, code, reasonCode, message);
         conn.closeAsync(Duration.ofSeconds(1));
+    }
+
+    private Mono<Void> sendIngressResult(WsConnection conn, CommandIngressResult result) {
+        if (result.acked()) {
+            conn.trySendText(frameCodec.write(new AckFrame("ack", result.cmd(), result.clientMsgId(), result.requestId())));
+        } else {
+            sendReject(conn, result.cmd(), result.clientMsgId(), result.requestId(), result.code(), result.reasonCode(), result.message());
+        }
+        return Mono.empty();
     }
 
     private void sendReject(

@@ -113,7 +113,10 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
    - 双方不存在拉黑关系。
 4. 判定失败时，realtime 直接推 reject。
 5. 判定通过后，`MessageCommandIngressService.sendPrivate(...)` 写 Kafka `SendPrivateTextCommand`。
-6. realtime 可向发送端返回 accepted/ack，表示 command 已接收。
+6. 每次发送尝试返回一个且仅一个终态：Kafka 接受 command 时 ack，enqueue 失败或超过
+   `im.ws.kafka-send-timeout-ms` 未完成时 reject（`kafka_send_failed` / `kafka_send_timeout`）；
+   `ImWebSocketHandler` 把终态映射为发送端的 ack / reject frame，ingress 自身不触碰连接。
+   订阅取消会终止对 enqueue future 的观察并释放超时定时器，不会在后台保留连接或补发第二个终态。
 7. im-core `CommandConsumers.onPrivateText(...)` 消费 command。
 8. `PrivateMessageApplicationService.persist(...)` 计算 conversationId 并先按 `(conversationId, fromUserId, clientMsgId)` 查幂等。
 9. 幂等命中时返回既有消息事实，不重复发布消息事实 event，只发布当前 request 的 `PrivateMessageCommittedEvent`。
@@ -146,7 +149,7 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 1. 客户端发送 `sendRoomText` frame。
 2. realtime 校验连接认证和基础字段。
 3. 通过本地 membership projection 判断发送者是否在房间中；最终权威校验仍在 im-core。
-4. 写 Kafka `SendRoomTextCommand`。
+4. 写 Kafka `SendRoomTextCommand`，终态语义与私信发送一致（ack / reject，见上文私信发送）。
 5. im-core 消费 command。
 6. `RoomMessageApplicationService.persist(...)` 校验房间存在并按 `(roomId, fromUserId, clientMsgId)` 查幂等；成员和 seq 规则由 `RoomMessageDomainService` 承担。
 7. 幂等命中时按既有事实身份重放：返回原 message 和 seq，不执行当前 membership 授权（首次提交后发送者离开房间不影响重放，也不会改判 rejected），不重复发布消息事实 event，只发布当前 request 的 `RoomMessageCommittedEvent`。

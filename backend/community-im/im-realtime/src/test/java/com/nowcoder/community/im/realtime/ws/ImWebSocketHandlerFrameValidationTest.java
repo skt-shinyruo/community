@@ -13,6 +13,7 @@ import com.nowcoder.community.im.realtime.projection.MembershipProjectionService
 import com.nowcoder.community.im.realtime.projection.PolicyDecision;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
+import com.nowcoder.community.im.realtime.service.CommandIngressResult;
 import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
 import com.nowcoder.community.im.realtime.session.ImSessionProperties;
 import com.nowcoder.community.im.ticket.ImSessionTicketProperties;
@@ -173,7 +174,7 @@ class ImWebSocketHandlerFrameValidationTest {
         when(fixture.policyProjectionService().canSendPrivate(userId, toUserId))
                 .thenReturn(PolicyDecision.allow());
         when(fixture.commandIngressService().sendPrivate(any(), any(), any(), any()))
-                .thenReturn(Mono.empty());
+                .thenReturn(Mono.just(CommandIngressResult.acked("sendPrivateText", "c-ok", "req-1")));
 
         fixture.inbound().tryEmitNext("""
                 {"type":"sendPrivateText","schemaVersion":1,"clientMsgId":"c-ok","toUserId":"%s","content":"hello","futureFlag":true}
@@ -181,9 +182,38 @@ class ImWebSocketHandlerFrameValidationTest {
 
         verify(fixture.commandIngressService(), org.mockito.Mockito.timeout(5_000))
                 .sendPrivate(any(), eq(toUserId), eq("c-ok"), eq("hello"));
-        assertThat(fixture.sentMessages().poll(250, TimeUnit.MILLISECONDS))
-                .as("valid frame must not produce a reject")
-                .isNull();
+        JsonNode ack = awaitNextFrame(fixture.sentMessages());
+        assertThat(ack.path("type").asText()).isEqualTo("ack");
+        assertThat(ack.path("cmd").asText()).isEqualTo("sendPrivateText");
+        assertThat(ack.path("clientMsgId").asText()).isEqualTo("c-ok");
+        assertThat(ack.path("requestId").asText()).isEqualTo("req-1");
+    }
+
+    @Test
+    void shouldSendRejectFrameWhenCommandIngressReportsFailure() throws Exception {
+        Fixture fixture = newFixture();
+        UUID userId = uuid(1);
+        UUID toUserId = uuid(2);
+        connect(fixture, userId);
+        when(fixture.policyProjectionService().canSendPrivate(userId, toUserId))
+                .thenReturn(PolicyDecision.allow());
+        when(fixture.commandIngressService().sendPrivate(any(), any(), any(), any()))
+                .thenReturn(Mono.just(CommandIngressResult.rejected(
+                        "sendPrivateText", "c-fail", "req-9", 503, "kafka_send_failed", "kafka send failed")));
+
+        fixture.inbound().tryEmitNext("""
+                {"type":"sendPrivateText","schemaVersion":1,"clientMsgId":"c-fail","toUserId":"%s","content":"hello"}
+                """.formatted(toUserId));
+
+        verify(fixture.commandIngressService(), org.mockito.Mockito.timeout(5_000))
+                .sendPrivate(any(), eq(toUserId), eq("c-fail"), eq("hello"));
+        JsonNode reject = awaitNextFrame(fixture.sentMessages());
+        assertThat(reject.path("type").asText()).isEqualTo("reject");
+        assertThat(reject.path("cmd").asText()).isEqualTo("sendPrivateText");
+        assertThat(reject.path("clientMsgId").asText()).isEqualTo("c-fail");
+        assertThat(reject.path("requestId").asText()).isEqualTo("req-9");
+        assertThat(reject.path("code").asInt()).isEqualTo(503);
+        assertThat(reject.path("reasonCode").asText()).isEqualTo("kafka_send_failed");
     }
 
     @Test
@@ -218,7 +248,7 @@ class ImWebSocketHandlerFrameValidationTest {
         connect(fixture, userId);
         when(fixture.membershipProjectionService().isMember(roomId, userId)).thenReturn(true);
         when(fixture.commandIngressService().sendRoom(any(), any(), any(), any()))
-                .thenReturn(Mono.empty());
+                .thenReturn(Mono.just(CommandIngressResult.acked("sendRoomText", "c-room", "req-2")));
 
         fixture.inbound().tryEmitNext("""
                 {"type":"sendRoomText","schemaVersion":1,"clientMsgId":"c-room","roomId":"%s","content":"room hello"}
@@ -226,9 +256,11 @@ class ImWebSocketHandlerFrameValidationTest {
 
         verify(fixture.commandIngressService(), org.mockito.Mockito.timeout(5_000))
                 .sendRoom(any(), eq(roomId), eq("c-room"), eq("room hello"));
-        assertThat(fixture.sentMessages().poll(250, TimeUnit.MILLISECONDS))
-                .as("valid frame must not produce a reject")
-                .isNull();
+        JsonNode ack = awaitNextFrame(fixture.sentMessages());
+        assertThat(ack.path("type").asText()).isEqualTo("ack");
+        assertThat(ack.path("cmd").asText()).isEqualTo("sendRoomText");
+        assertThat(ack.path("clientMsgId").asText()).isEqualTo("c-room");
+        assertThat(ack.path("requestId").asText()).isEqualTo("req-2");
     }
 
     @Test

@@ -174,10 +174,9 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 
 未读：
 
-- `UnreadApplicationService.listRoomUnread(...)` 计算房间未读。
-- `UnreadApplicationService.listConversationUnread(...)` 计算私聊未读。
 - `UnreadController.summary(...)` 返回未读汇总。
-- 未读 limit 规范化和 repository 委托由 `UnreadApplicationService` 直接承担。
+- `UnreadApplicationService.summary(...)` 通过 `UserInboxRepository` 读取房间/私聊 inbox projection。
+- 未读 limit 规范化（1–5000）只在 `UnreadApplicationService` 一处完成。
 
 已读水位只做单调推进，不能倒退。
 

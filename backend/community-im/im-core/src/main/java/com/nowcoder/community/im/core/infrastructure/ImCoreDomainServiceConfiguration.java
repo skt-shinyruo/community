@@ -8,7 +8,6 @@ import com.nowcoder.community.im.core.domain.repository.RoomMemberRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomMessageRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomReadStateRepository;
 import com.nowcoder.community.im.core.domain.repository.RoomRepository;
-import com.nowcoder.community.im.core.domain.repository.UnreadRepository;
 import com.nowcoder.community.im.core.domain.service.PrivateMessageDomainService;
 import com.nowcoder.community.im.core.domain.service.RoomMembershipDomainService;
 import com.nowcoder.community.im.core.domain.service.RoomMessageDomainService;

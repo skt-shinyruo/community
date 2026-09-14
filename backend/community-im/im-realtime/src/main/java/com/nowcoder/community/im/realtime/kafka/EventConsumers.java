@@ -95,9 +95,6 @@ public class EventConsumers {
             containerFactory = "kafkaListenerContainerFactory"
     )
     public void onRoomMemberChanged(RoomMemberChanged event) {
-        if (event == null || event.roomId() == null || event.userId() == null) {
-            return;
-        }
         membershipProjectionService.applyRoomMemberChanged(event);
         UUID roomId = event.roomId();
         UUID userId = event.userId();

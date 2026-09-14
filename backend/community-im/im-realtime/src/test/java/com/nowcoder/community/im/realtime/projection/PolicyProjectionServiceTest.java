@@ -10,12 +10,162 @@ import reactor.test.StepVerifier;
 
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentLinkedQueue;
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 class PolicyProjectionServiceTest {
+
+    @Test
+    void invalidPolicySnapshotEntryShouldFailAndPreserveState() {
+        PolicySnapshotClient snapshotClient = mock(PolicySnapshotClient.class);
+        when(snapshotClient.fetchUserPolicySnapshot())
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedUserPolicySnapshot(
+                        List.of(allowPolicy(user(1), 10L, 9_000L), allowPolicy(user(2), 10L, 9_000L)),
+                        10L
+                )))
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedUserPolicySnapshot(
+                        List.of(new UserMessagingPolicyEntry(
+                                null, true, false, false, null, null, true, 11L, 9_100L)),
+                        11L
+                )));
+        when(snapshotClient.fetchBlockRelationSnapshot())
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedBlockRelationSnapshot(List.of(), 10L)))
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedBlockRelationSnapshot(List.of(), 11L)));
+        PolicyProjectionService service = new PolicyProjectionService(snapshotClient);
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+        assertThat(service.canSendPrivateMessage(user(1), user(2)).allowed()).isTrue();
+
+        StepVerifier.create(service.refreshNow())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(service.canSendPrivateMessage(user(1), user(2)).allowed()).isTrue();
+    }
+
+    @Test
+    void invalidBlockSnapshotEntryShouldFailAndPreserveState() {
+        PolicySnapshotClient snapshotClient = mock(PolicySnapshotClient.class);
+        when(snapshotClient.fetchUserPolicySnapshot())
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedUserPolicySnapshot(
+                        List.of(allowPolicy(user(1), 10L, 9_000L), allowPolicy(user(2), 10L, 9_000L)),
+                        10L
+                )))
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedUserPolicySnapshot(
+                        List.of(allowPolicy(user(1), 12L, 9_100L), allowPolicy(user(2), 12L, 9_100L)),
+                        12L
+                )));
+        when(snapshotClient.fetchBlockRelationSnapshot())
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedBlockRelationSnapshot(List.of(), 10L)))
+                .thenReturn(Mono.just(new PolicySnapshotClient.FetchedBlockRelationSnapshot(
+                        List.of(new UserBlockRelationEntry(user(1), null, true, 11L, 9_100L)),
+                        11L
+                )));
+        PolicyProjectionService service = new PolicyProjectionService(snapshotClient);
+
+        StepVerifier.create(service.refreshNow()).verifyComplete();
+        assertThat(service.canSendPrivateMessage(user(1), user(2)).allowed()).isTrue();
+
+        StepVerifier.create(service.refreshNow())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(service.canSendPrivateMessage(user(1), user(2)).allowed()).isTrue();
+    }
+
+    @Test
+    void malformedPolicyEventShouldThrowInsteadOfSilentAck() {
+        PolicyProjectionService service = new PolicyProjectionService(mock(PolicySnapshotClient.class));
+
+        assertThatThrownBy(() -> service.applyUserMessagingPolicyChanged(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.applyUserMessagingPolicyChanged(policyEvent(null, false, true, 100L, 1L)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.applyUserMessagingPolicyChanged(new UserMessagingPolicyChanged(
+                " ", user(1), true, false, false, null, null, true, 100L, 1L)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void malformedBlockEventShouldThrowInsteadOfSilentAck() {
+        PolicyProjectionService service = new PolicyProjectionService(mock(PolicySnapshotClient.class));
+
+        assertThatThrownBy(() -> service.applyUserBlockRelationChanged(null))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.applyUserBlockRelationChanged(blockEvent(null, user(2), true, 100L, 1L)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.applyUserBlockRelationChanged(blockEvent(user(1), null, true, 100L, 1L)))
+                .isInstanceOf(IllegalArgumentException.class);
+        assertThatThrownBy(() -> service.applyUserBlockRelationChanged(new UserBlockRelationChanged(
+                " ", user(1), user(2), true, 100L, 1L)))
+                .isInstanceOf(IllegalArgumentException.class);
+    }
+
+    @Test
+    void canSendPrivateMessageShouldNeverMixRefreshGenerations() throws Exception {
+        AtomicInteger generation = new AtomicInteger(1);
+        PolicySnapshotClient snapshotClient = mock(PolicySnapshotClient.class);
+        when(snapshotClient.fetchUserPolicySnapshot()).thenAnswer(invocation -> {
+            int n = generation.get();
+            List<UserMessagingPolicyEntry> entries = n % 2 == 1
+                    ? List.of(allowPolicy(user(1), n, null), allowPolicy(user(2), n, null))
+                    : List.of();
+            return Mono.just(new PolicySnapshotClient.FetchedUserPolicySnapshot(entries, n));
+        });
+        when(snapshotClient.fetchBlockRelationSnapshot()).thenAnswer(invocation -> {
+            int n = generation.get();
+            List<UserBlockRelationEntry> entries = n % 2 == 1
+                    ? List.of()
+                    : List.of(blockEntry(user(1), user(2), true, n, null));
+            return Mono.just(new PolicySnapshotClient.FetchedBlockRelationSnapshot(entries, n));
+        });
+        PolicyProjectionService service = new PolicyProjectionService(snapshotClient);
+        service.refreshNow().block();
+
+        int refreshes = 300;
+        int samples = 100_000;
+        ConcurrentLinkedQueue<PolicyDecision> violations = new ConcurrentLinkedQueue<>();
+        AtomicBoolean writerDone = new AtomicBoolean(false);
+        CountDownLatch start = new CountDownLatch(1);
+        ExecutorService executor = Executors.newFixedThreadPool(2);
+        try {
+            Future<?> writer = executor.submit(() -> {
+                await(start);
+                for (int i = 2; i < refreshes + 2; i++) {
+                    generation.set(i);
+                    service.refreshNow().block();
+                }
+                writerDone.set(true);
+            });
+            Future<?> reader = executor.submit(() -> {
+                await(start);
+                for (int i = 0; i < samples && !writerDone.get(); i++) {
+                    PolicyDecision decision = service.canSendPrivateMessage(user(1), user(2));
+                    if (!decision.allowed() && !"发送方不存在".equals(decision.message())) {
+                        violations.add(decision);
+                    }
+                }
+            });
+            start.countDown();
+            writer.get(30, TimeUnit.SECONDS);
+            reader.get(30, TimeUnit.SECONDS);
+        } finally {
+            executor.shutdownNow();
+        }
+
+        assertThat(violations).isEmpty();
+    }
 
     @Test
     void higherPolicyVersionShouldWinDespiteEarlierTimestamp() {
@@ -148,7 +298,7 @@ class PolicyProjectionServiceTest {
     private static UserMessagingPolicyEntry allowPolicy(
             UUID userId,
             long version,
-            long occurredAtEpochMillis
+            Long occurredAtEpochMillis
     ) {
         return new UserMessagingPolicyEntry(
                 userId,
@@ -168,7 +318,7 @@ class PolicyProjectionServiceTest {
             UUID blockedUserId,
             boolean active,
             long version,
-            long occurredAtEpochMillis
+            Long occurredAtEpochMillis
     ) {
         return new UserBlockRelationEntry(
                 blockerUserId,
@@ -219,5 +369,14 @@ class PolicyProjectionServiceTest {
 
     private static UUID user(long suffix) {
         return UUID.fromString("00000000-0000-7000-8000-" + String.format("%012x", suffix));
+    }
+
+    private static void await(CountDownLatch latch) {
+        try {
+            latch.await();
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
+            throw new IllegalStateException(e);
+        }
     }
 }

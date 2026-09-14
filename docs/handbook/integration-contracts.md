@@ -145,6 +145,9 @@ DLQ：
 
 - `im.command.private-text.dlq`
 - `im.command.room-text.dlq`
+- `im.event.room-member-changed.dlq`
+- `im.event.user-messaging-policy-changed.dlq`
+- `im.event.user-block-relation-changed.dlq`
 
 Contract inventory：
 
@@ -180,6 +183,10 @@ Versioning and schema evolution：
 - `occurredAtEpochMillis` 只是可观测时间，不能作为版本来源。
 - snapshot 的 boxed `snapshotHighWatermark` 必填、非负且允许为 `0`。分页刷新只使用第一页水位作为覆盖边界；后续页只贡献 entries，不能扩大覆盖边界。
 - user policy / block relation snapshot 的游标续页必须携带第一页的 `snapshotHighWatermark` 作为 `snapshotVersion`；缺失、负数或高于 owner 当前版本的值按无效请求拒绝。所有续页必须返回同一水位，client 在水位变化时不得继续请求下一页。
+- room membership snapshot 的续页水位由 realtime client 逐页校验：收到水位漂移的页面立即终止刷新，不得继续请求下一页。
+- snapshot 分页是 fail-closed 的：`hasMore=true` 的页必须带完整 continuation cursor，每页 `entries` 必填且每个 entry 必须带完整身份字段，续页游标必须严格前进；任一违反都使整个刷新失败，而不是把当前页当作完整快照。
+- realtime 消费侧对 projection event 做语义校验：缺失 eventId / 身份字段、未知 action 等非法事件抛出 `IllegalArgumentException`（不可重试）进入源 topic 的 `.dlq`，不能静默 ack；版本不新的重复 / 乱序事件仍是合法幂等 ack。
+- 任一页或任一 entry 校验失败时，realtime 保留上一个可用 projection；合法多页 snapshot 使用第一页 watermark，并以单次原子状态替换发布，并发读者不会观察到混合 generation。
 - `im-realtime` 对 user policy、block relation、room membership 都按 key 比较版本：只应用版本更大的 snapshot entry 或 delta。重复事件、乱序旧事件、旧 snapshot 都不能回滚本地状态；高水位高于本地版本且 snapshot 缺少的 key 才能表示删除或不存在。
 
 幂等：

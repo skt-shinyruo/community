@@ -11,23 +11,20 @@ import reactor.core.publisher.Mono;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashSet;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicReference;
 
 @Service
 public class MembershipProjectionService {
 
     private final MembershipSnapshotClient membershipSnapshotClient;
-    private final AtomicReference<Map<String, MembershipProjectionEntry>> memberships = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<UUID, Set<UUID>>> roomIdsByUser = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<UUID, Set<UUID>>> memberIdsByRoom = new AtomicReference<>(Map.of());
+    private final AtomicReference<MembershipProjectionState> state;
 
     public MembershipProjectionService(MembershipSnapshotClient membershipSnapshotClient) {
         this.membershipSnapshotClient = membershipSnapshotClient;
+        this.state = new AtomicReference<>(MembershipProjectionState.empty());
     }
 
     public Mono<Void> refreshNow() {
@@ -37,11 +34,11 @@ public class MembershipProjectionService {
     }
 
     public Set<UUID> roomIdsForUser(UUID userId) {
-        return roomIdsByUser.get().getOrDefault(userId, Set.of());
+        return state.get().roomIdsByUser().getOrDefault(userId, Set.of());
     }
 
     public boolean isMember(UUID roomId, UUID userId) {
-        return memberIdsByRoom.get().getOrDefault(roomId, Set.of()).contains(userId);
+        return state.get().memberIdsByRoom().getOrDefault(roomId, Set.of()).contains(userId);
     }
 
     public void bindExistingRooms(WsConnection conn, RoomLocalPresenceService roomLocalPresenceService) {
@@ -54,21 +51,16 @@ public class MembershipProjectionService {
     }
 
     public synchronized boolean applyRoomMemberChanged(RoomMemberChanged event) {
-        if (event == null || event.roomId() == null || event.userId() == null) {
-            return false;
-        }
-        String action = event.action() == null ? "" : event.action().trim().toUpperCase();
-        if (!"JOINED".equals(action) && !"LEFT".equals(action)) {
-            return false;
-        }
+        requireValidRoomMemberEvent(event);
+        String action = event.action().trim().toUpperCase();
         String key = membershipKey(event.roomId(), event.userId());
         long version = event.version();
-        MembershipProjectionEntry current = memberships.get().get(key);
+        MembershipProjectionEntry current = state.get().memberships().get(key);
         if (!isNewer(version, current == null ? null : current.version())) {
             return false;
         }
 
-        Map<String, MembershipProjectionEntry> nextMemberships = new HashMap<>(memberships.get());
+        Map<String, MembershipProjectionEntry> nextMemberships = new HashMap<>(state.get().memberships());
         nextMemberships.put(key, new MembershipProjectionEntry(
                 event.roomId(),
                 event.userId(),
@@ -80,17 +72,32 @@ public class MembershipProjectionService {
         return true;
     }
 
+    private static void requireValidRoomMemberEvent(RoomMemberChanged event) {
+        if (event == null) {
+            throw new IllegalArgumentException("room member changed event must not be null");
+        }
+        if (event.eventId() == null || event.eventId().isBlank()) {
+            throw new IllegalArgumentException("room member changed event must carry a non-blank eventId");
+        }
+        if (event.roomId() == null || event.userId() == null) {
+            throw new IllegalArgumentException(
+                    "room member changed event must carry a complete roomId/userId identity");
+        }
+        String action = event.action() == null ? "" : event.action().trim().toUpperCase();
+        if (!"JOINED".equals(action) && !"LEFT".equals(action)) {
+            throw new IllegalArgumentException("room member changed event has an unsupported action: " + event.action());
+        }
+    }
+
     private synchronized void replaceSnapshot(MembershipSnapshotClient.FetchedMembershipSnapshot snapshot) {
         if (snapshot == null) {
             return;
         }
-        Map<String, MembershipProjectionEntry> nextMemberships = new HashMap<>(memberships.get());
+        requireValidSnapshotEntries(snapshot);
+        Map<String, MembershipProjectionEntry> currentMemberships = state.get().memberships();
+        Map<String, MembershipProjectionEntry> nextMemberships = new HashMap<>(currentMemberships);
         Set<String> seenKeys = new HashSet<>();
-        List<RoomMembershipEntry> entries = snapshot.entries() == null ? List.of() : snapshot.entries();
-        for (RoomMembershipEntry entry : entries) {
-            if (entry == null || entry.userId() == null || entry.roomId() == null) {
-                continue;
-            }
+        for (RoomMembershipEntry entry : snapshot.entries()) {
             String key = membershipKey(entry.roomId(), entry.userId());
             long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
@@ -108,7 +115,7 @@ public class MembershipProjectionService {
                 ));
             }
         }
-        for (Map.Entry<String, MembershipProjectionEntry> current : memberships.get().entrySet()) {
+        for (Map.Entry<String, MembershipProjectionEntry> current : currentMemberships.entrySet()) {
             if (seenKeys.contains(current.getKey())) {
                 continue;
             }
@@ -125,9 +132,21 @@ public class MembershipProjectionService {
         replaceMembershipState(nextMemberships);
     }
 
+    private static void requireValidSnapshotEntries(MembershipSnapshotClient.FetchedMembershipSnapshot snapshot) {
+        if (snapshot.entries() == null) {
+            throw new IllegalStateException("room membership snapshot omitted the entries list");
+        }
+        for (RoomMembershipEntry entry : snapshot.entries()) {
+            if (entry == null || entry.roomId() == null || entry.userId() == null) {
+                throw new IllegalStateException(
+                        "room membership snapshot contained an entry without a complete roomId/userId identity");
+            }
+        }
+    }
+
     private void replaceMembershipState(Map<String, MembershipProjectionEntry> nextMemberships) {
-        Map<UUID, Set<UUID>> roomsByUser = new ConcurrentHashMap<>();
-        Map<UUID, Set<UUID>> usersByRoom = new ConcurrentHashMap<>();
+        Map<UUID, Set<UUID>> roomsByUser = new HashMap<>();
+        Map<UUID, Set<UUID>> usersByRoom = new HashMap<>();
         for (MembershipProjectionEntry entry : nextMemberships.values()) {
             if (entry == null || !entry.active()) {
                 continue;
@@ -135,13 +154,15 @@ public class MembershipProjectionService {
             roomsByUser.computeIfAbsent(entry.userId(), ignored -> new LinkedHashSet<>()).add(entry.roomId());
             usersByRoom.computeIfAbsent(entry.roomId(), ignored -> new LinkedHashSet<>()).add(entry.userId());
         }
-        this.memberships.set(Map.copyOf(nextMemberships));
-        this.roomIdsByUser.set(toImmutableCopy(roomsByUser));
-        this.memberIdsByRoom.set(toImmutableCopy(usersByRoom));
+        state.set(new MembershipProjectionState(
+                Map.copyOf(nextMemberships),
+                toImmutableCopy(roomsByUser),
+                toImmutableCopy(usersByRoom)
+        ));
     }
 
     private static Map<UUID, Set<UUID>> toImmutableCopy(Map<UUID, Set<UUID>> source) {
-        Map<UUID, Set<UUID>> copy = new ConcurrentHashMap<>();
+        Map<UUID, Set<UUID>> copy = new HashMap<>();
         for (Map.Entry<UUID, Set<UUID>> entry : source.entrySet()) {
             copy.put(entry.getKey(), Set.copyOf(entry.getValue()));
         }
@@ -155,6 +176,17 @@ public class MembershipProjectionService {
     private static boolean isNewer(long candidateVersion, Long currentVersion) {
         long current = currentVersion == null ? Long.MIN_VALUE : currentVersion;
         return candidateVersion > current;
+    }
+
+    private record MembershipProjectionState(
+            Map<String, MembershipProjectionEntry> memberships,
+            Map<UUID, Set<UUID>> roomIdsByUser,
+            Map<UUID, Set<UUID>> memberIdsByRoom
+    ) {
+
+        private static MembershipProjectionState empty() {
+            return new MembershipProjectionState(Map.of(), Map.of(), Map.of());
+        }
     }
 
     private record MembershipProjectionEntry(

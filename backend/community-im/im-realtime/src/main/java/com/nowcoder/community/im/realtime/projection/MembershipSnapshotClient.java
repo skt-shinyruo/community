@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.projection;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
@@ -23,6 +24,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -60,11 +62,15 @@ public class MembershipSnapshotClient {
 
     public Mono<FetchedMembershipSnapshot> fetchSnapshot() {
         return fetchPage(null, null)
-                .expand(page -> {
-                    if (page == null || !page.hasMore() || page.nextRoomId() == null || page.nextUserId() == null) {
-                        return Mono.empty();
-                    }
-                    return fetchPage(page.nextRoomId(), page.nextUserId());
+                .flatMapMany(firstPage -> {
+                    long snapshotWatermark = pageWatermark(firstPage);
+                    return Flux.just(firstPage).expand(page -> {
+                        if (!page.hasMore()) {
+                            return Mono.empty();
+                        }
+                        return fetchPage(page.nextRoomId(), page.nextUserId())
+                                .map(nextPage -> requireSameWatermark(nextPage, snapshotWatermark));
+                    });
                 })
                 .collectList()
                 .map(pages -> new FetchedMembershipSnapshot(entries(pages), watermark(pages)));
@@ -84,7 +90,45 @@ public class MembershipSnapshotClient {
                 .header(HttpHeaders.AUTHORIZATION, internalBearer())
                 .retrieve()
                 .bodyToMono(RoomMembershipSnapshot.class)
+                .map(MembershipSnapshotClient::requireCompletePage)
+                .map(page -> requireAdvancingCursor(page, afterRoomId, afterUserId))
                 .timeout(timeout);
+    }
+
+    private static RoomMembershipSnapshot requireCompletePage(RoomMembershipSnapshot page) {
+        if (page.entries() == null) {
+            throw new IllegalStateException("room membership snapshot page omitted the entries list");
+        }
+        for (RoomMembershipEntry entry : page.entries()) {
+            if (entry == null || entry.roomId() == null || entry.userId() == null) {
+                throw new IllegalStateException(
+                        "room membership snapshot page contained an entry without a complete roomId/userId identity");
+            }
+        }
+        if (page.hasMore() && (page.nextRoomId() == null || page.nextUserId() == null)) {
+            throw new IllegalStateException(
+                    "room membership snapshot page declared hasMore without a complete continuation cursor");
+        }
+        return page;
+    }
+
+    private static RoomMembershipSnapshot requireAdvancingCursor(
+            RoomMembershipSnapshot page,
+            UUID afterRoomId,
+            UUID afterUserId
+    ) {
+        if (!page.hasMore() || afterRoomId == null || afterUserId == null) {
+            return page;
+        }
+        int roomOrder = compareUuidBytes(page.nextRoomId(), afterRoomId);
+        if (roomOrder < 0 || (roomOrder == 0 && compareUuidBytes(page.nextUserId(), afterUserId) <= 0)) {
+            throw new IllegalStateException("room membership snapshot continuation cursor did not advance");
+        }
+        return page;
+    }
+
+    private static int compareUuidBytes(UUID left, UUID right) {
+        return Arrays.compareUnsigned(BinaryUuidCodec.toBytes(left), BinaryUuidCodec.toBytes(right));
     }
 
     private String internalBearer() {
@@ -104,14 +148,9 @@ public class MembershipSnapshotClient {
     }
 
     private static List<RoomMembershipEntry> entries(List<RoomMembershipSnapshot> pages) {
-        if (pages == null || pages.isEmpty()) {
-            return List.of();
-        }
         List<RoomMembershipEntry> entries = new ArrayList<>();
         for (RoomMembershipSnapshot page : pages) {
-            if (page != null && page.entries() != null) {
-                entries.addAll(page.entries());
-            }
+            entries.addAll(page.entries());
         }
         return List.copyOf(entries);
     }
@@ -120,21 +159,24 @@ public class MembershipSnapshotClient {
         if (pages == null || pages.isEmpty()) {
             throw new IllegalStateException("projection snapshot returned no pages");
         }
-        RoomMembershipSnapshot firstPage = pages.get(0);
-        long watermark = ProjectionVersions.requireNonNegative(
-                firstPage == null ? null : firstPage.snapshotHighWatermark(),
+        return pageWatermark(pages.get(0));
+    }
+
+    private static long pageWatermark(RoomMembershipSnapshot page) {
+        return ProjectionVersions.requireNonNegative(
+                page == null ? null : page.snapshotHighWatermark(),
                 "snapshotHighWatermark"
         );
-        for (RoomMembershipSnapshot page : pages) {
-            long pageWatermark = ProjectionVersions.requireNonNegative(
-                    page == null ? null : page.snapshotHighWatermark(),
-                    "snapshotHighWatermark"
-            );
-            if (pageWatermark != watermark) {
-                throw new IllegalStateException("projection snapshot watermark changed between pages");
-            }
+    }
+
+    private static RoomMembershipSnapshot requireSameWatermark(
+            RoomMembershipSnapshot page,
+            long expectedWatermark
+    ) {
+        if (pageWatermark(page) != expectedWatermark) {
+            throw new IllegalStateException("projection snapshot watermark changed between pages");
         }
-        return watermark;
+        return page;
     }
 
     public record FetchedMembershipSnapshot(List<RoomMembershipEntry> entries, long snapshotHighWatermark) {

@@ -216,6 +216,355 @@ class SnapshotClientContractVersionTest {
     }
 
     @Test
+    void membershipSnapshotClientShouldFailWhenHasMorePageOmitsContinuationCursor() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            requestCount.incrementAndGet();
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextRoomId": null,
+                      "nextUserId": null,
+                      "hasMore": true,
+                      "snapshotHighWatermark": 10
+                    }
+                    """);
+        };
+        MembershipSnapshotClient client = membershipClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(1);
+    }
+
+    @Test
+    void membershipSnapshotClientShouldFailWhenHasMorePageOmitsCursorUserId() {
+        MembershipSnapshotClient client = membershipClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "entries": [],
+                  "nextRoomId": "00000000-0000-7000-8000-000000000001",
+                  "nextUserId": null,
+                  "hasMore": true,
+                  "snapshotHighWatermark": 10
+                }
+                """));
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void membershipSnapshotClientShouldFailWhenPageOmitsEntriesList() {
+        MembershipSnapshotClient client = membershipClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "nextRoomId": null,
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 10
+                }
+                """));
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenUserPageOmitsEntriesList() {
+        PolicySnapshotClient client = policyClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 10
+                }
+                """));
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenBlockPageOmitsEntriesList() {
+        PolicySnapshotClient client = policyClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "nextBlockerUserId": null,
+                  "nextBlockedUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 20
+                }
+                """));
+
+        StepVerifier.create(client.fetchBlockRelationSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void membershipSnapshotClientShouldFailWhenEntryOmitsRoomId() {
+        MembershipSnapshotClient client = membershipClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "entries": [
+                    {
+                      "schemaVersion": 1,
+                      "roomId": null,
+                      "userId": "00000000-0000-7001-8000-000000000001",
+                      "version": 5,
+                      "occurredAtEpochMillis": 100
+                    }
+                  ],
+                  "nextRoomId": null,
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 10
+                }
+                """));
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenUserEntryOmitsUserId() {
+        PolicySnapshotClient client = policyClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "entries": [
+                    {
+                      "schemaVersion": 1,
+                      "userId": null,
+                      "userExists": true,
+                      "suspended": false,
+                      "muted": false,
+                      "canSendPrivate": true,
+                      "version": 5,
+                      "occurredAtEpochMillis": 100
+                    }
+                  ],
+                  "nextUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 10
+                }
+                """));
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenBlockEntryOmitsBlockedUserId() {
+        PolicySnapshotClient client = policyClient(webClient("""
+                {
+                  "schemaVersion": 1,
+                  "entries": [
+                    {
+                      "schemaVersion": 1,
+                      "blockerUserId": "00000000-0000-7001-8000-000000000001",
+                      "blockedUserId": null,
+                      "active": true,
+                      "version": 5,
+                      "occurredAtEpochMillis": 100
+                    }
+                  ],
+                  "nextBlockerUserId": null,
+                  "nextBlockedUserId": null,
+                  "hasMore": false,
+                  "snapshotHighWatermark": 20
+                }
+                """));
+
+        StepVerifier.create(client.fetchBlockRelationSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+    }
+
+    @Test
+    void membershipSnapshotClientShouldFailWhenContinuationCursorDoesNotAdvance() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            if (requestCount.incrementAndGet() > 2) {
+                return Mono.error(new AssertionError("non-advancing cursor did not fail; pagination kept going"));
+            }
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextRoomId": "00000000-0000-7000-8000-000000000001",
+                      "nextUserId": "00000000-0000-7001-8000-000000000001",
+                      "hasMore": true,
+                      "snapshotHighWatermark": 10
+                    }
+                    """);
+        };
+        MembershipSnapshotClient client = membershipClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenUserContinuationCursorDoesNotAdvance() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            if (requestCount.incrementAndGet() > 2) {
+                return Mono.error(new AssertionError("non-advancing cursor did not fail; pagination kept going"));
+            }
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextUserId": "00000000-0000-7001-8000-000000000001",
+                      "hasMore": true,
+                      "snapshotHighWatermark": 10
+                    }
+                    """);
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenBlockContinuationCursorDoesNotAdvance() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            if (requestCount.incrementAndGet() > 2) {
+                return Mono.error(new AssertionError("non-advancing cursor did not fail; pagination kept going"));
+            }
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextBlockerUserId": "00000000-0000-7001-8000-000000000001",
+                      "nextBlockedUserId": "00000000-0000-7001-8000-000000000002",
+                      "hasMore": true,
+                      "snapshotHighWatermark": 20
+                    }
+                    """);
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchBlockRelationSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void membershipSnapshotClientShouldRejectWatermarkDriftBeforeRequestingAnotherPage() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            int index = requestCount.getAndIncrement();
+            if (index == 0) {
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextRoomId": "00000000-0000-7000-8000-000000000001",
+                          "nextUserId": "00000000-0000-7001-8000-000000000001",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 10
+                        }
+                        """);
+            }
+            if (index == 1) {
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [],
+                          "nextRoomId": "00000000-0000-7000-8000-000000000002",
+                          "nextUserId": "00000000-0000-7001-8000-000000000002",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 11
+                        }
+                        """);
+            }
+            return Mono.error(new AssertionError("watermark drift triggered another membership snapshot request"));
+        };
+        MembershipSnapshotClient client = membershipClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException
+                        && "projection snapshot watermark changed between pages".equals(error.getMessage()))
+                .verify();
+
+        assertThat(requestCount).hasValue(2);
+    }
+
+    @Test
+    void membershipSnapshotClientShouldMergeMultiPageSnapshotUnderOneWatermark() {
+        MembershipSnapshotClient client = membershipClient(webClient(
+                """
+                        {
+                          "schemaVersion": 1,
+                          "entries": [
+                            {
+                              "schemaVersion": 1,
+                              "roomId": "00000000-0000-7000-8000-000000000001",
+                              "userId": "00000000-0000-7001-8000-000000000001",
+                              "version": 5,
+                              "occurredAtEpochMillis": 100
+                            }
+                          ],
+                          "nextRoomId": "00000000-0000-7000-8000-000000000001",
+                          "nextUserId": "00000000-0000-7001-8000-000000000001",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 10
+                        }
+                        """,
+                """
+                        {
+                          "schemaVersion": 1,
+                          "entries": [
+                            {
+                              "schemaVersion": 1,
+                              "roomId": "00000000-0000-7000-8000-000000000002",
+                              "userId": "00000000-0000-7001-8000-000000000002",
+                              "version": 6,
+                              "occurredAtEpochMillis": 200
+                            }
+                          ],
+                          "nextRoomId": null,
+                          "nextUserId": null,
+                          "hasMore": false,
+                          "snapshotHighWatermark": 10
+                        }
+                        """
+        ));
+
+        StepVerifier.create(client.fetchSnapshot())
+                .assertNext(snapshot -> {
+                    assertThat(snapshot.snapshotHighWatermark()).isEqualTo(10L);
+                    assertThat(snapshot.entries())
+                            .extracting(entry -> entry.roomId() + "->" + entry.userId())
+                            .containsExactly(
+                                    "00000000-0000-7000-8000-000000000001->00000000-0000-7001-8000-000000000001",
+                                    "00000000-0000-7000-8000-000000000002->00000000-0000-7001-8000-000000000002"
+                            );
+                })
+                .verifyComplete();
+    }
+
+    @Test
     void membershipSnapshotClientShouldRejectChangedPaginationWatermark() {
         MembershipSnapshotClient client = membershipClient(webClient(
                 """
@@ -244,6 +593,127 @@ class SnapshotClientContractVersionTest {
                 .expectErrorMatches(error -> error instanceof IllegalStateException
                         && "projection snapshot watermark changed between pages".equals(error.getMessage()))
                 .verify();
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenHasMoreUserPageOmitsContinuationCursor() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            requestCount.incrementAndGet();
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextUserId": null,
+                      "hasMore": true,
+                      "snapshotHighWatermark": 10
+                    }
+                    """);
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(1);
+    }
+
+    @Test
+    void policySnapshotClientShouldFailWhenHasMoreBlockPageOmitsContinuationCursor() {
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            requestCount.incrementAndGet();
+            return jsonResponse("""
+                    {
+                      "schemaVersion": 1,
+                      "entries": [],
+                      "nextBlockerUserId": null,
+                      "nextBlockedUserId": "00000000-0000-7000-8000-000000000002",
+                      "hasMore": true,
+                      "snapshotHighWatermark": 20
+                    }
+                    """);
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchBlockRelationSnapshot())
+                .expectErrorMatches(error -> error instanceof IllegalStateException)
+                .verify();
+
+        assertThat(requestCount).hasValue(1);
+    }
+
+    @Test
+    void policySnapshotClientShouldMergeMultiPageUserSnapshotUnderOneWatermark() {
+        AtomicReference<String> continuationQuery = new AtomicReference<>();
+        AtomicInteger requestCount = new AtomicInteger();
+        ExchangeFunction exchange = request -> {
+            int index = requestCount.getAndIncrement();
+            if (index == 0) {
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [
+                            {
+                              "schemaVersion": 1,
+                              "userId": "00000000-0000-7001-8000-000000000001",
+                              "userExists": true,
+                              "suspended": false,
+                              "muted": false,
+                              "canSendPrivate": true,
+                              "version": 5,
+                              "occurredAtEpochMillis": 100
+                            }
+                          ],
+                          "nextUserId": "00000000-0000-7001-8000-000000000001",
+                          "hasMore": true,
+                          "snapshotHighWatermark": 10
+                        }
+                        """);
+            }
+            if (index == 1) {
+                continuationQuery.set(request.url().getQuery());
+                return jsonResponse("""
+                        {
+                          "schemaVersion": 1,
+                          "entries": [
+                            {
+                              "schemaVersion": 1,
+                              "userId": "00000000-0000-7001-8000-000000000002",
+                              "userExists": true,
+                              "suspended": false,
+                              "muted": false,
+                              "canSendPrivate": false,
+                              "version": 6,
+                              "occurredAtEpochMillis": 200
+                            }
+                          ],
+                          "nextUserId": null,
+                          "hasMore": false,
+                          "snapshotHighWatermark": 10
+                        }
+                        """);
+            }
+            return Mono.error(new AssertionError("unexpected user snapshot page request"));
+        };
+        PolicySnapshotClient client = policyClient(WebClient.builder().exchangeFunction(exchange).build());
+
+        StepVerifier.create(client.fetchUserPolicySnapshot())
+                .assertNext(snapshot -> {
+                    assertThat(snapshot.snapshotHighWatermark()).isEqualTo(10L);
+                    assertThat(snapshot.entries())
+                            .extracting(entry -> entry.userId() + ":" + entry.version())
+                            .containsExactly(
+                                    "00000000-0000-7001-8000-000000000001:5",
+                                    "00000000-0000-7001-8000-000000000002:6"
+                            );
+                })
+                .verifyComplete();
+
+        assertThat(continuationQuery.get())
+                .contains("afterUserId=00000000-0000-7001-8000-000000000001")
+                .contains("snapshotVersion=10");
     }
 
     @Test

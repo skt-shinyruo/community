@@ -192,6 +192,8 @@ Membership projection：
 - `RoomLocalIndex` 只保存当前 worker 进程内的 roomId -> connectionId 集合，用于房间在线 fanout 和 room 连接数指标；它不是 membership 权威状态。
 - membership snapshot 的 boxed `snapshotHighWatermark` 必填、非负并允许为 `0`；entry / delta 的 `version` 必须是显式正数。`occurredAtEpochMillis` 只用于观测，不能派生版本。realtime 只接受同一 `(roomId,userId)` 上版本更大的状态；旧 snapshot 或乱序 `RoomMemberChanged` 不会回滚 membership 或本机 room index。
 - membership `version` 是 im-core owner 的持久逻辑时钟：`im_membership_version_counter` 分配版本，active fact 写入 `im_room_member.version`，离开房间写入 `im_membership_version_log` 并推进 counter；snapshot entry、`RoomMemberChanged.version` 和 `snapshotHighWatermark` 都来自这个同一版本域。
+- membership snapshot 分页与内容是 fail-closed 的：`hasMore=true` 必须带完整游标（否则刷新失败而非把当前页当完整快照）、每页 `entries` 必填、entry 必须带完整 `roomId/userId`、续页游标必须严格前进、realtime client 逐页校验水位（漂移立即终止刷新，不再请求下一页）。任一校验失败保留上一个可用 projection。
+- `RoomMemberChanged` 缺失 `eventId` / `roomId` / `userId` 或 `action` 不是 `JOINED`/`LEFT` 时，listener 抛出 `IllegalArgumentException` 进入 `im.event.room-member-changed.dlq`，不静默 ack；membership 状态（memberships 与派生索引）以单次原子替换发布，并发读者不观察混合 generation。
 - 房间 fanout 只使用 Redis-backed distributed presence、共享 `RoomPersistedOwnerConsumer` 和 Kafka fixed-partition worker inbox。`RoomFanoutOwnerService` 在 listener 调用栈内规划 route，并把 state-only command 同步写入目标 worker partition。
 - `RoomLocalIndex` 和连接对象是本进程权威状态；Redis activate/deactivate 失败时 `RoomLocalPresenceService` 保留 pending room 重试，不回滚本地 join/leave。
 - route planning 或任一 target publish 失败会抛回 listener，让原始 room persisted event 重试或进入 DLQ；空 target set 表示当前没有活跃 worker，不重试。
@@ -208,6 +210,8 @@ Policy projection：
 - user policy `version` 是 user owner 的持久逻辑时钟：`user_policy_version_counter` 分配版本，`user.policy_version` 保存当前用户治理事实版本，每次状态写入同时追加 `user_policy_version_log`；`UserPolicyChangedPayload.version` 和 user policy snapshot entry / high-watermark 使用同一 counter 域。
 - block relation `version` 是 social owner 的持久逻辑时钟：`social_block_version_counter` 分配版本，active fact 写入 `social_block.version`，创建和取消拉黑都追加 `social_block_version_log`；`BlockPayload.version`、block snapshot entry 和 high-watermark 使用同一 counter 域。
 - policy snapshot 第一页固定 owner 当前版本并返回 `snapshotHighWatermark`；带游标的后续请求必须把该值作为 `snapshotVersion` 原样传回。owner 在历史日志上按该版本扫描，realtime 也在收到水位漂移的页面时立即终止刷新。
+- policy / block snapshot 分页与 membership 同样 fail-closed：`hasMore=true` 必须带完整游标、`entries` 必填、entry 必须带完整身份字段、续页游标必须严格前进；任一校验失败保留上一个可用 projection。
+- `UserMessagingPolicyChanged` / `UserBlockRelationChanged` 缺失 `eventId` 或身份字段时，listener 抛出 `IllegalArgumentException` 进入对应 `.dlq` topic，不静默 ack。user policy 与 block relation 两张投影在一次刷新中以单次原子替换发布，`canSendPrivateMessage` 单次判定内不会混合两个 refresh generation。
 - `occurredAtEpochMillis` 不参与版本决策；版本只能由上述 owner 持久 counter 单调推进，不能使用 snapshot time 或进程内 counter 生成。
 
 projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构建。

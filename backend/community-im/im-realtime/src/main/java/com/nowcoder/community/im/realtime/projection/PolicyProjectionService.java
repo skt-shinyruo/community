@@ -10,7 +10,6 @@ import reactor.core.publisher.Mono;
 
 import java.util.HashSet;
 import java.util.HashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
@@ -20,11 +19,11 @@ import java.util.concurrent.atomic.AtomicReference;
 public class PolicyProjectionService {
 
     private final PolicySnapshotClient policySnapshotClient;
-    private final AtomicReference<Map<UUID, UserMessagingPolicyEntry>> policiesByUser = new AtomicReference<>(Map.of());
-    private final AtomicReference<Map<String, BlockProjectionEntry>> blockRelations = new AtomicReference<>(Map.of());
+    private final AtomicReference<PolicyProjectionState> state;
 
     public PolicyProjectionService(PolicySnapshotClient policySnapshotClient) {
         this.policySnapshotClient = policySnapshotClient;
+        this.state = new AtomicReference<>(PolicyProjectionState.empty());
     }
 
     public Mono<Void> refreshNow() {
@@ -40,8 +39,9 @@ public class PolicyProjectionService {
         if (fromUserId == null || toUserId == null) {
             return PolicyDecision.deny(400, "invalid_request", "参数错误");
         }
-        UserMessagingPolicyEntry fromPolicy = policiesByUser.get().get(fromUserId);
-        UserMessagingPolicyEntry toPolicy = policiesByUser.get().get(toUserId);
+        PolicyProjectionState current = state.get();
+        UserMessagingPolicyEntry fromPolicy = current.policiesByUser().get(fromUserId);
+        UserMessagingPolicyEntry toPolicy = current.policiesByUser().get(toUserId);
         if (fromPolicy == null || !fromPolicy.userExists()) {
             return PolicyDecision.deny(404, "policy_denied", "发送方不存在");
         }
@@ -54,7 +54,7 @@ public class PolicyProjectionService {
         if (!toPolicy.canSendPrivate()) {
             return PolicyDecision.deny(403, "policy_denied", "接收方不允许私信");
         }
-        if (isBlocked(fromUserId, toUserId) || isBlocked(toUserId, fromUserId)) {
+        if (isBlocked(current, fromUserId, toUserId) || isBlocked(current, toUserId, fromUserId)) {
             return PolicyDecision.deny(403, "policy_denied", "用户已拉黑");
         }
         return PolicyDecision.allow();
@@ -65,15 +65,22 @@ public class PolicyProjectionService {
     }
 
     public synchronized void applyUserMessagingPolicyChanged(UserMessagingPolicyChanged event) {
-        if (event == null || event.userId() == null) {
-            return;
+        if (event == null) {
+            throw new IllegalArgumentException("user messaging policy changed event must not be null");
+        }
+        if (event.eventId() == null || event.eventId().isBlank()) {
+            throw new IllegalArgumentException("user messaging policy changed event must carry a non-blank eventId");
+        }
+        if (event.userId() == null) {
+            throw new IllegalArgumentException("user messaging policy changed event must carry a userId identity");
         }
         long version = event.version();
-        UserMessagingPolicyEntry current = policiesByUser.get().get(event.userId());
-        if (!isNewer(version, currentVersion(current))) {
+        PolicyProjectionState current = state.get();
+        UserMessagingPolicyEntry currentPolicy = current.policiesByUser().get(event.userId());
+        if (!isNewer(version, currentVersion(currentPolicy))) {
             return;
         }
-        Map<UUID, UserMessagingPolicyEntry> nextPolicies = new HashMap<>(policiesByUser.get());
+        Map<UUID, UserMessagingPolicyEntry> nextPolicies = new HashMap<>(current.policiesByUser());
         nextPolicies.put(event.userId(), new UserMessagingPolicyEntry(
                 event.userId(),
                 event.userExists(),
@@ -85,22 +92,30 @@ public class PolicyProjectionService {
                 version,
                 event.occurredAtEpochMillis()
         ));
-        policiesByUser.set(Map.copyOf(nextPolicies));
+        state.set(new PolicyProjectionState(Map.copyOf(nextPolicies), current.blockRelations()));
     }
 
     public synchronized boolean applyUserBlockRelationChanged(UserBlockRelationChanged event) {
-        if (event == null || event.blockerUserId() == null || event.blockedUserId() == null) {
-            return false;
+        if (event == null) {
+            throw new IllegalArgumentException("user block relation changed event must not be null");
+        }
+        if (event.eventId() == null || event.eventId().isBlank()) {
+            throw new IllegalArgumentException("user block relation changed event must carry a non-blank eventId");
+        }
+        if (event.blockerUserId() == null || event.blockedUserId() == null) {
+            throw new IllegalArgumentException(
+                    "user block relation changed event must carry a complete blocker/blocked identity");
         }
         String key = blockKey(event.blockerUserId(), event.blockedUserId());
         long version = event.version();
-        BlockProjectionEntry current = blockRelations.get().get(key);
-        if (!isNewer(version, current == null ? null : current.version())) {
+        PolicyProjectionState current = state.get();
+        BlockProjectionEntry currentBlock = current.blockRelations().get(key);
+        if (!isNewer(version, currentBlock == null ? null : currentBlock.version())) {
             return false;
         }
-        Map<String, BlockProjectionEntry> nextBlocks = new HashMap<>(blockRelations.get());
+        Map<String, BlockProjectionEntry> nextBlocks = new HashMap<>(current.blockRelations());
         nextBlocks.put(key, new BlockProjectionEntry(event.active(), version, event.occurredAtEpochMillis()));
-        blockRelations.set(Map.copyOf(nextBlocks));
+        state.set(new PolicyProjectionState(current.policiesByUser(), Map.copyOf(nextBlocks)));
         return true;
     }
 
@@ -108,21 +123,51 @@ public class PolicyProjectionService {
             PolicySnapshotClient.FetchedUserPolicySnapshot policySnapshot,
             PolicySnapshotClient.FetchedBlockRelationSnapshot blockSnapshot
     ) {
-        applyPolicySnapshot(policySnapshot);
-        applyBlockSnapshot(blockSnapshot);
+        requireValidPolicySnapshotEntries(policySnapshot);
+        requireValidBlockSnapshotEntries(blockSnapshot);
+        PolicyProjectionState current = state.get();
+        Map<UUID, UserMessagingPolicyEntry> nextPolicies = mergePolicySnapshot(
+                current.policiesByUser(),
+                policySnapshot
+        );
+        Map<String, BlockProjectionEntry> nextBlocks = mergeBlockSnapshot(
+                current.blockRelations(),
+                blockSnapshot
+        );
+        state.set(new PolicyProjectionState(nextPolicies, nextBlocks));
     }
 
-    private void applyPolicySnapshot(PolicySnapshotClient.FetchedUserPolicySnapshot snapshot) {
-        if (snapshot == null) {
-            return;
+    private static void requireValidPolicySnapshotEntries(PolicySnapshotClient.FetchedUserPolicySnapshot snapshot) {
+        if (snapshot == null || snapshot.entries() == null) {
+            throw new IllegalStateException("user policy snapshot omitted the entries list");
         }
-        Map<UUID, UserMessagingPolicyEntry> nextPolicies = new HashMap<>(policiesByUser.get());
-        Set<UUID> seenUserIds = new HashSet<>();
-        List<UserMessagingPolicyEntry> policies = snapshot.entries() == null ? List.of() : snapshot.entries();
-        for (UserMessagingPolicyEntry entry : policies) {
+        for (UserMessagingPolicyEntry entry : snapshot.entries()) {
             if (entry == null || entry.userId() == null) {
-                continue;
+                throw new IllegalStateException(
+                        "user policy snapshot contained an entry without a userId identity");
             }
+        }
+    }
+
+    private static void requireValidBlockSnapshotEntries(PolicySnapshotClient.FetchedBlockRelationSnapshot snapshot) {
+        if (snapshot == null || snapshot.entries() == null) {
+            throw new IllegalStateException("block relation snapshot omitted the entries list");
+        }
+        for (UserBlockRelationEntry entry : snapshot.entries()) {
+            if (entry == null || entry.blockerUserId() == null || entry.blockedUserId() == null) {
+                throw new IllegalStateException(
+                        "block relation snapshot contained an entry without a complete blocker/blocked identity");
+            }
+        }
+    }
+
+    private static Map<UUID, UserMessagingPolicyEntry> mergePolicySnapshot(
+            Map<UUID, UserMessagingPolicyEntry> currentPolicies,
+            PolicySnapshotClient.FetchedUserPolicySnapshot snapshot
+    ) {
+        Map<UUID, UserMessagingPolicyEntry> nextPolicies = new HashMap<>(currentPolicies);
+        Set<UUID> seenUserIds = new HashSet<>();
+        for (UserMessagingPolicyEntry entry : snapshot.entries()) {
             long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
                     snapshot.snapshotHighWatermark()
@@ -133,7 +178,7 @@ public class PolicyProjectionService {
                 nextPolicies.put(entry.userId(), withVersion(entry, version));
             }
         }
-        for (Map.Entry<UUID, UserMessagingPolicyEntry> current : policiesByUser.get().entrySet()) {
+        for (Map.Entry<UUID, UserMessagingPolicyEntry> current : currentPolicies.entrySet()) {
             if (seenUserIds.contains(current.getKey())) {
                 continue;
             }
@@ -142,20 +187,16 @@ public class PolicyProjectionService {
                 nextPolicies.remove(current.getKey());
             }
         }
-        policiesByUser.set(Map.copyOf(nextPolicies));
+        return Map.copyOf(nextPolicies);
     }
 
-    private void applyBlockSnapshot(PolicySnapshotClient.FetchedBlockRelationSnapshot snapshot) {
-        if (snapshot == null) {
-            return;
-        }
-        Map<String, BlockProjectionEntry> nextBlocks = new HashMap<>(blockRelations.get());
+    private static Map<String, BlockProjectionEntry> mergeBlockSnapshot(
+            Map<String, BlockProjectionEntry> currentBlocks,
+            PolicySnapshotClient.FetchedBlockRelationSnapshot snapshot
+    ) {
+        Map<String, BlockProjectionEntry> nextBlocks = new HashMap<>(currentBlocks);
         Set<String> seenKeys = new HashSet<>();
-        List<UserBlockRelationEntry> entries = snapshot.entries() == null ? List.of() : snapshot.entries();
-        for (UserBlockRelationEntry entry : entries) {
-            if (entry == null || entry.blockerUserId() == null || entry.blockedUserId() == null) {
-                continue;
-            }
+        for (UserBlockRelationEntry entry : snapshot.entries()) {
             String key = blockKey(entry.blockerUserId(), entry.blockedUserId());
             long version = ProjectionVersions.snapshotEntryVersion(
                     entry.version(),
@@ -167,7 +208,7 @@ public class PolicyProjectionService {
                 nextBlocks.put(key, new BlockProjectionEntry(entry.active(), version, entry.occurredAtEpochMillis()));
             }
         }
-        for (Map.Entry<String, BlockProjectionEntry> current : blockRelations.get().entrySet()) {
+        for (Map.Entry<String, BlockProjectionEntry> current : currentBlocks.entrySet()) {
             if (seenKeys.contains(current.getKey())) {
                 continue;
             }
@@ -175,11 +216,11 @@ public class PolicyProjectionService {
                 nextBlocks.put(current.getKey(), new BlockProjectionEntry(false, snapshot.snapshotHighWatermark(), null));
             }
         }
-        blockRelations.set(Map.copyOf(nextBlocks));
+        return Map.copyOf(nextBlocks);
     }
 
-    private boolean isBlocked(UUID blockerUserId, UUID blockedUserId) {
-        BlockProjectionEntry entry = blockRelations.get().get(blockKey(blockerUserId, blockedUserId));
+    private static boolean isBlocked(PolicyProjectionState current, UUID blockerUserId, UUID blockedUserId) {
+        BlockProjectionEntry entry = current.blockRelations().get(blockKey(blockerUserId, blockedUserId));
         return entry != null && entry.active();
     }
 
@@ -211,6 +252,16 @@ public class PolicyProjectionService {
                 version,
                 entry.occurredAtEpochMillis()
         );
+    }
+
+    private record PolicyProjectionState(
+            Map<UUID, UserMessagingPolicyEntry> policiesByUser,
+            Map<String, BlockProjectionEntry> blockRelations
+    ) {
+
+        private static PolicyProjectionState empty() {
+            return new PolicyProjectionState(Map.of(), Map.of());
+        }
     }
 
     private record BlockProjectionEntry(boolean active, long version, Long occurredAtEpochMillis) {

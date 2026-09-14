@@ -43,25 +43,7 @@ public class KafkaConfig {
 
     @Bean
     public DefaultErrorHandler kafkaDefaultErrorHandler(KafkaTemplate<Object, Object> kafkaTemplate) {
-        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(
-                kafkaTemplate,
-                (ConsumerRecord<?, ?> record, Exception ex) -> {
-                    String dlqTopic = record.topic() + ".dlq";
-                    warnEvent(
-                            "kafka_dlq_recover",
-                            "degraded",
-                            null,
-                            "community.source_topic", record.topic(),
-                            "community.dlq_topic", dlqTopic,
-                            "community.kafka_partition", record.partition(),
-                            "community.kafka_offset", record.offset(),
-                            "community.reason_code", exceptionReasonCode(ex),
-                            "community.error_class", errorClass(ex),
-                            "community.error_message", errorMessage(ex)
-                    );
-                    return new TopicPartition(dlqTopic, record.partition());
-                }
-        );
+        DeadLetterPublishingRecoverer recoverer = new DeadLetterPublishingRecoverer(kafkaTemplate, this::dlqDestination);
 
         DefaultErrorHandler handler = new DefaultErrorHandler(recoverer, new FixedBackOff(1000L, 3L));
         handler.addNotRetryableExceptions(
@@ -70,6 +52,23 @@ public class KafkaConfig {
                 SecurityException.class
         );
         return handler;
+    }
+
+    TopicPartition dlqDestination(ConsumerRecord<?, ?> record, Exception ex) {
+        String dlqTopic = record.topic() + ".dlq";
+        warnEvent(
+                "kafka_dlq_recover",
+                "degraded",
+                null,
+                "community.source_topic", record.topic(),
+                "community.dlq_topic", dlqTopic,
+                "community.kafka_partition", record.partition(),
+                "community.kafka_offset", record.offset(),
+                "community.reason_code", exceptionReasonCode(ex),
+                "community.error_class", errorClass(ex),
+                "community.error_message", errorMessage(ex)
+        );
+        return new TopicPartition(dlqTopic, record.partition());
     }
 
     private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {

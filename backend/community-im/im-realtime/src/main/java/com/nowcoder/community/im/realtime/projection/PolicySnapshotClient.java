@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.projection;
 
+import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.im.common.projection.UserBlockRelationEntry;
@@ -25,6 +26,7 @@ import reactor.core.publisher.Mono;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -116,6 +118,8 @@ public class PolicySnapshotClient {
                 .header(HttpHeaders.AUTHORIZATION, internalBearer())
                 .retrieve()
                 .bodyToMono(UserMessagingPolicySnapshot.class)
+                .map(PolicySnapshotClient::requireCompleteUserPolicyPage)
+                .map(page -> requireAdvancingUserPolicyCursor(page, afterUserId))
                 .timeout(timeout);
     }
 
@@ -140,7 +144,76 @@ public class PolicySnapshotClient {
                 .header(HttpHeaders.AUTHORIZATION, internalBearer())
                 .retrieve()
                 .bodyToMono(UserBlockRelationSnapshot.class)
+                .map(PolicySnapshotClient::requireCompleteBlockRelationPage)
+                .map(page -> requireAdvancingBlockRelationCursor(page, afterBlockerUserId, afterBlockedUserId))
                 .timeout(timeout);
+    }
+
+    private static UserMessagingPolicySnapshot requireAdvancingUserPolicyCursor(
+            UserMessagingPolicySnapshot page,
+            UUID afterUserId
+    ) {
+        if (!page.hasMore() || afterUserId == null) {
+            return page;
+        }
+        if (compareUuidBytes(page.nextUserId(), afterUserId) <= 0) {
+            throw new IllegalStateException("user policy snapshot continuation cursor did not advance");
+        }
+        return page;
+    }
+
+    private static UserBlockRelationSnapshot requireAdvancingBlockRelationCursor(
+            UserBlockRelationSnapshot page,
+            UUID afterBlockerUserId,
+            UUID afterBlockedUserId
+    ) {
+        if (!page.hasMore() || afterBlockerUserId == null || afterBlockedUserId == null) {
+            return page;
+        }
+        int blockerOrder = compareUuidBytes(page.nextBlockerUserId(), afterBlockerUserId);
+        if (blockerOrder < 0
+                || (blockerOrder == 0 && compareUuidBytes(page.nextBlockedUserId(), afterBlockedUserId) <= 0)) {
+            throw new IllegalStateException("block relation snapshot continuation cursor did not advance");
+        }
+        return page;
+    }
+
+    private static int compareUuidBytes(UUID left, UUID right) {
+        return Arrays.compareUnsigned(BinaryUuidCodec.toBytes(left), BinaryUuidCodec.toBytes(right));
+    }
+
+    private static UserMessagingPolicySnapshot requireCompleteUserPolicyPage(UserMessagingPolicySnapshot page) {
+        if (page.entries() == null) {
+            throw new IllegalStateException("user policy snapshot page omitted the entries list");
+        }
+        for (UserMessagingPolicyEntry entry : page.entries()) {
+            if (entry == null || entry.userId() == null) {
+                throw new IllegalStateException(
+                        "user policy snapshot page contained an entry without a userId identity");
+            }
+        }
+        if (page.hasMore() && page.nextUserId() == null) {
+            throw new IllegalStateException(
+                    "user policy snapshot page declared hasMore without a complete continuation cursor");
+        }
+        return page;
+    }
+
+    private static UserBlockRelationSnapshot requireCompleteBlockRelationPage(UserBlockRelationSnapshot page) {
+        if (page.entries() == null) {
+            throw new IllegalStateException("block relation snapshot page omitted the entries list");
+        }
+        for (UserBlockRelationEntry entry : page.entries()) {
+            if (entry == null || entry.blockerUserId() == null || entry.blockedUserId() == null) {
+                throw new IllegalStateException(
+                        "block relation snapshot page contained an entry without a complete blocker/blocked identity");
+            }
+        }
+        if (page.hasMore() && (page.nextBlockerUserId() == null || page.nextBlockedUserId() == null)) {
+            throw new IllegalStateException(
+                    "block relation snapshot page declared hasMore without a complete continuation cursor");
+        }
+        return page;
     }
 
     private String internalBearer() {
@@ -160,27 +233,17 @@ public class PolicySnapshotClient {
     }
 
     private static List<UserMessagingPolicyEntry> userPolicyEntries(List<UserMessagingPolicySnapshot> pages) {
-        if (pages == null || pages.isEmpty()) {
-            return List.of();
-        }
         List<UserMessagingPolicyEntry> entries = new ArrayList<>();
         for (UserMessagingPolicySnapshot page : pages) {
-            if (page != null && page.entries() != null) {
-                entries.addAll(page.entries());
-            }
+            entries.addAll(page.entries());
         }
         return List.copyOf(entries);
     }
 
     private static List<UserBlockRelationEntry> blockRelationEntries(List<UserBlockRelationSnapshot> pages) {
-        if (pages == null || pages.isEmpty()) {
-            return List.of();
-        }
         List<UserBlockRelationEntry> entries = new ArrayList<>();
         for (UserBlockRelationSnapshot page : pages) {
-            if (page != null && page.entries() != null) {
-                entries.addAll(page.entries());
-            }
+            entries.addAll(page.entries());
         }
         return List.copyOf(entries);
     }

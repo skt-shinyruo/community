@@ -11,6 +11,7 @@ IM command、event、projection 以及 WebSocket frame 都写出数值型 `schem
 - v1 内未知字段会忽略。
 - WebSocket 入口由 `ImFrameCodec` 转成 protocol reject。
 - Kafka 反序列化失败进入 error handler，最终写源 topic 的 `.dlq`；非法 command 不产生 persisted、committed 或 rejected 业务事件。
+- projection event 的语义校验同样 fail-closed：缺失 `eventId` / 身份字段或未知 action 的事件由 listener 抛出 `IllegalArgumentException`（不可重试），最终写源 topic 的 `.dlq`，不会静默 ack；版本不新的重复 / 乱序事件仍是合法幂等 ack。
 
 `OpenImSessionResponse` 是 session bootstrap 的同步 HTTP helper，只返回 `sessionId`、`wsUrl`、`ticket` 和 `expiresAtEpochMillis`；它不属于上述四类版本化 wire contract。
 
@@ -23,6 +24,8 @@ membership、user policy 和 block relation 的 entry / delta 都要求显式正
 - room membership：`im_membership_version_counter` / `im_room_member.version` 及删除日志
 
 `occurredAtEpochMillis` 只表示可观测发生时间，不能派生版本。snapshot 的 `snapshotHighWatermark` 是必填 boxed `Long`，必须非负且允许为 `0`；snapshot entry 的有效版本取显式正数 entry version 与 watermark 的较大值。realtime 只应用同一 projection key 上更大的版本。
+
+realtime 拉取 snapshot 是 fail-closed 的：`hasMore=true` 的页必须带完整 continuation cursor，每页 `entries` 必填且 entry 身份完整，续页游标必须严格前进，多页必须返回同一水位（user policy / block relation 通过 `snapshotVersion` 续页参数在 owner 侧固定，membership 由 client 逐页校验）。任一违反使整个刷新失败并保留上一个可用 projection；合法刷新以单次原子状态替换发布，读者不观察混合 generation。
 
 ## 私信持久化
 

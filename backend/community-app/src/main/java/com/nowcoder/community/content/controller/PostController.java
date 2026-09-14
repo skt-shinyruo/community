@@ -79,7 +79,7 @@ public class PostController {
     @PostMapping
     public Result<PostCreateResult> create(
             Authentication authentication,
-            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
             @Valid @RequestBody CreatePostRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
@@ -132,7 +132,7 @@ public class PostController {
     @PostMapping("/{postId}/comments")
     public Result<UUID> addComment(
             Authentication authentication,
-            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
             @PathVariable UUID postId,
             @Valid @RequestBody CreateCommentRequest request
     ) {

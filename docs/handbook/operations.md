@@ -468,7 +468,7 @@ fail startup before serving traffic. Check `NACOS_CONFIG_IMPORT_SHARED`,
 检查：
 
 - single 启动命令是否带了 `--observability`，或 cluster 是否没有带 `--no-observability`。
-- backend 是否在 `docker compose logs <service>` 中输出 JSON stdout（包含 `service.name`、`trace.id` 等字段）。
+- backend 是否在 `./deploy/deployment.sh logs --stack <stack> <service>` 中输出 JSON stdout（包含 `service.name`、`trace.id` 等字段）。
 - EDOT collector 是否正常运行，并挂载了 `/var/lib/docker/containers`。
 - Kibana saved objects 是否已导入。
 - 日志查询时间范围是否覆盖当前时间。

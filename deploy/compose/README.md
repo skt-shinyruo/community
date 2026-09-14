@@ -10,5 +10,4 @@ composition roots live under `deploy/stacks/`.
 
 Docker Compose resolves relative build and bind-mount paths from this `deploy/compose/` project-resource base when
 the fragments are loaded through a Stack include. Keep paths relative to that base. Overlays appended by
-`deployment.sh` use the injected `COMMUNITY_DEPLOY_ROOT`, because their base differs between Stack and legacy topology
-composition. Run the compose contract group after moving an asset.
+`deployment.sh` use the injected `COMMUNITY_DEPLOY_ROOT`, because their base differs from the Stack that includes them. Run the compose contract group after moving an asset.

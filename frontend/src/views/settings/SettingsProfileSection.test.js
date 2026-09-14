@@ -27,7 +27,10 @@ vi.mock('../../api/services/authService', () => ({
   me: apiMe
 }))
 
-vi.mock('../../api/services/userService', () => ({ invalidateUserProfile }))
+vi.mock('../../api/services/userService', async () => ({
+  ...(await vi.importActual('../../api/services/userService')),
+  invalidateUserProfile
+}))
 
 vi.mock('../../api/uploadTransport', () => ({ uploadTransport }))
 

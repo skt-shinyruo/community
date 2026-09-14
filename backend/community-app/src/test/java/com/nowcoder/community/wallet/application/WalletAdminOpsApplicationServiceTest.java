@@ -127,6 +127,22 @@ class WalletAdminOpsApplicationServiceTest {
     }
 
     @Test
+    void duplicateFreezeShouldKeepSingleDeterministicAuditRow() {
+        UUID actorUserId = uuid(1);
+        UUID targetUserId = uuid(101);
+        UUID accountId = accountService.ensureUserWallet(targetUserId);
+
+        adminWalletOpsService.freezeWallet(actorUserId, targetUserId, "risk review");
+        assertThatThrownBy(() -> adminWalletOpsService.freezeWallet(actorUserId, targetUserId, "risk review"))
+                .isInstanceOf(BusinessException.class)
+                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.ACCOUNT_UPDATE_CONFLICT));
+
+        assertThat(countRows("wallet_admin_action")).isEqualTo(1);
+        assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
+                .isEqualTo("wallet-admin:freeze:" + accountId);
+    }
+
+    @Test
     void reverseTransferShouldCreateReversalTxnInsteadOfEditingBalancesInPlace() {
         UUID actorUserId = uuid(1);
         UUID fromUserId = uuid(101);

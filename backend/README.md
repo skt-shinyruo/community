@@ -34,6 +34,9 @@
 - `community-gateway/`：统一 HTTP / WS edge
 - `community-im-gateway/`：IM session bootstrap 与稳定 `/ws/im` WebSocket edge
 - `community-im/`：IM 聚合模块（下含 `im-common`、`im-session-ticket`、`im-core`、`im-realtime`）
+- `community-oss/`：对象存储 owner
+- `community-oss-client/`：`community-oss` 的 typed client
+- `community-common/`：9 个 `common-*` 模块：错误协议、安全、Web、幂等、outbox、JSON、Kafka 等共享基础设施
 
 ## 仓库级入口
 - 部署与 compose：`../deploy/`

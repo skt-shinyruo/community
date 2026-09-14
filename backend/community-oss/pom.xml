@@ -16,7 +16,7 @@
     <packaging>jar</packaging>
 
     <properties>
-        <aws.sdk.version>2.25.60</aws.sdk.version>
+        <aws.sdk.version>2.54.17</aws.sdk.version>
     </properties>
 
     <dependencies>
@@ -116,7 +116,7 @@
         <dependency>
             <groupId>com.tngtech.archunit</groupId>
             <artifactId>archunit-junit5</artifactId>
-            <version>1.2.1</version>
+            <version>${archunit.version}</version>
             <scope>test</scope>
         </dependency>
     </dependencies>

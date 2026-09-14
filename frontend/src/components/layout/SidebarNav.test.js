@@ -131,7 +131,7 @@ describe('SidebarNav', () => {
 
   it('concentrates the account area at the sidebar footer with profile, settings and logout', async () => {
     const { wrapper, auth } = mountSidebar({ authed: true })
-    post.mockResolvedValueOnce({})
+    post.mockResolvedValueOnce({ data: { code: 0, message: '', data: null, traceId: 'trace-logout' } })
 
     const footer = wrapper.get('.sidebar-footer')
     expect(footer.text()).toContain('aaa')

@@ -10,6 +10,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 
 import java.util.Set;
@@ -104,6 +105,19 @@ class GlobalExceptionHandlerTest {
     void missingRequestParamShouldBe400WithTraceId() {
         TraceId.set("ffffffffffffffffffffffffffffffff");
         MissingServletRequestParameterException ex = new MissingServletRequestParameterException("ip", "String");
+        ResponseEntity<Result<Void>> resp = handler.handleRequestParam(ex);
+        advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
+
+        assertThat(resp.getStatusCode().value()).isEqualTo(400);
+        assertThat(resp.getBody()).isNotNull();
+        assertThat(resp.getBody().getCode()).isEqualTo(400);
+        assertThat(resp.getBody().getTraceId()).isEqualTo("ffffffffffffffffffffffffffffffff");
+    }
+
+    @Test
+    void missingRequestHeaderShouldBe400WithTraceId() {
+        TraceId.set("ffffffffffffffffffffffffffffffff");
+        MissingRequestHeaderException ex = new MissingRequestHeaderException("Idempotency-Key", null);
         ResponseEntity<Result<Void>> resp = handler.handleRequestParam(ex);
         advice.beforeBodyWrite(resp.getBody(), null, null, null, null, null);
 

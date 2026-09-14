@@ -20,6 +20,7 @@ import org.springframework.web.HttpRequestMethodNotSupportedException;
 import org.springframework.web.server.ResponseStatusException;
 import org.springframework.validation.BindException;
 import org.springframework.web.bind.MethodArgumentNotValidException;
+import org.springframework.web.bind.MissingRequestHeaderException;
 import org.springframework.web.bind.MissingServletRequestParameterException;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
@@ -70,7 +71,7 @@ public class GlobalExceptionHandler {
         return response(CommonErrorCode.INVALID_ARGUMENT);
     }
 
-    @ExceptionHandler({MissingServletRequestParameterException.class, MethodArgumentTypeMismatchException.class})
+    @ExceptionHandler({MissingServletRequestParameterException.class, MissingRequestHeaderException.class, MethodArgumentTypeMismatchException.class})
     public ResponseEntity<Result<Void>> handleRequestParam(Exception e) {
         return response(CommonErrorCode.INVALID_ARGUMENT);
     }

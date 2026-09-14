@@ -1,7 +1,8 @@
-// 用户相关 API：用户主页信息与用户摘要。
+// 用户相关 API：用户主页信息、用户摘要与头像。
 
 import http from '../http'
 import { unwrapResultBody } from '../result'
+import { normalizeUploadSession } from '../uploadSession'
 import { normalizeOpaqueId, normalizeOpaqueIds, requireOpaqueId } from '../../utils/opaqueId'
 
 const USER_CACHE_TTL_MS = 5 * 60 * 1000
@@ -159,4 +160,22 @@ export async function batchUserSummary(userIds) {
     })),
     traceId
   }
+}
+
+export async function createAvatarUploadSession(file, userId, signal) {
+  const resp = await http.post(`/api/users/${userId}/avatar/upload-sessions`, {
+    fileName: file?.name || 'avatar',
+    contentType: file?.type || 'application/octet-stream',
+    contentLength: file?.size || 0,
+    checksumSha256: ''
+  }, { signal })
+  const { data } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
+  return {
+    session: normalizeUploadSession(data || {})
+  }
+}
+
+export async function updateAvatar(objectId, userId) {
+  const resp = await http.put(`/api/users/${userId}/avatar`, { objectId })
+  unwrapResultBody(resp.data, 'Update Avatar')
 }

@@ -3,6 +3,7 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { useAuthStore } from '../stores/auth'
 import { ensureSessionReady, shouldBootstrapSession } from './session'
+import { SESSION_HINT_KEY } from './sessionHint'
 
 const refreshTransport = vi.hoisted(() => ({
   requestRefreshToken: vi.fn(),
@@ -33,13 +34,13 @@ describe('session bootstrap', () => {
   })
 
   it('bootstraps when a previous session hint exists', () => {
-    globalThis.localStorage.setItem('community.session.hint', '1')
+    globalThis.localStorage.setItem(SESSION_HINT_KEY, '1')
 
     expect(shouldBootstrapSession()).toBe(true)
   })
 
   it('restores session from refresh cookie and loads profile when access token is missing', async () => {
-    globalThis.localStorage.setItem('community.session.hint', '1')
+    globalThis.localStorage.setItem(SESSION_HINT_KEY, '1')
     refreshTransport.requestRefreshToken.mockResolvedValue({
       data: { accessToken: 'new-token' },
       traceId: 'trace-refresh'
@@ -61,14 +62,14 @@ describe('session bootstrap', () => {
 
   it('returns a retryable error without clearing the session hint when refresh is temporarily unavailable', async () => {
     refreshTransport.requestRefreshToken.mockRejectedValue(new Error('refresh failed'))
-    globalThis.localStorage.setItem('community.session.hint', '1')
+    globalThis.localStorage.setItem(SESSION_HINT_KEY, '1')
 
     const result = await ensureSessionReady()
 
     expect(result.state).toBe('error')
     expect(useAuthStore().accessToken).toBe('')
     expect(useAuthStore().me).toBeNull()
-    expect(globalThis.localStorage.getItem('community.session.hint')).toBe('1')
+    expect(globalThis.localStorage.getItem(SESSION_HINT_KEY)).toBe('1')
     expect(refreshTransport.requestCurrentUser).not.toHaveBeenCalled()
   })
 

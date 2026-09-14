@@ -64,7 +64,7 @@ public class WalletAdminOpsApplicationService {
 
         var account = accountService.loadUserWallet(targetUserId);
         accountService.setStatus(account.getAccountId(), WalletAccountDomainService.STATUS_FROZEN);
-        insertAudit("wallet-admin:freeze:" + UUID.randomUUID(), actorUserId, account.getAccountId(), ACTION_FREEZE_WALLET, 0L, normalizedReason);
+        insertAudit(freezeAuditRequestId(account.getAccountId()), actorUserId, account.getAccountId(), ACTION_FREEZE_WALLET, 0L, normalizedReason);
     }
 
     @Transactional
@@ -146,6 +146,10 @@ public class WalletAdminOpsApplicationService {
 
     private String reverseAuditRequestId(String txnRef) {
         return "wallet-admin:reverse:" + txnRef;
+    }
+
+    private String freezeAuditRequestId(UUID accountId) {
+        return "wallet-admin:freeze:" + accountId;
     }
 
     private String reversalRequestId(String txnRef) {

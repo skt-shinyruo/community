@@ -1,7 +1,6 @@
 import { defineStore } from 'pinia'
+import { SESSION_HINT_KEY } from '../auth/sessionHint'
 import { normalizeOpaqueId } from '../utils/opaqueId'
-
-const SESSION_HINT_KEY = 'community.session.hint'
 
 // 已解析身份只在真实身份切换时推进 identityEpoch：access token 轮换（静默刷新）
 // 不属于身份切换，identityUserId 在轮换期间的 me=null 窗口内保持不变。

@@ -128,9 +128,14 @@ MySQL entrypoint 按完整文件名顺序先执行 `001_create_databases.sh`，�
 | `im_room_member` | 房间成员 |
 | `im_room_message` | 群消息，按 room seq 排序 |
 | `im_room_read_state` | 群聊已读水位 |
+| `im_user_room_inbox` | 群聊按用户的 inbox projection（末条消息快照、已读水位、未读数、排序时间） |
 | `im_conversation` | 私信会话 |
 | `im_private_message` | 私信消息，按 conversation seq 排序 |
 | `im_conversation_read_state` | 私信已读水位 |
+| `im_user_conversation_inbox` | 私信按用户的 inbox projection（末条消息快照、已读水位、未读数、排序时间） |
+| `im_membership_version_counter` | room membership 版本域的全局计数器（单行） |
+| `im_membership_version_log` | room membership 变更的版本日志 |
+| `outbox_event` | im_core 的 DB outbox 可靠投递表 |
 
 IM 消息权威状态在 `im_core`，主站通知读模型在 `community.notice_record`。
 

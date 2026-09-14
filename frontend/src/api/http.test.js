@@ -13,6 +13,7 @@ vi.mock('../auth/refreshTransport', () => refreshTransport)
 import http from './http'
 import imCoreHttp from './imCoreHttp'
 import { ensureSessionReady } from '../auth/session'
+import { SESSION_HINT_KEY } from '../auth/sessionHint'
 import { useAuthStore } from '../stores/auth'
 import { setToastHandler } from '../ui/toastService'
 import { createWriteAttempt, writeAttemptConfig } from './writeAttempt'
@@ -195,7 +196,7 @@ describe('http', () => {
 
   it('shares one refresh between HTTP recovery and session bootstrap', async () => {
     const auth = useAuthStore()
-    globalThis.localStorage.setItem('community.session.hint', '1')
+    globalThis.localStorage.setItem(SESSION_HINT_KEY, '1')
     const refresh = deferred()
     refreshTransport.requestRefreshToken.mockReturnValueOnce(refresh.promise)
     refreshTransport.requestCurrentUser.mockResolvedValueOnce({

@@ -13,7 +13,7 @@ npm run build
 
 默认本地入口：
 
-- Vite dev server：`http://localhost:5173`
+- Vite dev server：`http://localhost:12881`
 - compose frontend-nginx：`http://localhost:12881`
 - API / files / WS gateway：`http://localhost:12880`
 

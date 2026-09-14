@@ -44,7 +44,8 @@ cp deploy/stacks/cluster/.env.example deploy/stacks/cluster/.env
 
 每个目录内的 `.env` 只属于对应 Stack，包含本地密钥、端口、浏览器 origin、Mock Data Studio 和
 observability 等配置。不要提交真实 `.env`。`deployment.sh` 不执行 env 文件，只安全读取白名单键；值按
-shell 环境、Stack env、内置默认值的顺序解析。
+shell 环境、Stack env、内置默认值的顺序解析。`.env.example` 中的签名密钥（JWT 密钥对、各 HMAC secret）
+只带占位值：复制后按 `.env.example` 内注释的 `openssl` 命令生成本地密钥再启动。
 
 三个 Stack 默认使用不同的 project、volume namespace、Docker network 和宿主机端口，可以并存。使用
 `-p` / `--project-name` 再启动同类 Stack 时，仍必须提供独立的 volume namespace、网络与宿主机端口。

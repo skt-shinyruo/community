@@ -90,9 +90,7 @@ import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
 import { me as apiMe } from '../../api/services/authService'
-import { invalidateUserProfile } from '../../api/services/userService'
-import http from '../../api/http'
-import { unwrapResultBody } from '../../api/result'
+import { createAvatarUploadSession, invalidateUserProfile, updateAvatar } from '../../api/services/userService'
 import { executeUploadSession, normalizeUploadSession } from '../../api/uploadSession'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
@@ -157,24 +155,6 @@ watch(pickedFile, (file, _previousFile, onCleanup) => {
   })
 })
 
-async function createUploadSession(file, userId, signal) {
-  const resp = await http.post(`/api/users/${userId}/avatar/upload-sessions`, {
-    fileName: file?.name || 'avatar',
-    contentType: file?.type || 'application/octet-stream',
-    contentLength: file?.size || 0,
-    checksumSha256: ''
-  }, { signal })
-  const { data } = unwrapResultBody(resp.data, 'Create Avatar Upload Session')
-  return {
-    session: normalizeUploadSession(data || {})
-  }
-}
-
-async function updateAvatar(objectId, userId) {
-  const resp = await http.put(`/api/users/${userId}/avatar`, { objectId })
-  unwrapResultBody(resp.data, 'Update Avatar')
-}
-
 function isCurrentUpload(generation, scope) {
   return generation === uploadGeneration && scope === sessionScope.value
 }
@@ -194,7 +174,7 @@ async function uploadAndUpdate() {
   uploadPhase.value = 'creating'
   loading.value = true
   try {
-    const created = await createUploadSession(file, userId, controller.signal)
+    const created = await createAvatarUploadSession(file, userId, controller.signal)
     if (!isCurrentUpload(generation, scope)) return
     Object.assign(uploadSession, created.session)
 

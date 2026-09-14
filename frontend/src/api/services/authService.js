@@ -1,4 +1,4 @@
-// 认证相关 API：登录、注册、注册验证码、图形验证码、查询当前用户信息。
+// 认证相关 API：登录、登出、注册、注册验证码、图形验证码、查询当前用户信息。
 // 登录 / 注册 / 找回密码表单在页面行内展示错误，提交类调用统一跳过全局错误 toast，避免双重提示。
 
 import http from '../http'
@@ -14,6 +14,11 @@ export async function login(username, password, { captchaId = '', captchaCode = 
   }
   const resp = await http.post('/api/auth/login', payload, inlineErrorConfig)
   return unwrapResultBody(resp.data, '登录')
+}
+
+export async function logout() {
+  const resp = await http.post('/api/auth/logout')
+  unwrapResultBody(resp.data, '登出')
 }
 
 export async function me() {

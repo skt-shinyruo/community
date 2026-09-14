@@ -86,7 +86,7 @@ public class WalletController {
     @PostMapping("/recharges")
     public Result<RechargeOrderResult> recharge(
             Authentication authentication,
-            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
             @RequestBody @Valid CreateRechargeRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
@@ -98,7 +98,7 @@ public class WalletController {
     @PostMapping("/withdrawals")
     public Result<WithdrawOrderResult> withdraw(
             Authentication authentication,
-            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
             @RequestBody @Valid CreateWithdrawRequest request
     ) {
         UUID userId = CurrentUser.requireUserUuid(authentication);
@@ -110,7 +110,7 @@ public class WalletController {
     @PostMapping("/transfers")
     public Result<TransferOrderResult> transfer(
             Authentication authentication,
-            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+            @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
             @RequestBody @Valid CreateTransferRequest request
     ) {
         UUID fromUserId = CurrentUser.requireUserUuid(authentication);

@@ -21,7 +21,6 @@
 - [现代社区向设计参考调研](../research/modern-community-visual-language.md)
 - [组件库候选调研：引入 vs 自研补齐](../research/component-libraries-vs-in-house.md)
 - [UI 迁移期视觉回归验证手段调研](../research/visual-regression-testing.md)
-- [帖子流视觉小样](../../frontend/prototype/posts-visual-directions.html)
 
 ## 2. 目标与非目标
 
@@ -191,7 +190,7 @@
 
 ### 6.4 消费流与帖子链路
 
-- 消费流统一使用“加载更多”追加分页；`UiPagination` 只用于管理和表格页面。
+- 消费流统一使用“加载更多”追加分页。
 - 帖子流查询统一为 `categoryId`、`tag`、`order=latest|hot`；`boardId` 退役。
 - 帖子卡的分类和标签可点击并回到相同过滤模型；toolbar 提供最新/最热 tabs 和可清除的 tag chip。
 - 评论/回复发布后静默插入并定位到新内容；评论编辑保存不弹成功 toast。

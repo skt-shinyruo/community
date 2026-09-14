@@ -109,7 +109,7 @@ import { LogOut, PanelLeftClose, PanelLeftOpen, Settings } from 'lucide-vue-next
 import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { useInboxUnreadStore, formatUnreadCount } from '../../stores/inboxUnread'
-import http from '../../api/http'
+import { logout } from '../../api/services/authService'
 import UiAvatar from '../ui/UiAvatar.vue'
 import UiButton from '../ui/UiButton.vue'
 import UiIconButton from '../ui/UiIconButton.vue'
@@ -149,7 +149,7 @@ function navItemAriaLabel(item) {
 
 async function onLogout() {
   try {
-    await http.post('/api/auth/logout')
+    await logout()
   } finally {
     auth.clear()
     inboxUnread.reset()

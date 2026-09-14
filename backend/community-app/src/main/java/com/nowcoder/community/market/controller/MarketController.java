@@ -116,7 +116,7 @@ public class MarketController {
 
     @PostMapping("/listings")
     public Result<MarketListingResult> createListing(Authentication authentication,
-                                                       @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+                                                       @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
                                                        @RequestBody @Valid CreateMarketListingRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketListingService.createListing(new CreateMarketListingCommand(
@@ -183,7 +183,7 @@ public class MarketController {
     @PostMapping("/listings/{listingId}/inventory")
     public Result<AppendInventoryResult> addInventory(Authentication authentication,
                                      @PathVariable UUID listingId,
-                                     @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+                                     @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
                                      @RequestBody @Valid AddMarketInventoryBatchRequest request) {
         UUID sellerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketInventoryService.appendInventory(toCommand(listingId, sellerUserId, request, idempotencyKey)));
@@ -247,7 +247,7 @@ public class MarketController {
 
     @PostMapping("/orders")
     public Result<MarketOrderResult> createOrder(Authentication authentication,
-                                                   @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = false) String idempotencyKey,
+                                                   @RequestHeader(value = IdempotencyGuard.HEADER_IDEMPOTENCY_KEY, required = true) String idempotencyKey,
                                                    @RequestBody @Valid CreateMarketOrderRequest request) {
         UUID buyerUserId = CurrentUser.requireUserUuid(authentication);
         return Result.ok(marketOrderService.createOrder(new CreateOrderCommand(

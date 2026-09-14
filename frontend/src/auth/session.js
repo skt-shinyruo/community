@@ -1,9 +1,7 @@
 import { useAuthStore } from '../stores/auth'
 import { recoverUnauthorized, refreshSession } from './refreshCoordinator'
 import { requestCurrentUser } from './refreshTransport'
-
-// 会话提示：登录成功时写入 community.session.hint=1，用于下次访问时尝试静默恢复会话。
-const SESSION_HINT_KEY = 'community.session.hint'
+import { SESSION_HINT_KEY } from './sessionHint'
 
 function hasSessionHint() {
   try {

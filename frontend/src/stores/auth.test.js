@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from 'vitest'
 
 import { useAuthStore } from './auth'
 import { identityScope } from './identityScope'
+import { SESSION_HINT_KEY } from '../auth/sessionHint'
 
 describe('auth store session generations', () => {
   beforeEach(() => {
@@ -49,7 +50,7 @@ describe('auth store session generations', () => {
     expect(auth.me).toEqual(newProfile)
     expect(auth.identityState).toBe('resolved')
     expect(auth.tokenGeneration).toBe(2)
-    expect(window.localStorage.getItem('community.session.hint')).toBe('1')
+    expect(window.localStorage.getItem(SESSION_HINT_KEY)).toBe('1')
 
     auth.installSession({ accessToken: 'token-2', me: undefined })
     expect(auth.me).toEqual(newProfile)
@@ -74,7 +75,7 @@ describe('auth store session generations', () => {
     expect(auth.me).toBeNull()
     expect(auth.identityState).toBe('anonymous')
     expect(auth.tokenGeneration).toBe(2)
-    expect(window.localStorage.getItem('community.session.hint')).toBeNull()
+    expect(window.localStorage.getItem(SESSION_HINT_KEY)).toBeNull()
 
     auth.clear()
     expect(auth.tokenGeneration).toBe(2)

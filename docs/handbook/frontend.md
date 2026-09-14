@@ -88,7 +88,7 @@ PostsView 内的 UiTabs（最新/最热）组成，帖子卡的分类 chip 与 `
 分享是可见按钮，分享复制当前帖子的规范链接并以 toast 反馈；关注作者、举报帖子、屏蔽作者和
 治理动作（置顶 / 加精 / 删除）收敛进「更多」`UiDropdown`。评论与回复使用「加载更多」追加
 分页（游标续接、失败保留已加载内容并以同一游标重试），首载用 `UiSkeleton`，空 / 错态用
-`UiState`（错态带重试），不使用 UiPagination 或裸加载文本。发布评论 / 回复后静默把最新一页
+`UiState`（错态带重试），不使用裸加载文本。发布评论 / 回复后静默把最新一页
 按 id 归并到列表头部并滚动定位到新内容；评论编辑保存后原位更新内容，不弹成功 toast。深链
 `?commentId=` / `?replyId=` 与高亮保持：目标不在已加载页时按追加分页自动续载（有界），再
 滚动定位。评论 / 回复的举报复用 `ReportModal`（`targetType=comment`），帖子 / 评论编辑复用
@@ -251,6 +251,8 @@ role=status 播报结果，失败内联 alert。
 ## 会话恢复
 
 前端 access token 只保存在 Pinia 内存 store：`frontend/src/stores/auth.js`。refresh token 由后端 HttpOnly cookie 承载，浏览器脚本不可读。
+
+注册流程是刻意例外：`frontend/src/views/registerFlowState.js` 会把 `registrationToken` 持久化到 localStorage（`community.register.pending`），只用于刷新后恢复注册验证码步骤；它不是 access/refresh token，上述令牌边界不变。
 
 刷新页面后，`frontend/src/auth/session.js` 通过以下流程恢复会话：
 

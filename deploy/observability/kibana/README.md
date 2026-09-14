@@ -4,11 +4,12 @@ This directory stores the repository-managed Kibana saved objects for the local 
 
 ## Start The Stack
 
-Choose one topology; observability is enabled by default:
+Choose one topology. The observability overlay is off by default for the single
+stack (pass `--observability` to enable it) and on by default for the cluster stack:
 
 ```bash
 cp deploy/stacks/single/.env.example deploy/stacks/single/.env
-./deploy/deployment.sh up --stack single
+./deploy/deployment.sh up --stack single --observability
 ```
 
 or

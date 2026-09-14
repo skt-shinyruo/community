@@ -17,11 +17,11 @@
 
     <properties>
         <java.version>17</java.version>
-        <community.repackage.skip>true</community.repackage.skip>
         <spring-cloud.version>2025.1.2</spring-cloud.version>
         <spring-cloud-alibaba.version>2025.1.0.0</spring-cloud-alibaba.version>
         <mybatis-spring-boot.version>4.0.0</mybatis-spring-boot.version>
         <opentelemetry.version>1.50.0</opentelemetry.version>
+        <archunit.version>1.2.1</archunit.version>
     </properties>
 
     <dependencyManagement>

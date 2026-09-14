@@ -1,4 +1,5 @@
 import { profileFor } from './profiles.js'
+import { boolEnv } from '../lib/config.js'
 
 function numberFromEnv(name, fallback) {
   const raw = __ENV[name]
@@ -31,6 +32,17 @@ function thresholdsFor(profileName) {
   if (profileName === 'im-ws') {
     thresholds.ws_connecting = [`p(95)<${numberFromEnv('K6_WS_CONNECT_P95_MS', 1000)}`]
     thresholds.ws_session_duration = [`p(95)>${numberFromEnv('K6_WS_SESSION_P95_MIN_MS', 5000)}`]
+    // Application-layer protocol: the scenario must observe connected and pong
+    // frames, and any connect reject fails the run.
+    thresholds.community_im_connected = ['count>0']
+    thresholds.community_im_pong = ['count>0']
+    thresholds.community_im_rejected = ['count<1']
+    // Mirror the scenario's send gate in lib/im.js: sends only happen when both
+    // K6_IM_SEND_MESSAGES and K6_IM_ROOM_ID are set.
+    if (boolEnv('K6_IM_SEND_MESSAGES', false) && String(__ENV.K6_IM_ROOM_ID || '').trim()) {
+      thresholds.community_im_send_committed = ['count>0']
+      thresholds.community_im_send_rejected = ['count<1']
+    }
   }
   return thresholds
 }

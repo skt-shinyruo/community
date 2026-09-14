@@ -68,7 +68,7 @@ K6_BOARD_ID=<board-uuid> K6_POST_ID=<post-uuid> npm run hot-path
 1. 先跑 `smoke`，确认健康检查、公开读接口、登录和认证探测都正常。
 2. 跑 `api-mix` 建立读多写少的基线，记录 QPS、p95、p99、错误率、CPU、内存、GC、连接池、Redis、Kafka、ES。
 3. 跑 `write-paths` 验证发帖、评论、收藏、点赞和 Drive 文件夹写链路。默认低写入比例，避免本地数据膨胀过快。
-4. 跑 `im-ws` 验证 `/api/im/sessions`、`/ws/im` 建连、`connect`、`ping/pong`。
+4. 跑 `im-ws` 验证 `/api/im/sessions` 下发的 wsUrl 建连（`K6_WS_URL` 仅作显式覆盖）、携带 schemaVersion 的 `connect`/`ping` 帧，以及 `connected`/`pong` 观察与 connect reject 失败阈值；配置 `K6_IM_SEND_MESSAGES=true` 和 `K6_IM_ROOM_ID` 后按 clientMsgId 关联 `ack`/`committed`/`reject`。
 5. 跑 `stress` 和 `spike` 找拐点；跑 `soak` 观察长时间资源泄漏、异步积压和日志压力。
 
 ## 观测点

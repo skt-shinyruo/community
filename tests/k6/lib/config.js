@@ -11,18 +11,19 @@ function intEnv(name, fallback) {
   return Number.isFinite(parsed) ? parsed : fallback
 }
 
-function boolEnv(name, fallback = false) {
+export function boolEnv(name, fallback = false) {
   const raw = env(name, fallback ? 'true' : 'false').toLowerCase()
   return raw === '1' || raw === 'true' || raw === 'yes'
 }
 
 export function loadConfig() {
   const baseUrl = env('K6_BASE_URL', defaultBaseUrl).replace(/\/+$/, '')
-  const derivedWsUrl = baseUrl.replace(/^http:/, 'ws:').replace(/^https:/, 'wss:') + '/ws/im'
 
   return {
     baseUrl,
-    wsUrl: env('K6_WS_URL', derivedWsUrl),
+    // Empty by default: the IM session bootstrap response issues the WebSocket
+    // URL. K6_WS_URL is an explicit override only.
+    wsUrl: env('K6_WS_URL', ''),
     username: env('K6_USERNAME', 'aaa'),
     password: env('K6_PASSWORD', 'aaa'),
     loginOnEveryIteration: boolEnv('K6_LOGIN_EACH_ITERATION', false),

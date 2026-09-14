@@ -16,7 +16,7 @@ fi
 mkdir -p "${results_dir}"
 timestamp="$(date -u +%Y-%m-%dT%H-%M-%S-000Z)"
 summary_path="/results/${profile}-${timestamp}.json"
-image="${K6_DOCKER_IMAGE:-grafana/k6:0.51.0}"
+image="${K6_DOCKER_IMAGE:-grafana/k6:0.54.0}"
 
 env_args=()
 while IFS= read -r name; do

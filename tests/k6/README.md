@@ -44,7 +44,7 @@ npm run spike
 - `api-mix`：内容、搜索、市场、云盘、通知、钱包和 IM 历史混合读取
 - `hot-path`：global/board feed 与 post detail 缓存路径
 - `write-paths`：低速率发帖、评论、收藏、点赞和 Drive 文件夹写入
-- `im-ws`：IM session、WebSocket 建连、`connect` 和 `ping`
+- `im-ws`：IM session、WebSocket 建连、携带 schemaVersion 的 `connect`/`ping` 帧；观察 `connected`/`pong`，connect reject 触发失败；可选 `sendRoomText` 按 clientMsgId 关联 `ack`/`committed`/`reject`
 - `soak`、`stress`、`spike`：长稳、饱和点和突发恢复
 
 ## 配置
@@ -52,9 +52,9 @@ npm run spike
 本地种子账号为 `aaa / aaa`、`bbb / aaa`、`admin / aaa`。常用覆盖项：
 
 - `K6_BASE_URL`：Gateway 地址，默认 `http://localhost:12880`
-- `K6_WS_URL`：WebSocket 地址，默认从 Gateway 派生 `/ws/im`
+- `K6_WS_URL`：显式覆盖 IM WebSocket 地址；默认使用 `POST /api/im/sessions` 下发的 `wsUrl`
 - `K6_USERNAME`、`K6_PASSWORD`：登录账号
-- `K6_DOCKER_IMAGE`：runner 镜像，默认 `grafana/k6:0.51.0`
+- `K6_DOCKER_IMAGE`：runner 镜像，默认 `grafana/k6:0.54.0`
 - `K6_BOARD_ID`、`K6_POST_ID`：`hot-path` 的可选实体
 - `K6_WRITE_RATIO`、`K6_ALLOW_WRITES`：写入比例和总开关
 - `K6_IM_HOLD_SECONDS`、`K6_IM_SEND_MESSAGES`、`K6_IM_ROOM_ID`：IM 场景参数

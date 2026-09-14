@@ -8,6 +8,10 @@ export const createdComments = new Counter('community_created_comments')
 export const createdDriveFolders = new Counter('community_created_drive_folders')
 export const imConnected = new Counter('community_im_connected')
 export const imRejected = new Counter('community_im_rejected')
+export const imPong = new Counter('community_im_pong')
+export const imSendAcked = new Counter('community_im_send_acked')
+export const imSendCommitted = new Counter('community_im_send_committed')
+export const imSendRejected = new Counter('community_im_send_rejected')
 
 export function recordUnexpected(ok) {
   unexpectedStatus.add(!ok)

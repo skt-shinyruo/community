@@ -24,6 +24,7 @@ describe('k6 load testing suite structure', () => {
     'lib/data.js',
     'lib/metrics.js',
     'lib/im.js',
+    'lib/imProtocol.js',
     'scenarios/smoke.js',
     'scenarios/api-mix.js',
     'scenarios/hot-path.js',
@@ -102,6 +103,10 @@ describe('k6 load testing suite structure', () => {
     assert.match(imLib, /ticket/)
     assert.match(imLib, /socket\.setTimeout/)
     assert.match(imLib, /socket\.close/)
+    assert.match(imLib, /\.\/imProtocol\.js/)
+    // URL priority contract: session bootstrap is the default, the explicit
+    // K6_WS_URL override wins. Swapping these arguments must fail the suite.
+    assert.match(imLib, /resolveWsUrl\(config\.wsUrl, data\.wsUrl\)/)
   })
 
   it('documents run commands, data assumptions, thresholds, and observability', async () => {

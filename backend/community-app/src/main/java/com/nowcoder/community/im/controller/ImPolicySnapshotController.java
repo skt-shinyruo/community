@@ -2,7 +2,6 @@ package com.nowcoder.community.im.controller;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
-import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.im.application.ImPolicySnapshotApplicationService;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -53,20 +52,6 @@ public class ImPolicySnapshotController {
                     limit,
                     snapshotVersion
             ));
-        } catch (UnsupportedOperationException e) {
-            throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
-        } catch (IllegalArgumentException e) {
-            throw new ResponseStatusException(HttpStatus.BAD_REQUEST, e.getMessage(), e);
-        }
-    }
-
-    @GetMapping("/private-message-decision")
-    public ResponseEntity<PrivateMessagePolicyDecision> privateMessageDecision(
-            @RequestParam("fromUserId") UUID fromUserId,
-            @RequestParam("toUserId") UUID toUserId
-    ) {
-        try {
-            return ResponseEntity.ok(snapshotService.decidePrivateMessage(fromUserId, toUserId));
         } catch (UnsupportedOperationException e) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, e.getMessage(), e);
         } catch (IllegalArgumentException e) {

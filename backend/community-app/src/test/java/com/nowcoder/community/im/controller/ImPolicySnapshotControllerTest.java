@@ -2,14 +2,12 @@ package com.nowcoder.community.im.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.security.jwt.JwtCodecs;
 import com.nowcoder.community.common.security.jwt.JwtProperties;
 import com.nowcoder.community.social.application.BlockApplicationService;
 import com.nowcoder.community.social.application.BlockApplicationService.BlockCommand;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import com.nowcoder.community.user.api.action.UserModerationActionApi.ApplyModerationCommand;
 import com.nowcoder.community.user.domain.repository.UserRepository;
-import com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject;
 import com.nowcoder.community.user.infrastructure.persistence.mapper.UserMapper;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,20 +15,16 @@ import org.springframework.boot.webmvc.test.autoconfigure.AutoConfigureMockMvc;
 import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.test.context.bean.override.mockito.MockitoBean;
 import org.springframework.kafka.core.KafkaTemplate;
-import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
-import org.springframework.security.oauth2.jwt.JwtClaimsSet;
-import org.springframework.security.oauth2.jwt.JwtEncoderParameters;
-import org.springframework.security.oauth2.jwt.JwsHeader;
 import org.springframework.test.context.ActiveProfiles;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.MvcResult;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.Instant;
-import java.util.List;
-import java.util.Date;
 import java.util.UUID;
 
+import static com.nowcoder.community.support.ImInternalControllerTestSupport.bearer;
+import static com.nowcoder.community.support.ImInternalControllerTestSupport.insertUser;
+import static com.nowcoder.community.support.ImInternalControllerTestSupport.internalBearer;
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.hamcrest.Matchers.greaterThan;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -69,15 +63,15 @@ class ImPolicySnapshotControllerTest {
 
     @Test
     void projectionEndpointsShouldRequireInternalScope() throws Exception {
-        insertUser(uuid(7), "u7");
+        insertUser(userMapper, userRepository, uuid(7), "u7");
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
-                        .header("Authorization", bearer(uuid(7)))
+                        .header("Authorization", bearer(jwtProperties, uuid(7)))
                         .param("limit", "10"))
                 .andExpect(status().isForbidden());
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
-                        .header("Authorization", internalBearer(uuid(7)))
+                        .header("Authorization", internalBearer(jwtProperties, uuid(7)))
                         .param("limit", "10"))
                 .andExpect(status().isOk());
     }
@@ -87,14 +81,14 @@ class ImPolicySnapshotControllerTest {
         UUID mutedUserId = uuid(7);
         UUID bannedUserId = uuid(8);
         UUID actorUserId = uuid(99);
-        insertUser(mutedUserId, "u7");
-        insertUser(bannedUserId, "u8");
-        insertUser(actorUserId, "moderation-admin", 1, 1);
+        insertUser(userMapper, userRepository, mutedUserId, "u7");
+        insertUser(userMapper, userRepository, bannedUserId, "u8");
+        insertUser(userMapper, userRepository, actorUserId, "moderation-admin", 1, 1);
         userModerationActionApi.applyModeration(new ApplyModerationCommand(actorUserId, mutedUserId, "mute", 300));
         userModerationActionApi.applyModeration(new ApplyModerationCommand(actorUserId, bannedUserId, "ban", 300));
 
         mockMvc.perform(get("/internal/im/realtime/projections/user-policies")
-                        .header("Authorization", internalBearer(mutedUserId))
+                        .header("Authorization", internalBearer(jwtProperties, mutedUserId))
                         .param("afterUserId", uuid(2).toString())
                         .param("snapshotVersion", Long.toString(userRepository.currentUserPolicyVersion()))
                         .param("limit", "10"))
@@ -120,7 +114,7 @@ class ImPolicySnapshotControllerTest {
         blockApplicationService.block(new BlockCommand(uuid(2), uuid(1)));
 
         MvcResult firstPage = mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
-                        .header("Authorization", internalBearer(uuid(7)))
+                        .header("Authorization", internalBearer(jwtProperties, uuid(7)))
                         .param("limit", "2"))
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.entries.length()").value(2))
@@ -139,7 +133,7 @@ class ImPolicySnapshotControllerTest {
                 .asLong();
 
         mockMvc.perform(get("/internal/im/realtime/projections/block-relations")
-                        .header("Authorization", internalBearer(uuid(7)))
+                        .header("Authorization", internalBearer(jwtProperties, uuid(7)))
                         .param("afterBlockerUserId", uuid(1).toString())
                         .param("afterBlockedUserId", uuid(3).toString())
                         .param("snapshotVersion", Long.toString(snapshotVersion))
@@ -152,78 +146,5 @@ class ImPolicySnapshotControllerTest {
                 .andExpect(jsonPath("$.nextBlockerUserId").value(uuid(2).toString()))
                 .andExpect(jsonPath("$.nextBlockedUserId").value(uuid(1).toString()))
                 .andExpect(jsonPath("$.hasMore").value(false));
-    }
-
-    @Test
-    void privateMessageDecisionShouldRequireInternalScopeAndUseOwnerState() throws Exception {
-        UUID fromUserId = uuid(7);
-        UUID toUserId = uuid(8);
-        insertUser(fromUserId, "u7");
-        insertUser(toUserId, "u8");
-        blockApplicationService.block(new BlockCommand(toUserId, fromUserId));
-
-        mockMvc.perform(get("/internal/im/realtime/projections/private-message-decision")
-                        .header("Authorization", bearer(fromUserId))
-                        .param("fromUserId", fromUserId.toString())
-                        .param("toUserId", toUserId.toString()))
-                .andExpect(status().isForbidden());
-
-        mockMvc.perform(get("/internal/im/realtime/projections/private-message-decision")
-                        .header("Authorization", internalBearer(fromUserId))
-                        .param("fromUserId", fromUserId.toString())
-                        .param("toUserId", toUserId.toString()))
-                .andExpect(status().isOk())
-                .andExpect(jsonPath("$.allowed").value(false))
-                .andExpect(jsonPath("$.code").value(403))
-                .andExpect(jsonPath("$.reasonCode").value("policy_denied"))
-                .andExpect(jsonPath("$.message").value("用户已拉黑"));
-    }
-
-    private void insertUser(UUID userId, String username) {
-        insertUser(userId, username, 0, 0);
-    }
-
-    private void insertUser(UUID userId, String username, int type, int status) {
-        UserDataObject user = new UserDataObject();
-        user.setId(userId);
-        user.setUsername(username);
-        user.setPassword("encoded");
-        user.setSalt("");
-        user.setEmail(username + "@example.com");
-        user.setType(type);
-        user.setStatus(status);
-        user.setHeaderUrl("/avatar.png");
-        user.setCreateTime(new Date());
-        user.setPolicyVersion(userRepository.nextUserPolicyVersion(userId));
-        userMapper.insertUser(user);
-        userMapper.insertPolicyVersionLog(user.getPolicyVersion(), userId, true, null, null);
-    }
-
-    private String bearer(UUID userId) throws Exception {
-        return serviceBearer(userId, null);
-    }
-
-    private String internalBearer(UUID userId) throws Exception {
-        return serviceBearer(userId, "im.realtime.internal");
-    }
-
-    private String serviceBearer(UUID userId, String scope) {
-        Instant issuedAt = Instant.now();
-        JwtClaimsSet.Builder claimsBuilder = JwtClaimsSet.builder()
-                .issuer(JwtCodecs.resolvedIssuer(jwtProperties))
-                .audience(List.of("community-app"))
-                .subject(String.valueOf(userId))
-                .issuedAt(issuedAt)
-                .expiresAt(issuedAt.plusSeconds(120));
-        if (scope != null && !scope.isBlank()) {
-            claimsBuilder.claim("scope", scope);
-        }
-        JwsHeader header = JwsHeader.with(MacAlgorithm.HS256)
-                .type(JwtCodecs.SERVICE_TOKEN_TYPE)
-                .build();
-        String token = JwtCodecs.serviceTokenEncoder(jwtProperties)
-                .encode(JwtEncoderParameters.from(header, claimsBuilder.build()))
-                .getTokenValue();
-        return "Bearer " + token;
     }
 }

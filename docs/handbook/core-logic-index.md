@@ -312,10 +312,12 @@
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
 | `im.application.ImPolicySnapshotApplicationService` | 给 im-realtime 拉取 user policy / block relation snapshot | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.application.ImPrivateMessageDecisionApplicationService` | 同步组装 owner 当前事实的逐条私信 decision | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.application.ImPolicyProjectionApplicationService` | 校验 owner event 并写 projection outbox port | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.application.ImPolicyProjectionOutboxPort` | application-owned IM policy projection outbox port | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.application.ImPolicyEventDispatchApplicationService` | `projection.im.policy` outbox 到 IM policy Kafka event dispatch | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.controller.ImPolicySnapshotController` | internal IM policy snapshot HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
+| `im.controller.ImPrivateMessageDecisionController` | internal private-message decision HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter` | 确定性 source event ID 写 `projection.im.policy` | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.infrastructure.event.ImPolicyKafkaOutboxHandler` | `projection.im.policy` outbox handler | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `im.infrastructure.event.ImPolicyBackboneKafkaListener` | user/social Kafka event 到 IM policy projection application | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |

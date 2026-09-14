@@ -36,7 +36,7 @@
 | market | `/api/market/**`, `/api/admin/market/**` | `market` | `community-app` |
 | wallet | `/api/wallet/**`, `/api/wallet/admin/**` | `wallet` | `community-app` |
 | IM 私信/群聊 | `/api/im/sessions`, `/ws/im`, `/api/im/**` | `community-im-gateway` + `im-realtime` + `im-core` | IM 服务各自配置 |
-| IM policy snapshot | `/internal/im/realtime/projections/**` | `user` / `social` SSOT，`community-app` 暴露 snapshot | internal scope JWT |
+| IM policy snapshot / decision | `/internal/im/realtime/projections/**` | `user` / `social` SSOT，`community-app` 暴露 snapshot 与同步私信 decision | internal scope JWT |
 
 ## community-app 轻量领域分层
 
@@ -215,7 +215,7 @@ Domain event 和本地 Spring bridge 不是发布 integration event 的必经层
 - `growth`：任务模板、任务进度、等级规则、奖励发放协作。
 - `market`：listing、库存、订单、交付/发货、争议和自动确认。
 - `wallet`：钱包账户、测试积分发放/销毁、转账、冻结、总账双分录、冲正；未接入真实支付或外部出款。
-- `im`：主站提供给 IM realtime 的用户处罚/拉黑 policy snapshot（`/internal/im/realtime/projections/**`）。
+- `im`：主站提供给 IM 的用户处罚/拉黑 policy snapshot 与逐条私信 decision（`/internal/im/realtime/projections/**`）；snapshot 分页与同步 decision 是独立的 application 入口（`ImPolicySnapshotApplicationService` / `ImPrivateMessageDecisionApplicationService`）。
 
 ## 共享基础设施
 

@@ -9,7 +9,7 @@
 3. `ImWebSocketHandler` / `ProjectionSyncCoordinator`
 4. `MessageCommandIngressService`
 5. `PrivateMessageApplicationService` / `RoomMessageApplicationService` / `RoomApplicationService`
-6. `ImPolicyProjectionApplicationService` / `ImPolicySnapshotApplicationService`
+6. `ImPolicyProjectionApplicationService` / `ImPolicySnapshotApplicationService` / `ImPrivateMessageDecisionApplicationService`
 
 ## Gateway
 
@@ -80,6 +80,9 @@
 | --- | --- |
 | `im.application.ImPolicySnapshotApplicationService` | 给 realtime 拉 user policy / block relation snapshot。 |
 | `im.controller.ImPolicySnapshotController` | internal snapshot HTTP 入口。 |
+| `im.application.ImPrivateMessageDecisionApplicationService` | 用 user / social owner API 同步组装逐条私信 decision（suspended / muted / 私信权限 / 拉黑）。 |
+| `im.controller.ImPrivateMessageDecisionController` | internal private-message decision HTTP 入口。 |
+| `im.application.UserMessagingPolicyEntryAssembler` | snapshot 与 decision 共用的 owner 处罚状态组装，保证两面判定一致。 |
 | `im.application.ImPolicyProjectionApplicationService` | 校验 owner source metadata 并写 projection port。 |
 | `im.application.ImPolicyProjectionOutboxPort` | application-owned projection outbox 端口。 |
 | `im.infrastructure.event.ImPolicyBackboneKafkaListener` | 从 `user.events` / `social.events` 进入 projection application。 |

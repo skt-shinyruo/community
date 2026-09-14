@@ -446,10 +446,10 @@ Main path: user punishment：
 7. `im-realtime` 发送私信前用本地 projection 判断拉黑、处罚、目标用户状态。
 8. `im-core` 对未落库的新消息在持久化前再次调用 owner decision；禁言/封禁导致的业务拒绝发布 `im.event.private-rejected`，不进入系统失败/DLQ。
 
-Snapshot：
+Snapshot 与 decision：
 
 - `community-app` 暴露 block relations / user policies snapshot。
-- `community-app` 暴露 private message decision，用 user / social owner API 同步组装当前裁决。
+- `community-app` 暴露 private message decision，用 user / social owner API 同步组装当前裁决；snapshot 分页与同步 decision 是独立的 application 入口，但共用同一份 owner 处罚状态映射。
 - `im-realtime` 和 `im-core` 用 internal scope JWT 拉取。
 - `im-core` 的最终校验不缓存允许裁决；只短 TTL 缓存拒绝裁决（默认 500ms，容量上限），降低违规用户高频发送时的 owner API 压力。
 - 浏览器不能访问这些 internal projection 入口。
@@ -468,6 +468,8 @@ Key code：
 - `im.infrastructure.event.JdbcImPolicyProjectionOutboxAdapter`
 - `im.infrastructure.event.ImPolicyKafkaOutboxHandler`
 - `im.controller.ImPolicySnapshotController`
+- `im.application.ImPrivateMessageDecisionApplicationService`
+- `im.controller.ImPrivateMessageDecisionController`
 
 ## Notice Projection And Read Model
 

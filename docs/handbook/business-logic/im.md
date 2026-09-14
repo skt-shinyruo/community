@@ -7,7 +7,7 @@ IM 业务不是 `community-app` 内的普通包，而是拆成 gateway、realtim
 - `community-im-gateway` owns 外部 IM session bootstrap、JWT 校验、session ticket、worker 选择和 `/ws/im` 外部桥接。
 - `im-realtime` owns WebSocket 连接态、在线用户连接、房间本地索引、Kafka command 生产、在线推送和本地 policy/membership projection。
 - `im-core` owns 私聊会话、私聊消息、房间、房间成员、群消息、顺序号、已读水位和未读查询。
-- `community-app` owns 用户处罚和拉黑主事实，并给 realtime 提供 user policy/block relation snapshot 和增量事件。
+- `community-app` owns 用户处罚和拉黑主事实，并给 realtime 提供 user policy/block relation snapshot 和增量事件，给 im-core 提供逐条私信的同步 owner decision 回源。
 
 ## 入口
 
@@ -33,6 +33,10 @@ community-app internal snapshot：
 
 - `GET /internal/im/realtime/projections/user-policies`
 - `GET /internal/im/realtime/projections/block-relations`
+
+community-app internal decision：
+
+- `GET /internal/im/realtime/projections/private-message-decision`
 
 Kafka command/event：
 
@@ -236,6 +240,7 @@ projection 不是权威事实；启动和异常恢复依赖 snapshot 重新构�
 - session ticket 过期或 worker 不可用会导致 WS 连接失败。
 - realtime policy projection 不允许发送时，私信在进入 Kafka 前被拒绝。
 - im-core 校验失败时，发布 rejected event，realtime 推送发送失败。
+- owner decision 回源传输失败、超时或 owner 不可用时，im-core fail closed：私信不落库、不发布 rejected event，command 由 Kafka backoff 重试直至成功或进入 DLQ；只有明确拒绝的裁决会被短 TTL 缓存，allow 与传输失败不缓存。
 - Kafka command accepted 后，客户端仍需等待 committed/rejected 或通过 history 回查。
 - persisted event 是消息事实事件，event id 分别形如 `im:pf:<messageId>` 和 `im:rf:<roomId>:<seq>`。
 - committed / rejected 是发送结果事件，event id 分别形如 `im:psr:<attemptHash>` 和 `im:rsr:<attemptHash>`，attemptHash 来自 `fromUserId + requestId + clientMsgId`。
@@ -303,6 +308,9 @@ Community app projection：
 
 - `im.application.ImPolicySnapshotApplicationService`
 - `im.controller.ImPolicySnapshotController`
+- `im.application.ImPrivateMessageDecisionApplicationService`
+- `im.controller.ImPrivateMessageDecisionController`
+- `im.application.UserMessagingPolicyEntryAssembler`
 - `im.application.ImPolicyProjectionApplicationService`
 - `im.application.ImPolicyProjectionOutboxPort`
 - `im.infrastructure.event.ImPolicyBackboneKafkaListener`

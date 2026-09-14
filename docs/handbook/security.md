@@ -159,10 +159,11 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 
 当前 `/internal/**` 不作为普通运维入口。运维动作统一走 `/api/ops/**`，由 ADMIN 权限保护。
 
-保留的 internal 面主要服务 IM realtime bootstrap：
+保留的 internal 面主要服务 IM realtime bootstrap 与 im-core 私信回源：
 
 - `community-app`：`/internal/im/realtime/projections/user-policies`
 - `community-app`：`/internal/im/realtime/projections/block-relations`
+- `community-app`：`/internal/im/realtime/projections/private-message-decision`
 - `im-core`：`/internal/im/realtime/projections/room-memberships`
 
 这些接口只允许具备内部 scope、`typ=service+jwt`、正确 issuer 和目标 audience 的 service token 访问，不面向浏览器业务流量。普通 access token 的 `aud=community-api`，不能进入 internal chain。
@@ -172,6 +173,8 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 - 用 internal scope JWT 调 `community-app` 拉用户处罚和拉黑 snapshot。
 - 用 internal scope JWT 调 `im-core` 拉房间成员 snapshot。
 - 运行期继续消费 IM policy Kafka 事件刷新本地 projection。
+
+`im-core` 在私信持久化前用 internal scope JWT 同步回源 `community-app` 的 `private-message-decision`；超时、5xx 或 owner 不可用时 fail closed，消息不落库并交由 Kafka 重试。decision 与 snapshot 是 `community-app` 内两个独立的 application 入口，endpoint、audience / scope、超时和错误语义见 [集成契约](integration-contracts.md)。
 
 ## Trusted Proxy 和真实客户端 IP
 

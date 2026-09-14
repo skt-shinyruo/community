@@ -197,6 +197,41 @@ Versioning and schema evolution：
 - 重复 command 不会重复创建消息事实，也不会重复发布同一事实 event；不同 request 重放同一 `clientMsgId` 时会各自得到 committed 发送结果。
 - IM outbox 的 event id 按语义拆分：私信事实 `im:pf:<messageId>`，群聊事实 `im:rf:<roomId>:<seq>`，私信发送结果 `im:psr:<attemptHash>`，群聊发送结果 `im:rsr:<attemptHash>`。事实事件和发送尝试事件不能共用 event id。
 
+## IM Internal HTTP Contract
+
+`community-app` 把 user / social owner 的私信治理事实通过 `/internal/im/realtime/projections/**` 暴露给 IM 服务，拆成两个独立的 application 入口：
+
+| 面 | Endpoint | 调用方 | 语义 |
+| --- | --- | --- | --- |
+| 批量 snapshot | `GET .../user-policies`、`GET .../block-relations` | `im-realtime` bootstrap | owner 版本分页 snapshot，驱动本地 projection 全量刷新 |
+| 同步 decision | `GET .../private-message-decision` | `im-core` 私信持久化前回源 | 单对 `fromUserId` / `toUserId` 的权威裁决 |
+
+snapshot 分页由 `ImPolicySnapshotApplicationService` 承载，同步 decision 由 `ImPrivateMessageDecisionApplicationService` 承载；两者不共享 application 入口，但 suspended / muted / canSendPrivate 的计算共用同一份 owner 状态映射，两个面对同一 owner 状态不会给出不同结论。
+
+认证：
+
+- 只接受 `typ=service+jwt` 的 service token：issuer `community-auth`、audience `community-app`、scope `im.realtime.internal`。
+- 缺 / 坏 token 返回 401，缺少 scope 返回 403；浏览器普通 access token（`aud=community-api`）不能进入该面。
+
+同步 decision 契约：
+
+- 请求：`fromUserId`、`toUserId` 两个 UUID query 参数。
+- 响应：裁决路径 HTTP 恒为 200，结果只在 body `PrivateMessagePolicyDecision`（`allowed`、`code`、`reasonCode`、`message`、`decidedAtEpochMs`）中表达。
+- 错误映射：请求参数缺失 / 非法、owner 版本数据非法（`IllegalArgumentException`）返回 HTTP 400。
+- 拒绝语义：`400 invalid_request`（id 缺失或与自身私信）、`404 policy_denied`（发送方或接收方不存在）、`403 policy_denied`（发送方 suspended / muted / 无私信权限、接收方不允许私信、任一方向存在拉黑）。
+- decision 由 owner 当前事实同步组装：user owner 的 suspended / muted / 私信权限与 social owner 的 block relation；不读 IM 本地 projection，也不接受调用方声明的状态。
+
+超时与错误语义：
+
+- `im-core` 通过 `im.policy.request-timeout`（默认 500ms，下限 50ms）设置 connect / read 超时。
+- 传输失败、超时、HTTP 5xx 或 owner 不可用时 `PrivateMessagePolicyVerifier.verify` 直接抛错：私信不落库、不发布 rejected event，command 由 Kafka backoff 重试直至成功或进入 DLQ——任何情况下都不放行消息（fail closed）。
+- 只有明确的拒绝裁决会被 `im-core` 短 TTL 缓存（`im.policy.rejection-cache-ttl`，默认 500ms，有容量上限）；allow 裁决与传输失败永不缓存。
+
+Expand–contract：
+
+- decision 从 snapshot application 入口拆出是 `community-app` 内部重构：endpoint、认证、请求 / 响应模型不变，调用方不需要迁移。
+- 若未来要迁移 decision 的 wire path：先 expand（新旧 path 并行由同一 decision module 服务），待全部调用方切到新 path 后再 contract（下线旧 path）。
+
 ## HTTP 写接口契约
 
 高风险写接口使用 `Idempotency-Key`：

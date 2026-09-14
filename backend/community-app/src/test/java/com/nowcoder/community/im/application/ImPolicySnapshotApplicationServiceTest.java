@@ -2,11 +2,8 @@ package com.nowcoder.community.im.application;
 
 import com.nowcoder.community.im.common.projection.UserBlockRelationSnapshot;
 import com.nowcoder.community.im.common.projection.UserMessagingPolicySnapshot;
-import com.nowcoder.community.im.common.policy.PrivateMessagePolicyDecision;
 import com.nowcoder.community.social.api.model.SocialBlockRelationView;
 import com.nowcoder.community.social.api.query.SocialBlockQueryApi;
-import com.nowcoder.community.user.api.model.UserSummaryView;
-import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.api.model.UserModerationStateView;
 import com.nowcoder.community.user.api.query.UserModerationQueryApi;
 import org.junit.jupiter.api.Test;
@@ -36,7 +33,6 @@ class ImPolicySnapshotApplicationServiceTest {
                 .satisfies(constructor -> assertThat(constructor.getParameterTypes()).containsExactly(
                         UserModerationQueryApi.class,
                         SocialBlockQueryApi.class,
-                        UserLookupQueryApi.class,
                         Clock.class
                 ));
     }
@@ -45,7 +41,6 @@ class ImPolicySnapshotApplicationServiceTest {
     void userPoliciesShouldProjectOwnerDomainModerationViews() {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         Instant now = TEST_NOW;
         Instant activeMuteUntil = now.plusSeconds(300);
         Instant activeBanUntil = now.plusSeconds(3600);
@@ -59,8 +54,7 @@ class ImPolicySnapshotApplicationServiceTest {
 
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
+                blockQueryApi
         );
 
         UserMessagingPolicySnapshot snapshot = service.userPolicies(null, 2);
@@ -88,7 +82,6 @@ class ImPolicySnapshotApplicationServiceTest {
     void blockRelationsShouldProjectOwnerDomainBlockViews() {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         when(blockQueryApi.currentBlockProjectionVersion()).thenReturn(808L);
         when(blockQueryApi.scanBlockRelationsAtVersionAfter(808L, null, null, 2)).thenReturn(List.of(
                 new SocialBlockRelationView(uuid(1), uuid(2), 501L),
@@ -98,8 +91,7 @@ class ImPolicySnapshotApplicationServiceTest {
 
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
+                blockQueryApi
         );
 
         UserBlockRelationSnapshot snapshot = service.blockRelations(null, null, 2);
@@ -121,14 +113,12 @@ class ImPolicySnapshotApplicationServiceTest {
     void emptySnapshotsShouldRetainZeroOwnerWatermarks() {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
         when(moderationQueryApi.scanModerationStatesAtVersionAfterId(0L, null, 1)).thenReturn(List.of());
         when(blockQueryApi.scanBlockRelationsAtVersionAfter(0L, null, null, 1)).thenReturn(List.of());
 
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
+                blockQueryApi
         );
 
         assertThat(service.userPolicies(null, 1).snapshotHighWatermark()).isZero();
@@ -147,8 +137,7 @@ class ImPolicySnapshotApplicationServiceTest {
                 .thenReturn(List.of());
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                mock(SocialBlockQueryApi.class),
-                mock(UserLookupQueryApi.class)
+                mock(SocialBlockQueryApi.class)
         );
 
         UserMessagingPolicySnapshot firstPage = service.userPolicies(null, 1, null);
@@ -171,8 +160,7 @@ class ImPolicySnapshotApplicationServiceTest {
         when(moderationQueryApi.currentModerationProjectionVersion()).thenReturn(10L);
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                mock(SocialBlockQueryApi.class),
-                mock(UserLookupQueryApi.class)
+                mock(SocialBlockQueryApi.class)
         );
 
         assertThatThrownBy(() -> service.userPolicies(uuid(7), 1, null))
@@ -188,8 +176,7 @@ class ImPolicySnapshotApplicationServiceTest {
         UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                mock(SocialBlockQueryApi.class),
-                mock(UserLookupQueryApi.class)
+                mock(SocialBlockQueryApi.class)
         );
         when(moderationQueryApi.scanModerationStatesAtVersionAfterId(0L, null, 1))
                 .thenReturn(Collections.singletonList(null));
@@ -213,8 +200,7 @@ class ImPolicySnapshotApplicationServiceTest {
                 .thenReturn(List.of(new UserModerationStateView(uuid(7), null, null, 0L)));
         ImPolicySnapshotApplicationService service = service(
                 moderationQueryApi,
-                mock(SocialBlockQueryApi.class),
-                mock(UserLookupQueryApi.class)
+                mock(SocialBlockQueryApi.class)
         );
 
         assertThatThrownBy(() -> service.userPolicies(null, 1))
@@ -227,8 +213,7 @@ class ImPolicySnapshotApplicationServiceTest {
         SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
         ImPolicySnapshotApplicationService service = service(
                 mock(UserModerationQueryApi.class),
-                blockQueryApi,
-                mock(UserLookupQueryApi.class)
+                blockQueryApi
         );
         when(blockQueryApi.scanBlockRelationsAtVersionAfter(0L, null, null, 1))
                 .thenReturn(Collections.singletonList(null));
@@ -252,88 +237,12 @@ class ImPolicySnapshotApplicationServiceTest {
                 .thenReturn(List.of(new SocialBlockRelationView(uuid(1), uuid(2), 0L)));
         ImPolicySnapshotApplicationService service = service(
                 mock(UserModerationQueryApi.class),
-                blockQueryApi,
-                mock(UserLookupQueryApi.class)
+                blockQueryApi
         );
 
         assertThatThrownBy(() -> service.blockRelations(null, null, 1))
                 .isInstanceOf(IllegalArgumentException.class)
                 .hasMessage("version must be positive");
-    }
-
-    @Test
-    void privateMessageDecisionShouldRejectMutedSenderFromOwnerState() {
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(userLookupQueryApi.getSummaryById(uuid(1))).thenReturn(summary(uuid(1)));
-        when(userLookupQueryApi.getSummaryById(uuid(2))).thenReturn(summary(uuid(2)));
-        when(moderationQueryApi.getModerationState(uuid(1)))
-                .thenReturn(new UserModerationStateView(uuid(1), TEST_NOW.plusSeconds(60), null, 1L));
-        when(moderationQueryApi.getModerationState(uuid(2)))
-                .thenReturn(new UserModerationStateView(uuid(2), null, null, 2L));
-
-        ImPolicySnapshotApplicationService service = service(
-                moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
-        );
-
-        PrivateMessagePolicyDecision decision = service.decidePrivateMessage(uuid(1), uuid(2));
-
-        assertThat(decision.allowed()).isFalse();
-        assertThat(decision.code()).isEqualTo(403);
-        assertThat(decision.reasonCode()).isEqualTo("policy_denied");
-        assertThat(decision.message()).isEqualTo("发送方无权限发送私信");
-    }
-
-    @Test
-    void privateMessageDecisionShouldRejectBlockedUsersFromOwnerState() {
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(userLookupQueryApi.getSummaryById(uuid(1))).thenReturn(summary(uuid(1)));
-        when(userLookupQueryApi.getSummaryById(uuid(2))).thenReturn(summary(uuid(2)));
-        when(moderationQueryApi.getModerationState(uuid(1)))
-                .thenReturn(new UserModerationStateView(uuid(1), null, null, 1L));
-        when(moderationQueryApi.getModerationState(uuid(2)))
-                .thenReturn(new UserModerationStateView(uuid(2), null, null, 2L));
-        when(blockQueryApi.isEitherBlocked(uuid(1), uuid(2))).thenReturn(true);
-
-        ImPolicySnapshotApplicationService service = service(
-                moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
-        );
-
-        PrivateMessagePolicyDecision decision = service.decidePrivateMessage(uuid(1), uuid(2));
-
-        assertThat(decision.allowed()).isFalse();
-        assertThat(decision.code()).isEqualTo(403);
-        assertThat(decision.reasonCode()).isEqualTo("policy_denied");
-        assertThat(decision.message()).isEqualTo("用户已拉黑");
-    }
-
-    @Test
-    void privateMessageDecisionShouldRejectMissingTargetUserFromOwnerState() {
-        UserModerationQueryApi moderationQueryApi = mock(UserModerationQueryApi.class);
-        SocialBlockQueryApi blockQueryApi = mock(SocialBlockQueryApi.class);
-        UserLookupQueryApi userLookupQueryApi = mock(UserLookupQueryApi.class);
-        when(userLookupQueryApi.getSummaryById(uuid(1))).thenReturn(summary(uuid(1)));
-        when(userLookupQueryApi.getSummaryById(uuid(2))).thenReturn(null);
-
-        ImPolicySnapshotApplicationService service = service(
-                moderationQueryApi,
-                blockQueryApi,
-                userLookupQueryApi
-        );
-
-        PrivateMessagePolicyDecision decision = service.decidePrivateMessage(uuid(1), uuid(2));
-
-        assertThat(decision.allowed()).isFalse();
-        assertThat(decision.code()).isEqualTo(404);
-        assertThat(decision.reasonCode()).isEqualTo("policy_denied");
-        assertThat(decision.message()).isEqualTo("接收方不存在");
     }
 
     private static Object recordComponentValue(Object record, String componentName) {
@@ -349,19 +258,13 @@ class ImPolicySnapshotApplicationServiceTest {
         throw new AssertionError(record.getClass().getSimpleName() + " missing component: " + componentName);
     }
 
-    private static UserSummaryView summary(java.util.UUID userId) {
-        return new UserSummaryView(userId, "u-" + userId, "", 0);
-    }
-
     private static ImPolicySnapshotApplicationService service(
             UserModerationQueryApi moderationQueryApi,
-            SocialBlockQueryApi blockQueryApi,
-            UserLookupQueryApi userLookupQueryApi
+            SocialBlockQueryApi blockQueryApi
     ) {
         return new ImPolicySnapshotApplicationService(
                 moderationQueryApi,
                 blockQueryApi,
-                userLookupQueryApi,
                 TEST_CLOCK
         );
     }

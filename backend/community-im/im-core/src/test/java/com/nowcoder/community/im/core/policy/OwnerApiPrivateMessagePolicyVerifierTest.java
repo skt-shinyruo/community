@@ -13,7 +13,9 @@ import org.springframework.http.client.ClientHttpRequestFactory;
 import org.springframework.http.client.ClientHttpResponse;
 import org.springframework.mock.http.client.MockClientHttpResponse;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
+import org.springframework.web.client.RestClientResponseException;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -21,12 +23,14 @@ import java.io.OutputStream;
 import java.net.URI;
 import java.time.Duration;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class OwnerApiPrivateMessagePolicyVerifierTest {
 
@@ -78,6 +82,50 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
         assertThat(serviceToken.getClaimAsString("scope")).isEqualTo("im.realtime.internal");
     }
 
+    @Test
+    void verifyShouldFailClosedWithoutCachingWhenOwnerReturnsServerError() {
+        RecordingRequestFactory requestFactory = new RecordingRequestFactory(List.of(
+                Step.respond(HttpStatus.INTERNAL_SERVER_ERROR, ""),
+                Step.respond(HttpStatus.OK, """
+                        {"allowed":true,"code":0,"reasonCode":"allowed","message":"","decidedAtEpochMs":3}
+                        """)
+        ));
+        OwnerApiPrivateMessagePolicyVerifier verifier = new OwnerApiPrivateMessagePolicyVerifier(
+                RestClient.builder()
+                        .baseUrl("http://community-app")
+                        .requestFactory(requestFactory)
+                        .build(),
+                properties(Duration.ofMillis(200)),
+                jwtProperties()
+        );
+
+        assertThatThrownBy(() -> verifier.verify(uuid(1), uuid(2)))
+                .isInstanceOf(RestClientResponseException.class);
+
+        PrivateMessagePolicyDecision afterRecovery = verifier.verify(uuid(1), uuid(2));
+
+        assertThat(afterRecovery.allowed()).isTrue();
+        assertThat(requestFactory.requests()).hasSize(2);
+    }
+
+    @Test
+    void verifyShouldFailClosedWhenOwnerIsUnreachable() {
+        RecordingRequestFactory requestFactory = new RecordingRequestFactory(List.of(
+                Step.fail(new IOException("connect timed out"))
+        ));
+        OwnerApiPrivateMessagePolicyVerifier verifier = new OwnerApiPrivateMessagePolicyVerifier(
+                RestClient.builder()
+                        .baseUrl("http://community-app")
+                        .requestFactory(requestFactory)
+                        .build(),
+                properties(Duration.ofMillis(200)),
+                jwtProperties()
+        );
+
+        assertThatThrownBy(() -> verifier.verify(uuid(1), uuid(2)))
+                .isInstanceOf(ResourceAccessException.class);
+    }
+
     private static ImCorePolicyClientProperties properties(Duration ttl) {
         ImCorePolicyClientProperties properties = new ImCorePolicyClientProperties();
         properties.setRejectionCacheTtl(ttl);
@@ -100,13 +148,30 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
     private record RecordedRequest(URI uri, HttpHeaders headers) {
     }
 
+    private record Step(HttpStatus status, String body, IOException failure) {
+
+        private static Step respond(HttpStatus status, String body) {
+            return new Step(status, body, null);
+        }
+
+        private static Step fail(IOException failure) {
+            return new Step(null, null, failure);
+        }
+    }
+
     private static final class RecordingRequestFactory implements ClientHttpRequestFactory {
 
-        private final List<String> responseBodies;
+        private final List<Step> steps;
         private final List<RecordedRequest> requests = new ArrayList<>();
 
         private RecordingRequestFactory(String... responseBodies) {
-            this.responseBodies = List.of(responseBodies);
+            this(Arrays.stream(responseBodies)
+                    .map(body -> Step.respond(HttpStatus.OK, body))
+                    .toList());
+        }
+
+        private RecordingRequestFactory(List<Step> steps) {
+            this.steps = steps;
         }
 
         @Override
@@ -156,10 +221,13 @@ class OwnerApiPrivateMessagePolicyVerifierTest {
             @Override
             public ClientHttpResponse execute() throws IOException {
                 requests.add(new RecordedRequest(uri, HttpHeaders.copyOf(headers)));
-                int index = Math.min(requests.size() - 1, responseBodies.size() - 1);
+                Step step = steps.get(Math.min(requests.size() - 1, steps.size() - 1));
+                if (step.failure() != null) {
+                    throw step.failure();
+                }
                 MockClientHttpResponse response = new MockClientHttpResponse(
-                        responseBodies.get(index).getBytes(),
-                        HttpStatus.OK
+                        step.body().getBytes(),
+                        step.status()
                 );
                 response.getHeaders().setContentType(MediaType.APPLICATION_JSON);
                 return response;

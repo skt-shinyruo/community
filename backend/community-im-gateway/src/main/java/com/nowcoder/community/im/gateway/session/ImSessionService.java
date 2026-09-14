@@ -8,7 +8,6 @@ import com.nowcoder.community.im.gateway.shard.RendezvousWorkerSelector;
 import com.nowcoder.community.im.gateway.shard.WorkerDescriptor;
 import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ResponseStatusException;
@@ -46,7 +45,7 @@ public class ImSessionService {
         this.metrics = metrics;
     }
 
-    public Mono<OpenImSessionResponse> openSession(String authorizationHeader, ServerHttpRequest request) {
+    public Mono<OpenImSessionResponse> openSession(String authorizationHeader) {
         return Mono.defer(() -> {
             String accessToken = extractBearerToken(authorizationHeader);
             JwtVerifier.VerifiedJwt verified;
@@ -60,20 +59,20 @@ public class ImSessionService {
                     .defaultIfEmpty(AccessTokenFreshnessVerifier.Decision.UNAVAILABLE)
                     .onErrorReturn(AccessTokenFreshnessVerifier.Decision.UNAVAILABLE)
                     .flatMap(decision -> decision == AccessTokenFreshnessVerifier.Decision.FRESH
-                            ? Mono.just(openVerifiedSession(verified.userId(), request))
+                            ? Mono.just(openVerifiedSession(verified.userId()))
                             : Mono.error(freshnessFailure(decision)));
         }).doOnSuccess(response -> metrics.sessionOpened())
                 .doOnError(ex -> metrics.sessionFailed(sessionFailureReason(ex)));
     }
 
-    private OpenImSessionResponse openVerifiedSession(UUID userId, ServerHttpRequest request) {
+    private OpenImSessionResponse openVerifiedSession(UUID userId) {
         WorkerDescriptor worker = workerSelector.select(userId);
         String sessionId = UUID.randomUUID().toString();
         Instant expiresAt = Instant.now().plus(properties.getSession().getTicketTtl());
         String ticket = sessionTicketCodec.encode(sessionId, userId, worker.id(), expiresAt);
         return new OpenImSessionResponse(
                 sessionId,
-                publicWsUrlFactory.build(request),
+                publicWsUrlFactory.build(),
                 ticket,
                 expiresAt.toEpochMilli()
         );

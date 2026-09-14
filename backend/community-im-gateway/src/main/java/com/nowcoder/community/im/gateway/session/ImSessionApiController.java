@@ -3,7 +3,6 @@ package com.nowcoder.community.im.gateway.session;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.im.common.session.OpenImSessionResponse;
 import org.springframework.http.HttpHeaders;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -22,9 +21,8 @@ public class ImSessionApiController {
 
     @PostMapping
     public Mono<Result<OpenImSessionResponse>> openSession(
-            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader,
-            ServerHttpRequest request
+            @RequestHeader(name = HttpHeaders.AUTHORIZATION, required = false) String authorizationHeader
     ) {
-        return imSessionService.openSession(authorizationHeader, request).map(Result::ok);
+        return imSessionService.openSession(authorizationHeader).map(Result::ok);
     }
 }

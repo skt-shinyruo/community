@@ -7,7 +7,6 @@ import com.nowcoder.community.im.gateway.shard.RendezvousWorkerSelector;
 import com.nowcoder.community.im.ticket.SessionTicketCodec;
 import org.junit.jupiter.api.Test;
 import org.springframework.http.HttpStatus;
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.web.server.ResponseStatusException;
 import reactor.core.publisher.Mono;
 import reactor.test.StepVerifier;
@@ -25,14 +24,14 @@ class ImSessionServiceTest {
             throw new IllegalStateException("owner unavailable");
         };
 
-        assertUnavailable(service(verifier).openSession("Bearer access-token", mock(ServerHttpRequest.class)));
+        assertUnavailable(service(verifier).openSession("Bearer access-token"));
     }
 
     @Test
     void openSessionShouldFailClosedWhenFreshnessVerifierCompletesEmpty() {
         AccessTokenFreshnessVerifier verifier = accessToken -> Mono.empty();
 
-        assertUnavailable(service(verifier).openSession("Bearer access-token", mock(ServerHttpRequest.class)));
+        assertUnavailable(service(verifier).openSession("Bearer access-token"));
     }
 
     private static ImSessionService service(AccessTokenFreshnessVerifier verifier) {

@@ -91,6 +91,20 @@ class ImSessionApiIntegrationTest {
     }
 
     @Test
+    void shouldReturnConfiguredWsUrlRegardlessOfRequestHost() {
+        webTestClient.post()
+                .uri("/api/im/sessions")
+                .header("Authorization", "Bearer " + accessToken())
+                .header("Host", "attacker.example")
+                .header("X-Forwarded-Proto", "https")
+                .header("X-Forwarded-Host", "attacker.example")
+                .exchange()
+                .expectStatus().isOk()
+                .expectBody()
+                .jsonPath("$.data.wsUrl").isEqualTo("ws://localhost:12880/custom/ws/im");
+    }
+
+    @Test
     void shouldRejectMissingBearerToken() {
         double failedBefore = counterValue("community.im.gateway.session.failed", "reason", "invalid_token");
 

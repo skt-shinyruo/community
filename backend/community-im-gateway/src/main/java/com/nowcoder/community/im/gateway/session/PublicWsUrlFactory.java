@@ -1,6 +1,5 @@
 package com.nowcoder.community.im.gateway.session;
 
-import org.springframework.http.server.reactive.ServerHttpRequest;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -16,7 +15,7 @@ public class PublicWsUrlFactory {
         this.properties = properties;
     }
 
-    public String build(ServerHttpRequest request) {
+    public String build() {
         String configuredUrl = properties.getPublicWsUrl();
         if (StringUtils.hasText(configuredUrl)) {
             return validatedConfiguredPublicWsUrl(configuredUrl);

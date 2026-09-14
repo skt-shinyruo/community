@@ -38,6 +38,7 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
 import java.time.Duration;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -52,6 +53,23 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
     private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
     private static final String MDC_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
+
+    private static final Map<String, ImFrameCodec.FieldType> CONNECT_FRAME_FIELDS = Map.of(
+            "ticket", ImFrameCodec.FieldType.TEXT
+    );
+    private static final Map<String, ImFrameCodec.FieldType> SEND_PRIVATE_FRAME_FIELDS = Map.of(
+            "clientMsgId", ImFrameCodec.FieldType.TEXT,
+            "toUserId", ImFrameCodec.FieldType.TEXT,
+            "content", ImFrameCodec.FieldType.TEXT
+    );
+    private static final Map<String, ImFrameCodec.FieldType> SEND_ROOM_FRAME_FIELDS = Map.of(
+            "clientMsgId", ImFrameCodec.FieldType.TEXT,
+            "roomId", ImFrameCodec.FieldType.TEXT,
+            "content", ImFrameCodec.FieldType.TEXT
+    );
+    private static final Map<String, ImFrameCodec.FieldType> PING_FRAME_FIELDS = Map.of(
+            "sentAtEpochMillis", ImFrameCodec.FieldType.LONG
+    );
 
     private final ImFrameCodec frameCodec;
     private final SessionTicketCodec sessionTicketCodec;
@@ -174,9 +192,19 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handleConnect(WsConnection conn, JsonNode node) {
+        ConnectFrame frame;
+        try {
+            frame = frameCodec.read(node, ConnectFrame.class, CONNECT_FRAME_FIELDS);
+        } catch (ImUnsupportedSchemaVersionException e) {
+            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
+            return Mono.empty();
+        } catch (RuntimeException e) {
+            rejectAndClose(conn, "connect", "", "", 400, "invalid_frame", "invalid connect");
+            return Mono.empty();
+        }
+
         try {
             projectionSyncCoordinator.requireReady();
-            ConnectFrame frame = frameCodec.read(node, ConnectFrame.class);
             SessionTicketCodec.TicketClaims ticket = sessionTicketCodec.decode(frame.ticket());
 
             if (!StringUtils.hasText(ticket.workerId())
@@ -206,8 +234,6 @@ public class ImWebSocketHandler implements WebSocketHandler {
             );
         } catch (ResponseStatusException e) {
             rejectAndClose(conn, "connect", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-        } catch (ImUnsupportedSchemaVersionException e) {
-            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
         } catch (RuntimeException e) {
             warnEvent(
                     CATEGORY_SECURITY,
@@ -226,21 +252,24 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleSendPrivate(WsConnection conn, JsonNode node) {
         SendPrivateTextFrame frame;
         try {
-            projectionSyncCoordinator.requireReady();
-            frame = frameCodec.read(node, SendPrivateTextFrame.class);
-        } catch (ResponseStatusException e) {
-            sendReject(conn, "sendPrivateText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-            return Mono.empty();
+            frame = frameCodec.read(node, SendPrivateTextFrame.class, SEND_PRIVATE_FRAME_FIELDS);
         } catch (ImUnsupportedSchemaVersionException e) {
             sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
             return Mono.empty();
         } catch (RuntimeException e) {
-            sendReject(conn, "sendPrivateText", "", "", 400, "invalid_frame", "invalid sendPrivateText");
+            sendReject(conn, "sendPrivateText", clientMsgIdForReject(node), "", 400, "invalid_frame", "invalid sendPrivateText");
             return Mono.empty();
         }
 
-        String clientMsgId = frame.clientMsgId() == null ? "" : frame.clientMsgId().trim();
-        if (!StringUtils.hasText(clientMsgId) || frame.toUserId() == null || !StringUtils.hasText(frame.content())) {
+        try {
+            projectionSyncCoordinator.requireReady();
+        } catch (ResponseStatusException e) {
+            sendReject(conn, "sendPrivateText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+            return Mono.empty();
+        }
+
+        String clientMsgId = frame.clientMsgId().trim();
+        if (!StringUtils.hasText(clientMsgId) || !StringUtils.hasText(frame.content())) {
             sendReject(conn, "sendPrivateText", clientMsgId, "", 400, "invalid_frame", "invalid sendPrivateText");
             return Mono.empty();
         }
@@ -268,21 +297,24 @@ public class ImWebSocketHandler implements WebSocketHandler {
     private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
         SendRoomTextFrame frame;
         try {
-            projectionSyncCoordinator.requireReady();
-            frame = frameCodec.read(node, SendRoomTextFrame.class);
-        } catch (ResponseStatusException e) {
-            sendReject(conn, "sendRoomText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-            return Mono.empty();
+            frame = frameCodec.read(node, SendRoomTextFrame.class, SEND_ROOM_FRAME_FIELDS);
         } catch (ImUnsupportedSchemaVersionException e) {
             sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
             return Mono.empty();
         } catch (RuntimeException e) {
-            sendReject(conn, "sendRoomText", "", "", 400, "invalid_frame", "invalid sendRoomText");
+            sendReject(conn, "sendRoomText", clientMsgIdForReject(node), "", 400, "invalid_frame", "invalid sendRoomText");
             return Mono.empty();
         }
 
-        String clientMsgId = frame.clientMsgId() == null ? "" : frame.clientMsgId().trim();
-        if (!StringUtils.hasText(clientMsgId) || frame.roomId() == null || !StringUtils.hasText(frame.content())) {
+        try {
+            projectionSyncCoordinator.requireReady();
+        } catch (ResponseStatusException e) {
+            sendReject(conn, "sendRoomText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
+            return Mono.empty();
+        }
+
+        String clientMsgId = frame.clientMsgId().trim();
+        if (!StringUtils.hasText(clientMsgId) || !StringUtils.hasText(frame.content())) {
             sendReject(conn, "sendRoomText", clientMsgId, "", 400, "invalid_frame", "invalid sendRoomText");
             return Mono.empty();
         }
@@ -298,18 +330,31 @@ public class ImWebSocketHandler implements WebSocketHandler {
     }
 
     private Mono<Void> handlePing(WsConnection conn, JsonNode node) {
-        long sentAtEpochMillis;
+        PingFrame frame;
         try {
-            PingFrame frame = frameCodec.read(node, PingFrame.class);
-            sentAtEpochMillis = frame.sentAtEpochMillis();
+            frame = frameCodec.read(node, PingFrame.class, PING_FRAME_FIELDS);
         } catch (ImUnsupportedSchemaVersionException e) {
             sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
             return Mono.empty();
         } catch (RuntimeException e) {
-            sentAtEpochMillis = System.currentTimeMillis();
+            sendReject(conn, "ping", "", "", 400, "invalid_frame", "invalid ping");
+            return Mono.empty();
         }
-        conn.trySendText(frameCodec.write(new PongFrame("pong", sentAtEpochMillis)));
+        conn.trySendText(frameCodec.write(new PongFrame("pong", frame.sentAtEpochMillis())));
         return Mono.empty();
+    }
+
+    /**
+     * Echoes the sender's clientMsgId in rejects only when it arrived as a
+     * well-formed text field; a malformed value is never coerced into the
+     * correlation id the sender matches on.
+     */
+    private static String clientMsgIdForReject(JsonNode node) {
+        JsonNode value = node == null ? null : node.get("clientMsgId");
+        if (value == null || !value.isTextual()) {
+            return "";
+        }
+        return value.asText().trim();
     }
 
     private void cleanup(WsConnection conn) {

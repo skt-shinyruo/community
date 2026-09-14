@@ -164,6 +164,7 @@ Versioning and schema evolution：
 
 - command、event、projection 和 WebSocket frame 都显式写出 JSON integer `schemaVersion: 1`。
 - 只接受 integer `1`；字段缺失、`null`、非数值、非正数或未来版本都必须在业务处理前失败。
+- WebSocket 入站 frame 的必填字段必须存在且 JSON 类型精确（`connect.ticket`、`sendPrivateText.clientMsgId/toUserId/content`、`sendRoomText.clientMsgId/roomId/content` 为 string，`ping.sentAtEpochMillis` 为 integer）；realtime 在 dispatch 后、任何业务判断前校验，缺失或类型错误返回 `invalid_frame` protocol reject（发送 frame 的 reject 回显合法文本 `clientMsgId` 以便发送端关联），不用默认值修复，也不触发 command ingress、membership/policy 判断等副作用。
 - 所有 v1 contract 忽略未知 JSON properties，但已知字段的名字、类型和语义必须保持精确。
 - Kafka 失败进入配置的 deserialization/retry/DLQ 路径；WebSocket 失败转为 protocol reject；projection snapshot 失败不得写入 realtime 状态。
 - 不兼容的 command/event/frame 变化必须定义新的显式契约，不能在原 topic/type 上静默改义。

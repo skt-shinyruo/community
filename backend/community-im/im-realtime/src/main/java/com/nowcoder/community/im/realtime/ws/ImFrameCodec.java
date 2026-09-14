@@ -7,6 +7,8 @@ import com.nowcoder.community.im.common.ImContractVersions;
 import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
 import org.springframework.stereotype.Component;
 
+import java.util.Map;
+
 @Component
 public class ImFrameCodec {
 
@@ -47,6 +49,49 @@ public class ImFrameCodec {
             }
             throw new IllegalArgumentException("invalid websocket frame payload", e);
         }
+    }
+
+    /**
+     * Reads a known inbound frame after checking its required fields on the raw
+     * tree. Jackson's scalar coercion (string {@code "1"} to long, number to
+     * string) must not repair malformed frames into valid ones, so v1 frames
+     * declare exact JSON types per required field and violations fail here,
+     * before any business processing.
+     */
+    public <T> T read(JsonNode node, Class<T> type, Map<String, FieldType> requiredFields) {
+        requireFields(node, requiredFields);
+        return read(node, type);
+    }
+
+    private static void requireFields(JsonNode node, Map<String, FieldType> requiredFields) {
+        for (Map.Entry<String, FieldType> field : requiredFields.entrySet()) {
+            JsonNode value = node == null ? null : node.get(field.getKey());
+            if (!field.getValue().accepts(value)) {
+                throw new IllegalArgumentException(
+                        "invalid websocket frame field '" + field.getKey() + "': expected " + field.getValue());
+            }
+        }
+    }
+
+    /**
+     * Strict JSON types for required v1 frame fields; unknown extension fields
+     * stay ignored per {@link com.nowcoder.community.im.common.ImJsonContract}.
+     */
+    public enum FieldType {
+        TEXT {
+            @Override
+            boolean accepts(JsonNode node) {
+                return node != null && node.isTextual();
+            }
+        },
+        LONG {
+            @Override
+            boolean accepts(JsonNode node) {
+                return node != null && node.isIntegralNumber() && node.canConvertToLong();
+            }
+        };
+
+        abstract boolean accepts(JsonNode node);
     }
 
     public String write(Object value) {

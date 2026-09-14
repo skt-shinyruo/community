@@ -547,11 +547,11 @@ Main path：
 9. 本地 `PolicyProjectionService` 判定拉黑、处罚、目标用户存在性。
 10. 判定通过后写 `im.command.private-text`，enqueue 终态（ack / `kafka_send_failed` / `kafka_send_timeout` reject）实时回给发送端。
 11. `im-core` 消费 command，先按 `(conversationId, fromUserId, clientMsgId)` 查幂等。
-12. 如果已存在，`im-core` 返回既有消息事实并发布当前 request 的 `im.event.private-persisted`。
+12. 如果已存在，`im-core` 返回既有消息事实，不重复发布 `im.event.private-persisted`，只发布当前 request 的 `im.event.private-committed`。
 13. 如果不存在，`im-core` 调用 `community-app` internal owner decision 做最终校验。
 14. 如果 owner decision 拒绝，`im-core` 发布 `im.event.private-rejected`，不写 `im_private_message`，Kafka command 视为业务完成。
 15. 如果通过，`im-core` 分配 seq、落库、更新会话状态。
-16. `im-core` 发布 `im.event.private-persisted`。
+16. `im-core` 发布 `im.event.private-persisted` 和当前 request 的 `im.event.private-committed`。
 17. `im-realtime` 消费 persisted event 并在线推送。
 18. 客户端断线或错过推送时，通过 HTTP history API 补拉。
 

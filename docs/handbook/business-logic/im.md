@@ -148,13 +148,14 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 3. 通过本地 membership projection 判断发送者是否在房间中；最终权威校验仍在 im-core。
 4. 写 Kafka `SendRoomTextCommand`。
 5. im-core 消费 command。
-6. `RoomMessageApplicationService.persist(...)` 校验房间存在和发送者是成员；成员和 seq 规则由 `RoomMessageDomainService` 承担。
-7. 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
-8. 分配 room seq。
-9. 写群消息。
-10. 新消息发布 `RoomMessagePersistedEvent`，当前 request 发布 `RoomMessageCommittedEvent`；幂等命中时只发布当前 request 的 committed event。
-11. realtime 收到 persisted event 后通过 `RoomFanoutCoalescer` / `RoomUpdateCoalescer` 向房间在线连接推送 state-only 更新，同时把 committed / rejected 结果推给发送端。
-12. 客户端收到 room updated 后通过 HTTP 拉取消息。
+6. `RoomMessageApplicationService.persist(...)` 校验房间存在并按 `(roomId, fromUserId, clientMsgId)` 查幂等；成员和 seq 规则由 `RoomMessageDomainService` 承担。
+7. 幂等命中时按既有事实身份重放：返回原 message 和 seq，不执行当前 membership 授权（首次提交后发送者离开房间不影响重放，也不会改判 rejected），不重复发布消息事实 event，只发布当前 request 的 `RoomMessageCommittedEvent`。
+8. 幂等未命中（新发送事实）时校验发送者当前是成员，非成员拒绝且不写消息。
+9. 分配 room seq。
+10. 写群消息。
+11. 新消息发布 `RoomMessagePersistedEvent`，当前 request 发布 `RoomMessageCommittedEvent`。
+12. realtime 收到 persisted event 后通过 `RoomFanoutCoalescer` / `RoomUpdateCoalescer` 向房间在线连接推送 state-only 更新，同时把 committed / rejected 结果推给发送端。
+13. 客户端收到 room updated 后通过 HTTP 拉取消息。
 
 群聊推送不一定携带完整消息；恢复依赖 im-core history。
 

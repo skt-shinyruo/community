@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 @SpringBootTest
 @ActiveProfiles("test")
@@ -170,6 +171,91 @@ class RoomMessageApplicationServiceTest {
         assertRoomInbox(receiver, roomId, first.seq(), first.messageId(), 0L, 1L);
     }
 
+    @Test
+    void persist_replayAfterSenderLeftReturnsOriginalFactAndCommittedResult() {
+        UUID owner = uuid(31);
+        UUID sender = uuid(32);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+        roomApplicationService.joinRoom(sender, roomId);
+        SendRoomTextCommand cmd = command("req-left-room", "c-left-room", sender, roomId);
+
+        var first = roomMessageApplicationService.persist(cmd);
+        roomApplicationService.leaveRoom(sender, roomId);
+        var replay = roomMessageApplicationService.persist(cmd);
+
+        assertThat(replay.eventId()).isEqualTo(first.eventId());
+        assertThat(replay.messageId()).isEqualTo(first.messageId());
+        assertThat(replay.seq()).isEqualTo(first.seq());
+        List<RoomMessageRecord> rows = roomMessageRepository.listAfterSeq(roomId, 0, 100);
+        assertThat(rows).hasSize(1);
+        assertThat(outboxCount("im:rf:" + roomId + ":" + first.seq())).isEqualTo(1);
+        assertThat(outboxCount(roomSendResultEventId(cmd.requestId(), cmd.clientMsgId(), sender))).isEqualTo(1);
+        assertThat(rejectedOutboxCount()).isZero();
+    }
+
+    @Test
+    void persist_replayAfterSenderLeftWithDifferentRequestIdReusesFactAndEnqueuesCurrentAttemptCommittedResult() {
+        UUID owner = uuid(33);
+        UUID sender = uuid(34);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+        roomApplicationService.joinRoom(sender, roomId);
+        SendRoomTextCommand firstCommand = command("req-left-room-a", "c-left-room-same", sender, roomId);
+        SendRoomTextCommand replayCommand = command("req-left-room-b", "c-left-room-same", sender, roomId);
+
+        var first = roomMessageApplicationService.persist(firstCommand);
+        roomApplicationService.leaveRoom(sender, roomId);
+        var replay = roomMessageApplicationService.persist(replayCommand);
+
+        assertThat(replay.messageId()).isEqualTo(first.messageId());
+        assertThat(replay.seq()).isEqualTo(first.seq());
+        List<RoomMessageRecord> rows = roomMessageRepository.listAfterSeq(roomId, 0, 100);
+        assertThat(rows).hasSize(1);
+        assertThat(outboxCount("im:rf:" + roomId + ":" + first.seq())).isEqualTo(1);
+        assertThat(outboxCount(roomSendResultEventId(firstCommand.requestId(), firstCommand.clientMsgId(), sender))).isEqualTo(1);
+        assertThat(outboxCount(roomSendResultEventId(replayCommand.requestId(), replayCommand.clientMsgId(), sender))).isEqualTo(1);
+        assertThat(rejectedOutboxCount()).isZero();
+    }
+
+    @Test
+    void persist_newClientMessageAfterSenderLeftIsRejected() {
+        UUID owner = uuid(35);
+        UUID sender = uuid(36);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+        roomApplicationService.joinRoom(sender, roomId);
+        SendRoomTextCommand firstCommand = command("req-left-room-first", "c-left-room-first", sender, roomId);
+
+        var first = roomMessageApplicationService.persist(firstCommand);
+        roomApplicationService.leaveRoom(sender, roomId);
+        SendRoomTextCommand freshCommand = command("req-left-room-fresh", "c-left-room-fresh", sender, roomId);
+
+        assertThatThrownBy(() -> roomMessageApplicationService.persist(freshCommand))
+                .isInstanceOf(SecurityException.class);
+
+        List<RoomMessageRecord> rows = roomMessageRepository.listAfterSeq(roomId, 0, 100);
+        assertThat(rows).hasSize(1);
+        assertThat(outboxCount("im:rf:" + roomId + ":" + first.seq())).isEqualTo(1);
+        assertThat(outboxCount(roomSendResultEventId(freshCommand.requestId(), freshCommand.clientMsgId(), sender))).isZero();
+    }
+
+    @Test
+    void persist_replayAfterSenderLeftDoesNotDuplicateInboxUnread() {
+        UUID owner = uuid(37);
+        UUID sender = uuid(38);
+        UUID receiver = uuid(39);
+        UUID roomId = roomApplicationService.createRoom(owner, "room").roomId();
+        roomApplicationService.joinRoom(sender, roomId);
+        roomApplicationService.joinRoom(receiver, roomId);
+        SendRoomTextCommand cmd = command("req-left-room-inbox", "c-left-room-inbox", sender, roomId);
+
+        var first = roomMessageApplicationService.persist(cmd);
+        roomApplicationService.leaveRoom(sender, roomId);
+        var replay = roomMessageApplicationService.persist(cmd);
+
+        assertThat(replay.messageId()).isEqualTo(first.messageId());
+        assertRoomInbox(receiver, roomId, first.seq(), first.messageId(), 0L, 1L);
+        assertThat(roomInboxRowCount(sender, roomId)).isZero();
+    }
+
     private SendRoomTextCommand command(String requestId, String clientMsgId, UUID sender, UUID roomId) {
         return new SendRoomTextCommand(
                 requestId,
@@ -228,6 +314,24 @@ class RoomMessageApplicationServiceTest {
                 "select count(*) from outbox_event where event_id = ?",
                 Integer.class,
                 eventId
+        );
+        return count == null ? 0 : count;
+    }
+
+    private int rejectedOutboxCount() {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from outbox_event where topic = 'im.event.room-rejected'",
+                Integer.class
+        );
+        return count == null ? 0 : count;
+    }
+
+    private int roomInboxRowCount(UUID userId, UUID roomId) {
+        Integer count = jdbcTemplate.queryForObject(
+                "select count(*) from im_user_room_inbox where user_id = ? and room_id = ?",
+                Integer.class,
+                BinaryUuidTestCodec.toBytes(userId),
+                BinaryUuidTestCodec.toBytes(roomId)
         );
         return count == null ? 0 : count;
     }

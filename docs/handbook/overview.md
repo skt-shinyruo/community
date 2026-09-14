@@ -163,7 +163,7 @@ POST /api/im/sessions -> WS /ws/im
   -> room membership bootstrap
   -> sendRoomText
   -> Kafka im.command.room-text
-  -> im-core 校验房间与成员、分配 seq、clientMsgId 幂等
+  -> im-core 校验房间存在，clientMsgId 幂等命中则重放事实，新事实校验成员后分配 seq 落库
   -> Kafka im.event.room-persisted + im.event.room-committed
   -> im-realtime 推送 roomUpdatedBatch
   -> client HTTP 拉取房间消息并推进 lastReadSeq

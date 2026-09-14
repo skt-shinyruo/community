@@ -593,9 +593,9 @@ Main path：
 6. `im-realtime` 建立本机在线房间索引。
 7. 客户端发送 `sendRoomText`。
 8. `im-realtime` 写 `im.command.room-text`。
-9. `im-core` 消费 command，校验房间存在、发送者是成员。
-10. `im-core` 按 `(roomId, fromUserId, clientMsgId)` 做幂等。
-11. `im-core` 分配 room seq，持久化消息。
+9. `im-core` 消费 command，校验房间存在并按 `(roomId, fromUserId, clientMsgId)` 查幂等。
+10. 幂等命中时按既有事实身份重放，不执行当前 membership 授权。
+11. 幂等未命中时校验发送者当前是成员，分配 room seq，持久化消息。
 12. `im-core` 发布 `im.event.room-persisted`。
 13. `im-realtime` 收到 event 后，不一定广播完整消息，而是推送 `roomUpdatedBatch`。
 14. 客户端收到更新后，通过 HTTP 拉取群消息并推进 `lastReadSeq`。
@@ -610,6 +610,7 @@ Membership changes：
 Semantics：
 
 - `im-realtime` 的房间索引不是成员关系权威来源。
+- `clientMsgId` 幂等命中代表群消息事实已经存在，发送者后续离开房间不能把该重放命令改判为 rejected。
 - 群聊在线推送是 state-only，不是 full-message push。
 - 消息级恢复依赖 `im-core` history。
 

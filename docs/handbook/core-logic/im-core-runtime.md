@@ -42,9 +42,9 @@ realtime 拉取 snapshot 是 fail-closed 的：`hasMore=true` 的页必须带完
 房间 Kafka command 进入 `CommandConsumers.onRoomText`，再调用 `RoomMessageApplicationService.persist`：
 
 1. 校验 `clientMsgId`、内容和房间存在性。
-2. `RoomMembershipDomainService` 以 im-core membership authority 校验成员。
-3. 锁定 room seq 并分配递增 seq。
-4. 按 `(roomId, fromUserId, clientMsgId)` 幂等复用或插入事实。
+2. 锁定 room seq，按 `(roomId, fromUserId, clientMsgId)` 查询既有事实；命中即按事实身份重放。
+3. 只在幂等 miss 时由 `RoomMembershipDomainService` 以 im-core membership authority 校验当前成员。
+4. 分配递增 seq 并插入消息。
 5. 单调推进发送方 read watermark，并更新成员 inbox projection。
 
 ## 幂等和 outbox

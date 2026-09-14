@@ -57,14 +57,17 @@ public class RoomMessageDomainService {
         if (!roomRepository.exists(roomId)) {
             throw new IllegalArgumentException("room not found: " + roomId);
         }
-        if (!membershipService.isMember(roomId, fromUserId)) {
-            throw new SecurityException("not a room member");
-        }
         roomRepository.selectLastSeqForUpdate(roomId);
 
         var existing = roomMessageRepository.findByIdempotency(roomId, fromUserId, clientMsgId);
         if (existing.isPresent()) {
             return new PersistResult(existing.get(), false);
+        }
+
+        // Persisted send attempts replay by factual identity above; current membership
+        // authorizes only new send facts.
+        if (!membershipService.isMember(roomId, fromUserId)) {
+            throw new SecurityException("not a room member");
         }
 
         long seq = seqAllocator.nextRoomSeq(roomId);

@@ -9,6 +9,8 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Primary;
 import org.springframework.data.redis.core.StringRedisTemplate;
 
+import java.time.Duration;
+
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.Mockito.mock;
 
@@ -65,6 +67,52 @@ class RoomFanoutConfigurationTest {
                             .hasRootCauseMessage(
                                     "im.room-fanout.worker-inbox-slot is required and must be between 0 and 63"
                             );
+                });
+    }
+
+    @Test
+    void zeroPublishTimeoutFailsStartup() {
+        contextRunner
+                .withPropertyValues(
+                        "im.room-fanout.worker-inbox-slot=0",
+                        "im.room-fanout.publish-timeout=0ms"
+                )
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalStateException.class)
+                            .rootCause()
+                            .hasMessageContaining("im.room-fanout.publish-timeout");
+                });
+    }
+
+    @Test
+    void negativePublishTimeoutFailsStartup() {
+        contextRunner
+                .withPropertyValues(
+                        "im.room-fanout.worker-inbox-slot=0",
+                        "im.room-fanout.publish-timeout=-1s"
+                )
+                .run(context -> {
+                    assertThat(context).hasFailed();
+                    assertThat(context.getStartupFailure())
+                            .hasRootCauseInstanceOf(IllegalStateException.class)
+                            .rootCause()
+                            .hasMessageContaining("im.room-fanout.publish-timeout");
+                });
+    }
+
+    @Test
+    void explicitPositivePublishTimeoutStartsAndIsPreserved() {
+        contextRunner
+                .withPropertyValues(
+                        "im.room-fanout.worker-inbox-slot=0",
+                        "im.room-fanout.publish-timeout=250ms"
+                )
+                .run(context -> {
+                    assertThat(context).hasNotFailed();
+                    assertThat(context.getBean(RoomFanoutProperties.class).normalizedPublishTimeout())
+                            .isEqualTo(Duration.ofMillis(250));
                 });
     }
 

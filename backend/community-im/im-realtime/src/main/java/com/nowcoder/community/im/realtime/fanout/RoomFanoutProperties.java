@@ -64,7 +64,13 @@ public class RoomFanoutProperties {
     }
 
     public Duration normalizedPublishTimeout() {
-        return publishTimeout == null ? Duration.ofSeconds(1) : publishTimeout;
+        if (publishTimeout == null) {
+            return Duration.ofSeconds(1);
+        }
+        if (publishTimeout.isZero() || publishTimeout.isNegative()) {
+            throw new IllegalStateException("im.room-fanout.publish-timeout must be a positive duration");
+        }
+        return publishTimeout;
     }
 
     public Duration normalizedWorkerDirectoryCacheTtl() {

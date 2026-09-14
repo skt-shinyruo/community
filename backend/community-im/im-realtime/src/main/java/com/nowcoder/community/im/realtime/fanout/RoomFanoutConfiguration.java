@@ -9,14 +9,15 @@ import org.springframework.context.annotation.Configuration;
 public class RoomFanoutConfiguration {
 
     @Bean
-    RoomFanoutInboxSlotValidator roomFanoutInboxSlotValidator(RoomFanoutProperties fanoutProperties) {
-        return new RoomFanoutInboxSlotValidator(fanoutProperties);
+    RoomFanoutPropertiesValidator roomFanoutPropertiesValidator(RoomFanoutProperties fanoutProperties) {
+        return new RoomFanoutPropertiesValidator(fanoutProperties);
     }
 
-    static final class RoomFanoutInboxSlotValidator {
+    static final class RoomFanoutPropertiesValidator {
 
-        RoomFanoutInboxSlotValidator(RoomFanoutProperties fanoutProperties) {
+        RoomFanoutPropertiesValidator(RoomFanoutProperties fanoutProperties) {
             fanoutProperties.normalizedWorkerInboxSlot();
+            fanoutProperties.normalizedPublishTimeout();
         }
     }
 }

@@ -9,7 +9,7 @@
       :placeholder="placeholder"
       rows="1"
       @input="onInput"
-      @keydown.enter.prevent="emitSubmit"
+      @keydown.enter="onEnterKeydown"
     ></textarea>
 
     <UiIconButton
@@ -42,6 +42,14 @@ const submitDisabled = computed(() => props.disabled || !String(props.modelValue
 
 function onInput(event) {
   emit('update:modelValue', event?.target?.value ?? '')
+}
+
+function onEnterKeydown(event) {
+  // IME composition uses Enter to confirm the candidate; it must not submit or lose its default
+  // behavior. keyCode 229 covers engines that skip isComposing on composition keydowns (WebKit, some Android IMEs).
+  if (event?.isComposing || event?.keyCode === 229) return
+  event.preventDefault()
+  emitSubmit()
 }
 
 function emitSubmit() {

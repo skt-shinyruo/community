@@ -509,7 +509,7 @@ npm test -- src/auth/session.test.js
 npm test -- src/api/http.test.js src/api/http.resolution.test.js
 npm test -- src/im/imRealtimeClient.test.js
 npm test -- src/views/marketState.test.js src/views/walletState.test.js
-npm test -- src/views/conversationDetailState.test.js
+npm test -- src/views/conversationDetailState.test.js src/views/ConversationDetailView.test.js src/views/ConversationsView.test.js
 ```
 
 构建验证：

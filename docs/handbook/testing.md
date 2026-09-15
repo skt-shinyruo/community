@@ -166,7 +166,7 @@ npm test -- src/router/index.test.js src/router/authGuard.test.js src/router/nav
 npm test -- src/auth/session.test.js src/api/http.test.js src/api/imCoreHttp.test.js
 npm test -- src/im/imRealtimeClient.test.js
 npm test -- src/views/postsViewState.test.js src/views/postDetailState.test.js
-npm test -- src/views/conversationDetailState.test.js
+npm test -- src/views/conversationDetailState.test.js src/views/ConversationDetailView.test.js src/views/ConversationsView.test.js
 npm test -- src/views/marketState.test.js src/views/walletState.test.js
 npm test -- src/components/ui/UiModal.test.js src/components/ui/UiModalConfirm.test.js src/components/ui/UiTooltip.test.js src/components/ui/UiSkeleton.test.js src/components/ui/loading-states.test.js
 ```

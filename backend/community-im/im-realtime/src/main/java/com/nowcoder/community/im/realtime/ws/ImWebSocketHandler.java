@@ -1,439 +1,65 @@
 package com.nowcoder.community.im.realtime.ws;
 
-import com.fasterxml.jackson.databind.JsonNode;
-import com.nowcoder.community.common.logging.EventLogFields;
-import com.nowcoder.community.common.logging.EventLogMessage;
-import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
 import com.nowcoder.community.common.trace.TraceIdCodec;
-import com.nowcoder.community.im.common.ImUnsupportedSchemaVersionException;
-import com.nowcoder.community.im.common.ws.AckFrame;
-import com.nowcoder.community.im.common.ws.ConnectFrame;
-import com.nowcoder.community.im.common.ws.ConnectedFrame;
-import com.nowcoder.community.im.common.ws.PingFrame;
-import com.nowcoder.community.im.common.ws.PongFrame;
-import com.nowcoder.community.im.common.ws.RejectFrame;
-import com.nowcoder.community.im.common.ws.SendPrivateTextFrame;
-import com.nowcoder.community.im.common.ws.SendRoomTextFrame;
-import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
-import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
-import com.nowcoder.community.im.realtime.projection.PolicyDecision;
-import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
-import com.nowcoder.community.im.realtime.projection.ProjectionSyncCoordinator;
-import com.nowcoder.community.im.realtime.service.CommandIngressResult;
-import com.nowcoder.community.im.realtime.service.MessageCommandIngressService;
-import com.nowcoder.community.im.realtime.session.ImSessionProperties;
-import com.nowcoder.community.im.ticket.SessionTicketCodec;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
+import com.nowcoder.community.im.realtime.frame.RealtimeFrameHandler;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.stereotype.Component;
-import org.springframework.util.StringUtils;
 import org.springframework.web.reactive.socket.WebSocketHandler;
 import org.springframework.web.reactive.socket.WebSocketMessage;
 import org.springframework.web.reactive.socket.WebSocketSession;
-import org.springframework.web.server.ResponseStatusException;
-import reactor.core.publisher.Flux;
 import reactor.core.publisher.Mono;
 
-import java.time.Duration;
-import java.util.Map;
-import java.util.Set;
-import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
 
+/**
+ * Realtime transport adapter: the only module that touches the WebSocket session and
+ * Reactor sink. Per socket it creates a {@link WsConnectionOutput} (production output)
+ * plus a transport-free {@link ConnectionSession}, pumps inbound text into the frame
+ * module and lets the lifecycle service orchestrate cleanup. Frame semantics live in
+ * {@link RealtimeFrameHandler}; room binding/presence orchestration in
+ * {@link ConnectionLifecycleService}.
+ */
 @Component
 public class ImWebSocketHandler implements WebSocketHandler {
 
-    private static final Logger log = LoggerFactory.getLogger(ImWebSocketHandler.class);
-    private static final String CATEGORY_ACCESS = "access";
-    private static final String CATEGORY_SECURITY = "security";
-    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
-    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
-    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
-    private static final String MDC_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
-
-    private static final Map<String, ImFrameCodec.FieldType> CONNECT_FRAME_FIELDS = Map.of(
-            "ticket", ImFrameCodec.FieldType.TEXT
-    );
-    private static final Map<String, ImFrameCodec.FieldType> SEND_PRIVATE_FRAME_FIELDS = Map.of(
-            "clientMsgId", ImFrameCodec.FieldType.TEXT,
-            "toUserId", ImFrameCodec.FieldType.TEXT,
-            "content", ImFrameCodec.FieldType.TEXT
-    );
-    private static final Map<String, ImFrameCodec.FieldType> SEND_ROOM_FRAME_FIELDS = Map.of(
-            "clientMsgId", ImFrameCodec.FieldType.TEXT,
-            "roomId", ImFrameCodec.FieldType.TEXT,
-            "content", ImFrameCodec.FieldType.TEXT
-    );
-    private static final Map<String, ImFrameCodec.FieldType> PING_FRAME_FIELDS = Map.of(
-            "sentAtEpochMillis", ImFrameCodec.FieldType.LONG
-    );
-
-    private final ImFrameCodec frameCodec;
-    private final SessionTicketCodec sessionTicketCodec;
-    private final ImSessionProperties sessionProperties;
-    private final ProjectionSyncCoordinator projectionSyncCoordinator;
-    private final MembershipProjectionService membershipProjectionService;
-    private final PolicyProjectionService policyProjectionService;
-    private final MessageCommandIngressService commandIngressService;
-    private final ConnectionRegistry connectionRegistry;
-    private final RoomLocalPresenceService roomLocalPresenceService;
-    private final int maxChars;
+    private final RealtimeFrameHandler frameHandler;
+    private final ConnectionLifecycleService connectionLifecycleService;
     private final int maxOutboundBacklog;
 
     public ImWebSocketHandler(
-            ImFrameCodec frameCodec,
-            SessionTicketCodec sessionTicketCodec,
-            ImSessionProperties sessionProperties,
-            ProjectionSyncCoordinator projectionSyncCoordinator,
-            MembershipProjectionService membershipProjectionService,
-            PolicyProjectionService policyProjectionService,
-            MessageCommandIngressService commandIngressService,
-            ConnectionRegistry connectionRegistry,
-            RoomLocalPresenceService roomLocalPresenceService,
-            @Value("${im.ws.max-inbound-chars:10000}") int maxChars,
+            RealtimeFrameHandler frameHandler,
+            ConnectionLifecycleService connectionLifecycleService,
             @Value("${im.ws.outbound-buffer-size:256}") int maxOutboundBacklog
     ) {
-        this.frameCodec = frameCodec;
-        this.sessionTicketCodec = sessionTicketCodec;
-        this.sessionProperties = sessionProperties;
-        this.projectionSyncCoordinator = projectionSyncCoordinator;
-        this.membershipProjectionService = membershipProjectionService;
-        this.policyProjectionService = policyProjectionService;
-        this.commandIngressService = commandIngressService;
-        this.connectionRegistry = connectionRegistry;
-        this.roomLocalPresenceService = roomLocalPresenceService;
-        this.maxChars = Math.min(Math.max(1, maxChars), 100_000);
+        this.frameHandler = frameHandler;
+        this.connectionLifecycleService = connectionLifecycleService;
         this.maxOutboundBacklog = Math.min(Math.max(1, maxOutboundBacklog), 10_000);
     }
 
     @Override
     public Mono<Void> handle(WebSocketSession session) {
-        WsConnection conn = new WsConnection(session.getId(), session, maxOutboundBacklog);
+        WsConnectionOutput output = new WsConnectionOutput(session, maxOutboundBacklog);
+        ConnectionSession conn = new ConnectionSession(session.getId(), output);
         conn.bindTrace(resolveTraceId(session));
 
         AtomicBoolean cleaned = new AtomicBoolean(false);
         Runnable cleanupOnce = () -> {
             if (cleaned.compareAndSet(false, true)) {
-                cleanup(conn);
+                connectionLifecycleService.disconnect(conn);
             }
         };
 
-        Flux<WebSocketMessage> outboundFlux = conn.outboundSink()
-                .asFlux()
-                .doOnNext(msg -> conn.onOutboundDelivered())
-                .map(session::textMessage);
-
-        Mono<Void> sender = session.send(outboundFlux).doFinally(signalType -> cleanupOnce.run());
+        Mono<Void> sender = output.sendToSession().doFinally(signalType -> cleanupOnce.run());
         Mono<Void> receiver = session.receive()
                 .map(WebSocketMessage::getPayloadAsText)
-                .flatMap(text -> handleInboundText(conn, text))
+                .flatMap(text -> frameHandler.handleInboundText(conn, text))
                 .doFinally(signalType -> cleanupOnce.run())
                 .then();
 
         return Mono.when(sender, receiver);
-    }
-
-    private Mono<Void> handleInboundText(WsConnection conn, String text) {
-        if (!StringUtils.hasText(text)) {
-            return Mono.empty();
-        }
-        if (text.length() > maxChars) {
-            rejectAndClose(conn, "protocol", "", "", 400, "payload_too_large", "payload too large");
-            return Mono.empty();
-        }
-
-        JsonNode node;
-        try {
-            node = frameCodec.readTree(text);
-        } catch (RuntimeException e) {
-            sendReject(conn, "protocol", "", "", 400, "invalid_json", "invalid json");
-            return Mono.empty();
-        }
-
-        try {
-            frameCodec.requireSupportedSchemaVersion(node);
-        } catch (ImUnsupportedSchemaVersionException e) {
-            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
-            return Mono.empty();
-        }
-
-        String type = node.path("type").asText("");
-        if (!StringUtils.hasText(type)) {
-            sendReject(conn, "protocol", "", "", 400, "missing_type", "missing type");
-            return Mono.empty();
-        }
-
-        if (conn.userId() == null && !"connect".equals(type)) {
-            warnEvent(
-                    CATEGORY_SECURITY,
-                    "ws_connect",
-                    "denied",
-                    conn.traceId(),
-                    "community.reason_code", "connect_required",
-                    "community.connection_id", conn.connectionId()
-            );
-            rejectAndClose(conn, type, "", "", 401, "connect_required", "connect required");
-            return Mono.empty();
-        }
-
-        return switch (type) {
-            case "connect" -> handleConnect(conn, node);
-            case "sendPrivateText" -> handleSendPrivate(conn, node);
-            case "sendRoomText" -> handleSendRoom(conn, node);
-            case "ping" -> handlePing(conn, node);
-            default -> {
-                sendReject(conn, type, "", "", 400, "unsupported_type", "unsupported type");
-                yield Mono.empty();
-            }
-        };
-    }
-
-    private Mono<Void> handleConnect(WsConnection conn, JsonNode node) {
-        ConnectFrame frame;
-        try {
-            frame = frameCodec.read(node, ConnectFrame.class, CONNECT_FRAME_FIELDS);
-        } catch (ImUnsupportedSchemaVersionException e) {
-            rejectAndClose(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
-            return Mono.empty();
-        } catch (RuntimeException e) {
-            rejectAndClose(conn, "connect", "", "", 400, "invalid_frame", "invalid connect");
-            return Mono.empty();
-        }
-
-        try {
-            projectionSyncCoordinator.requireReady();
-            SessionTicketCodec.TicketClaims ticket = sessionTicketCodec.decode(frame.ticket());
-
-            if (!StringUtils.hasText(ticket.workerId())
-                    || !ticket.workerId().equals(sessionProperties.getWorkerId())) {
-                rejectAndClose(conn, "connect", "", "", 403, "wrong_worker", "ticket is bound to another worker");
-                return Mono.empty();
-            }
-
-            if (conn.userId() != null) {
-                conn.trySendText(frameCodec.write(new ConnectedFrame("connected", conn.sessionId())));
-                return Mono.empty();
-            }
-
-            conn.bindSession(ticket.sessionId(), ticket.userId(), ticket.workerId());
-            membershipProjectionService.bindExistingRooms(conn, roomLocalPresenceService);
-            connectionRegistry.register(conn);
-            conn.trySendText(frameCodec.write(new ConnectedFrame("connected", ticket.sessionId())));
-            infoEvent(
-                    CATEGORY_ACCESS,
-                    "ws_connect",
-                    "success",
-                    conn.traceId(),
-                    "community.connection_id", conn.connectionId(),
-                    "user.id", conn.userId(),
-                    "community.session_id", conn.sessionId(),
-                    "community.worker_id", conn.workerId()
-            );
-        } catch (ResponseStatusException e) {
-            rejectAndClose(conn, "connect", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-        } catch (RuntimeException e) {
-            warnEvent(
-                    CATEGORY_SECURITY,
-                    "ws_connect",
-                    "denied",
-                    conn.traceId(),
-                    "community.reason_code", "invalid_ticket",
-                    "community.connection_id", conn.connectionId(),
-                    "community.error_class", errorClass(e)
-            );
-            rejectAndClose(conn, "connect", "", "", 401, "invalid_ticket", "invalid ticket");
-        }
-        return Mono.empty();
-    }
-
-    private Mono<Void> handleSendPrivate(WsConnection conn, JsonNode node) {
-        SendPrivateTextFrame frame;
-        try {
-            frame = frameCodec.read(node, SendPrivateTextFrame.class, SEND_PRIVATE_FRAME_FIELDS);
-        } catch (ImUnsupportedSchemaVersionException e) {
-            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
-            return Mono.empty();
-        } catch (RuntimeException e) {
-            sendReject(conn, "sendPrivateText", clientMsgIdForReject(node), "", 400, "invalid_frame", "invalid sendPrivateText");
-            return Mono.empty();
-        }
-
-        try {
-            projectionSyncCoordinator.requireReady();
-        } catch (ResponseStatusException e) {
-            sendReject(conn, "sendPrivateText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-            return Mono.empty();
-        }
-
-        String clientMsgId = frame.clientMsgId().trim();
-        if (!StringUtils.hasText(clientMsgId) || !StringUtils.hasText(frame.content())) {
-            sendReject(conn, "sendPrivateText", clientMsgId, "", 400, "invalid_frame", "invalid sendPrivateText");
-            return Mono.empty();
-        }
-        if (frame.content().length() > maxChars) {
-            sendReject(conn, "sendPrivateText", clientMsgId, "", 400, "content_too_long", "content too long");
-            return Mono.empty();
-        }
-
-        PolicyDecision decision = policyProjectionService.canSendPrivate(conn.userId(), frame.toUserId());
-        if (!decision.allowed()) {
-            sendReject(
-                    conn,
-                    "sendPrivateText",
-                    clientMsgId,
-                    UUID.randomUUID().toString(),
-                    decision.code(),
-                    decision.reasonCode(),
-                    decision.message()
-            );
-            return Mono.empty();
-        }
-        return commandIngressService.sendPrivate(conn.userId(), frame.toUserId(), clientMsgId, frame.content())
-                .flatMap(result -> sendIngressResult(conn, result));
-    }
-
-    private Mono<Void> handleSendRoom(WsConnection conn, JsonNode node) {
-        SendRoomTextFrame frame;
-        try {
-            frame = frameCodec.read(node, SendRoomTextFrame.class, SEND_ROOM_FRAME_FIELDS);
-        } catch (ImUnsupportedSchemaVersionException e) {
-            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
-            return Mono.empty();
-        } catch (RuntimeException e) {
-            sendReject(conn, "sendRoomText", clientMsgIdForReject(node), "", 400, "invalid_frame", "invalid sendRoomText");
-            return Mono.empty();
-        }
-
-        try {
-            projectionSyncCoordinator.requireReady();
-        } catch (ResponseStatusException e) {
-            sendReject(conn, "sendRoomText", "", "", e.getStatusCode().value(), "projection_not_ready", e.getReason());
-            return Mono.empty();
-        }
-
-        String clientMsgId = frame.clientMsgId().trim();
-        if (!StringUtils.hasText(clientMsgId) || !StringUtils.hasText(frame.content())) {
-            sendReject(conn, "sendRoomText", clientMsgId, "", 400, "invalid_frame", "invalid sendRoomText");
-            return Mono.empty();
-        }
-        if (!membershipProjectionService.isMember(frame.roomId(), conn.userId())) {
-            sendReject(conn, "sendRoomText", clientMsgId, UUID.randomUUID().toString(), 403, "not_room_member", "not a room member");
-            return Mono.empty();
-        }
-        if (frame.content().length() > maxChars) {
-            sendReject(conn, "sendRoomText", clientMsgId, "", 400, "content_too_long", "content too long");
-            return Mono.empty();
-        }
-        return commandIngressService.sendRoom(conn.userId(), frame.roomId(), clientMsgId, frame.content())
-                .flatMap(result -> sendIngressResult(conn, result));
-    }
-
-    private Mono<Void> handlePing(WsConnection conn, JsonNode node) {
-        PingFrame frame;
-        try {
-            frame = frameCodec.read(node, PingFrame.class, PING_FRAME_FIELDS);
-        } catch (ImUnsupportedSchemaVersionException e) {
-            sendReject(conn, "protocol", "", "", 400, "unsupported_schema_version", e.getMessage());
-            return Mono.empty();
-        } catch (RuntimeException e) {
-            sendReject(conn, "ping", "", "", 400, "invalid_frame", "invalid ping");
-            return Mono.empty();
-        }
-        conn.trySendText(frameCodec.write(new PongFrame("pong", frame.sentAtEpochMillis())));
-        return Mono.empty();
-    }
-
-    /**
-     * Echoes the sender's clientMsgId in rejects only when it arrived as a
-     * well-formed text field; a malformed value is never coerced into the
-     * correlation id the sender matches on.
-     */
-    private static String clientMsgIdForReject(JsonNode node) {
-        JsonNode value = node == null ? null : node.get("clientMsgId");
-        if (value == null || !value.isTextual()) {
-            return "";
-        }
-        return value.asText().trim();
-    }
-
-    private void cleanup(WsConnection conn) {
-        if (conn == null) {
-            return;
-        }
-        int joinedRoomCount = conn.joinedRoomsView().size();
-        int outboundBacklog = conn.outboundBacklog();
-        try {
-            connectionRegistry.unregister(conn);
-        } catch (RuntimeException ignore) {
-        }
-        for (UUID roomId : Set.copyOf(conn.joinedRoomsView())) {
-            try {
-                roomLocalPresenceService.leaveLocalRoom(roomId, conn);
-            } catch (RuntimeException ignore) {
-            }
-        }
-        try {
-            conn.complete();
-        } catch (RuntimeException ignore) {
-        } finally {
-            infoEvent(
-                    CATEGORY_ACCESS,
-                    "ws_disconnect",
-                    "success",
-                    conn.traceId(),
-                    "community.connection_id", conn.connectionId(),
-                    "user.id", conn.userId(),
-                    "community.joined_room_count", joinedRoomCount,
-                    "community.outbound_backlog", outboundBacklog
-            );
-        }
-    }
-
-    private void rejectAndClose(
-            WsConnection conn,
-            String cmd,
-            String clientMsgId,
-            String requestId,
-            int code,
-            String reasonCode,
-            String message
-    ) {
-        sendReject(conn, cmd, clientMsgId, requestId, code, reasonCode, message);
-        conn.closeAsync(Duration.ofSeconds(1));
-    }
-
-    private Mono<Void> sendIngressResult(WsConnection conn, CommandIngressResult result) {
-        if (result.acked()) {
-            conn.trySendText(frameCodec.write(new AckFrame("ack", result.cmd(), result.clientMsgId(), result.requestId())));
-        } else {
-            sendReject(conn, result.cmd(), result.clientMsgId(), result.requestId(), result.code(), result.reasonCode(), result.message());
-        }
-        return Mono.empty();
-    }
-
-    private void sendReject(
-            WsConnection conn,
-            String cmd,
-            String clientMsgId,
-            String requestId,
-            int code,
-            String reasonCode,
-            String message
-    ) {
-        conn.trySendText(frameCodec.write(new RejectFrame(
-                "reject",
-                cmd == null ? "" : cmd,
-                clientMsgId == null ? "" : clientMsgId,
-                requestId == null ? "" : requestId,
-                code,
-                reasonCode == null ? "" : reasonCode,
-                message == null ? "" : message
-        )));
     }
 
     private String resolveTraceId(WebSocketSession session) {
@@ -443,53 +69,4 @@ public class ImWebSocketHandler implements WebSocketHandler {
         String traceparentHeader = session.getHandshakeInfo().getHeaders().getFirst(TraceHeaders.HEADER_TRACEPARENT);
         return TraceIdCodec.resolveTraceId(traceparentHeader);
     }
-
-    private void infoEvent(String category, String action, String outcome, String traceId, Object... keyValues) {
-        logEvent(category, action, outcome, traceId, false, keyValues);
-    }
-
-    private void warnEvent(String category, String action, String outcome, String traceId, Object... keyValues) {
-        logEvent(category, action, outcome, traceId, true, keyValues);
-    }
-
-    private void logEvent(String category, String action, String outcome, String traceId, boolean warn, Object... keyValues) {
-        String previousCategory = MDC.get(MDC_CATEGORY);
-        String previousAction = MDC.get(MDC_ACTION);
-        String previousOutcome = MDC.get(MDC_OUTCOME);
-        String previousTraceId = MDC.get(MDC_TRACE_ID);
-        MDC.put(MDC_CATEGORY, category);
-        MDC.put(MDC_ACTION, action);
-        MDC.put(MDC_OUTCOME, outcome);
-        if (StringUtils.hasText(traceId)) {
-            MDC.put(MDC_TRACE_ID, traceId);
-        } else {
-            MDC.remove(MDC_TRACE_ID);
-        }
-        try {
-            String message = EventLogMessage.format(keyValues);
-            if (warn) {
-                log.warn(message);
-            } else {
-                log.info(message);
-            }
-        } finally {
-            restore(MDC_CATEGORY, previousCategory);
-            restore(MDC_ACTION, previousAction);
-            restore(MDC_OUTCOME, previousOutcome);
-            restore(MDC_TRACE_ID, previousTraceId);
-        }
-    }
-
-    private void restore(String key, String previousValue) {
-        if (previousValue == null) {
-            MDC.remove(key);
-        } else {
-            MDC.put(key, previousValue);
-        }
-    }
-
-    private String errorClass(Throwable throwable) {
-        return throwable == null ? null : throwable.getClass().getName();
-    }
-
 }

@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.presence;
 
+import com.nowcoder.community.im.realtime.session.ConnectionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -37,15 +38,15 @@ public class RoomLocalPresenceService {
         }
     }
 
-    public void joinLocalRoom(UUID roomId, WsConnection connection) {
+    public void joinLocalRoom(UUID roomId, ConnectionState connection) {
         reconcileLocalMembership(roomId, connection, true);
     }
 
-    public void leaveLocalRoom(UUID roomId, WsConnection connection) {
+    public void leaveLocalRoom(UUID roomId, ConnectionState connection) {
         reconcileLocalMembership(roomId, connection, false);
     }
 
-    public void reconcileLocalMembership(UUID roomId, WsConnection connection, boolean expectedMember) {
+    public void reconcileLocalMembership(UUID roomId, ConnectionState connection, boolean expectedMember) {
         if (roomId == null || connection == null) {
             return;
         }

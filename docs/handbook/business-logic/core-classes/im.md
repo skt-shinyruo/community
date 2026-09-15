@@ -28,8 +28,13 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `im.realtime.ws.ImWebSocketHandler` | worker WebSocket auth、frame handling 和 connection lifecycle。 |
-| `im.realtime.ws.ImFrameCodec` | realtime frame JSON codec。 |
+| `im.realtime.ws.ImWebSocketHandler` | worker WebSocket transport adapter：socket 收发 plumbing、创建连接并委托 frame/lifecycle。 |
+| `im.realtime.ws.WsConnectionOutput` | 生产 `ConnectionOutput`：唯一持有 WebSocket session 与 Reactor sink，负责出站 backlog 背压。 |
+| `im.realtime.frame.RealtimeFrameHandler` | transport-free frame 模块：frame 校验、connect 鉴权、policy/membership 判定和 ingress 终态映射。 |
+| `im.realtime.frame.ImFrameCodec` | realtime frame JSON codec。 |
+| `im.realtime.session.ConnectionSession` | transport-free 连接对象：identity、绑定元数据和房间/coalescing 可变状态。 |
+| `im.realtime.session.ConnectionIdentity` / `ConnectionState` / `ConnectionOutput` | 非 transport 模块依赖的连接小接口（identity/state/output）。 |
+| `im.realtime.service.ConnectionLifecycleService` | 连接生命周期编排：connect 注册与房间绑定、membership 变更 reconciliation、disconnect 清理。 |
 | `im.realtime.presence.ConnectionRegistry` | 在线连接注册。 |
 | `im.realtime.service.MessageCommandIngressService` | 发送 command 入 Kafka 前的校验和封装。 |
 | `im.realtime.projection.ProjectionSyncCoordinator` | membership / policy snapshot bootstrap 和 ready gate。 |

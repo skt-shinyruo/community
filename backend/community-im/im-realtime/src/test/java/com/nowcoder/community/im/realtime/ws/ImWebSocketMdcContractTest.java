@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.ws;
 
+import com.nowcoder.community.im.realtime.session.RealtimeEventLog;
 import org.junit.jupiter.api.Test;
 
 import java.lang.reflect.Field;
@@ -10,7 +11,7 @@ class ImWebSocketMdcContractTest {
 
     @Test
     void eventLogsShouldUseCanonicalTraceMdcKey() throws ReflectiveOperationException {
-        Field field = ImWebSocketHandler.class.getDeclaredField("MDC_TRACE_ID");
+        Field field = RealtimeEventLog.class.getDeclaredField("MDC_TRACE_ID");
         field.setAccessible(true);
 
         assertThat(field.get(null))

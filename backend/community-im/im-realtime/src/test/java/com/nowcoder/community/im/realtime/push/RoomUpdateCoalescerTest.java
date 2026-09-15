@@ -4,12 +4,10 @@ import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
+import com.nowcoder.community.im.realtime.session.InMemoryConnectionOutput;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -34,10 +32,8 @@ class RoomUpdateCoalescerTest {
     void shouldCoalesceToLatestSeqPerRoomPerConnection() throws Exception {
         coalescer = new RoomUpdateCoalescer(connectionRegistry, new JacksonJsonCodec(JacksonJsonCodec.standardMapper()), 20);
 
-        WebSocketSession session = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session.close()).thenReturn(Mono.empty());
-
-        WsConnection conn = new WsConnection("c1", session, 100);
+        InMemoryConnectionOutput output = new InMemoryConnectionOutput();
+        ConnectionSession conn = new ConnectionSession("c1", output);
         conn.bindUser(uuid(1));
         connectionRegistry.register(conn);
 
@@ -47,9 +43,7 @@ class RoomUpdateCoalescerTest {
         coalescer.markRoomUpdated(conn, roomId10, 2L);
         coalescer.markRoomUpdated(conn, roomId11, 5L);
 
-        String json = conn.outboundSink().asFlux()
-                .next()
-                .block(Duration.ofSeconds(2));
+        String json = output.poll(Duration.ofSeconds(2));
 
         assertThat(json).isNotBlank();
         JsonNode node = objectMapper.readTree(json);

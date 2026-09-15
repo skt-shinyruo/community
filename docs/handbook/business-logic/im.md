@@ -93,12 +93,17 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 2. `community-im-gateway` 接收首帧 connect 和 ticket。
 3. `ConnectTicketRouter` 根据 ticket 找到 worker。
 4. gateway 建立到 worker 的内部 WebSocket bridge。
-5. `im-realtime` 的 `ImWebSocketHandler` 校验 ticket。
-6. 创建 `WsConnection` 并注册到 `ConnectionRegistry`。
-7. 连接绑定 userId、sessionId、traceId、workerId。
-8. realtime 从 projection 中绑定该用户已加入的房间到本地 `RoomLocalIndex`。
+5. `im-realtime` 的 `ImWebSocketHandler`（transport adapter）创建 `WsConnectionOutput`（生产 `ConnectionOutput`，唯一持有 WebSocket session 与 Reactor sink 的地方）和 transport-free 的 `ConnectionSession`，并从握手头绑定 traceId。
+6. `RealtimeFrameHandler` 校验 ticket，由 `ConnectionLifecycleService` 绑定 userId、sessionId、workerId 并注册到 `ConnectionRegistry`。
+7. `ConnectionLifecycleService` 从 membership projection 读取该用户已加入的房间并绑定到本地 `RoomLocalIndex`；projection 只提供 membership state，房间绑定/presence 编排归 lifecycle。
 
 连接成功只代表 realtime 接入完成，不代表任何消息已发送或持久化。
+
+transport seam：
+
+- WebSocket session、Reactor sink 和连接可变内部状态只由 ws 包的 transport adapter 持有；presence、push、projection 与 command ingress 只依赖 `ConnectionIdentity` / `ConnectionState` / `ConnectionOutput` 小接口。
+- 生产输出 `WsConnectionOutput` 与测试用 in-memory output adapter 实现同一 `ConnectionOutput`（发送、完成、关闭）；非 transport 测试不直接检查 transport sink。
+- 出站帧经 unicast backpressure-buffered sink 缓冲，未送达 backlog 超过 `im.ws.outbound-buffer-size` 时关闭连接，避免慢客户端导致内存无界增长。
 
 桥接语义：
 
@@ -119,7 +124,7 @@ ticket 由 `im-session-ticket` 模块的 `SessionTicketCodec` 签发和校验。
 5. 判定通过后，`MessageCommandIngressService.sendPrivate(...)` 写 Kafka `SendPrivateTextCommand`。
 6. 每次发送尝试返回一个且仅一个终态：Kafka 接受 command 时 ack，enqueue 失败或超过
    `im.ws.kafka-send-timeout-ms` 未完成时 reject（`kafka_send_failed` / `kafka_send_timeout`）；
-   `ImWebSocketHandler` 把终态映射为发送端的 ack / reject frame，ingress 自身不触碰连接。
+   `RealtimeFrameHandler` 把终态映射为发送端的 ack / reject frame，ingress 自身不触碰连接。
    订阅取消会终止对 enqueue future 的观察并释放超时定时器，不会在后台保留连接或补发第二个终态。
 7. im-core `CommandConsumers.onPrivateText(...)` 消费 command。
 8. `PrivateMessageApplicationService.persist(...)` 计算 conversationId 并先按 `(conversationId, fromUserId, clientMsgId)` 查幂等。
@@ -268,9 +273,13 @@ IM gateway：
 Realtime：
 
 - `im.realtime.ws.ImWebSocketHandler`
+- `im.realtime.ws.WsConnectionOutput`
+- `im.realtime.frame.RealtimeFrameHandler`
+- `im.realtime.frame.ImFrameCodec`
+- `im.realtime.session.ConnectionSession`
+- `im.realtime.service.ConnectionLifecycleService`
 - `im.realtime.service.MessageCommandIngressService`
 - `im.realtime.presence.ConnectionRegistry`
-- `im.realtime.presence.WsConnection`
 - `im.realtime.presence.RoomLocalIndex`
 - `im.realtime.presence.RoomLocalPresenceService`
 - `im.realtime.presence.RedisRoomPresenceDirectory`

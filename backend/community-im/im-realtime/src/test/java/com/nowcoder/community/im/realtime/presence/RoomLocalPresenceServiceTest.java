@@ -1,7 +1,8 @@
 package com.nowcoder.community.im.realtime.presence;
 
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
+import com.nowcoder.community.im.realtime.session.InMemoryConnectionOutput;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.socket.WebSocketSession;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -16,7 +17,6 @@ import java.util.concurrent.atomic.AtomicBoolean;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.awaitility.Awaitility.await;
-import static org.mockito.Mockito.mock;
 
 class RoomLocalPresenceServiceTest {
 
@@ -25,7 +25,7 @@ class RoomLocalPresenceServiceTest {
         RecordingDirectory directory = new RecordingDirectory();
         RoomLocalIndex index = new RoomLocalIndex();
         RoomLocalPresenceService service = service(index, directory);
-        WsConnection connection = connection("c1");
+        ConnectionSession connection = connection("c1");
         UUID roomId = uuid(1);
         directory.failNextActivation(roomId);
 
@@ -42,7 +42,7 @@ class RoomLocalPresenceServiceTest {
         RecordingDirectory directory = new RecordingDirectory();
         RoomLocalIndex index = new RoomLocalIndex();
         RoomLocalPresenceService service = service(index, directory);
-        WsConnection connection = connection("c1");
+        ConnectionSession connection = connection("c1");
         UUID roomId = uuid(2);
         service.joinLocalRoom(roomId, connection);
         directory.failNextDeactivation(roomId);
@@ -62,7 +62,7 @@ class RoomLocalPresenceServiceTest {
     void heartbeatRetriesPendingActivationAndDeactivation() {
         RecordingDirectory directory = new RecordingDirectory();
         RoomLocalPresenceService service = service(new RoomLocalIndex(), directory);
-        WsConnection connection = connection("c1");
+        ConnectionSession connection = connection("c1");
         UUID roomId = uuid(3);
         directory.failNextActivation(roomId);
 
@@ -107,7 +107,7 @@ class RoomLocalPresenceServiceTest {
         RecordingDirectory directory = new RecordingDirectory();
         RoomLocalIndex index = new RoomLocalIndex();
         RoomLocalPresenceService service = service(index, directory);
-        WsConnection connection = connection("c1");
+        ConnectionSession connection = connection("c1");
         UUID roomId = uuid(6);
         directory.failNextActivation(roomId);
         directory.failNextDeactivation(roomId);
@@ -131,8 +131,8 @@ class RoomLocalPresenceServiceTest {
         RoomLocalIndex index = new RoomLocalIndex();
         RoomLocalPresenceService service = service(index, directory);
         UUID roomId = uuid(7);
-        WsConnection leaving = connection("leaving");
-        WsConnection joining = connection("joining");
+        ConnectionSession leaving = connection("leaving");
+        ConnectionSession joining = connection("joining");
         service.joinLocalRoom(roomId, leaving);
         directory.blockNextDeactivation();
 
@@ -163,8 +163,8 @@ class RoomLocalPresenceServiceTest {
         return new RoomLocalPresenceService(index, directory, "worker-a");
     }
 
-    private static WsConnection connection(String connectionId) {
-        return new WsConnection(connectionId, mock(WebSocketSession.class), 10);
+    private static ConnectionSession connection(String connectionId) {
+        return new ConnectionSession(connectionId, new InMemoryConnectionOutput());
     }
 
     private static List<String> connectionIds(RoomLocalIndex index, UUID roomId) {

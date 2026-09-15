@@ -8,12 +8,11 @@ import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
 import com.nowcoder.community.im.realtime.push.SendResultPushService;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -25,23 +24,20 @@ public class EventConsumers {
     private final PrivatePushService privatePushService;
     private final MembershipProjectionService membershipProjectionService;
     private final PolicyProjectionService policyProjectionService;
-    private final ConnectionRegistry connectionRegistry;
-    private final RoomLocalPresenceService roomLocalPresenceService;
+    private final ConnectionLifecycleService connectionLifecycleService;
     private final SendResultPushService sendResultPushService;
 
     public EventConsumers(
             PrivatePushService privatePushService,
             MembershipProjectionService membershipProjectionService,
             PolicyProjectionService policyProjectionService,
-            ConnectionRegistry connectionRegistry,
-            RoomLocalPresenceService roomLocalPresenceService,
+            ConnectionLifecycleService connectionLifecycleService,
             SendResultPushService sendResultPushService
     ) {
         this.privatePushService = privatePushService;
         this.membershipProjectionService = membershipProjectionService;
         this.policyProjectionService = policyProjectionService;
-        this.connectionRegistry = connectionRegistry;
-        this.roomLocalPresenceService = roomLocalPresenceService;
+        this.connectionLifecycleService = connectionLifecycleService;
         this.sendResultPushService = sendResultPushService;
     }
 
@@ -99,14 +95,7 @@ public class EventConsumers {
         UUID roomId = event.roomId();
         UUID userId = event.userId();
         boolean expectedMember = membershipProjectionService.isMember(roomId, userId);
-        connectionRegistry.forEachConnectionByUserId(
-                userId,
-                connection -> roomLocalPresenceService.reconcileLocalMembership(
-                        roomId,
-                        connection,
-                        expectedMember
-                )
-        );
+        connectionLifecycleService.reconcileRoomMembership(roomId, userId, expectedMember);
     }
 
     @KafkaListener(

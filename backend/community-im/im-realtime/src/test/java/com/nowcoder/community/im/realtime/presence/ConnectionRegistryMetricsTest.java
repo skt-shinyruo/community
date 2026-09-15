@@ -1,11 +1,10 @@
 package com.nowcoder.community.im.realtime.presence;
 
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
+import com.nowcoder.community.im.realtime.session.InMemoryConnectionOutput;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.publisher.Mono;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -22,25 +21,16 @@ class ConnectionRegistryMetricsTest {
         UUID userId1 = uuid(1);
         UUID userId2 = uuid(2);
 
-        WebSocketSession session1 = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session1.close()).thenReturn(Mono.empty());
-        WsConnection c1 = new WsConnection("c1", session1, 10);
-        c1.bindUser(userId1);
+        ConnectionSession c1 = connection("c1", userId1);
         registry.register(c1);
 
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(1.0);
         assertThat(meterRegistry.get("im_ws_online_users").gauge().value()).isEqualTo(1.0);
 
-        WebSocketSession session2 = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session2.close()).thenReturn(Mono.empty());
-        WsConnection c2 = new WsConnection("c2", session2, 10);
-        c2.bindUser(userId1);
+        ConnectionSession c2 = connection("c2", userId1);
         registry.register(c2);
 
-        WebSocketSession session3 = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session3.close()).thenReturn(Mono.empty());
-        WsConnection c3 = new WsConnection("c3", session3, 10);
-        c3.bindUser(userId2);
+        ConnectionSession c3 = connection("c3", userId2);
         registry.register(c3);
 
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(3.0);
@@ -60,6 +50,12 @@ class ConnectionRegistryMetricsTest {
 
         assertThat(meterRegistry.get("im_ws_online_connections").gauge().value()).isEqualTo(0.0);
         assertThat(meterRegistry.get("im_ws_online_users").gauge().value()).isEqualTo(0.0);
+    }
+
+    private static ConnectionSession connection(String connectionId, UUID userId) {
+        ConnectionSession connection = new ConnectionSession(connectionId, new InMemoryConnectionOutput());
+        connection.bindUser(userId);
+        return connection;
     }
 
     private static UUID uuid(long suffix) {

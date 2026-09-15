@@ -7,7 +7,7 @@ import com.nowcoder.community.im.common.event.RoomMessageRejectedEvent;
 import com.nowcoder.community.im.common.ws.CommittedFrame;
 import com.nowcoder.community.im.common.ws.RejectFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
+import com.nowcoder.community.im.realtime.frame.ImFrameCodec;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -101,6 +101,6 @@ public class SendResultPushService {
         if (userId == null || json == null) {
             return;
         }
-        connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
+        connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.output().trySendText(json));
     }
 }

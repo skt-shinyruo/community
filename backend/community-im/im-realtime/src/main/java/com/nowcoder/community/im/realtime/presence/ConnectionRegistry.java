@@ -1,5 +1,6 @@
 package com.nowcoder.community.im.realtime.presence;
 
+import com.nowcoder.community.im.realtime.session.ConnectionState;
 import io.micrometer.core.instrument.DistributionSummary;
 import io.micrometer.core.instrument.MeterRegistry;
 import org.springframework.beans.factory.ObjectProvider;
@@ -19,7 +20,7 @@ import java.util.UUID;
 @Component
 public class ConnectionRegistry {
 
-    private final ConcurrentHashMap<String, WsConnection> byConnectionId = new ConcurrentHashMap<>();
+    private final ConcurrentHashMap<String, ConnectionState> byConnectionId = new ConcurrentHashMap<>();
     private final ConcurrentHashMap<UUID, Set<String>> connectionIdsByUserId = new ConcurrentHashMap<>();
 
     private final AtomicInteger onlineConnections = new AtomicInteger(0);
@@ -49,7 +50,7 @@ public class ConnectionRegistry {
         this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable());
     }
 
-    public void register(WsConnection conn) {
+    public void register(ConnectionState conn) {
         if (conn == null) {
             return;
         }
@@ -58,7 +59,7 @@ public class ConnectionRegistry {
             throw new IllegalStateException("connection userId not bound");
         }
 
-        WsConnection prev = byConnectionId.put(conn.connectionId(), conn);
+        ConnectionState prev = byConnectionId.put(conn.connectionId(), conn);
         if (prev == null) {
             onlineConnections.incrementAndGet();
         }
@@ -76,18 +77,18 @@ public class ConnectionRegistry {
         recordConnectionsPerUserSize(ids);
     }
 
-    public WsConnection get(String connectionId) {
+    public ConnectionState get(String connectionId) {
         if (connectionId == null) {
             return null;
         }
         return byConnectionId.get(connectionId);
     }
 
-    public void unregister(WsConnection conn) {
+    public void unregister(ConnectionState conn) {
         if (conn == null) {
             return;
         }
-        WsConnection removed = byConnectionId.remove(conn.connectionId());
+        ConnectionState removed = byConnectionId.remove(conn.connectionId());
         if (removed != null) {
             onlineConnections.decrementAndGet();
         }
@@ -106,7 +107,7 @@ public class ConnectionRegistry {
         }
     }
 
-    public Collection<WsConnection> listByUserId(UUID userId) {
+    public Collection<ConnectionState> listByUserId(UUID userId) {
         if (userId == null) {
             return List.of();
         }
@@ -114,9 +115,9 @@ public class ConnectionRegistry {
         if (ids == null || ids.isEmpty()) {
             return List.of();
         }
-        ArrayList<WsConnection> list = new ArrayList<>(ids.size());
+        ArrayList<ConnectionState> list = new ArrayList<>(ids.size());
         for (String id : ids) {
-            WsConnection conn = byConnectionId.get(id);
+            ConnectionState conn = byConnectionId.get(id);
             if (conn != null) {
                 list.add(conn);
             }
@@ -124,7 +125,7 @@ public class ConnectionRegistry {
         return list;
     }
 
-    public void forEachConnectionByUserId(UUID userId, Consumer<WsConnection> consumer) {
+    public void forEachConnectionByUserId(UUID userId, Consumer<ConnectionState> consumer) {
         if (userId == null || consumer == null) {
             return;
         }
@@ -133,7 +134,7 @@ public class ConnectionRegistry {
             return;
         }
         for (String id : ids) {
-            WsConnection conn = byConnectionId.get(id);
+            ConnectionState conn = byConnectionId.get(id);
             if (conn != null) {
                 consumer.accept(conn);
             }
@@ -144,7 +145,7 @@ public class ConnectionRegistry {
         return onlineConnections.get();
     }
 
-    public Map<String, WsConnection> snapshotAll() {
+    public Map<String, ConnectionState> snapshotAll() {
         return Map.copyOf(byConnectionId);
     }
 

@@ -3,8 +3,6 @@ package com.nowcoder.community.im.realtime.projection;
 import com.nowcoder.community.im.common.projection.RoomMembershipEntry;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.projection.ProjectionVersions;
-import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
 import org.springframework.stereotype.Service;
 import reactor.core.publisher.Mono;
 
@@ -39,15 +37,6 @@ public class MembershipProjectionService {
 
     public boolean isMember(UUID roomId, UUID userId) {
         return state.get().memberIdsByRoom().getOrDefault(roomId, Set.of()).contains(userId);
-    }
-
-    public void bindExistingRooms(WsConnection conn, RoomLocalPresenceService roomLocalPresenceService) {
-        if (conn == null || conn.userId() == null || roomLocalPresenceService == null) {
-            return;
-        }
-        for (UUID roomId : roomIdsForUser(conn.userId())) {
-            roomLocalPresenceService.joinLocalRoom(roomId, conn);
-        }
     }
 
     public synchronized boolean applyRoomMemberChanged(RoomMemberChanged event) {

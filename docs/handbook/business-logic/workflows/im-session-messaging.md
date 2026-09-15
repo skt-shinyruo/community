@@ -31,10 +31,10 @@
 2. gateway 接收首帧 connect 和 ticket；首帧缺失、超时、非文本或 ticket 无效会直接 reject 并关闭。
 3. `ConnectTicketRouter` 根据 ticket 找到 worker。
 4. gateway 建立到 worker 的内部 WebSocket bridge，并透传 `traceparent`。
-5. `im-realtime` 先确认 projection ready，再校验 ticket。
-6. realtime 创建 `WsConnection` 并注册到 `ConnectionRegistry`。
-7. 连接绑定 userId、sessionId、traceId、workerId。
-8. realtime 从 membership projection 中绑定该用户已加入的房间到本进程 `RoomLocalIndex`。
+5. `im-realtime` 的 `ImWebSocketHandler`（transport adapter，唯一持有 WebSocket session / Reactor sink）为连接创建 `WsConnectionOutput` 和 transport-free 的 `ConnectionSession`，并从握手头绑定 traceId。
+6. `RealtimeFrameHandler` 先确认 projection ready，再校验 ticket。
+7. `ConnectionLifecycleService` 绑定 userId、sessionId、workerId 并注册到 `ConnectionRegistry`。
+8. lifecycle 从 membership projection 读取该用户已加入的房间并绑定到本进程 `RoomLocalIndex`；presence、push、coalescing 只通过 `ConnectionState` / `ConnectionOutput` 小接口访问连接。
 
 连接成功只表示 realtime 接入完成，不代表任何消息已发送或持久化。
 

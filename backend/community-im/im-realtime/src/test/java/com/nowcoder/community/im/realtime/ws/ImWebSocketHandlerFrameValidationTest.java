@@ -8,7 +8,10 @@ import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
+import com.nowcoder.community.im.realtime.frame.ImFrameCodec;
+import com.nowcoder.community.im.realtime.frame.RealtimeFrameHandler;
 import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicyDecision;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
@@ -294,7 +297,16 @@ class ImWebSocketHandlerFrameValidationTest {
         PolicyProjectionService policyProjectionService = mock(PolicyProjectionService.class);
         MessageCommandIngressService commandIngressService = mock(MessageCommandIngressService.class);
         ConnectionRegistry connectionRegistry = new ConnectionRegistry();
-        ImWebSocketHandler handler = new ImWebSocketHandler(
+        ConnectionLifecycleService connectionLifecycle = new ConnectionLifecycleService(
+                connectionRegistry,
+                new RoomLocalPresenceService(
+                        new RoomLocalIndex(),
+                        mock(RoomPresenceDirectory.class),
+                        sessionProperties.getWorkerId()
+                ),
+                membershipProjectionService
+        );
+        RealtimeFrameHandler frameHandler = new RealtimeFrameHandler(
                 new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 ticketCodec,
                 sessionProperties,
@@ -302,15 +314,10 @@ class ImWebSocketHandlerFrameValidationTest {
                 membershipProjectionService,
                 policyProjectionService,
                 commandIngressService,
-                connectionRegistry,
-                new RoomLocalPresenceService(
-                        new RoomLocalIndex(),
-                        mock(RoomPresenceDirectory.class),
-                        sessionProperties.getWorkerId()
-                ),
-                10_000,
-                256
+                connectionLifecycle,
+                10_000
         );
+        ImWebSocketHandler handler = new ImWebSocketHandler(frameHandler, connectionLifecycle, 256);
         handler.handle(session).subscribe();
         return new Fixture(
                 inbound,

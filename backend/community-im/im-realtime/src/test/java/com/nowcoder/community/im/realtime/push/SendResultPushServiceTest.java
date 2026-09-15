@@ -5,13 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.im.common.event.PrivateMessageCommittedEvent;
 import com.nowcoder.community.im.common.event.RoomMessageCommittedEvent;
+import com.nowcoder.community.im.realtime.frame.ImFrameCodec;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
-import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
+import com.nowcoder.community.im.realtime.session.InMemoryConnectionOutput;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
-import org.springframework.web.reactive.socket.WebSocketSession;
-import reactor.core.publisher.Mono;
 
 import java.time.Duration;
 import java.util.UUID;
@@ -30,7 +28,7 @@ class SendResultPushServiceTest {
     @Test
     void pushPrivateCommittedUsesSendAttemptIdentityInCommittedFrame() throws Exception {
         UUID fromUserId = uuid(1);
-        WsConnection connection = registeredConnection(fromUserId);
+        ConnectionSession connection = registeredConnection(fromUserId);
         UUID messageId = uuid(100);
 
         service.pushPrivateCommitted(new PrivateMessageCommittedEvent(
@@ -58,7 +56,7 @@ class SendResultPushServiceTest {
     @Test
     void pushRoomCommittedUsesSendAttemptIdentityInCommittedFrame() throws Exception {
         UUID fromUserId = uuid(11);
-        WsConnection connection = registeredConnection(fromUserId);
+        ConnectionSession connection = registeredConnection(fromUserId);
         UUID roomId = uuid(12);
         UUID messageId = uuid(120);
 
@@ -83,15 +81,13 @@ class SendResultPushServiceTest {
         assertThat(frame.path("seq").asLong()).isEqualTo(9L);
     }
 
-    private JsonNode nextFrame(WsConnection connection) throws Exception {
-        String json = connection.outboundSink().asFlux().next().block(Duration.ofSeconds(1));
+    private JsonNode nextFrame(ConnectionSession connection) throws Exception {
+        String json = ((InMemoryConnectionOutput) connection.output()).poll(Duration.ofSeconds(1));
         return objectMapper.readTree(json);
     }
 
-    private WsConnection registeredConnection(UUID userId) {
-        WebSocketSession session = Mockito.mock(WebSocketSession.class);
-        Mockito.when(session.close()).thenReturn(Mono.empty());
-        WsConnection connection = new WsConnection("conn-" + userId, session, 10);
+    private ConnectionSession registeredConnection(UUID userId) {
+        ConnectionSession connection = new ConnectionSession("conn-" + userId, new InMemoryConnectionOutput());
         connection.bindUser(userId);
         connectionRegistry.register(connection);
         return connection;

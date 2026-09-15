@@ -3,14 +3,13 @@ package com.nowcoder.community.im.realtime.kafka;
 import com.nowcoder.community.im.common.event.RoomMemberChanged;
 import com.nowcoder.community.im.common.event.UserBlockRelationChanged;
 import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
-import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.MembershipSnapshotClient;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicySnapshotClient;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
 import com.nowcoder.community.im.realtime.push.SendResultPushService;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
@@ -28,8 +27,7 @@ class EventConsumersProjectionEventValidationTest {
             mock(PrivatePushService.class),
             membershipProjection,
             policyProjection,
-            mock(ConnectionRegistry.class),
-            mock(RoomLocalPresenceService.class),
+            mock(ConnectionLifecycleService.class),
             mock(SendResultPushService.class)
     );
 

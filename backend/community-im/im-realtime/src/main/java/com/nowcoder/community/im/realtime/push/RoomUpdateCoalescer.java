@@ -3,7 +3,7 @@ package com.nowcoder.community.im.realtime.push;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
+import com.nowcoder.community.im.realtime.session.ConnectionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -45,7 +45,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
                 .subscribe(tick -> flushOnceSafely());
     }
 
-    public void markRoomUpdated(WsConnection conn, UUID roomId, long lastSeq) {
+    public void markRoomUpdated(ConnectionState conn, UUID roomId, long lastSeq) {
         if (conn == null) {
             return;
         }
@@ -72,7 +72,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
             }
             processed++;
 
-            WsConnection conn = connectionRegistry.get(connectionId);
+            ConnectionState conn = connectionRegistry.get(connectionId);
             if (conn == null) {
                 continue;
             }
@@ -95,7 +95,7 @@ public class RoomUpdateCoalescer implements DisposableBean {
             } catch (JsonCodecException e) {
                 continue;
             }
-            conn.trySendText(json);
+            conn.output().trySendText(json);
         }
     }
 

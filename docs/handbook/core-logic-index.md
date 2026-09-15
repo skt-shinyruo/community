@@ -346,8 +346,12 @@
 | --- | --- | --- | --- |
 | `im.common.ImContractVersions` | 严格支持数值型 IM schema version `1` | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
 | `im.common.ImSchemaVersionDeserializer` | 拒绝缺失/null/非整数/非 `1` schema version | [IM Core Runtime](core-logic/im-core-runtime.md) | Covered |
-| `im.realtime.ws.ImWebSocketHandler` | worker WebSocket auth, frame handling and connection lifecycle | [IM 消息业务逻辑](business-logic/im.md) | Covered |
-| `im.realtime.ws.ImFrameCodec` | realtime frame JSON codec | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.ws.ImWebSocketHandler` | worker WebSocket transport adapter: socket plumbing and connection creation | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.ws.WsConnectionOutput` | production ConnectionOutput holding WebSocket session/sink with backlog backpressure | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.frame.RealtimeFrameHandler` | transport-free frame handling: validation, connect auth, policy/membership checks, ingress result mapping | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.frame.ImFrameCodec` | realtime frame JSON codec | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.session.ConnectionSession` | transport-free connection identity/state behind ConnectionIdentity/ConnectionState/ConnectionOutput | [IM 消息业务逻辑](business-logic/im.md) | Covered |
+| `im.realtime.service.ConnectionLifecycleService` | connection lifecycle orchestration: register + room binding, membership reconciliation, disconnect cleanup | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.presence.ConnectionRegistry` | online connection registry by session/user | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.service.MessageCommandIngressService` | validate inbound send commands and publish Kafka command | [IM 消息业务逻辑](business-logic/im.md) | Covered |
 | `im.realtime.kafka.CommandProducer` | Kafka producer for IM command topics | [集成契约](integration-contracts.md#im-kafka-contract) | Covered |

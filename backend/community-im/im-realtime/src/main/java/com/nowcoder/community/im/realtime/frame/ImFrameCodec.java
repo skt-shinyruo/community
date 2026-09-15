@@ -1,4 +1,4 @@
-package com.nowcoder.community.im.realtime.ws;
+package com.nowcoder.community.im.realtime.frame;
 
 import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;

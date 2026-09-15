@@ -12,7 +12,10 @@ import com.nowcoder.community.im.common.event.UserMessagingPolicyChanged;
 import com.nowcoder.community.im.common.ws.ConnectFrame;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
+import com.nowcoder.community.im.realtime.frame.ImFrameCodec;
+import com.nowcoder.community.im.realtime.frame.RealtimeFrameHandler;
 import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
 import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.MembershipSnapshotClient;
@@ -90,23 +93,30 @@ class ImWebSocketHandlerContractVersionTest {
                 .when(projectionSyncCoordinator).requireReady();
         MessageCommandIngressService commandIngressService = mock(MessageCommandIngressService.class);
 
-        ImWebSocketHandler handler = new ImWebSocketHandler(
-                new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
-                sessionTicketCodec(jwtProperties),
-                sessionProperties,
-                projectionSyncCoordinator,
-                new MembershipProjectionService(mock(MembershipSnapshotClient.class)),
-                new PolicyProjectionService(mock(PolicySnapshotClient.class)),
-                commandIngressService,
+        MembershipProjectionService membershipProjectionService = new MembershipProjectionService(
+                mock(MembershipSnapshotClient.class)
+        );
+        ConnectionLifecycleService connectionLifecycle = new ConnectionLifecycleService(
                 new ConnectionRegistry(),
                 new RoomLocalPresenceService(
                         new RoomLocalIndex(),
                         mock(RoomPresenceDirectory.class),
                         sessionProperties.getWorkerId()
                 ),
-                10_000,
-                256
+                membershipProjectionService
         );
+        RealtimeFrameHandler frameHandler = new RealtimeFrameHandler(
+                new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
+                sessionTicketCodec(jwtProperties),
+                sessionProperties,
+                projectionSyncCoordinator,
+                membershipProjectionService,
+                new PolicyProjectionService(mock(PolicySnapshotClient.class)),
+                commandIngressService,
+                connectionLifecycle,
+                10_000
+        );
+        ImWebSocketHandler handler = new ImWebSocketHandler(frameHandler, connectionLifecycle, 256);
 
         handler.handle(session).subscribe();
         inbound.tryEmitNext(frameJson);
@@ -137,7 +147,12 @@ class ImWebSocketHandlerContractVersionTest {
         ProjectionSyncCoordinator projectionSyncCoordinator = mock(ProjectionSyncCoordinator.class);
         doNothing().when(projectionSyncCoordinator).requireReady();
 
-        ImWebSocketHandler handler = new ImWebSocketHandler(
+        ConnectionLifecycleService connectionLifecycle = new ConnectionLifecycleService(
+                new ConnectionRegistry(),
+                new RoomLocalPresenceService(new RoomLocalIndex(), mock(RoomPresenceDirectory.class), sessionProperties.getWorkerId()),
+                membershipProjectionService
+        );
+        RealtimeFrameHandler frameHandler = new RealtimeFrameHandler(
                 new ImFrameCodec(new JacksonJsonCodec(JacksonJsonCodec.standardMapper())),
                 ticketCodec,
                 sessionProperties,
@@ -145,11 +160,10 @@ class ImWebSocketHandlerContractVersionTest {
                 membershipProjectionService,
                 policyProjectionService,
                 mock(MessageCommandIngressService.class),
-                new ConnectionRegistry(),
-                new RoomLocalPresenceService(new RoomLocalIndex(), mock(RoomPresenceDirectory.class), sessionProperties.getWorkerId()),
-                10_000,
-                256
+                connectionLifecycle,
+                10_000
         );
+        ImWebSocketHandler handler = new ImWebSocketHandler(frameHandler, connectionLifecycle, 256);
 
         String ticket = ticketCodec.encode("sess-1", userId, sessionProperties.getWorkerId(), Instant.now().plusSeconds(120));
         handler.handle(session).subscribe();
@@ -186,7 +200,16 @@ class ImWebSocketHandlerContractVersionTest {
         SessionTicketCodec ticketCodec = sessionTicketCodec(jwtProperties);
         ProjectionSyncCoordinator projectionSyncCoordinator = mock(ProjectionSyncCoordinator.class);
         doNothing().when(projectionSyncCoordinator).requireReady();
-        ImWebSocketHandler handler = new ImWebSocketHandler(
+        ConnectionLifecycleService connectionLifecycle = new ConnectionLifecycleService(
+                new ConnectionRegistry(),
+                new RoomLocalPresenceService(
+                        new RoomLocalIndex(),
+                        mock(RoomPresenceDirectory.class),
+                        sessionProperties.getWorkerId()
+                ),
+                new MembershipProjectionService(mock(MembershipSnapshotClient.class))
+        );
+        RealtimeFrameHandler frameHandler = new RealtimeFrameHandler(
                 frameCodec,
                 ticketCodec,
                 sessionProperties,
@@ -194,15 +217,10 @@ class ImWebSocketHandlerContractVersionTest {
                 new MembershipProjectionService(mock(MembershipSnapshotClient.class)),
                 new PolicyProjectionService(mock(PolicySnapshotClient.class)),
                 mock(MessageCommandIngressService.class),
-                new ConnectionRegistry(),
-                new RoomLocalPresenceService(
-                        new RoomLocalIndex(),
-                        mock(RoomPresenceDirectory.class),
-                        sessionProperties.getWorkerId()
-                ),
-                10_000,
-                256
+                connectionLifecycle,
+                10_000
         );
+        ImWebSocketHandler handler = new ImWebSocketHandler(frameHandler, connectionLifecycle, 256);
         String ticket = expiredTicket(sessionProperties);
 
         try (HandlerLogCapture logs = HandlerLogCapture.start()) {
@@ -341,7 +359,7 @@ class ImWebSocketHandlerContractVersionTest {
         private final ListAppender<ILoggingEvent> appender = new ListAppender<>();
 
         private HandlerLogCapture() {
-            this.logger = (Logger) LoggerFactory.getLogger(ImWebSocketHandler.class);
+            this.logger = (Logger) LoggerFactory.getLogger(RealtimeFrameHandler.class);
             appender.start();
             logger.addAppender(appender);
         }

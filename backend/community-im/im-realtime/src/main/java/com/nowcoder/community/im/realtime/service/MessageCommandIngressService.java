@@ -3,7 +3,6 @@ package com.nowcoder.community.im.realtime.service;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.realtime.kafka.CommandProducer;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.common.support.ConversationIdSupport;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
@@ -24,7 +23,7 @@ import java.util.concurrent.TimeoutException;
  * cold {@link Mono} that emits exactly one terminal {@link CommandIngressResult}:
  * {@code ACK} once Kafka accepts the command, {@code REJECT} when the enqueue future fails or
  * does not complete within {@code im.ws.kafka-send-timeout-ms}. The ingress takes the sender id
- * rather than the {@link WsConnection} and can therefore never write to the connection; the
+ * rather than the connection session and can therefore never write to the connection; the
  * caller maps the terminal to a WebSocket ack/reject frame.
  *
  * <p>Reactive semantics:

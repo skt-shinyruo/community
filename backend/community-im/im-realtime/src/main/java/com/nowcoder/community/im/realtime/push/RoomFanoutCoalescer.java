@@ -2,7 +2,7 @@ package com.nowcoder.community.im.realtime.push;
 
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
+import com.nowcoder.community.im.realtime.session.ConnectionState;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.DisposableBean;
@@ -87,7 +87,7 @@ public class RoomFanoutCoalescer implements DisposableBean {
             }
 
             roomLocalIndex.forEachConnectionId(roomId, connectionId -> {
-                WsConnection conn = connectionRegistry.get(connectionId);
+                ConnectionState conn = connectionRegistry.get(connectionId);
                 if (conn != null) {
                     roomUpdateCoalescer.markRoomUpdated(conn, roomId, lastSeq);
                 }

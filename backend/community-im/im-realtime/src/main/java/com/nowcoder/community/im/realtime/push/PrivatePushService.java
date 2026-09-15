@@ -3,7 +3,7 @@ package com.nowcoder.community.im.realtime.push;
 import com.nowcoder.community.im.common.event.PrivateMessagePersistedEvent;
 import com.nowcoder.community.im.common.ws.PrivateMessageFrame;
 import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
-import com.nowcoder.community.im.realtime.ws.ImFrameCodec;
+import com.nowcoder.community.im.realtime.frame.ImFrameCodec;
 import org.springframework.stereotype.Component;
 
 import java.util.UUID;
@@ -44,6 +44,6 @@ public class PrivatePushService {
     }
 
     private void pushToUser(UUID userId, String json) {
-        connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.trySendText(json));
+        connectionRegistry.forEachConnectionByUserId(userId, conn -> conn.output().trySendText(json));
     }
 }

@@ -5,13 +5,15 @@ import com.nowcoder.community.im.realtime.presence.ConnectionRegistry;
 import com.nowcoder.community.im.realtime.presence.RoomLocalIndex;
 import com.nowcoder.community.im.realtime.presence.RoomLocalPresenceService;
 import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
-import com.nowcoder.community.im.realtime.presence.WsConnection;
 import com.nowcoder.community.im.realtime.projection.MembershipProjectionService;
 import com.nowcoder.community.im.realtime.projection.PolicyProjectionService;
 import com.nowcoder.community.im.realtime.push.PrivatePushService;
 import com.nowcoder.community.im.realtime.push.SendResultPushService;
+import com.nowcoder.community.im.realtime.service.ConnectionLifecycleService;
+import com.nowcoder.community.im.realtime.session.ConnectionSession;
+import com.nowcoder.community.im.realtime.session.ConnectionState;
+import com.nowcoder.community.im.realtime.session.InMemoryConnectionOutput;
 import org.junit.jupiter.api.Test;
-import org.springframework.web.reactive.socket.WebSocketSession;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -38,7 +40,7 @@ class EventConsumersMembershipReconciliationTest {
 
         consumer(projection, registry, presence).onRoomMemberChanged(event);
 
-        for (WsConnection connection : registry.listByUserId(userId)) {
+        for (ConnectionState connection : registry.listByUserId(userId)) {
             verify(presence).reconcileLocalMembership(roomId, connection, true);
         }
     }
@@ -56,7 +58,7 @@ class EventConsumersMembershipReconciliationTest {
 
         consumer(projection, registry, presence).onRoomMemberChanged(event);
 
-        for (WsConnection connection : registry.listByUserId(userId)) {
+        for (ConnectionState connection : registry.listByUserId(userId)) {
             verify(presence).reconcileLocalMembership(roomId, connection, false);
         }
     }
@@ -68,7 +70,7 @@ class EventConsumersMembershipReconciliationTest {
         RoomMemberChanged event = event(roomId, userId, "JOINED", 10L);
         MembershipProjectionService projection = mock(MembershipProjectionService.class);
         ConnectionRegistry registry = new ConnectionRegistry();
-        WsConnection connection = connection("c1", userId);
+        ConnectionSession connection = connection("c1", userId);
         registry.register(connection);
         FailOnceActivationDirectory directory = new FailOnceActivationDirectory();
         RoomLocalIndex index = new RoomLocalIndex();
@@ -98,23 +100,22 @@ class EventConsumersMembershipReconciliationTest {
                 mock(PrivatePushService.class),
                 projection,
                 mock(PolicyProjectionService.class),
-                registry,
-                presence,
+                new ConnectionLifecycleService(registry, presence, projection),
                 mock(SendResultPushService.class)
         );
     }
 
-    private static ConnectionRegistry registryWith(UUID userId, WsConnection... connections) {
+    private static ConnectionRegistry registryWith(UUID userId, ConnectionSession... connections) {
         ConnectionRegistry registry = new ConnectionRegistry();
-        for (WsConnection connection : connections) {
+        for (ConnectionSession connection : connections) {
             assertThat(connection.userId()).isEqualTo(userId);
             registry.register(connection);
         }
         return registry;
     }
 
-    private static WsConnection connection(String connectionId, UUID userId) {
-        WsConnection connection = new WsConnection(connectionId, mock(WebSocketSession.class), 10);
+    private static ConnectionSession connection(String connectionId, UUID userId) {
+        ConnectionSession connection = new ConnectionSession(connectionId, new InMemoryConnectionOutput());
         connection.bindUser(userId);
         return connection;
     }

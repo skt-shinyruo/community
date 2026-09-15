@@ -25,6 +25,35 @@ describe('conversationDetailState', () => {
     expect(parseConversationTargetId(`${other}_${me}`, me)).toBe(other)
   })
 
+  it('rejects conversation ids that are not exactly two distinct UUIDs', () => {
+    const me = '11111111-1111-7111-8111-111111111111'
+    const other = '22222222-2222-7222-8222-222222222222'
+
+    // 双分隔符不再被静默修复
+    expect(parseConversationTargetId(`${me}__${other}`, me)).toBe('')
+    expect(parseConversationTargetId(`${me}_${other}_`, me)).toBe('')
+    expect(parseConversationTargetId(`_${me}_${other}`, me)).toBe('')
+    // 非 UUID 片段
+    expect(parseConversationTargetId('conv-a_conv-b', me)).toBe('')
+    expect(parseConversationTargetId(`${me}_not-a-uuid`, me)).toBe('')
+    // 相同用户 ID
+    expect(parseConversationTargetId(`${me}_${me}`, me)).toBe('')
+    // me 不是参与者
+    expect(parseConversationTargetId(`${other}_33333333-3333-7333-8333-333333333333`, me)).toBe('')
+  })
+
+  it('rejects canonical conversation ids from non-UUID or identical user ids', () => {
+    const me = '11111111-1111-7111-8111-111111111111'
+    const other = '22222222-2222-7222-8222-222222222222'
+
+    expect(buildCanonicalConversationId('not-a-uuid', other)).toBe('')
+    expect(buildCanonicalConversationId(me, 'not-a-uuid')).toBe('')
+    expect(buildCanonicalConversationId(me, '')).toBe('')
+    expect(buildCanonicalConversationId(me, me)).toBe('')
+    // 同一 UUID 的大小写变体也是相同用户 ID
+    expect(buildCanonicalConversationId(me, me.toUpperCase())).toBe('')
+  })
+
   it('builds a stable canonical UUID conversation id independent of input order', () => {
     const lower = '11111111-1111-7111-8111-111111111111'
     const higher = '33333333-3333-7333-8333-333333333333'

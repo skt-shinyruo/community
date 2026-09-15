@@ -1,4 +1,4 @@
-import { normalizeOpaqueId, requireApiOpaqueId, sameOpaqueId } from '../utils/opaqueId'
+import { isUuid, normalizeOpaqueId, requireApiOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 
 const SIGNED_64_MINIMUM = 1n << 63n
 const UNSIGNED_64_MODULUS = 1n << 64n
@@ -29,26 +29,35 @@ function compareJavaUuid(leftValue, rightValue) {
   return 0
 }
 
+/** 会话路由 ID 的不变量集中在这里：恰好两个非空、不同（UUID 值语义）的用户 ID。 */
+function normalizeDistinctUuidPair(leftValue, rightValue) {
+  const left = normalizeOpaqueId(leftValue)
+  const right = normalizeOpaqueId(rightValue)
+  if (!isUuid(left) || !isUuid(right)) return null
+  return compareJavaUuid(left, right) === 0 ? null : [left, right]
+}
+
 export function parseConversationTargetId(conversationId, meUserId) {
   const cid = String(conversationId || '').trim()
   const me = normalizeOpaqueId(meUserId)
   if (!cid || !me) return ''
 
-  const parts = cid.split('_').map((value) => normalizeOpaqueId(value)).filter(Boolean)
-  if (parts.length !== 2) return ''
+  // 不接受任何静默修复：双分隔符留下的空片段直接失败。
+  const parts = cid.split('_')
+  const pair = parts.length === 2 ? normalizeDistinctUuidPair(parts[0], parts[1]) : null
+  if (!pair) return ''
 
-  const [a, b] = parts
-  if (sameOpaqueId(a, me)) return b
-  if (sameOpaqueId(b, me)) return a
+  const [a, b] = pair
+  if (compareJavaUuid(a, me) === 0) return b
+  if (compareJavaUuid(b, me) === 0) return a
   return ''
 }
 
 export function buildCanonicalConversationId(leftUserId, rightUserId) {
-  const left = normalizeOpaqueId(leftUserId)
-  const right = normalizeOpaqueId(rightUserId)
-  if (!left || !right || sameOpaqueId(left, right)) return ''
+  const pair = normalizeDistinctUuidPair(leftUserId, rightUserId)
+  if (!pair) return ''
 
-  return [left, right].sort(compareJavaUuid).join('_')
+  return pair.sort(compareJavaUuid).join('_')
 }
 
 export function mapConversationMessage(raw) {

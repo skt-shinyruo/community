@@ -2,8 +2,6 @@ package com.nowcoder.community.im.realtime.fanout;
 
 import io.micrometer.core.instrument.Counter;
 import io.micrometer.core.instrument.MeterRegistry;
-import org.springframework.beans.factory.ObjectProvider;
-import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 @Component
@@ -18,23 +16,7 @@ public class RoomFanoutMetrics {
     private final Counter targetDuplicates;
     private final Counter targetRejected;
 
-    @Autowired
-    public RoomFanoutMetrics(ObjectProvider<MeterRegistry> meterRegistryProvider) {
-        this(meterRegistryProvider == null ? null : meterRegistryProvider.getIfAvailable());
-    }
-
     RoomFanoutMetrics(MeterRegistry meterRegistry) {
-        if (meterRegistry == null) {
-            this.ownerEventsConsumed = null;
-            this.routesPlanned = null;
-            this.commandsSent = null;
-            this.emptyTargets = null;
-            this.routeFailures = null;
-            this.targetAccepted = null;
-            this.targetDuplicates = null;
-            this.targetRejected = null;
-            return;
-        }
         this.ownerEventsConsumed = Counter.builder("im_room_fanout_events_consumed")
                 .tag("path", "owner")
                 .register(meterRegistry);
@@ -51,53 +33,43 @@ public class RoomFanoutMetrics {
         this.targetRejected = targetResultCounter(meterRegistry, "rejected");
     }
 
-    static RoomFanoutMetrics noop() {
-        return new RoomFanoutMetrics((MeterRegistry) null);
-    }
-
     void ownerEventConsumed() {
-        increment(ownerEventsConsumed);
+        ownerEventsConsumed.increment();
     }
 
     void routesPlanned(int count) {
-        if (routesPlanned != null && count > 0) {
+        if (count > 0) {
             routesPlanned.increment(count);
         }
     }
 
     void commandSent() {
-        increment(commandsSent);
+        commandsSent.increment();
     }
 
     void emptyTargetSet() {
-        increment(emptyTargets);
+        emptyTargets.increment();
     }
 
     void routeFailed() {
-        increment(routeFailures);
+        routeFailures.increment();
     }
 
     void targetAccepted() {
-        increment(targetAccepted);
+        targetAccepted.increment();
     }
 
     void targetDuplicate() {
-        increment(targetDuplicates);
+        targetDuplicates.increment();
     }
 
     void targetRejected() {
-        increment(targetRejected);
+        targetRejected.increment();
     }
 
     private static Counter targetResultCounter(MeterRegistry meterRegistry, String result) {
         return Counter.builder("im_room_fanout_target_results")
                 .tag("result", result)
                 .register(meterRegistry);
-    }
-
-    private static void increment(Counter counter) {
-        if (counter != null) {
-            counter.increment();
-        }
     }
 }

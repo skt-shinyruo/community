@@ -201,6 +201,7 @@ import { listActions, listReports, takeAction } from '../api/services/moderation
 import { moderationActionNeedsDuration, resolveModerationDurationSeconds } from './moderationState'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 
 const auth = useAuthStore()
 const tab = ref('reports')
@@ -222,8 +223,6 @@ const statusFilterOptions = [
   { label: '已处理', value: '1' },
   { label: '已驳回', value: '2' }
 ]
-let loadGeneration = 0
-let actionGeneration = 0
 
 const hasModerationAccess = computed(() => auth.authed && auth.isAdminOrModerator)
 const sessionScope = computed(() => identityScope(auth))
@@ -232,6 +231,8 @@ const viewScope = computed(() => [
   tab.value,
   tab.value === 'reports' ? statusFilter.value : ''
 ].join(':'))
+const loadTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 
 // actions
 const actions = ref([])
@@ -264,8 +265,7 @@ function targetTypeLabel(t) {
 
 async function loadReports(append = false, targetPage = reportsPage.value) {
   if (!hasModerationAccess.value) return
-  const generation = ++loadGeneration
-  const scope = viewScope.value
+  const requestHandle = loadTracker.begin()
   if (append) loadingMore.value = true
   else {
     loading.value = true
@@ -279,17 +279,17 @@ async function loadReports(append = false, targetPage = reportsPage.value) {
       page: targetPage,
       size: reportsSize
     })
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     const list = Array.isArray(resp?.data) ? resp.data : []
     reportsHasNext.value = list.length >= reportsSize
     if (append && list.length === 0) return
     reportsPage.value = targetPage
     reports.value = append ? mergeAppendedById(reports.value, list) : list
   } catch (e) {
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     error.value = e?.message || '加载失败'
   } finally {
-    if (isCurrentLoad(generation, scope)) {
+    if (isCurrentLoad(requestHandle)) {
       loading.value = false
       loadingMore.value = false
     }
@@ -298,8 +298,7 @@ async function loadReports(append = false, targetPage = reportsPage.value) {
 
 async function loadActions(append = false, targetPage = actionsPage.value) {
   if (!hasModerationAccess.value) return
-  const generation = ++loadGeneration
-  const scope = viewScope.value
+  const requestHandle = loadTracker.begin()
   if (append) loadingMore.value = true
   else {
     loading.value = true
@@ -309,25 +308,25 @@ async function loadActions(append = false, targetPage = actionsPage.value) {
 
   try {
     const resp = await listActions({ page: targetPage, size: actionsSize })
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     const list = Array.isArray(resp?.data) ? resp.data : []
     actionsHasNext.value = list.length >= actionsSize
     if (append && list.length === 0) return
     actionsPage.value = targetPage
     actions.value = append ? mergeAppendedById(actions.value, list) : list
   } catch (e) {
-    if (!isCurrentLoad(generation, scope)) return
+    if (!isCurrentLoad(requestHandle)) return
     error.value = e?.message || '加载失败'
   } finally {
-    if (isCurrentLoad(generation, scope)) {
+    if (isCurrentLoad(requestHandle)) {
       loading.value = false
       loadingMore.value = false
     }
   }
 }
 
-function isCurrentLoad(generation, scope) {
-  return generation === loadGeneration && scope === viewScope.value && hasModerationAccess.value
+function isCurrentLoad(requestHandle) {
+  return loadTracker.isCurrent(requestHandle) && hasModerationAccess.value
 }
 
 async function reload() {
@@ -398,8 +397,7 @@ async function submitAction() {
     return
   }
 
-  const generation = ++actionGeneration
-  const scope = viewScope.value
+  const requestHandle = actionTracker.begin()
   const command = {
     reportId,
     action: actionForm.value.action,
@@ -409,30 +407,30 @@ async function submitAction() {
   actionLoading.value = true
   try {
     await takeAction(command)
-    if (!isCurrentAction(generation, scope)) return
+    if (!isCurrentAction(requestHandle)) return
     showToast({ type: 'success', title: '处置成功', text: '已记录审计并通知相关用户。' })
     closeActionModal()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!isCurrentAction(requestHandle)) return
     actionError.value = e?.message || '处置失败'
   } finally {
-    if (isCurrentAction(generation, scope)) actionLoading.value = false
+    if (isCurrentAction(requestHandle)) actionLoading.value = false
   }
 }
 
-function isCurrentAction(generation, scope) {
-  return generation === actionGeneration && scope === viewScope.value && hasModerationAccess.value
+function isCurrentAction(requestHandle) {
+  return actionTracker.isCurrent(requestHandle) && hasModerationAccess.value
 }
 
 function invalidateActionState() {
-  actionGeneration += 1
+  actionTracker.invalidate()
   actionLoading.value = false
   closeActionModal()
 }
 
 function resetForSession() {
-  loadGeneration += 1
+  loadTracker.invalidate()
   invalidateActionState()
   loading.value = false
   loadingMore.value = false
@@ -462,8 +460,8 @@ onMounted(() => {
   if (hasModerationAccess.value) reload()
 })
 onBeforeUnmount(() => {
-  loadGeneration += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>
 

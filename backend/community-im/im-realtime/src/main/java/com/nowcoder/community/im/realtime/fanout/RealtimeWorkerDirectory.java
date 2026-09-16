@@ -118,7 +118,7 @@ public class RealtimeWorkerDirectory {
                     ex
             );
         }
-        int partitions = fanoutProperties.normalizedRoutedCommandPartitions();
+        int partitions = RoomFanoutProperties.ROUTED_COMMAND_PARTITIONS;
         if (inboxSlot < 0 || inboxSlot >= partitions) {
             throw invalidInstance(
                     "room fanout inbox slot for worker " + workerId.trim()

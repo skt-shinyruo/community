@@ -24,11 +24,7 @@ public interface UserMapper {
 
     int insertUser(UserDataObject user);
 
-    int updateStatus(@Param("id") UUID id, @Param("status") int status, @Param("securityVersion") long securityVersion);
-
     int updateHeader(UUID id, String headerUrl);
-
-    int updatePassword(@Param("id") UUID id, @Param("password") String password, @Param("securityVersion") long securityVersion);
 
     int updatePasswordIfSecurityVersion(
             @Param("id") UUID id,
@@ -73,8 +69,6 @@ public interface UserMapper {
     Long selectSecurityVersionById(@Param("id") UUID id);
 
     int updateSecurityVersionCounter(@Param("id") int id, @Param("version") long version);
-
-    long selectSecurityVersionCounter(@Param("id") int id);
 
     /**
      * internal 批量用户摘要：用于下游聚合接口避免 N+1 模块调用。

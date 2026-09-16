@@ -15,11 +15,11 @@ import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
 import com.nowcoder.community.content.domain.model.PostMediaUploadStatus;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.model.PostVideoState;
-import com.nowcoder.community.content.domain.repository.CategoryRepository;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.PostRepository;
-import com.nowcoder.community.content.domain.repository.PostTagRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -73,8 +73,8 @@ class PostPublishingMediaDesiredStateTest {
     private PostMediaAssetRepository mediaRepository;
     private PostMediaStoragePort storagePort;
     private PostMediaReferenceCommandPublisher commandPublisher;
-    private CategoryRepository categoryRepository;
-    private PostTagRepository tagRepository;
+    private CategoryContentRepository categoryRepository;
+    private TagContentRepository tagRepository;
     private PostIntegrationEventPublisher eventPublisher;
     private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostPublishingApplicationService service;
@@ -91,8 +91,8 @@ class PostPublishingMediaDesiredStateTest {
         mediaRepository = register(PostMediaAssetRepository.class, mock(PostMediaAssetRepository.class));
         storagePort = register(PostMediaStoragePort.class, mock(PostMediaStoragePort.class));
         commandPublisher = register(PostMediaReferenceCommandPublisher.class, mock(PostMediaReferenceCommandPublisher.class));
-        categoryRepository = register(CategoryRepository.class, mock(CategoryRepository.class));
-        tagRepository = register(PostTagRepository.class, mock(PostTagRepository.class));
+        categoryRepository = register(CategoryContentRepository.class, mock(CategoryContentRepository.class));
+        tagRepository = register(TagContentRepository.class, mock(TagContentRepository.class));
         eventPublisher = register(PostIntegrationEventPublisher.class, mock(PostIntegrationEventPublisher.class));
         mediaReferenceScheduler = register(
                 PostMediaReferenceScheduler.class,
@@ -285,7 +285,6 @@ class PostPublishingMediaDesiredStateTest {
         assertThat(dependencies)
                 .doesNotContain(
                         PostMediaStoragePort.class.getName(),
-                        "com.nowcoder.community.common.tx.AfterCommitExecutor",
                         "org.springframework.transaction.support.TransactionSynchronization",
                         "org.springframework.transaction.support.TransactionSynchronizationManager"
                 );

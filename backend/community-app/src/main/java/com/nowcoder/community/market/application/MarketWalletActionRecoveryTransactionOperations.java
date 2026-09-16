@@ -8,23 +8,16 @@ import com.nowcoder.community.market.domain.model.MarketWalletActionStatus;
 import com.nowcoder.community.market.domain.model.MarketWalletActionType;
 import com.nowcoder.community.market.domain.repository.MarketOrderRepository;
 import com.nowcoder.community.market.domain.repository.MarketWalletActionRepository;
-import com.nowcoder.community.wallet.api.model.WalletErrorCodes;
 import org.springframework.stereotype.Component;
 import org.springframework.transaction.annotation.Propagation;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.Date;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 @Component
 public class MarketWalletActionRecoveryTransactionOperations {
-
-    private static final Set<String> RECOVERABLE_RELEASE_REFUND_FAILURE_CODES = Set.of(
-            String.valueOf(WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT),
-            String.valueOf(WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT)
-    );
 
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
@@ -162,7 +155,7 @@ public class MarketWalletActionRecoveryTransactionOperations {
     private boolean isFailedActionRepairable(MarketWalletAction action, String expectedActionType) {
         return action.getWalletTxnId() == null
                 && MarketWalletActionStatus.FAILED.equals(action.getStatus())
-                && RECOVERABLE_RELEASE_REFUND_FAILURE_CODES.contains(action.getFailureCode())
+                && MarketWalletActionFailureSupport.RECOVERABLE_RELEASE_REFUND_FAILURE_CODES.contains(action.getFailureCode())
                 && expectedActionType.equals(action.getActionType())
                 && (MarketWalletActionType.RELEASE.equals(action.getActionType())
                 || MarketWalletActionType.REFUND.equals(action.getActionType()));
@@ -277,6 +270,6 @@ public class MarketWalletActionRecoveryTransactionOperations {
 
     private String truncate(String value) {
         String normalized = value == null || value.isBlank() ? "wallet recovery made no progress" : value;
-        return normalized.length() <= 255 ? normalized : normalized.substring(0, 255);
+        return MarketWalletActionFailureSupport.truncateLastError(normalized);
     }
 }

@@ -1,7 +1,7 @@
 package com.nowcoder.community.content.controller;
 
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.content.application.SubscriptionQuery;
+import com.nowcoder.community.content.application.SubscriptionApplicationService;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -23,26 +23,26 @@ import static org.mockito.Mockito.when;
 class SubscriptionControllerTest {
 
     @Mock
-    private SubscriptionQuery subscriptionQuery;
+    private SubscriptionApplicationService subscriptionApplicationService;
 
     private SubscriptionController controller;
 
     @BeforeEach
     void setUp() {
-        controller = new SubscriptionController(subscriptionQuery);
+        controller = new SubscriptionController(subscriptionApplicationService);
     }
 
     @Test
     void myCategoriesShouldReturnApplicationServiceCategoryIds() {
         UUID userId = uuid(7);
         UUID categoryId = uuid(3);
-        when(subscriptionQuery.listSubscribedCategoryIds(userId)).thenReturn(List.of(categoryId));
+        when(subscriptionApplicationService.listSubscribedCategoryIds(userId)).thenReturn(List.of(categoryId));
 
         Result<List<UUID>> result = controller.myCategories(authentication(userId));
 
         assertThat(result.getCode()).isEqualTo(0);
         assertThat(result.getData()).containsExactly(categoryId);
-        verify(subscriptionQuery).listSubscribedCategoryIds(userId);
+        verify(subscriptionApplicationService).listSubscribedCategoryIds(userId);
     }
 
     private Authentication authentication(UUID userId) {

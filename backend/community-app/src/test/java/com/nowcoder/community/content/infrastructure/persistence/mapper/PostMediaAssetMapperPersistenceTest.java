@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaAssetLifecycle;
 import com.nowcoder.community.content.domain.model.PostMediaKind;
@@ -44,8 +43,6 @@ class PostMediaAssetMapperPersistenceTest {
     @Autowired
     PostMediaAssetRepository repository;
 
-    @MockitoBean
-    ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

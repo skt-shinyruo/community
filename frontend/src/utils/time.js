@@ -49,7 +49,6 @@ export function formatConversationTime(ts) {
 export function formatLocalDate(value = new Date()) {
   const date = value instanceof Date ? value : new Date(value)
   if (Number.isNaN(date.getTime())) return ''
-  const month = String(date.getMonth() + 1).padStart(2, '0')
-  const day = String(date.getDate()).padStart(2, '0')
-  return `${date.getFullYear()}-${month}-${day}`
+  // en-CA 输出 YYYY-MM-DD，且按本地时区取日。
+  return date.toLocaleDateString('en-CA')
 }

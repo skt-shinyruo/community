@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.infrastructure.persistence.dataobject.PostContentBlockDataObject;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -34,8 +33,6 @@ class PostContentBlockMapperPersistenceTest {
     @Autowired
     PostContentBlockMapper mapper;
 
-    @MockitoBean
-    ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

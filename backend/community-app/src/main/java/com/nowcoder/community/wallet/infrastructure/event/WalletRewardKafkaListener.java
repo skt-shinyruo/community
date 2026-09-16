@@ -13,7 +13,6 @@ import com.nowcoder.community.social.contracts.event.SocialContractEventCodec;
 import com.nowcoder.community.social.contracts.event.SocialEventTypes;
 import com.nowcoder.community.social.contracts.event.SocialTypedEvent;
 import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService;
-import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
@@ -81,32 +80,26 @@ public class WalletRewardKafkaListener {
         if (payload == null || payload.postId() == null || payload.userId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        apply(applicationService.commandForPostPublished(payload.postId(), payload.userId()));
+        applicationService.postPublished(payload.postId(), payload.userId());
     }
 
     private void handleCommentCreated(ContentContractEvent event, CommentPayload payload) {
         if (payload == null || payload.commentId() == null || payload.userId() == null) {
             throw malformed(event.type(), event.eventId());
         }
-        apply(applicationService.commandForCommentCreated(payload.commentId(), payload.userId()));
+        applicationService.commentCreated(payload.commentId(), payload.userId());
     }
 
     private void handleLikeCreated(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
-        apply(applicationService.commandForLikeCreated(
-                likeSourceId("created", event, payload), payload.actorUserId(), payload.entityUserId()));
+        applicationService.likeCreated(
+                likeSourceId("created", event, payload), payload.actorUserId(), payload.entityUserId());
     }
 
     private void handleLikeRemoved(SocialContractEvent event, LikePayload payload) {
         validateLikePayload(event, payload);
-        apply(applicationService.commandForLikeRemoved(
-                likeSourceId("removed", event, payload), payload.actorUserId(), payload.entityUserId()));
-    }
-
-    private void apply(RewardProjectionCommand command) {
-        if (command != null) {
-            applicationService.apply(command);
-        }
+        applicationService.likeRemoved(
+                likeSourceId("removed", event, payload), payload.actorUserId(), payload.entityUserId());
     }
 
     private void validateLikePayload(SocialContractEvent event, LikePayload payload) {

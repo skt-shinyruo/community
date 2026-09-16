@@ -2,7 +2,6 @@ package com.nowcoder.community.ops.infrastructure.outbox;
 
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.ops.application.OutboxHandlerCatalog;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
@@ -13,10 +12,10 @@ import java.util.Set;
 @Component
 public class SpringOutboxHandlerCatalog implements OutboxHandlerCatalog {
 
-    private final ObjectProvider<List<OutboxHandler>> handlersProvider;
+    private final List<OutboxHandler> handlers;
 
-    public SpringOutboxHandlerCatalog(ObjectProvider<List<OutboxHandler>> handlersProvider) {
-        this.handlersProvider = handlersProvider;
+    public SpringOutboxHandlerCatalog(List<OutboxHandler> handlers) {
+        this.handlers = handlers == null ? List.of() : handlers;
     }
 
     @Override
@@ -25,8 +24,7 @@ public class SpringOutboxHandlerCatalog implements OutboxHandlerCatalog {
     }
 
     public Set<String> topics() {
-        List<OutboxHandler> handlers = handlersProvider == null ? null : handlersProvider.getIfAvailable();
-        if (handlers == null || handlers.isEmpty()) {
+        if (handlers.isEmpty()) {
             return Set.of();
         }
         return handlers.stream()

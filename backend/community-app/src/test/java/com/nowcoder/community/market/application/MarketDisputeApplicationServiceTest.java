@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.result.MarketDisputeResult;
@@ -51,8 +50,6 @@ class MarketDisputeApplicationServiceTest {
     @Autowired
     private WalletAccountApplicationService walletAccountService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

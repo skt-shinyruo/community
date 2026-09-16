@@ -74,7 +74,7 @@ public class ObjectUploadApplicationService {
         this.policyRepository = policyRepository;
         this.objectStore = objectStore;
         this.storageBucket = requireText(settings.storageBucket(), "storageBucket");
-        this.publicBaseUrl = normalizeBaseUrl(settings.publicBaseUrl());
+        this.publicBaseUrl = ObjectStorageSettings.normalizePublicBaseUrl(settings.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.uploadPolicyDecisions = uploadPolicyDecisions == null ? defaultUploadPolicyDecisions() : uploadPolicyDecisions;
         this.fileUploadEnabled = fileUploadEnabled;
@@ -732,14 +732,6 @@ public class ObjectUploadApplicationService {
 
     private String normalizeContentType(String value) {
         return value == null || value.isBlank() ? "application/octet-stream" : value.trim();
-    }
-
-    private String normalizeBaseUrl(String value) {
-        String normalized = value == null || value.isBlank() ? "http://localhost:18090" : value.trim();
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
     }
 
     private BusinessException objectNotFound() {

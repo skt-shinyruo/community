@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketWalletAction;
 import com.nowcoder.community.market.domain.model.MarketWalletActionClaim;
 import com.nowcoder.community.market.domain.model.MarketWalletActionLease;
@@ -37,8 +36,6 @@ class MarketWalletActionMapperPersistenceTest {
     @Autowired
     private MarketWalletActionMapper mapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

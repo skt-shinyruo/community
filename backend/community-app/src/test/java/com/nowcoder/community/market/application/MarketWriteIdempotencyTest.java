@@ -3,7 +3,6 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.application.MarketInventoryApplicationService.AppendInventoryResult;
 import com.nowcoder.community.market.application.MarketInventoryApplicationService.MarketInventoryUnitResult;
 import com.nowcoder.community.market.application.command.AddMarketInventoryBatchCommand;
@@ -48,8 +47,6 @@ class MarketWriteIdempotencyTest {
     @Autowired
     private MarketQueryApplicationService marketQueryService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -80,7 +77,7 @@ class MarketWriteIdempotencyTest {
 
         assertThat(first.appended()).isEqualTo(2);
         assertThat(replay.appended()).isEqualTo(2);
-        assertThat(marketInventoryService.listInventory(listingId, sellerUserId))
+        assertThat(marketInventoryService.listInventory(listingId, sellerUserId, null, null).items())
                 .extracting(MarketInventoryUnitResult::payloadContent)
                 .containsExactlyInAnyOrder("initial-code", "CODE-A", "CODE-B");
         assertThat(marketQueryService.getListingDetail(listingId).stockAvailable()).isEqualTo(3);
@@ -109,7 +106,7 @@ class MarketWriteIdempotencyTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
 
-        assertThat(marketInventoryService.listInventory(listingId, sellerUserId))
+        assertThat(marketInventoryService.listInventory(listingId, sellerUserId, null, null).items())
                 .extracting(MarketInventoryUnitResult::payloadContent)
                 .containsExactlyInAnyOrder("initial-code", "CODE-A");
         assertThat(marketQueryService.getListingDetail(listingId).stockAvailable()).isEqualTo(2);
@@ -139,7 +136,7 @@ class MarketWriteIdempotencyTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
 
-        assertThat(marketInventoryService.listInventory(listingId, sellerUserId)).hasSize(2);
+        assertThat(marketInventoryService.listInventory(listingId, sellerUserId, null, null).items()).hasSize(2);
     }
 
     @Test
@@ -158,7 +155,7 @@ class MarketWriteIdempotencyTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
 
-        assertThat(marketInventoryService.listInventory(listingId, sellerUserId)).hasSize(1);
+        assertThat(marketInventoryService.listInventory(listingId, sellerUserId, null, null).items()).hasSize(1);
     }
 
     @Test
@@ -172,8 +169,8 @@ class MarketWriteIdempotencyTest {
         var replay = marketListingService.createListing(command);
 
         assertThat(replay.listingId()).isEqualTo(first.listingId());
-        assertThat(marketQueryService.listSellerListings(sellerUserId)).hasSize(1);
-        assertThat(marketInventoryService.listInventory(first.listingId(), sellerUserId))
+        assertThat(marketQueryService.listSellerListings(sellerUserId, null, null).items()).hasSize(1);
+        assertThat(marketInventoryService.listInventory(first.listingId(), sellerUserId, null, null).items())
                 .extracting(MarketInventoryUnitResult::payloadContent)
                 .containsExactlyInAnyOrder("CODE-1", "CODE-2");
         assertThat(marketQueryService.getListingDetail(first.listingId()).stockAvailable()).isEqualTo(2);
@@ -196,8 +193,8 @@ class MarketWriteIdempotencyTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(MarketErrorCode.REQUEST_REPLAY_CONFLICT));
 
-        assertThat(marketQueryService.listSellerListings(sellerUserId)).hasSize(1);
-        assertThat(marketInventoryService.listInventory(listingId, sellerUserId))
+        assertThat(marketQueryService.listSellerListings(sellerUserId, null, null).items()).hasSize(1);
+        assertThat(marketInventoryService.listInventory(listingId, sellerUserId, null, null).items())
                 .extracting(MarketInventoryUnitResult::payloadContent)
                 .containsExactlyInAnyOrder("CODE-1", "CODE-2");
     }
@@ -213,7 +210,7 @@ class MarketWriteIdempotencyTest {
                 .satisfies(error -> assertThat(((BusinessException) error).getErrorCode())
                         .isEqualTo(CommonErrorCode.INVALID_ARGUMENT));
 
-        assertThat(marketQueryService.listSellerListings(sellerUserId)).isEmpty();
+        assertThat(marketQueryService.listSellerListings(sellerUserId, null, null).items()).isEmpty();
     }
 
     private CreateMarketListingRequest preloadedListingRequest() {

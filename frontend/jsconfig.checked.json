@@ -68,7 +68,6 @@
     "src/components/ui/UiTable.test.js",
     "src/components/ui/UiTabs.test.js",
     "src/components/ui/UiTextarea.test.js",
-    "src/components/ui/UiTooltip.test.js",
     "src/components/ui/UiUserCard.test.js",
     "src/components/ui/fieldContext.js",
     "src/components/ui/loading-states.test.js",

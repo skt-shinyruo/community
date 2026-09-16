@@ -36,11 +36,7 @@ async function listByBatchId(db, batchId) {
 export function createTargetRepository(db, { createId = generateUuidV7 } = {}) {
   return {
     async replaceForBatch(batchId, targets) {
-      const runInTransaction = db.withTransaction
-        ? (work) => db.withTransaction(work)
-        : (work) => work(db)
-
-      await runInTransaction(async (txDb) => {
+      await db.withTransaction(async (txDb) => {
         await txDb.execute(`delete from demo_batch_target where batch_id = ?`, [uuidToBuffer(batchId)])
 
         for (const target of targets) {

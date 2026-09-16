@@ -174,7 +174,7 @@ class ImWebSocketHandlerFrameValidationTest {
         UUID userId = uuid(1);
         UUID toUserId = uuid(2);
         connect(fixture, userId);
-        when(fixture.policyProjectionService().canSendPrivate(userId, toUserId))
+        when(fixture.policyProjectionService().canSendPrivateMessage(userId, toUserId))
                 .thenReturn(PolicyDecision.allow());
         when(fixture.commandIngressService().sendPrivate(any(), any(), any(), any()))
                 .thenReturn(Mono.just(CommandIngressResult.acked("sendPrivateText", "c-ok", "req-1")));
@@ -198,7 +198,7 @@ class ImWebSocketHandlerFrameValidationTest {
         UUID userId = uuid(1);
         UUID toUserId = uuid(2);
         connect(fixture, userId);
-        when(fixture.policyProjectionService().canSendPrivate(userId, toUserId))
+        when(fixture.policyProjectionService().canSendPrivateMessage(userId, toUserId))
                 .thenReturn(PolicyDecision.allow());
         when(fixture.commandIngressService().sendPrivate(any(), any(), any(), any()))
                 .thenReturn(Mono.just(CommandIngressResult.rejected(

@@ -67,17 +67,6 @@ public class PostCounterApplicationService {
     public record RecordPostViewCommand(UUID postId, String viewerKey, java.time.Instant viewedAt) {
     }
 
-    public void markDirty(UUID postId) {
-        if (postId == null) {
-            return;
-        }
-        try {
-            postCounterCache.markDirty(postId);
-        } catch (RuntimeException exception) {
-            log.warn("[post-counter] dirty marking degraded postId={}", postId);
-        }
-    }
-
     private PostCounterSnapshot initializeAndGet(UUID postId) {
         PostCounterSnapshot cached = defaultIfNull(postCounterCache.get(postId), postId);
         if (postCounterCache.isInitialized(postId)) {

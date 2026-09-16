@@ -30,8 +30,6 @@ import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.UUID;
 
 @RestController
@@ -97,7 +95,7 @@ public class InternalOssObjectController {
                 objectId,
                 versionId,
                 new ObjectUploadContent(
-                        () -> openUploadStream(file),
+                        () -> OssControllerSupport.openUploadStream(file),
                         file == null ? "application/octet-stream" : file.getContentType(),
                         file == null ? 0 : file.getSize(),
                         checksumSha256
@@ -162,9 +160,9 @@ public class InternalOssObjectController {
     ) {
         String serviceSubject = requireServiceSubject(authentication);
         return referenceApplicationService.bindInternalReference(serviceSubject, new BindObjectReferenceCommand(
-                parseUuid(request.referenceId()),
+                OssControllerSupport.parseUuid(request.referenceId()),
                 objectId,
-                parseUuid(request.versionId()),
+                OssControllerSupport.parseUuid(request.versionId()),
                 request.subjectService(),
                 request.subjectDomain(),
                 request.subjectType(),
@@ -198,21 +196,6 @@ public class InternalOssObjectController {
                 objectId,
                 referenceId,
                 requireServiceSubject(authentication));
-    }
-
-    private UUID parseUuid(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return UUID.fromString(value.trim());
-    }
-
-    private InputStream openUploadStream(MultipartFile file) {
-        try {
-            return file == null ? InputStream.nullInputStream() : file.getInputStream();
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to read upload file", e);
-        }
     }
 
     private String requireServiceSubject(Authentication authentication) {

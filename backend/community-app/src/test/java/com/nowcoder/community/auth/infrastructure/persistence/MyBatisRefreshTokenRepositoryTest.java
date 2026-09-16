@@ -39,31 +39,6 @@ class MyBatisRefreshTokenRepositoryTest {
     private RefreshTokenSessionMapper mapper;
 
     @Test
-    void consumeWhenActiveTokenExistsShouldReturnStoredTokenWithSecurityVersion() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
-        Instant expiresAt = Instant.now().plusSeconds(300);
-        String tokenHash = sha256Hex("rt1");
-        when(mapper.selectByTokenHash(tokenHash)).thenReturn(row(
-                tokenHash,
-                expiresAt,
-                null,
-                RefreshTokenSessionState.ACTIVE,
-                null
-        ));
-        when(mapper.consumeActive(anyString(), any(Instant.class))).thenReturn(1);
-
-        RefreshTokenRepository.StoredRefreshToken result = repository.consume("rt1");
-
-        assertThat(result).isEqualTo(new RefreshTokenRepository.StoredRefreshToken(
-                "rt1",
-                USER_ID,
-                "family-1",
-                SECURITY_VERSION_AT_ISSUE,
-                expiresAt
-        ));
-    }
-
-    @Test
     void findRevokedShouldReturnRevokedMetadataWithoutRevokingFamily() {
         MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
         Instant now = Instant.now();
@@ -86,17 +61,6 @@ class MyBatisRefreshTokenRepositoryTest {
                 now.minusSeconds(3)
         ));
         verify(mapper, never()).upsertFamilyRevocation(anyString());
-    }
-
-    @Test
-    void consumeWhenTokenWasAlreadyRevokedShouldNotDecideReuseOrRevokeFamily() {
-        MyBatisRefreshTokenRepository repository = new MyBatisRefreshTokenRepository(mapper, Clock.systemUTC());
-        when(mapper.selectByTokenHash(anyString())).thenReturn(null);
-
-        assertThat(repository.consume("rt1")).isNull();
-
-        verify(mapper, never()).upsertFamilyRevocation(anyString());
-        verify(mapper, never()).revokeFamilyTokens(anyString());
     }
 
     @Test

@@ -297,7 +297,7 @@ without_ticket_secret() {
 }
 
 without_topology_values() {
-  awk '!/^(COMMUNITY_NETWORK_SUBNET|COMMUNITY_NETWORK_DYNAMIC_RANGE|NGINX_STATIC_IP|COMMUNITY_GATEWAY_STATIC_IP|COMMUNITY_GATEWAY_[123]_STATIC_IP|GATEWAY_TRUSTED_PROXY_CIDRS|COMMUNITY_APP_TRUSTED_PROXY_CIDRS)=/' "$1"
+  awk '!/^(COMMUNITY_NETWORK_SUBNET|COMMUNITY_NETWORK_DYNAMIC_RANGE|NGINX_STATIC_IP|COMMUNITY_GATEWAY_STATIC_IP|COMMUNITY_GATEWAY_[123]_STATIC_IP|GATEWAY_TRUSTED_PROXIES|COMMUNITY_APP_TRUSTED_PROXY_CIDRS)=/' "$1"
 }
 
 with_custom_single_topology() {
@@ -313,7 +313,7 @@ with_custom_single_topology() {
     /^COMMUNITY_NETWORK_DYNAMIC_RANGE=/ { print "COMMUNITY_NETWORK_DYNAMIC_RANGE=172.40.0.128/25"; next }
     /^NGINX_STATIC_IP=/ { print "NGINX_STATIC_IP=172.40.0.10"; next }
     /^COMMUNITY_GATEWAY_STATIC_IP=/ { print "COMMUNITY_GATEWAY_STATIC_IP=172.40.0.20"; next }
-    /^GATEWAY_TRUSTED_PROXY_CIDRS=/ { print "GATEWAY_TRUSTED_PROXY_CIDRS=172.40.0.10/32"; next }
+    /^GATEWAY_TRUSTED_PROXIES=/ { print "GATEWAY_TRUSTED_PROXIES=172\\.40\\.0\\.10"; next }
     /^COMMUNITY_APP_TRUSTED_PROXY_CIDRS=/ { print "COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.40.0.20/32"; next }
     { print }
   ' "$1"
@@ -336,7 +336,7 @@ with_custom_cluster_topology() {
     /^COMMUNITY_GATEWAY_1_STATIC_IP=/ { print "COMMUNITY_GATEWAY_1_STATIC_IP=172.43.0.20"; next }
     /^COMMUNITY_GATEWAY_2_STATIC_IP=/ { print "COMMUNITY_GATEWAY_2_STATIC_IP=172.43.0.21"; next }
     /^COMMUNITY_GATEWAY_3_STATIC_IP=/ { print "COMMUNITY_GATEWAY_3_STATIC_IP=172.43.0.22"; next }
-    /^GATEWAY_TRUSTED_PROXY_CIDRS=/ { print "GATEWAY_TRUSTED_PROXY_CIDRS=172.43.0.10/32"; next }
+    /^GATEWAY_TRUSTED_PROXIES=/ { print "GATEWAY_TRUSTED_PROXIES=172\\.43\\.0\\.10"; next }
     /^COMMUNITY_APP_TRUSTED_PROXY_CIDRS=/ { print "COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.43.0.20/32,172.43.0.21/32,172.43.0.22/32"; next }
     { print }
   ' "$1"
@@ -518,7 +518,7 @@ test "$(rendered_network_value "${single_legacy_full}" subnet)" = "172.30.0.0/24
 test "$(rendered_network_value "${single_legacy_full}" ip_range)" = "172.30.0.128/25"
 test "$(rendered_service_ipv4_address "${single_legacy_full}" nginx)" = "172.30.0.10"
 test "$(rendered_service_ipv4_address "${single_legacy_full}" community-gateway)" = "172.30.0.20"
-test "$(service_environment_value "${single_legacy_full}" community-gateway GATEWAY_TRUSTED_PROXY_CIDRS)" = "172.30.0.10/32"
+test "$(service_environment_value "${single_legacy_full}" community-gateway GATEWAY_TRUSTED_PROXIES)" = "172\\.30\\.0\\.10"
 test "$(service_environment_value "${single_legacy_full}" community-app COMMUNITY_APP_TRUSTED_PROXY_CIDRS)" = "172.30.0.20/32"
 test "$(rendered_network_value "${cluster_legacy_full}" subnet)" = "172.31.0.0/24"
 test "$(rendered_network_value "${cluster_legacy_full}" ip_range)" = "172.31.0.128/25"
@@ -550,7 +550,7 @@ COMMUNITY_NETWORK_SUBNET=172.42.0.0/24
 COMMUNITY_NETWORK_DYNAMIC_RANGE=172.42.0.128/25
 NGINX_STATIC_IP=172.42.0.10
 COMMUNITY_GATEWAY_STATIC_IP=172.42.0.20
-GATEWAY_TRUSTED_PROXY_CIDRS=172.42.0.10/32
+GATEWAY_TRUSTED_PROXIES=172\.42\.0\.10
 COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.42.0.20/32
 EOF
 ./deploy/deployment.sh config --stack single --env-file "${custom_single_env}" \
@@ -560,7 +560,7 @@ test "$(rendered_network_value "${custom_single_full}" subnet)" = "172.42.0.0/24
 test "$(rendered_network_value "${custom_single_full}" ip_range)" = "172.42.0.128/25"
 test "$(rendered_service_ipv4_address "${custom_single_full}" nginx)" = "172.42.0.10"
 test "$(rendered_service_ipv4_address "${custom_single_full}" community-gateway)" = "172.42.0.20"
-test "$(service_environment_value "${custom_single_full}" community-gateway GATEWAY_TRUSTED_PROXY_CIDRS)" = "172.42.0.10/32"
+test "$(service_environment_value "${custom_single_full}" community-gateway GATEWAY_TRUSTED_PROXIES)" = "172\\.42\\.0\\.10"
 test "$(service_environment_value "${custom_single_full}" community-app COMMUNITY_APP_TRUSTED_PROXY_CIDRS)" = "172.42.0.20/32"
 grep -F 'name: community_single_last_mysql_primary_data' "${custom_single_full}"
 
@@ -574,7 +574,7 @@ test "$(rendered_service_ipv4_address "${custom_cluster_full}" nginx)" = "172.43
 for gateway_number in 1 2 3; do
   test "$(rendered_service_ipv4_address "${custom_cluster_full}" "community-gateway-${gateway_number}")" = "172.43.0.$((gateway_number + 19))"
 done
-test "$(service_environment_value "${custom_cluster_full}" community-gateway-1 GATEWAY_TRUSTED_PROXY_CIDRS)" = "172.43.0.10/32"
+test "$(service_environment_value "${custom_cluster_full}" community-gateway-1 GATEWAY_TRUSTED_PROXIES)" = "172\\.43\\.0\\.10"
 test "$(service_environment_value "${custom_cluster_full}" community-app-1 COMMUNITY_APP_TRUSTED_PROXY_CIDRS)" = "172.43.0.20/32,172.43.0.21/32,172.43.0.22/32"
 grep -F 'name: community_cluster_smoke_mysql_primary_data' "${custom_cluster_full}"
 
@@ -583,7 +583,7 @@ COMMUNITY_NETWORK_SUBNET=172.41.0.0/24 \
 COMMUNITY_NETWORK_DYNAMIC_RANGE=172.41.0.128/25 \
 NGINX_STATIC_IP=172.41.0.10 \
 COMMUNITY_GATEWAY_STATIC_IP=172.41.0.20 \
-GATEWAY_TRUSTED_PROXY_CIDRS=172.41.0.10/32 \
+GATEWAY_TRUSTED_PROXIES=172\\.41\\.0\\.10 \
 COMMUNITY_APP_TRUSTED_PROXY_CIDRS=172.41.0.20/32 \
 NACOS_HOST_PORT=44848 \
 MAILHOG_UI_HOST_PORT=44025 \
@@ -597,7 +597,7 @@ KIBANA_PORT=41889 \
 test "$(rendered_network_value "${environment_override_full}" subnet)" = "172.41.0.0/24"
 test "$(rendered_service_ipv4_address "${environment_override_full}" nginx)" = "172.41.0.10"
 test "$(rendered_service_ipv4_address "${environment_override_full}" community-gateway)" = "172.41.0.20"
-test "$(service_environment_value "${environment_override_full}" community-gateway GATEWAY_TRUSTED_PROXY_CIDRS)" = "172.41.0.10/32"
+test "$(service_environment_value "${environment_override_full}" community-gateway GATEWAY_TRUSTED_PROXIES)" = "172\\.41\\.0\\.10"
 test "$(service_environment_value "${environment_override_full}" community-app COMMUNITY_APP_TRUSTED_PROXY_CIDRS)" = "172.41.0.20/32"
 grep -F 'name: community_single_environment_mysql_primary_data' "${environment_override_full}"
 

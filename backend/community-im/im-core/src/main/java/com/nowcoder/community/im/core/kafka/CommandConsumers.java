@@ -1,7 +1,6 @@
 package com.nowcoder.community.im.core.kafka;
 
-import com.nowcoder.community.common.logging.EventLogFields;
-import com.nowcoder.community.common.logging.EventLogMessage;
+import com.nowcoder.community.common.logging.AsyncEventLogger;
 import com.nowcoder.community.im.common.command.SendPrivateTextCommand;
 import com.nowcoder.community.im.common.command.SendRoomTextCommand;
 import com.nowcoder.community.im.common.event.ImEventIds;
@@ -13,7 +12,6 @@ import com.nowcoder.community.im.core.outbox.ImMessageOutboxEnqueuer;
 import com.nowcoder.community.im.core.policy.PrivateMessagePolicyVerifier;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
 
@@ -22,10 +20,6 @@ import org.springframework.stereotype.Component;
 public class CommandConsumers {
 
     private static final Logger log = LoggerFactory.getLogger(CommandConsumers.class);
-    private static final String CATEGORY_ASYNC = "async";
-    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
-    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
-    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     private final PrivateMessageApplicationService privateMessageApplicationService;
     private final RoomMessageApplicationService roomMessageApplicationService;
@@ -52,7 +46,8 @@ public class CommandConsumers {
         }
         try {
             var event = privateMessageApplicationService.persist(cmd);
-            debugEvent(
+            AsyncEventLogger.debug(
+                    log,
                     "im_private_command_persist",
                     "success",
                     "user.id", event.fromUserId(),
@@ -66,17 +61,17 @@ public class CommandConsumers {
         } catch (RuntimeException e) {
             if (isBusinessRejection(e)) {
                 outboxEnqueuer.enqueuePrivateRejected(toPrivateRejectedEvent(cmd, e));
-                warnEvent(
+                AsyncEventLogger.warn(
+                        log,
                         "im_private_command_reject",
                         "failure",
-                        null,
                         "user.id", cmd.fromUserId(),
                         "community.target_type", "conversation",
                         "community.target_id", cmd.conversationId(),
                         "community.client_msg_id", cmd.clientMsgId(),
                         "community.request_id", cmd.requestId(),
                         "community.reason_code", rejectionReasonCode(e),
-                        "community.error_class", errorClass(e),
+                        "community.error_class", AsyncEventLogger.errorClass(e),
                         "community.error_message", rejectionMessage(e)
                 );
                 if (e instanceof PrivateMessagePolicyVerifier.PrivateMessagePolicyRejectedException) {
@@ -100,7 +95,8 @@ public class CommandConsumers {
         }
         try {
             var event = roomMessageApplicationService.persist(cmd);
-            debugEvent(
+            AsyncEventLogger.debug(
+                    log,
                     "im_room_command_persist",
                     "success",
                     "user.id", event.fromUserId(),
@@ -114,17 +110,17 @@ public class CommandConsumers {
         } catch (RuntimeException e) {
             if (isBusinessRejection(e)) {
                 outboxEnqueuer.enqueueRoomRejected(toRoomRejectedEvent(cmd, e));
-                warnEvent(
+                AsyncEventLogger.warn(
+                        log,
                         "im_room_command_reject",
                         "failure",
-                        null,
                         "user.id", cmd.fromUserId(),
                         "community.target_type", "room",
                         "community.target_id", cmd.roomId(),
                         "community.client_msg_id", cmd.clientMsgId(),
                         "community.request_id", cmd.requestId(),
                         "community.reason_code", rejectionReasonCode(e),
-                        "community.error_class", errorClass(e),
+                        "community.error_class", AsyncEventLogger.errorClass(e),
                         "community.error_message", rejectionMessage(e)
                 );
             } else {
@@ -147,27 +143,19 @@ public class CommandConsumers {
             String requestId,
             RuntimeException e
     ) {
-        warnEvent(
+        AsyncEventLogger.warn(
+                log,
                 action,
                 "failure",
-                null,
                 "user.id", userId,
                 "community.target_type", targetType,
                 "community.target_id", targetId,
                 "community.client_msg_id", clientMsgId,
                 "community.request_id", requestId,
                 "community.reason_code", rejectionReasonCode(e),
-                "community.error_class", errorClass(e),
+                "community.error_class", AsyncEventLogger.errorClass(e),
                 "community.error_message", rejectionMessage(e)
         );
-    }
-
-    private void debugEvent(String action, String outcome, Object... keyValues) {
-        logEvent(action, outcome, false, null, keyValues);
-    }
-
-    private void warnEvent(String action, String outcome, Throwable throwable, Object... keyValues) {
-        logEvent(action, outcome, true, throwable, keyValues);
     }
 
     private PrivateMessageRejectedEvent toPrivateRejectedEvent(SendPrivateTextCommand cmd, RuntimeException e) {
@@ -225,10 +213,6 @@ public class CommandConsumers {
         return "command_processing_failed";
     }
 
-    private String errorClass(Throwable throwable) {
-        return throwable == null ? null : throwable.getClass().getName();
-    }
-
     private String rejectionMessage(Throwable throwable) {
         if (throwable == null) {
             return "message processing failed";
@@ -239,41 +223,5 @@ public class CommandConsumers {
             return message;
         }
         return "message processing failed";
-    }
-
-    private void logEvent(String action, String outcome, boolean warn, Throwable throwable, Object... keyValues) {
-        if (keyValues.length % 2 != 0) {
-            throw new IllegalArgumentException("IM command consumer event keyValues must contain key/value pairs");
-        }
-        String previousCategory = MDC.get(MDC_CATEGORY);
-        String previousAction = MDC.get(MDC_ACTION);
-        String previousOutcome = MDC.get(MDC_OUTCOME);
-        MDC.put(MDC_CATEGORY, CATEGORY_ASYNC);
-        MDC.put(MDC_ACTION, action);
-        MDC.put(MDC_OUTCOME, outcome);
-        try {
-            String message = EventLogMessage.format(keyValues);
-            if (warn) {
-                if (throwable == null) {
-                    log.warn(message);
-                } else {
-                    log.warn(message, throwable);
-                }
-                return;
-            }
-            log.debug(message);
-        } finally {
-            restore(MDC_CATEGORY, previousCategory);
-            restore(MDC_ACTION, previousAction);
-            restore(MDC_OUTCOME, previousOutcome);
-        }
-    }
-
-    private void restore(String key, String previousValue) {
-        if (previousValue == null) {
-            MDC.remove(key);
-            return;
-        }
-        MDC.put(key, previousValue);
     }
 }

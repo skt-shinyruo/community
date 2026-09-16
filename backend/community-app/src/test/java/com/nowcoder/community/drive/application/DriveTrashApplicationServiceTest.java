@@ -304,7 +304,7 @@ class DriveTrashApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE
+                new DriveTransactionOperations()
         );
 
         service.deletePermanently(userId, fileId);
@@ -362,7 +362,7 @@ class DriveTrashApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 Clock.fixed(now, ZoneOffset.UTC),
-                DirectDriveTransactionOperations.INSTANCE
+                new DriveTransactionOperations()
         );
 
         service.deletePermanently(userId, folderId);

@@ -3,7 +3,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
-import com.nowcoder.community.content.application.SubscriptionQuery;
 import com.nowcoder.community.content.infrastructure.persistence.mapper.SubscriptionCategoryMapper;
 import org.springframework.stereotype.Service;
 
@@ -13,7 +12,7 @@ import java.util.UUID;
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 
 @Service
-public class MyBatisSubscriptionRepository implements SubscriptionRepository, SubscriptionQuery {
+public class MyBatisSubscriptionRepository implements SubscriptionRepository {
 
     private final SubscriptionCategoryMapper categoryMapper;
 

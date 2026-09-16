@@ -1,6 +1,5 @@
 package com.nowcoder.community.common.json;
 
-import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.databind.JsonNode;
 import org.junit.jupiter.api.Test;
 
@@ -9,7 +8,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 class JacksonJsonCodecTest {
 
-    private final JacksonJsonCodec codec = JacksonJsonCodec.standard();
+    private final JacksonJsonCodec codec = new JacksonJsonCodec(JacksonJsonCodec.standardMapper());
 
     @Test
     void shouldSerializeAndDeserializeTypedValues() {

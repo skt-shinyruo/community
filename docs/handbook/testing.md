@@ -168,7 +168,7 @@ npm test -- src/im/imRealtimeClient.test.js
 npm test -- src/views/postsViewState.test.js src/views/postDetailState.test.js
 npm test -- src/views/conversationDetailState.test.js src/views/ConversationDetailView.test.js src/views/ConversationsView.test.js
 npm test -- src/views/marketState.test.js src/views/walletState.test.js
-npm test -- src/components/ui/UiModal.test.js src/components/ui/UiModalConfirm.test.js src/components/ui/UiTooltip.test.js src/components/ui/UiSkeleton.test.js src/components/ui/loading-states.test.js
+npm test -- src/components/ui/UiModal.test.js src/components/ui/UiModalConfirm.test.js src/components/ui/UiSkeleton.test.js src/components/ui/loading-states.test.js
 ```
 
 前端测试分工：

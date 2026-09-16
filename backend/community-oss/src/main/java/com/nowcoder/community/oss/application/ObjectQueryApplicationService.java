@@ -51,7 +51,7 @@ public class ObjectQueryApplicationService {
         this.versionRepository = versionRepository;
         this.grantRepository = grantRepository;
         this.objectStore = objectStore;
-        this.publicBaseUrl = normalizeBaseUrl(settings.publicBaseUrl());
+        this.publicBaseUrl = ObjectStorageSettings.normalizePublicBaseUrl(settings.publicBaseUrl());
         this.clock = clock == null ? Clock.systemUTC() : clock;
         this.accessPolicy = accessPolicy;
     }
@@ -168,14 +168,6 @@ public class ObjectQueryApplicationService {
                 version == null ? object.latestChecksumSha256() : version.checksumSha256(),
                 version == null ? "" : publicBaseUrl + "/files/" + object.objectId() + "/" + version.versionId() + "/" + version.fileName()
         );
-    }
-
-    private String normalizeBaseUrl(String value) {
-        String normalized = StringUtils.hasText(value) ? value.trim() : "http://localhost:12880";
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
-        }
-        return normalized;
     }
 
     private BusinessException objectNotFound() {

@@ -2,16 +2,15 @@ package com.nowcoder.community.search.infrastructure.reindex;
 
 import com.nowcoder.community.infra.scheduler.SingleFlightTaskGuard;
 import com.nowcoder.community.search.application.SearchReindexLeasePort;
+import com.nowcoder.community.search.infrastructure.LeaseRenewalScheduler;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 import java.time.Duration;
 import java.util.Optional;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
@@ -50,17 +49,15 @@ public class RedisSearchReindexLeaseAdapter implements SearchReindexLeasePort {
 
         AtomicBoolean valid = new AtomicBoolean(true);
         AtomicBoolean closed = new AtomicBoolean(false);
-        long renewalIntervalMs = Math.max(1L, ttl.dividedBy(3).toMillis());
         try {
-            ScheduledFuture<?> renewal = renewer.scheduleAtFixedRate(
+            ScheduledFuture<?> renewal = LeaseRenewalScheduler.scheduleThirdOfTtl(
+                    renewer,
+                    ttl,
                     () -> {
                         if (!closed.get() && valid.get() && !taskGuard.refresh(lock, ttl)) {
                             valid.set(false);
                         }
-                    },
-                    renewalIntervalMs,
-                    renewalIntervalMs,
-                    TimeUnit.MILLISECONDS
+                    }
             );
             return Optional.of(new GuardedLease(lock, renewal, valid, closed));
         } catch (RuntimeException schedulingFailure) {
@@ -112,10 +109,6 @@ public class RedisSearchReindexLeaseAdapter implements SearchReindexLeasePort {
     }
 
     private static ScheduledExecutorService newRenewer() {
-        return Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "search-reindex-lock-renewer");
-            thread.setDaemon(true);
-            return thread;
-        });
+        return LeaseRenewalScheduler.newDaemonScheduler("search-reindex-lock-renewer");
     }
 }

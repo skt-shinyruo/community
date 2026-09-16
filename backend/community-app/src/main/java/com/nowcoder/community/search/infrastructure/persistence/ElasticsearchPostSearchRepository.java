@@ -5,7 +5,6 @@ import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
 import com.nowcoder.community.search.domain.repository.PostSearchRepository;
-import com.nowcoder.community.search.domain.service.KeywordHighlightSupport;
 import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPostDocument;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
@@ -17,8 +16,12 @@ import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
 import org.springframework.data.elasticsearch.core.query.Criteria;
 import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
+import org.springframework.data.elasticsearch.core.query.HighlightQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
+import org.springframework.data.elasticsearch.core.query.highlight.Highlight;
+import org.springframework.data.elasticsearch.core.query.highlight.HighlightField;
+import org.springframework.data.elasticsearch.core.query.highlight.HighlightFieldParameters;
 import org.springframework.stereotype.Repository;
 import org.springframework.util.StringUtils;
 
@@ -136,6 +139,20 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
 
         criteriaQuery.setPageable(PageRequest.of(p, s));
         criteriaQuery.addSort(Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createTime")));
+        if (StringUtils.hasText(k)) {
+            HighlightFieldParameters highlightParameters = HighlightFieldParameters.builder()
+                    .withPreTags("<em>")
+                    .withPostTags("</em>")
+                    .withNumberOfFragments(0)
+                    .build();
+            criteriaQuery.setHighlightQuery(new HighlightQuery(
+                    new Highlight(List.of(
+                            new HighlightField("title", highlightParameters),
+                            new HighlightField("content", highlightParameters)
+                    )),
+                    EsPostDocument.class
+            ));
+        }
 
         SearchHits<EsPostDocument> hits = operations.search(criteriaQuery, EsPostDocument.class);
         return hits.getSearchHits().stream().map(hit -> toItem(hit, k)).toList();
@@ -149,8 +166,8 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         String highlightedTitle = null;
         String highlightedContent = null;
         if (StringUtils.hasText(keyword)) {
-            highlightedTitle = KeywordHighlightSupport.highlight(doc.getTitle(), keyword);
-            highlightedContent = KeywordHighlightSupport.highlight(doc.getContent(), keyword);
+            highlightedTitle = highlighted(hit.getHighlightField("title"), doc.getTitle());
+            highlightedContent = highlighted(hit.getHighlightField("content"), doc.getContent());
         }
         return new PostSearchHit(
                 parseUuid(doc.getPostId()),
@@ -163,6 +180,10 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
                 doc.getCreateTime() == null ? null : Instant.ofEpochMilli(doc.getCreateTime()),
                 doc.getScore()
         );
+    }
+
+    private static String highlighted(List<String> fragments, String fallback) {
+        return fragments == null || fragments.isEmpty() ? fallback : String.join(" ", fragments);
     }
 
     private EsPostDocument toDocument(PostSearchDocument post) {

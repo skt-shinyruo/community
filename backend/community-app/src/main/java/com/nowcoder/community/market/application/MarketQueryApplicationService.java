@@ -54,10 +54,6 @@ public class MarketQueryApplicationService {
         return MarketPagination.result(candidates, window);
     }
 
-    public List<MarketListingResult> listPublicListings() {
-        return listPublicListings(null, null).items();
-    }
-
     public MarketListingDetailResult getListingDetail(UUID listingId) {
         MarketListing listing = marketListingRepository.findById(listingId);
         if (listing == null) {
@@ -75,10 +71,6 @@ public class MarketQueryApplicationService {
         return MarketPagination.result(candidates, window);
     }
 
-    public List<MarketListingResult> listSellerListings(UUID sellerUserId) {
-        return listSellerListings(sellerUserId, null, null).items();
-    }
-
     public MarketPageResult<MarketOrderResult> listBuyingOrders(UUID buyerUserId, Integer page, Integer size) {
         MarketPagination.Window window = MarketPagination.window(page, size);
         List<MarketOrderResult> candidates = marketOrderRepository
@@ -88,10 +80,6 @@ public class MarketQueryApplicationService {
         return MarketPagination.result(candidates, window);
     }
 
-    public List<MarketOrderResult> listBuyingOrders(UUID buyerUserId) {
-        return listBuyingOrders(buyerUserId, null, null).items();
-    }
-
     public MarketPageResult<MarketOrderResult> listSellingOrders(UUID sellerUserId, Integer page, Integer size) {
         MarketPagination.Window window = MarketPagination.window(page, size);
         List<MarketOrderResult> candidates = marketOrderRepository
@@ -99,10 +87,6 @@ public class MarketQueryApplicationService {
                 .map(MarketOrderResult::from)
                 .toList();
         return MarketPagination.result(candidates, window);
-    }
-
-    public List<MarketOrderResult> listSellingOrders(UUID sellerUserId) {
-        return listSellingOrders(sellerUserId, null, null).items();
     }
 
     public MarketOrderDetailResult getOrderDetail(UUID orderId, UUID actorUserId) {

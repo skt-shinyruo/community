@@ -2,11 +2,7 @@ package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.growth.application.UserLevelApplicationService.UserLevelConfigResult;
-import com.nowcoder.community.growth.application.UserLevelApplicationService.UpdateConfigCommand;
 import com.nowcoder.community.growth.api.model.UserLevelSummaryView;
-import com.nowcoder.community.growth.exception.GrowthErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -132,59 +128,6 @@ class UserLevelApplicationServiceTest {
         assertThat(summary.userLevel()).isEqualTo(2);
     }
 
-    @Test
-    void getConfigShouldReturnDefaultWhenConfigRowDoesNotExist() {
-        UserLevelConfigResult config = service.getConfig();
-
-        assertThat(config.getWindowDays()).isEqualTo(100);
-        assertThat(config.getLv2SignInDays()).isEqualTo(12);
-        assertThat(config.getLv3SignInDays()).isEqualTo(88);
-        assertThat(config.isEnabled()).isTrue();
-    }
-
-    @Test
-    void updateConfigShouldInsertSingletonRowOnFirstWrite() {
-        UUID actorUserId = uuid(2001);
-        UserLevelConfigResult response = service.updateConfig(actorUserId, configRequest(120, 20, 90, false));
-
-        assertThat(response.getWindowDays()).isEqualTo(120);
-        assertThat(response.getLv2SignInDays()).isEqualTo(20);
-        assertThat(response.getLv3SignInDays()).isEqualTo(90);
-        assertThat(response.isEnabled()).isFalse();
-        assertThat(jdbcTemplate.queryForObject("select count(*) from user_level_rule_config", Integer.class)).isEqualTo(1);
-        UUID insertedId = BinaryUuidCodec.fromBytes(jdbcTemplate.queryForObject("select id from user_level_rule_config", byte[].class));
-        assertThat(insertedId).isNotNull();
-        assertThat(insertedId.version()).isEqualTo(7);
-        assertThat(jdbcTemplate.queryForObject("select window_days from user_level_rule_config where config_key = 'DEFAULT'", Integer.class)).isEqualTo(120);
-        assertThat(jdbcTemplate.queryForObject("select enabled from user_level_rule_config where config_key = 'DEFAULT'", Boolean.class)).isFalse();
-        assertThat(BinaryUuidCodec.fromBytes(jdbcTemplate.queryForObject("select updated_by from user_level_rule_config where config_key = 'DEFAULT'", byte[].class))).isEqualTo(actorUserId);
-    }
-
-    @Test
-    void updateConfigShouldUpdateExistingSingletonRowInsteadOfInsertingNewRow() {
-        service.updateConfig(uuid(2001), configRequest(120, 20, 90, true));
-
-        UUID actorUserId = uuid(2002);
-        UserLevelConfigResult response = service.updateConfig(actorUserId, configRequest(60, 10, 50, false));
-
-        assertThat(response.getWindowDays()).isEqualTo(60);
-        assertThat(response.getLv2SignInDays()).isEqualTo(10);
-        assertThat(response.getLv3SignInDays()).isEqualTo(50);
-        assertThat(response.isEnabled()).isFalse();
-        assertThat(jdbcTemplate.queryForObject("select count(*) from user_level_rule_config", Integer.class)).isEqualTo(1);
-        UUID insertedId = BinaryUuidCodec.fromBytes(jdbcTemplate.queryForObject("select id from user_level_rule_config", byte[].class));
-        assertThat(insertedId).isNotNull();
-        assertThat(insertedId.version()).isEqualTo(7);
-        assertThat(BinaryUuidCodec.fromBytes(jdbcTemplate.queryForObject("select updated_by from user_level_rule_config where config_key = 'DEFAULT'", byte[].class))).isEqualTo(actorUserId);
-    }
-
-    @Test
-    void updateConfigShouldThrowInvalidRequestWhenThresholdsAreImpossible() {
-        assertThatThrownBy(() -> service.updateConfig(uuid(3001), configRequest(30, 20, 10, true)))
-                .isInstanceOf(BusinessException.class)
-                .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(GrowthErrorCode.INVALID_REQUEST));
-    }
-
     private void insertCheckIns(UUID userId, LocalDate endDateInclusive, int days) {
         for (int i = 0; i < days; i++) {
             LocalDate bizDate = endDateInclusive.minusDays(i);
@@ -235,9 +178,5 @@ class UserLevelApplicationServiceTest {
         assertThatThrownBy(() -> service.evaluateLevelSummary(userId, bizDate))
                 .isInstanceOf(IllegalStateException.class)
                 .hasMessageContaining("invalid user level rule config");
-    }
-
-    private UpdateConfigCommand configRequest(int windowDays, int lv2SignInDays, int lv3SignInDays, boolean enabled) {
-        return new UpdateConfigCommand(null, windowDays, lv2SignInDays, lv3SignInDays, enabled);
     }
 }

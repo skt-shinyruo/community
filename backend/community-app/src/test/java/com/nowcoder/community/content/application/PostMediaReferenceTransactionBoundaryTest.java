@@ -2,7 +2,6 @@ package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
@@ -55,8 +54,6 @@ class PostMediaReferenceTransactionBoundaryTest {
     @MockitoBean
     private PostMediaStoragePort storage;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

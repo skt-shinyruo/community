@@ -2,8 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -35,8 +33,6 @@ class WalletRewardProjectionApplicationServiceIntegrationTest {
     @Autowired
     private WalletAccountApplicationService walletAccountService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -59,30 +55,22 @@ class WalletRewardProjectionApplicationServiceIntegrationTest {
 
     @Test
     void postPublishedShouldCreditWallet() {
-        walletRewardProjectionApplicationService.apply(new RewardProjectionCommand(
-                USER_ID,
-                10,
-                "post-reward-1",
-                "PostPublished"
-        ));
+        UUID postId = uuid(401);
+
+        walletRewardProjectionApplicationService.postPublished(postId, USER_ID);
 
         assertThat(walletAccountService.balanceOfUser(USER_ID)).isEqualTo(10);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
+        assertThat(countRowsByRequestId("wallet-reward:post-published:" + postId)).isEqualTo(1);
     }
 
     @Test
     void duplicateLikeRewardShouldCreateOneWalletTxnThroughStableIdempotencyKey() {
         String sourceEventId = "like:" + uuid(2) + ":1:" + uuid(3) + ":created";
-        RewardProjectionCommand command =
-                walletRewardProjectionApplicationService.commandForLikeCreated(
-                sourceEventId,
-                uuid(2),
-                USER_ID
-        );
 
-        walletRewardProjectionApplicationService.apply(command);
-        walletRewardProjectionApplicationService.apply(command);
+        walletRewardProjectionApplicationService.likeCreated(sourceEventId, uuid(2), USER_ID);
+        walletRewardProjectionApplicationService.likeCreated(sourceEventId, uuid(2), USER_ID);
 
         assertThat(walletAccountService.balanceOfUser(USER_ID)).isEqualTo(1);
         assertThat(countRows("wallet_txn")).isEqualTo(1);
@@ -95,19 +83,11 @@ class WalletRewardProjectionApplicationServiceIntegrationTest {
         UUID actorUserId = uuid(2);
         String firstLifecycle = uuid(501).toString();
         String secondLifecycle = uuid(502).toString();
-        RewardProjectionCommand firstRemoved = walletRewardProjectionApplicationService.commandForLikeRemoved(
-                firstLifecycle + ":removed", actorUserId, USER_ID);
-        RewardProjectionCommand firstCreated = walletRewardProjectionApplicationService.commandForLikeCreated(
-                firstLifecycle + ":created", actorUserId, USER_ID);
-        RewardProjectionCommand secondCreated = walletRewardProjectionApplicationService.commandForLikeCreated(
-                secondLifecycle + ":created", actorUserId, USER_ID);
-        RewardProjectionCommand secondRemoved = walletRewardProjectionApplicationService.commandForLikeRemoved(
-                secondLifecycle + ":removed", actorUserId, USER_ID);
 
-        applyTwice(firstRemoved);
-        applyTwice(firstCreated);
-        applyTwice(secondCreated);
-        applyTwice(secondRemoved);
+        likeRemovedTwice(firstLifecycle + ":removed", actorUserId);
+        likeCreatedTwice(firstLifecycle + ":created", actorUserId);
+        likeCreatedTwice(secondLifecycle + ":created", actorUserId);
+        likeRemovedTwice(secondLifecycle + ":removed", actorUserId);
 
         assertThat(walletAccountService.balanceOfUser(USER_ID)).isZero();
         assertThat(countRows("wallet_txn")).isEqualTo(4);
@@ -118,9 +98,14 @@ class WalletRewardProjectionApplicationServiceIntegrationTest {
         assertThat(countRowsByRequestId("wallet-reward:" + secondLifecycle + ":removed")).isEqualTo(1);
     }
 
-    private void applyTwice(RewardProjectionCommand command) {
-        walletRewardProjectionApplicationService.apply(command);
-        walletRewardProjectionApplicationService.apply(command);
+    private void likeCreatedTwice(String sourceEventId, UUID actorUserId) {
+        walletRewardProjectionApplicationService.likeCreated(sourceEventId, actorUserId, USER_ID);
+        walletRewardProjectionApplicationService.likeCreated(sourceEventId, actorUserId, USER_ID);
+    }
+
+    private void likeRemovedTwice(String sourceEventId, UUID actorUserId) {
+        walletRewardProjectionApplicationService.likeRemoved(sourceEventId, actorUserId, USER_ID);
+        walletRewardProjectionApplicationService.likeRemoved(sourceEventId, actorUserId, USER_ID);
     }
 
     private int countRows(String tableName) {

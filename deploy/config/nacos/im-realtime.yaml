@@ -34,7 +34,6 @@ im:
     owner-group-id: im-realtime-room-fanout-owner
     owner-concurrency: 3
     routed-command-topic: im.command.room-fanout-routed
-    routed-command-partitions: 64
     worker-inbox-slot: ${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}
     worker-inbox-slot-metadata-key: roomFanoutInboxSlot
     publish-timeout: PT1S

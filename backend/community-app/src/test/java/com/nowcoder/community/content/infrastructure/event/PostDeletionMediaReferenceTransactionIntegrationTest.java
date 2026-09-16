@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.PostIntegrationEventPublisher;
 import com.nowcoder.community.content.application.PostMediaReferenceScheduler;
 import org.junit.jupiter.api.BeforeEach;
@@ -54,8 +53,6 @@ class PostDeletionMediaReferenceTransactionIntegrationTest {
     @Autowired
     private PostMediaReferenceScheduler mediaReferenceScheduler;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

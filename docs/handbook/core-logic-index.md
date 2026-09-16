@@ -123,7 +123,7 @@
 | `content.application.CommentApplicationService` | 评论创建、编辑、删除和事件 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CommentReadApplicationService` | 评论列表和用户最近评论查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.BookmarkApplicationService` | 收藏关系 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
-| `content.application.SubscriptionQuery` | 分类订阅纯读查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
+| `content.application.SubscriptionApplicationService` | 分类订阅纯读查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.CategoryApplicationService` | 分类列表 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.TagApplicationService` | 热门标签和标签建议 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
 | `content.application.ReportApplicationService` | 举报创建和查询 | [Content 内容业务逻辑](business-logic/content.md) | Covered |
@@ -204,7 +204,7 @@
 | `search.application.SearchPostProjectionApplicationService` | Kafka event 触发后回源 content 并 upsert/delete ES | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.application.SearchReindexApplicationService` | content 游标扫描、single-flight 和隔离索引发布编排 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
-| `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮 | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
+| `search.infrastructure.persistence.ElasticsearchPostSearchRepository` | ES 读写实现，关键词高亮使用 ES 原生 highlight | [Notice / Search / Analytics / Ops 业务逻辑](business-logic/notice-search-analytics-ops.md) | Covered |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | content Kafka event 到 search projection listener | [异步事件骨干](core-logic/async-event-backbone.md) | Covered |
 | `search.infrastructure.job.SearchReindexScheduler` | 可选全量重建 scheduler | [Operations](operations.md) | IndexOnly |
 
@@ -289,7 +289,7 @@
 | `wallet.domain.service.WalletOrderDomainService` | 测试积分发放 / 销毁 / 转账订单金额和转账规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAdminDomainService` | 管理员钱包操作 actor / reason 规则 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
 | `wallet.domain.service.WalletAmountPolicy` | 单次资金动作金额上限 | [Wallet 钱包业务逻辑](business-logic/wallet.md) | Covered |
-| `wallet.infrastructure.retry.WalletDeadlockRetryConfiguration` | wallet 完整事务的有界悲观锁 / 死锁重试 | [Wallet 钱包业务逻辑](business-logic/wallet.md#失败和幂等) | Covered |
+| `wallet.infrastructure.retry.WalletDeadlockRetryConfiguration` | wallet 完整事务的有界悲观锁 / 死锁重试（infrastructure advisor，隔离 spring-dao 类型） | [Wallet 钱包业务逻辑](business-logic/wallet.md#失败和幂等) | Covered |
 
 ## Drive
 
@@ -327,7 +327,7 @@
 
 | Core class | Role | Handbook section | Coverage |
 | --- | --- | --- | --- |
-| `community-gateway.edge.RateLimitWebFilter` | gateway edge rate limit by principal or IP | [安全模型](security.md) | Covered |
+| `community-gateway.edge.EdgeConfig` | gateway edge wiring：`drive-share-verify-rate-limit` 路由的原生 RequestRateLimiter key resolver（principal 或已解析客户端 IP） | [安全模型](security.md) | Covered |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log after trace id resolution | [安全模型](security.md) | Covered |
 | `im.gateway.session.ImSessionApiController` | `/api/im/sessions` HTTP binding | [IM 消息业务逻辑](business-logic/im.md) | IndexOnly |
 | `im.gateway.session.ImSessionService` | JWT validation, worker selection and session ticket issuance | [IM 消息业务逻辑](business-logic/im.md) | Covered |

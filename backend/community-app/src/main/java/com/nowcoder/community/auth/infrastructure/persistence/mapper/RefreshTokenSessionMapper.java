@@ -31,8 +31,6 @@ public interface RefreshTokenSessionMapper {
 
     RefreshTokenSessionDataObject selectByTokenHashForUpdate(@Param("tokenHash") String tokenHash);
 
-    int consumeActive(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
-
     int recoverExpiredPending(@Param("tokenHash") String tokenHash, @Param("now") Instant now);
 
     int beginRotation(
@@ -55,8 +53,6 @@ public interface RefreshTokenSessionMapper {
             @Param("tokenHash") String tokenHash,
             @Param("rotationLeaseId") UUID rotationLeaseId
     );
-
-    int revoke(@Param("tokenHash") String tokenHash);
 
     int upsertFamilyRevocation(@Param("familyId") String familyId);
 

@@ -32,6 +32,12 @@ import java.util.concurrent.TimeUnit;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+/**
+ * Pins the native forwarded-header pipeline (SCG Netty server customizer + strict
+ * XForwardedHeadersFilter, both driven by spring.cloud.gateway.server.webflux.trusted-proxies):
+ * NGINX-sanitized client headers reach downstream unchanged, and the gateway never
+ * synthesizes forwarding headers itself. Loopback stands in for the trusted NGINX peer.
+ */
 @AutoConfigureWebTestClient
 @SpringBootTest(
         classes = {
@@ -68,14 +74,10 @@ class ForwardedHeaderRoutingIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.community-app[0].uri",
                 ForwardedHeaderRoutingIntegrationTest::downstreamBaseUrl);
         registry.add("spring.cloud.gateway.discovery.locator.enabled", () -> "false");
-        registry.add("spring.cloud.gateway.server.webflux.forwarded.enabled", () -> "false");
-        registry.add("spring.cloud.gateway.server.webflux.x-forwarded.enabled", () -> "false");
+        registry.add("spring.cloud.gateway.server.webflux.trusted-proxies", () -> "127\\.0\\.0\\.1|::1");
+        registry.add("spring.cloud.gateway.server.webflux.httpserver.customizer-enabled", () -> "true");
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
-        registry.add("gateway.trusted-proxy.enabled", () -> "true");
-        registry.add("gateway.trusted-proxy.cidrs[0]", () -> "127.0.0.0/8");
-        registry.add("gateway.trusted-proxy.cidrs[1]", () -> "::1/128");
-        registry.add("gateway.trusted-proxy.cidrs[2]", () -> "10.0.0.0/8");
     }
 
     @AfterAll
@@ -87,12 +89,42 @@ class ForwardedHeaderRoutingIntegrationTest {
     }
 
     @Test
-    void shouldRouteOnlyCanonicalForwardingHeaderToDownstream() throws Exception {
+    void shouldRouteOnlyCanonicalClientIpHeaderToDownstream() throws Exception {
         CAPTURES.clear();
 
+        // Production ingress (NGINX) overwrites X-Forwarded-For with the real client IP and
+        // suppresses Forwarded/X-Forwarded-Host/Port/Prefix. Downstream must receive exactly
+        // one forwarding signal: the canonical client IP resolved by the trusted-proxy-aware
+        // Netty customizer.
         webTestClient.get()
                 .uri("/api/posts")
-                .header(FORWARDED, "for=203.0.113.7;proto=https", "for=198.51.100.77")
+                .header(X_FORWARDED_FOR, "203.0.113.7")
+                .header(X_FORWARDED_PROTO, "https")
+                .header(X_REAL_IP, "203.0.113.7")
+                .exchange()
+                .expectStatus().isOk();
+
+        ForwardingHeaders capture = CAPTURES.poll(5, TimeUnit.SECONDS);
+        assertThat(capture).isNotNull();
+        assertThat(capture.xForwardedFor()).containsExactly("203.0.113.7");
+        assertThat(capture.forwarded()).isEmpty();
+        assertThat(capture.xForwardedHost()).isEmpty();
+        assertThat(capture.xForwardedPort()).isEmpty();
+        assertThat(capture.xForwardedPrefix()).isEmpty();
+        assertThat(capture.xForwardedProto()).isEmpty();
+        assertThat(capture.xRealIp()).isEmpty();
+    }
+
+    @Test
+    void shouldDropSpoofedHeaderChainAndEmitOnlyResolvedClientIp() throws Exception {
+        CAPTURES.clear();
+
+        // Multi-entry spoofed chains never arrive through NGINX (it overwrites X-Forwarded-For),
+        // but a trusted in-network peer could send one directly. The customizer resolves the
+        // left-most entry and the gateway emits only that single canonical value; the rest of
+        // the chain and every other forwarding header are dropped before routing.
+        webTestClient.get()
+                .uri("/api/posts")
                 .header(X_FORWARDED_FOR, "203.0.113.99, 198.51.100.77", "10.0.0.8")
                 .header(X_FORWARDED_HOST, "attacker.example", "gateway.internal")
                 .header(X_FORWARDED_PORT, "444", "443")
@@ -104,7 +136,7 @@ class ForwardedHeaderRoutingIntegrationTest {
 
         ForwardingHeaders capture = CAPTURES.poll(5, TimeUnit.SECONDS);
         assertThat(capture).isNotNull();
-        assertThat(capture.xForwardedFor()).containsExactly("198.51.100.77");
+        assertThat(capture.xForwardedFor()).containsExactly("203.0.113.99");
         assertThat(capture.forwarded()).isEmpty();
         assertThat(capture.xForwardedHost()).isEmpty();
         assertThat(capture.xForwardedPort()).isEmpty();
@@ -114,17 +146,19 @@ class ForwardedHeaderRoutingIntegrationTest {
     }
 
     @Test
-    void shouldDisableGatewayBuiltInForwardingHeaderFilters() {
-        assertThat(applicationContext.getBeansOfType(ForwardedHeadersFilter.class)).isEmpty();
-        assertThat(applicationContext.getBeansOfType(XForwardedHeadersFilter.class)).isEmpty();
-        assertThat(applicationContext.getBeansOfType(RemoveForwardedHeadersFilter.class)).hasSize(1);
-        assertThat(applicationContext.getBeansOfType(RemoveXForwardedHeadersFilter.class)).hasSize(1);
+    void shouldUseStrictNativeForwardingHeaderFilters() {
+        assertThat(applicationContext.getBeansOfType(XForwardedHeadersFilter.class)).hasSize(1);
+        assertThat(applicationContext.getBeansOfType(ForwardedHeadersFilter.class)).hasSize(1);
+        // The strip-inbound-headers fallback filters only exist when trusted-proxies is unset.
+        assertThat(applicationContext.getBeansOfType(RemoveXForwardedHeadersFilter.class)).isEmpty();
+        assertThat(applicationContext.getBeansOfType(RemoveForwardedHeadersFilter.class)).isEmpty();
 
+        // The canonical egress filter must run after the native header filters (order 0).
         CanonicalForwardedForHttpHeadersFilter canonicalFilter =
                 applicationContext.getBean(CanonicalForwardedForHttpHeadersFilter.class);
         assertThat(canonicalFilter.getOrder())
-                .isGreaterThan(applicationContext.getBean(RemoveForwardedHeadersFilter.class).getOrder())
-                .isGreaterThan(applicationContext.getBean(RemoveXForwardedHeadersFilter.class).getOrder());
+                .isGreaterThan(applicationContext.getBean(XForwardedHeadersFilter.class).getOrder())
+                .isGreaterThan(applicationContext.getBean(ForwardedHeadersFilter.class).getOrder());
     }
 
     private static synchronized String downstreamBaseUrl() {

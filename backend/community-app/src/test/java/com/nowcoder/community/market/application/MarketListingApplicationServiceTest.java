@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.application.MarketListingApplicationService.UpdateMarketListingCommand;
 import com.nowcoder.community.market.controller.dto.AddMarketInventoryBatchRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
@@ -51,8 +50,6 @@ class MarketListingApplicationServiceTest {
     @Autowired
     private MarketListingRepository marketListingRepository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -87,7 +84,7 @@ class MarketListingApplicationServiceTest {
         marketListingService.createListing(MarketTestCommands.listingCommand(firstSellerId, request, null));
         marketListingService.createListing(MarketTestCommands.listingCommand(secondSellerId, request, null));
 
-        assertThat(marketQueryService.listSellerListings(firstSellerId))
+        assertThat(marketQueryService.listSellerListings(firstSellerId, null, null).items())
                 .extracting(MarketListingResult::sellerUserId)
                 .containsExactly(firstSellerId);
     }
@@ -229,7 +226,7 @@ class MarketListingApplicationServiceTest {
         changeAllInventory(listingId, sellerUserId, "CLOSED");
 
         assertListingStatusAndStock(listingId, "CLOSED", 1);
-        assertThat(marketQueryService.listPublicListings())
+        assertThat(marketQueryService.listPublicListings(null, null).items())
                 .extracting(MarketListingResult::listingId)
                 .doesNotContain(listingId);
     }
@@ -256,7 +253,7 @@ class MarketListingApplicationServiceTest {
     }
 
     private void changeAllInventory(UUID listingId, UUID sellerUserId, String expectedStatus) {
-        UUID inventoryUnitId = marketInventoryService.listInventory(listingId, sellerUserId).get(0).inventoryUnitId();
+        UUID inventoryUnitId = marketInventoryService.listInventory(listingId, sellerUserId, null, null).items().get(0).inventoryUnitId();
         marketInventoryService.invalidateInventory(inventoryUnitId, sellerUserId);
         assertListingStatusAndStock(listingId, expectedStatus, 0);
 

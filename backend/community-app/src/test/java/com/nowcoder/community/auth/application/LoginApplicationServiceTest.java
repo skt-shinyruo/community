@@ -14,7 +14,6 @@ import com.nowcoder.community.auth.domain.service.AuthDomainService;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserAuthenticationResultView;
 import com.nowcoder.community.user.api.model.UserCredentialView;
 import com.nowcoder.community.user.api.query.UserCredentialQueryApi;
@@ -84,7 +83,7 @@ class LoginApplicationServiceTest {
         UserCredentialQueryApi.AuthenticationSubject subject =
                 new UserCredentialQueryApi.AuthenticationSubject("utf8mb4_unicode_ci:v1:subject-87");
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         when(userCredentialQueryApi.authenticationSubject("alice")).thenReturn(subject);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenReturn(challenge(null, UserAuthenticationResultView.invalidCredentials()));
@@ -94,10 +93,10 @@ class LoginApplicationServiceTest {
 
         var order = org.mockito.Mockito.inOrder(loginRateLimitService, userCredentialQueryApi);
         order.verify(loginRateLimitService).acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                "alice", "127.0.0.1", "remote");
         order.verify(userCredentialQueryApi).authenticationSubject("alice");
         order.verify(loginRateLimitService).attachAuthenticationSubject(
-                permit, "alice", subject.value(), ClientIpResolver.SOURCE_REMOTE);
+                permit, "alice", subject.value(), "remote");
         order.verify(userCredentialQueryApi).prepareAuthentication("alice");
     }
 
@@ -108,11 +107,11 @@ class LoginApplicationServiceTest {
         UserCredentialQueryApi.AuthenticationSubject subject =
                 new UserCredentialQueryApi.AuthenticationSubject("utf8mb4_unicode_ci:v1:subject-86");
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         when(userCredentialQueryApi.authenticationSubject("alice")).thenReturn(subject);
         doThrow(new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS))
                 .when(loginRateLimitService).attachAuthenticationSubject(
-                        permit, "alice", subject.value(), ClientIpResolver.SOURCE_REMOTE);
+                        permit, "alice", subject.value(), "remote");
 
         assertThatThrownBy(() -> authService.login(loginCommand("alice", "secret", null, null)))
                 .isInstanceOf(BusinessException.class)
@@ -128,7 +127,7 @@ class LoginApplicationServiceTest {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
                 LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         when(userCredentialQueryApi.authenticationSubject("alice"))
                 .thenThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE));
 
@@ -175,7 +174,7 @@ class LoginApplicationServiceTest {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
                 LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenReturn(challenge(null, UserAuthenticationResultView.invalidCredentials()));
 
@@ -184,12 +183,12 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         BusinessException error = (BusinessException) thrown;
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.INVALID_CREDENTIALS);
-        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", "remote");
         org.mockito.InOrder riskOrder = org.mockito.Mockito.inOrder(loginRateLimitService);
         riskOrder.verify(loginRateLimitService).acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                "alice", "127.0.0.1", "remote");
         riskOrder.verify(loginRateLimitService).recordFailure(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                "alice", "127.0.0.1", "remote");
         riskOrder.verify(loginRateLimitService).releasePasswordCheck(permit);
         verify(loginRateLimitService, never()).resetSubject(any());
         assertThat(output.getAll())
@@ -210,7 +209,7 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         BusinessException error = (BusinessException) thrown;
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.USER_DISABLED);
-        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", "remote");
         verify(loginRateLimitService, never()).resetSubject(any());
         assertThat(output.getAll())
                 .contains("community.reason_code=user_disabled")
@@ -256,7 +255,7 @@ class LoginApplicationServiceTest {
         when(authTokenPort.createAccessToken(eq(userId), eq("alice"), anyList(), eq(0L))).thenReturn("access-token");
         when(refreshTokenService.issue(userId, 0L)).thenReturn(new RefreshTokenApplicationService.IssuedRefreshToken("refresh-token", issuedCookie("refresh-token")));
 
-        authService.login(new LoginCommand("alice", "pw", null, null, "1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
+        authService.login(new LoginCommand("alice", "pw", null, null, "1.1.1.1", "remote"));
 
         verify(analyticsIngestService).recordLoginSuccess(userId);
     }
@@ -272,7 +271,7 @@ class LoginApplicationServiceTest {
                 UserAuthenticationResultView.invalidCredentials()
         );
         when(loginRateLimitService.acquirePasswordCheck(
-                "coeur", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(lookupPermit);
+                "coeur", "127.0.0.1", "remote")).thenReturn(lookupPermit);
         when(userCredentialQueryApi.authenticationSubject("coeur"))
                 .thenReturn(new UserCredentialQueryApi.AuthenticationSubject(subject));
         when(userCredentialQueryApi.prepareAuthentication("coeur")).thenReturn(challenge);
@@ -282,11 +281,11 @@ class LoginApplicationServiceTest {
 
         assertThat(thrown).isInstanceOf(BusinessException.class);
         verify(loginRateLimitService).acquirePasswordCheck(
-                "coeur", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                "coeur", "127.0.0.1", "remote");
         verify(loginRateLimitService).attachAuthenticationSubject(
-                lookupPermit, "coeur", subject, ClientIpResolver.SOURCE_REMOTE);
+                lookupPermit, "coeur", subject, "remote");
         verify(loginRateLimitService).recordFailure(
-                subject, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                subject, "127.0.0.1", "remote");
     }
 
     @Test
@@ -294,7 +293,7 @@ class LoginApplicationServiceTest {
         LoginRateLimitApplicationService.PasswordCheckPermit lookupPermit =
                 LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(lookupPermit);
+                "alice", "127.0.0.1", "remote")).thenReturn(lookupPermit);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenThrow(new RuntimeException("user lookup unavailable"));
 
@@ -304,10 +303,10 @@ class LoginApplicationServiceTest {
 
         var order = org.mockito.Mockito.inOrder(loginRateLimitService, userCredentialQueryApi);
         order.verify(loginRateLimitService).acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                "alice", "127.0.0.1", "remote");
         order.verify(userCredentialQueryApi).authenticationSubject("alice");
         order.verify(loginRateLimitService).attachAuthenticationSubject(
-                lookupPermit, "alice", "alice", ClientIpResolver.SOURCE_REMOTE);
+                lookupPermit, "alice", "alice", "remote");
         order.verify(userCredentialQueryApi).prepareAuthentication("alice");
         order.verify(loginRateLimitService).releasePasswordCheck(lookupPermit);
     }
@@ -317,7 +316,7 @@ class LoginApplicationServiceTest {
         LoginRateLimitApplicationService.PasswordCheckPermit permit =
                 LoginRateLimitApplicationService.PasswordCheckPermit.none();
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenReturn(new UserCredentialQueryApi.AuthenticationChallenge() {
                     @Override
@@ -348,7 +347,7 @@ class LoginApplicationServiceTest {
         verify(userCredentialQueryApi, never()).prepareAuthentication(anyString());
         verify(userCredentialQueryApi, never()).authenticationSubject(anyString());
         verify(loginRateLimitService).recordFailure(
-                null, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+                null, "127.0.0.1", "remote");
         assertThat(output.getAll()).contains("username=a%200Dlice");
     }
 
@@ -361,7 +360,7 @@ class LoginApplicationServiceTest {
         when(userCredentialQueryApi.prepareAuthentication("alice"))
                 .thenReturn(challenge(userId, UserAuthenticationResultView.authenticated(user)));
         when(loginRateLimitService.acquirePasswordCheck(
-                "alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE)).thenReturn(permit);
+                "alice", "127.0.0.1", "remote")).thenReturn(permit);
         doThrow(new BusinessException(CommonErrorCode.SERVICE_UNAVAILABLE))
                 .when(loginRateLimitService).assertPasswordCheckOwned(permit);
 
@@ -391,7 +390,7 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         BusinessException error = (BusinessException) thrown;
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_REQUIRED);
-        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", "remote");
         assertThat(output.getAll())
                 .contains("community.reason_code=captcha_required")
                 .contains("username=alice")
@@ -411,7 +410,7 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         BusinessException error = (BusinessException) thrown;
         assertThat(error.getErrorCode()).isEqualTo(AuthErrorCode.CAPTCHA_INVALID);
-        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        verify(loginRateLimitService).recordFailure("alice", "127.0.0.1", "remote");
         assertThat(output.getAll())
                 .contains("community.reason_code=captcha_invalid")
                 .contains("username=alice")
@@ -446,7 +445,6 @@ class LoginApplicationServiceTest {
         assertThat(thrown).isInstanceOf(BusinessException.class);
         assertThat(((BusinessException) thrown).getErrorCode()).isEqualTo(AuthErrorCode.REFRESH_TOKEN_INVALID);
         verify(refreshTokenService).beginRotation("replayed-token");
-        verify(refreshTokenService, never()).find("replayed-token");
         verify(userCredentialQueryApi, never()).getByUserId(any());
     }
 
@@ -574,7 +572,6 @@ class LoginApplicationServiceTest {
         verify(refreshTokenService).finishRotation(
                 "old-refresh", "new-refresh", userId, "family-3", 0L, ROTATION_LEASE_ID
         );
-        verify(refreshTokenService, never()).find("new-refresh");
     }
 
     @Test
@@ -620,7 +617,7 @@ class LoginApplicationServiceTest {
     void logoutShouldRevokeRefreshTokenFamilyWhenTokenPresent() {
         authService.logout(new LogoutCommand("refresh-token"));
 
-        verify(refreshTokenService).revokeFamilyByToken("refresh-token");
+        verify(refreshTokenService).revokeFamilyByPresentedToken("refresh-token");
     }
 
     @Test
@@ -653,7 +650,7 @@ class LoginApplicationServiceTest {
     }
 
     private static LoginCommand loginCommand(String username, String password, String captchaId, String captchaCode) {
-        return new LoginCommand(username, password, captchaId, captchaCode, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE);
+        return new LoginCommand(username, password, captchaId, captchaCode, "127.0.0.1", "remote");
     }
 
     private static RefreshCookieSpec issuedCookie(String value) {

@@ -2,7 +2,6 @@ package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketAddress;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
@@ -61,8 +60,6 @@ class MarketPersistenceTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void removeAddressesVisibleToThisRollbackOnlyTest() {

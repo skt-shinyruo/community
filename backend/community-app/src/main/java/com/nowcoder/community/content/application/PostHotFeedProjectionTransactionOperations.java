@@ -24,25 +24,18 @@ public class PostHotFeedProjectionTransactionOperations {
         this.contentEventPublisher = contentEventPublisher;
     }
 
-    public PostHotFeedProjectionTransactionOperations(PostContentRepository postContentRepository) {
-        this.postContentRepository = postContentRepository;
-        this.contentEventPublisher = null;
-    }
-
     @Transactional(propagation = Propagation.REQUIRES_NEW)
     public long updateScore(UUID postId, double score, long expectedAggregateVersion) {
         long scoreVersion = postContentRepository.updateScore(postId, score, expectedAggregateVersion);
         if (scoreVersion <= 0L) {
             throw new IllegalStateException("post score version was not advanced: postId=" + postId);
         }
-        if (contentEventPublisher != null) {
-            contentEventPublisher.publishPostScoreUpdated(new PostScorePayload(
-                    postId,
-                    expectedAggregateVersion,
-                    scoreVersion,
-                    score
-            ));
-        }
+        contentEventPublisher.publishPostScoreUpdated(new PostScorePayload(
+                postId,
+                expectedAggregateVersion,
+                scoreVersion,
+                score
+        ));
         return scoreVersion;
     }
 }

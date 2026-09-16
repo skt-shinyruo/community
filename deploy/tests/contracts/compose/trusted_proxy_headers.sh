@@ -220,34 +220,27 @@ assert_proxy_locations_sanitize_headers() {
   ' "${file}" || fail "${file#"${REPO_ROOT}/"} has an unsafe proxying location"
 }
 
-assert_gateway_header_filters_disabled() {
+assert_gateway_native_forwarding_wired() {
   local file="$1"
 
   awk '
-    function indent_of(line) { match(line, /[^ ]/); return RSTART - 1 }
-    /^[[:space:]]*forwarded:[[:space:]]*$/ { key = "forwarded"; key_indent = indent_of($0); next }
-    /^[[:space:]]*x-forwarded:[[:space:]]*$/ { key = "x-forwarded"; key_indent = indent_of($0); next }
-    key && indent_of($0) <= key_indent { key = "" }
-    key && /^[[:space:]]*enabled:[[:space:]]*false[[:space:]]*$/ {
-      if (key == "forwarded") forwarded_disabled = 1
-      if (key == "x-forwarded") x_forwarded_disabled = 1
-      key = ""
-    }
-    END { exit forwarded_disabled && x_forwarded_disabled ? 0 : 1 }
-  ' "${file}" || fail "${file#"${REPO_ROOT}/"} must disable both Spring Cloud Gateway forwarded header filters"
+    /^[[:space:]]*forwarded:[[:space:]]*$/ { found_forwarded = 1 }
+    /^[[:space:]]*x-forwarded:[[:space:]]*$/ { found_x_forwarded = 1 }
+    END { exit (found_forwarded || found_x_forwarded) ? 1 : 0 }
+  ' "${file}" || fail "${file#"${REPO_ROOT}/"} must not override the native gateway forwarded/x-forwarded filter blocks"
+
+  assert_contains 'trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}' "${file}"
+  assert_contains 'customizer-enabled: true' "${file}"
 }
 
-assert_community_trusted_proxy_path() {
+assert_community_native_forwarding_path() {
   local file="$1"
 
-  awk '
-    $0 == "community:" { in_community = 1; next }
-    in_community && /^[^ ]/ { in_community = 0; in_web = 0 }
-    in_community && $0 == "  web:" { in_web = 1; next }
-    in_web && /^  [^ ]/ { in_web = 0 }
-    in_web && $0 == "    trusted-proxy:" { found = 1 }
-    END { exit found ? 0 : 1 }
-  ' "${file}" || fail "${file#"${REPO_ROOT}/"} must own trusted proxy config at community.web.trusted-proxy"
+  if grep -Fq 'trusted-proxy:' "${file}"; then
+    fail "${file#"${REPO_ROOT}/"} must not retain the deleted community.web.trusted-proxy block"
+  fi
+  assert_contains 'forward-headers-strategy: ${COMMUNITY_APP_FORWARD_HEADERS_STRATEGY:none}' "${file}"
+  assert_contains 'internal-proxies: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:' "${file}"
 }
 
 assert_no_gateway_trusted_proxy_path() {
@@ -275,27 +268,19 @@ gateway_runtime_configs=(
 )
 
 for gateway_runtime_config in "${gateway_runtime_configs[@]}"; do
-  assert_gateway_header_filters_disabled "${gateway_runtime_config}"
-  assert_contains 'enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}' "${gateway_runtime_config}"
-  assert_contains 'cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}' "${gateway_runtime_config}"
+  assert_gateway_native_forwarding_wired "${gateway_runtime_config}"
 done
 
-community_runtime_configs=(
-  "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
-  "${REPO_ROOT}/deploy/config/nacos/community-app.yaml"
-)
+community_application_yml="${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
+community_seed_config="${REPO_ROOT}/deploy/config/nacos/community-app.yaml"
 
-for community_runtime_config in "${community_runtime_configs[@]}"; do
-  assert_community_trusted_proxy_path "${community_runtime_config}"
-  assert_no_gateway_trusted_proxy_path "${community_runtime_config}"
-  assert_contains 'enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}' "${community_runtime_config}"
-  assert_contains 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${community_runtime_config}"
-done
-
-assert_contains 'source: application-default' "${REPO_ROOT}/backend/community-gateway/src/main/resources/application.yml"
-assert_contains 'source: application-default' "${REPO_ROOT}/backend/community-app/src/main/resources/application.yml"
-assert_contains 'source: compose-environment' "${REPO_ROOT}/deploy/config/nacos/community-gateway.yaml"
-assert_contains 'source: compose-environment' "${REPO_ROOT}/deploy/config/nacos/community-app.yaml"
+# The packaged application.yml ships the safe default (no forwarded-header processing);
+# only the Nacos seed owns the native server.forward-headers-strategy wiring.
+if grep -Fq 'trusted-proxy:' "${community_application_yml}"; then
+  fail "backend/community-app/src/main/resources/application.yml must not retain the deleted community.web.trusted-proxy block"
+fi
+assert_community_native_forwarding_path "${community_seed_config}"
+assert_no_gateway_trusted_proxy_path "${community_seed_config}"
 
 shared_config="${REPO_ROOT}/deploy/config/nacos/community-shared.yaml"
 if grep -Fq 'trusted-proxy:' "${shared_config}"; then
@@ -339,7 +324,8 @@ assert_env_value COMMUNITY_NETWORK_DYNAMIC_RANGE 172.30.0.128/25 "${single_env}"
 assert_env_value NGINX_STATIC_IP 172.30.0.10 "${single_env}"
 assert_env_value COMMUNITY_GATEWAY_STATIC_IP 172.30.0.20 "${single_env}"
 assert_env_absent GATEWAY_TRUSTED_PROXY_ENABLED "${single_env}"
-assert_env_value GATEWAY_TRUSTED_PROXY_CIDRS 172.30.0.10/32 "${single_env}"
+assert_env_absent GATEWAY_TRUSTED_PROXY_CIDRS "${single_env}"
+assert_env_value GATEWAY_TRUSTED_PROXIES '172\.30\.0\.10' "${single_env}"
 assert_env_absent COMMUNITY_APP_TRUSTED_PROXY_ENABLED "${single_env}"
 assert_env_value COMMUNITY_APP_TRUSTED_PROXY_CIDRS 172.30.0.20/32 "${single_env}"
 
@@ -350,7 +336,8 @@ assert_env_value COMMUNITY_GATEWAY_1_STATIC_IP 172.31.0.20 "${cluster_env}"
 assert_env_value COMMUNITY_GATEWAY_2_STATIC_IP 172.31.0.21 "${cluster_env}"
 assert_env_value COMMUNITY_GATEWAY_3_STATIC_IP 172.31.0.22 "${cluster_env}"
 assert_env_absent GATEWAY_TRUSTED_PROXY_ENABLED "${cluster_env}"
-assert_env_value GATEWAY_TRUSTED_PROXY_CIDRS 172.31.0.10/32 "${cluster_env}"
+assert_env_absent GATEWAY_TRUSTED_PROXY_CIDRS "${cluster_env}"
+assert_env_value GATEWAY_TRUSTED_PROXIES '172\.31\.0\.10' "${cluster_env}"
 assert_env_absent COMMUNITY_APP_TRUSTED_PROXY_ENABLED "${cluster_env}"
 assert_env_value COMMUNITY_APP_TRUSTED_PROXY_CIDRS 172.31.0.20/32,172.31.0.21/32,172.31.0.22/32 "${cluster_env}"
 
@@ -384,10 +371,10 @@ trap 'rm -f "${single_rendered}" "${cluster_rendered}" "${single_false_override_
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_rendered}"
 "${REPO_ROOT}/deploy/deployment.sh" config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_rendered}"
-env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
+env COMMUNITY_APP_FORWARD_HEADERS_STRATEGY=none SPRING_PROFILES_ACTIVE=prod \
   "${REPO_ROOT}/deploy/deployment.sh" config --stack single \
   --env-file deploy/stacks/single/.env.example --no-observability >"${single_false_override_rendered}"
-env GATEWAY_TRUSTED_PROXY_ENABLED=false COMMUNITY_APP_TRUSTED_PROXY_ENABLED=false SPRING_PROFILES_ACTIVE=prod \
+env COMMUNITY_APP_FORWARD_HEADERS_STRATEGY=none SPRING_PROFILES_ACTIVE=prod \
   "${REPO_ROOT}/deploy/deployment.sh" config --stack cluster \
   --env-file deploy/stacks/cluster/.env.example --no-observability >"${cluster_false_override_rendered}"
 
@@ -406,33 +393,33 @@ fi
 
 assert_rendered_service_value "${single_rendered}" nginx ipv4_address 172.30.0.10
 assert_rendered_service_value "${single_rendered}" community-gateway ipv4_address 172.30.0.20
-assert_rendered_service_value "${single_rendered}" community-gateway GATEWAY_TRUSTED_PROXY_ENABLED true
-assert_rendered_service_value "${single_rendered}" community-gateway GATEWAY_TRUSTED_PROXY_CIDRS 172.30.0.10/32
-assert_rendered_service_value "${single_rendered}" community-app COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
+assert_rendered_service_value "${single_rendered}" community-gateway GATEWAY_TRUSTED_PROXIES '172\.30\.0\.10'
+assert_rendered_service_value "${single_rendered}" community-app COMMUNITY_APP_FORWARD_HEADERS_STRATEGY native
 assert_rendered_service_value "${single_rendered}" community-app COMMUNITY_APP_TRUSTED_PROXY_CIDRS 172.30.0.20/32
 
 for gateway_number in 1 2 3; do
   gateway_service="community-gateway-${gateway_number}"
   gateway_address="$(env_value "COMMUNITY_GATEWAY_${gateway_number}_STATIC_IP" "${cluster_env}")"
   assert_rendered_service_value "${cluster_rendered}" "${gateway_service}" ipv4_address "${gateway_address}"
-  assert_rendered_service_value "${cluster_rendered}" "${gateway_service}" GATEWAY_TRUSTED_PROXY_ENABLED true
-  assert_rendered_service_value "${cluster_rendered}" "${gateway_service}" GATEWAY_TRUSTED_PROXY_CIDRS 172.31.0.10/32
+  assert_rendered_service_value "${cluster_rendered}" "${gateway_service}" GATEWAY_TRUSTED_PROXIES '172\.31\.0\.10'
 done
 
 assert_rendered_service_value "${cluster_rendered}" nginx ipv4_address 172.31.0.10
 for app_number in 1 2 3; do
-  assert_rendered_service_value "${cluster_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
+  assert_rendered_service_value "${cluster_rendered}" "community-app-${app_number}" COMMUNITY_APP_FORWARD_HEADERS_STRATEGY native
   assert_rendered_service_value "${cluster_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_CIDRS \
     172.31.0.20/32,172.31.0.21/32,172.31.0.22/32
 done
 
-assert_rendered_service_value "${single_false_override_rendered}" community-gateway GATEWAY_TRUSTED_PROXY_ENABLED true
-assert_rendered_service_value "${single_false_override_rendered}" community-app COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
+# Runtime Compose hard-wires the native forwarded-header processing; environment
+# overrides must not be able to turn it off.
+assert_rendered_service_value "${single_false_override_rendered}" community-app COMMUNITY_APP_FORWARD_HEADERS_STRATEGY native
+assert_rendered_service_value "${single_false_override_rendered}" community-gateway GATEWAY_TRUSTED_PROXIES '172\.30\.0\.10'
 for gateway_number in 1 2 3; do
-  assert_rendered_service_value "${cluster_false_override_rendered}" "community-gateway-${gateway_number}" GATEWAY_TRUSTED_PROXY_ENABLED true
+  assert_rendered_service_value "${cluster_false_override_rendered}" "community-gateway-${gateway_number}" GATEWAY_TRUSTED_PROXIES '172\.31\.0\.10'
 done
 for app_number in 1 2 3; do
-  assert_rendered_service_value "${cluster_false_override_rendered}" "community-app-${app_number}" COMMUNITY_APP_TRUSTED_PROXY_ENABLED true
+  assert_rendered_service_value "${cluster_false_override_rendered}" "community-app-${app_number}" COMMUNITY_APP_FORWARD_HEADERS_STRATEGY native
 done
 
 echo "trusted proxy header contract checks passed"

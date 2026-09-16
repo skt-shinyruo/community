@@ -1,6 +1,6 @@
 package com.nowcoder.community.common.outbox;
 
-import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMdcScope;
 import com.nowcoder.community.common.logging.EventLogMessage;
 import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContextSnapshot;
@@ -8,7 +8,6 @@ import io.micrometer.core.instrument.MeterRegistry;
 import io.opentelemetry.api.trace.SpanKind;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 
 import java.time.Clock;
 import java.time.Duration;
@@ -31,9 +30,6 @@ public class OutboxWorker implements AutoCloseable {
 
     private static final Logger log = LoggerFactory.getLogger(OutboxWorker.class);
     private static final String CATEGORY_ASYNC = "async";
-    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
-    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
-    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
     private static final String LEASE_LOST_METRIC = "outbox.lease.lost";
     private static final String UNHANDLED_TOPIC = "unhandled";
     private static final String TRANSITION_SUCCESS = "success";
@@ -461,31 +457,13 @@ public class OutboxWorker implements AutoCloseable {
         if (keyValues.length % 2 != 0) {
             throw new IllegalArgumentException("Outbox event keyValues must contain key/value pairs");
         }
-        String previousCategory = MDC.get(MDC_CATEGORY);
-        String previousAction = MDC.get(MDC_ACTION);
-        String previousOutcome = MDC.get(MDC_OUTCOME);
-        MDC.put(MDC_CATEGORY, CATEGORY_ASYNC);
-        MDC.put(MDC_ACTION, action);
-        MDC.put(MDC_OUTCOME, outcome);
-        try {
+        try (var ignored = EventLogMdcScope.open(CATEGORY_ASYNC, action, outcome)) {
             String message = EventLogMessage.format(keyValues);
             if (throwable == null) {
                 log.warn(message);
             } else {
                 log.warn(message, throwable);
             }
-        } finally {
-            restore(MDC_CATEGORY, previousCategory);
-            restore(MDC_ACTION, previousAction);
-            restore(MDC_OUTCOME, previousOutcome);
         }
-    }
-
-    private void restore(String key, String previousValue) {
-        if (previousValue == null) {
-            MDC.remove(key);
-            return;
-        }
-        MDC.put(key, previousValue);
     }
 }

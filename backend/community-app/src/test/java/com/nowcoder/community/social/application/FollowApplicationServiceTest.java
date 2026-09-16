@@ -28,6 +28,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.Comparator;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -354,7 +355,6 @@ class FollowApplicationServiceTest {
         assertThat(service.listFolloweeIds(viewerUserId, 50)).containsExactly(visibleUserId);
 
         verify(followRepository).listFolloweeIdsExcludingBlocked(viewerUserId, USER, blockRepository, 50);
-        verify(followRepository, never()).listFolloweeIds(viewerUserId, USER, 50);
     }
 
     @Test
@@ -507,18 +507,38 @@ class FollowApplicationServiceTest {
         }
 
         @Override
-        public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
-            return list(followees.get(followeeKey(userId, entityType)), offset, limit);
+        public Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+            Map<UUID, Boolean> statuses = new HashMap<>();
+            if (entityIds == null || entityIds.isEmpty()) {
+                return statuses;
+            }
+            for (UUID entityId : entityIds) {
+                if (entityId != null) {
+                    statuses.put(entityId, hasFollowed(userId, entityType, entityId));
+                }
+            }
+            return statuses;
         }
 
         @Override
-        public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
-            return list(followers.get(followerKey(entityType, entityId)), offset, limit);
+        public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
+            return visible(followees.get(followeeKey(userId, entityType)), userId, blockRepository).size();
         }
 
         @Override
-        public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
-            return list(followees.get(followeeKey(userId, entityType)), 0, limit).stream()
+        public long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
+            return visible(followers.get(followerKey(entityType, entityId)), entityId, blockRepository).size();
+        }
+
+        @Override
+        public List<UUID> listFolloweeIdsExcludingBlocked(
+                UUID userId,
+                int entityType,
+                BlockRepository blockRepository,
+                int limit
+        ) {
+            return visible(followees.get(followeeKey(userId, entityType)), userId, blockRepository).stream()
+                    .limit(Math.max(0, limit))
                     .map(FollowRelation::targetId)
                     .toList();
         }
@@ -569,15 +589,20 @@ class FollowApplicationServiceTest {
                 UUID beforeTargetId,
                 int limit
         ) {
-            return list(relations, 0, Integer.MAX_VALUE).stream()
+            return visible(relations, ownerId, blockRepository).stream()
                     .filter(relation -> beforeTime == null || beforeTargetId == null
                             || relation.followTime().isBefore(beforeTime)
                             || (relation.followTime().equals(beforeTime)
                             && relation.targetId().compareTo(beforeTargetId) < 0))
+                    .limit(Math.max(0, limit))
+                    .toList();
+        }
+
+        private List<FollowRelation> visible(Map<UUID, Long> relations, UUID ownerId, BlockRepository blockRepository) {
+            return list(relations, 0, Integer.MAX_VALUE).stream()
                     .filter(relation -> blockRepository == null
                             || (!blockRepository.hasBlocked(ownerId, relation.targetId())
                             && !blockRepository.hasBlocked(relation.targetId(), ownerId)))
-                    .limit(Math.max(0, limit))
                     .toList();
         }
 

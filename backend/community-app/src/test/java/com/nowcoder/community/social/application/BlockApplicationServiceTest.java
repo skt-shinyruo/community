@@ -337,22 +337,28 @@ class BlockApplicationServiceTest {
         }
 
         @Override
-        public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
-            return List.of();
+        public Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+            return Map.of();
         }
 
         @Override
-        public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
-            return List.of();
+        public long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
+            return 0;
         }
 
         @Override
-        public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
-            Set<UUID> set = followees.get(followeeKey(userId, entityType));
-            if (set == null || set.isEmpty()) {
-                return List.of();
-            }
-            return set.stream().limit(Math.max(0, limit)).toList();
+        public long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
+            return 0;
+        }
+
+        @Override
+        public List<UUID> listFolloweeIdsExcludingBlocked(
+                UUID userId,
+                int entityType,
+                BlockRepository blockRepository,
+                int limit
+        ) {
+            return List.of();
         }
 
         @Override

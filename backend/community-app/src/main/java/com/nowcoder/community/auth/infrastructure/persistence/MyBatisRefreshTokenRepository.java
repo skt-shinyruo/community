@@ -55,22 +55,6 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
     }
 
     @Override
-    public StoredRefreshToken consume(String refreshToken) {
-        if (!StringUtils.hasText(refreshToken)) {
-            return null;
-        }
-        String tokenHash = sha256Hex(refreshToken);
-        RefreshTokenSession session = findSessionByHash(tokenHash);
-        if (session == null || session.state() != RefreshTokenSessionState.ACTIVE || session.revokedAt() != null) {
-            return null;
-        }
-        if (mapper.consumeActive(tokenHash, clock.instant()) <= 0) {
-            return null;
-        }
-        return toStoredRefreshToken(refreshToken, session, false);
-    }
-
-    @Override
     public StoredRefreshToken beginRotation(
             String refreshToken,
             Instant pendingExpiresAt,
@@ -178,13 +162,6 @@ public class MyBatisRefreshTokenRepository implements RefreshTokenRepository {
                 session.expiresAt(),
                 session.revokedAt()
         );
-    }
-
-    @Override
-    public void revoke(String refreshToken) {
-        if (StringUtils.hasText(refreshToken)) {
-            mapper.revoke(sha256Hex(refreshToken));
-        }
     }
 
     @Override

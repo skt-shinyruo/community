@@ -2,7 +2,6 @@
 
 import { mount } from '@vue/test-utils'
 import { describe, expect, it } from 'vitest'
-import { nextTick } from 'vue'
 import UiModalConfirm from './UiModalConfirm.vue'
 
 describe('UiModalConfirm', () => {
@@ -77,36 +76,5 @@ describe('UiModalConfirm', () => {
     for (const button of wrapper.findAll('button')) {
       expect(button.attributes('disabled')).toBeDefined()
     }
-  })
-
-  it('supports keyboard flow: initial focus, focus trap and focus restore', async () => {
-    const trigger = document.createElement('button')
-    trigger.textContent = '删除帖子'
-    document.body.appendChild(trigger)
-    trigger.focus()
-
-    const wrapper = mount(UiModalConfirm, {
-      attachTo: document.body,
-      props: { title: '确认删除', message: '删除后不可恢复' }
-    })
-    await nextTick()
-
-    // 初始焦点进入弹窗（首个可操作控件为头部关闭按钮）
-    const close = wrapper.get('.ui-modal__close').element
-    expect(document.activeElement).toBe(close)
-
-    // Tab 在最后一个按钮上回绕到首个控件，Shift+Tab 反向回绕
-    const confirm = wrapper.findAll('.ui-modal__footer button')[1].element
-    confirm.focus()
-    await wrapper.get('dialog').trigger('keydown', { key: 'Tab' })
-    expect(document.activeElement).toBe(close)
-
-    close.focus()
-    await wrapper.get('dialog').trigger('keydown', { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(confirm)
-
-    // 关闭后焦点恢复到触发控件
-    wrapper.unmount()
-    expect(document.activeElement).toBe(trigger)
   })
 })

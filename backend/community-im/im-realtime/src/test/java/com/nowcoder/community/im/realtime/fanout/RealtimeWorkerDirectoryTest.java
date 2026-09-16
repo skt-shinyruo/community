@@ -96,7 +96,6 @@ class RealtimeWorkerDirectoryTest {
 
     private static RealtimeWorkerDirectory directory(List<DefaultServiceInstance> instances) {
         RoomFanoutProperties properties = new RoomFanoutProperties();
-        properties.setRoutedCommandPartitions(64);
         properties.setWorkerDirectoryCacheTtl(Duration.ZERO);
         ImSessionProperties sessionProperties = new ImSessionProperties();
         sessionProperties.setWorkerIdMetadataKey("workerId");

@@ -273,11 +273,18 @@ class MarketWalletActionProcessorApplicationServiceTest {
         assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.PROCESSING);
         assertThat(processingLeaseUntil.get()).isEqualTo(firstProcessingLease);
 
-        assertThat(recovery.recoverExpiredProcessing(clock.instant())).isZero();
+        assertThat(recovery.reconcileOnce(10).recoveredLeases()).isZero();
         assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.PROCESSING);
         assertThat(processingLeaseUntil.get()).isEqualTo(firstProcessingLease);
 
-        assertThat(recovery.recoverExpiredProcessing(clock.instant().plusSeconds(61))).isEqualTo(1);
+        MarketWalletActionRecoveryApplicationService recoveryAfterLeaseExpiry = recovery(
+                walletActionRepository,
+                orderRepository,
+                sagaService,
+                actionCoordinator,
+                Clock.offset(clock, Duration.ofSeconds(61))
+        );
+        assertThat(recoveryAfterLeaseExpiry.reconcileOnce(10).recoveredLeases()).isEqualTo(1);
         assertThat(walletActionStatus.get()).isEqualTo(MarketWalletActionStatus.RETRYING);
         assertThat(processingLeaseUntil.get()).isNull();
         assertThat(processor.processOne(action)).isTrue();
@@ -397,13 +404,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
         action.setStatus(MarketWalletActionStatus.RETRYING);
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(107),
-                "ORDER_ESCROW",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(107));
         claimSucceeds(mapper, action);
         when(walletApi.escrowOrder(
                 action.getRequestId(),
@@ -447,13 +448,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(108),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(108));
         claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(any(), any(), anyLong(), any())).thenReturn(walletTxn);
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId()))
@@ -552,13 +547,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(100),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(100));
         claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
@@ -595,13 +584,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(101),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(101));
         claimSucceeds(mapper, action);
         when(mapper.markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any()))
                 .thenReturn(1);
@@ -638,13 +621,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = escrowAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(102),
-                "ORDER_ESCROW",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(102));
         claimSucceeds(mapper, action);
         when(mapper.markRecoveryPending(any(MarketWalletActionLease.class), any(), any(), any()))
                 .thenReturn(1);
@@ -685,13 +662,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(103),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(103));
         claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
@@ -816,13 +787,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(104),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(104));
         claimSucceeds(mapper, action);
         when(walletApi.releaseOrder(
                 action.getRequestId(),
@@ -897,13 +862,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletActionCoordinator actionCoordinator = mock(MarketWalletActionCoordinator.class);
         WalletMarketActionApi walletApi = mock(WalletMarketActionApi.class);
         MarketWalletAction action = releaseAction();
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(105),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                action.getAmount(),
-                action.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(105));
         AtomicReference<String> status = new AtomicReference<>(MarketWalletActionStatus.PENDING);
         AtomicReference<MarketWalletActionLease> currentLease = new AtomicReference<>();
         AtomicReference<MarketWalletActionLease> leaseA = new AtomicReference<>();
@@ -1020,7 +979,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         AtomicReference<Boolean> workerBProcessed = new AtomicReference<>();
         when(sagaService.markReleaseSucceeded(action.getOrderId(), walletTxn.txnId())).thenAnswer(ignored -> {
             if (sagaCallCount.getAndIncrement() == 0) {
-                assertThat(recovery.recoverExpiredProcessing(clock.instant().plusSeconds(61))).isEqualTo(1);
+                assertThat(recovery.reconcileOnce(10).recoveredLeases()).isEqualTo(1);
                 workerBProcessed.set(workerB.processOne(action));
             }
             return true;
@@ -1055,13 +1014,7 @@ class MarketWalletActionProcessorApplicationServiceTest {
         MarketWalletAction staleCandidate = releaseAction();
         MarketWalletAction current = copyOf(staleCandidate);
         current.setAmount(staleCandidate.getAmount() + 500L);
-        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(
-                uuid(106),
-                "ORDER_RELEASE",
-                "SUCCEEDED",
-                current.getAmount(),
-                current.getWalletBizId()
-        );
+        var walletTxn = new com.nowcoder.community.wallet.api.model.WalletMarketTxnView(uuid(106));
         when(mapper.claimProcessing(any(MarketWalletActionClaim.class))).thenReturn(1);
         when(mapper.selectClaimed(any(MarketWalletActionLease.class))).thenReturn(current);
         when(mapper.selectClaimedForUpdate(any(MarketWalletActionLease.class), any())).thenReturn(current);

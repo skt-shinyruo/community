@@ -1,36 +1,5 @@
-import { formatMysqlTimestamp } from '../db/mysql.mjs'
 import { generateImPhaseDataset } from '../generator/domainGenerator.mjs'
-
-function resolveRunDb(db, txDb) {
-  return txDb ?? db
-}
-
-function formatBulkInsert(tableName, columns, rowCount) {
-  const valueGroup = `(${columns.map(() => '?').join(', ')})`
-  return `insert into ${tableName} (${columns.join(', ')}) values ${Array.from({ length: rowCount }, () => valueGroup).join(', ')}`
-}
-
-function toInsertParams(rows) {
-  return rows.flatMap((row) => row)
-}
-
-function createGeneratedRef(entityType, entityKey, createdAt) {
-  return {
-    entityType,
-    entityKey: String(entityKey),
-    createdAt
-  }
-}
-
-function buildTimestampSource(now) {
-  return () => {
-    const timestamp = now()
-    return {
-      iso: timestamp,
-      mysql: formatMysqlTimestamp(timestamp, 'imWriter.timestamp')
-    }
-  }
-}
+import { appendEntityRefs, buildTimestampSource, createGeneratedRef, formatBulkInsert, toInsertParams } from './shared.mjs'
 
 function buildEmptyInsertedCounts() {
   return {
@@ -40,34 +9,6 @@ function buildEmptyInsertedCounts() {
     imConversations: 0,
     imPrivateMessages: 0
   }
-}
-
-async function appendEntityRefs({ db, entityRefRepository, batchId, refs, txDb = null }) {
-  if (refs.length === 0) {
-    return []
-  }
-
-  if (entityRefRepository?.appendForBatch) {
-    await entityRefRepository.appendForBatch(batchId, refs, {
-      txDb: resolveRunDb(db, txDb)
-    })
-    return refs
-  }
-
-  const runDb = resolveRunDb(db, txDb)
-  for (const ref of refs) {
-    await runDb.execute(
-      `insert into demo_entity_ref (
-        batch_id,
-        entity_type,
-        entity_key,
-        created_at
-      ) values (?, ?, ?, ?)`,
-      [batchId, ref.entityType, ref.entityKey, formatMysqlTimestamp(ref.createdAt, 'demo_entity_ref.createdAt')]
-    )
-  }
-
-  return refs
 }
 
 async function loadExistingState(runDb) {
@@ -88,14 +29,18 @@ async function loadExistingState(runDb) {
 
 export function createImWriter({
   db,
-  entityRefRepository = null,
+  entityRefRepository,
   now = () => new Date().toISOString()
 } = {}) {
   if (!db?.query || !db?.execute) {
     throw new Error('db.query and db.execute are required')
   }
 
-  const nextTimestamp = buildTimestampSource(now)
+  if (!entityRefRepository?.appendForBatch) {
+    throw new Error('entityRefRepository.appendForBatch is required')
+  }
+
+  const nextTimestamp = buildTimestampSource(now, 'imWriter.timestamp')
 
   return {
     async writePhase({ batchId, plan, seed = null } = {}) {
@@ -115,10 +60,7 @@ export function createImWriter({
         }
       }
 
-      const runInTransaction = db.withTransaction ? (work) => db.withTransaction(work) : (work) => work(db)
-
-      return runInTransaction(async (txDb) => {
-        const runDb = resolveRunDb(db, txDb)
+      return db.withTransaction(async (runDb) => {
         const existing = await loadExistingState(runDb)
         const dataset = generateImPhaseDataset({
           plan,
@@ -234,7 +176,6 @@ export function createImWriter({
         insertedCounts.imPrivateMessages = privateMessageRows.length
 
         await appendEntityRefs({
-          db,
           entityRefRepository,
           batchId,
           refs: generatedRefs,

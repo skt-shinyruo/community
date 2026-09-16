@@ -50,9 +50,6 @@ class NacosImRealtimeBindingTest {
         assertThat(environment.getProperty("im.room-presence.heartbeat-interval")).isEqualTo("PT10S");
         assertThat(environment.getProperty("im.room-fanout.owner-group-id")).isEqualTo("im-realtime-room-fanout-owner");
         assertThat(environment.getProperty("im.room-fanout.routed-command-topic")).isEqualTo("im.command.room-fanout-routed");
-        assertThat(environment.getProperty("im.room-fanout.routed-command-partitions", Integer.class)).isEqualTo(64);
-        assertThat(rawProperty(environment, "im-realtime.yaml", "im.room-fanout.routed-command-partitions"))
-                .isEqualTo(64);
         assertThat(rawProperty(environment, "im-realtime.yaml", "im.room-fanout.worker-inbox-slot"))
                 .isEqualTo("${IM_ROOM_FANOUT_WORKER_INBOX_SLOT}");
         assertThat(environment.getProperty("im.room-fanout.worker-inbox-slot", Integer.class)).isZero();

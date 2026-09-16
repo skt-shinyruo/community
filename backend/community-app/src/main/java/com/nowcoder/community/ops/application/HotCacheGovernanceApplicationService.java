@@ -13,6 +13,7 @@ import com.nowcoder.community.ops.application.command.RecordGovernanceAuditComma
 import com.nowcoder.community.ops.domain.model.GovernanceAction;
 import com.nowcoder.community.ops.domain.model.GovernanceResult;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Instant;
 import java.util.Objects;
@@ -116,7 +117,7 @@ public class HotCacheGovernanceApplicationService {
                 c.reason(),
                 "{\"degraded\":" + c.degraded() + "}",
                 result,
-                "{\"degraded\":" + view.degraded() + ",\"reason\":\"" + safeJson(view.reason()) + "\"}",
+                "{\"degraded\":" + view.degraded() + ",\"reason\":\"" + GovernanceAuditJson.escape(view.reason()) + "\"}",
                 null
         ));
         return new DegradationSignalResult(view.degraded(), view.reason(), view.updatedAt());
@@ -169,17 +170,10 @@ public class HotCacheGovernanceApplicationService {
         return SCOPE_BOARD.equals(scope) ? "scope=board,boardId=" + boardId : "scope=global";
     }
 
-    private static String safeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
-    }
-
     public record GetStatusCommand(String scope, UUID boardId) {
 
         GetStatusCommand normalized() {
-            return new GetStatusCommand(hasText(scope) ? scope.trim() : SCOPE_GLOBAL, boardId);
+            return new GetStatusCommand(StringUtils.hasText(scope) ? scope.trim() : SCOPE_GLOBAL, boardId);
         }
     }
 
@@ -188,10 +182,10 @@ public class HotCacheGovernanceApplicationService {
         PrewarmCommand normalized() {
             return new PrewarmCommand(
                     actorUserId,
-                    hasText(scope) ? scope.trim() : SCOPE_GLOBAL,
+                    StringUtils.hasText(scope) ? scope.trim() : SCOPE_GLOBAL,
                     boardId,
                     limit,
-                    hasText(reason) ? reason.trim() : ""
+                    StringUtils.hasText(reason) ? reason.trim() : ""
             );
         }
     }
@@ -199,7 +193,7 @@ public class HotCacheGovernanceApplicationService {
     public record UpdateDegradationCommand(UUID actorUserId, boolean degraded, String reason) {
 
         UpdateDegradationCommand normalized() {
-            return new UpdateDegradationCommand(actorUserId, degraded, hasText(reason) ? reason.trim() : "");
+            return new UpdateDegradationCommand(actorUserId, degraded, StringUtils.hasText(reason) ? reason.trim() : "");
         }
     }
 
@@ -231,7 +225,4 @@ public class HotCacheGovernanceApplicationService {
     public record DegradationSignalResult(boolean degraded, String reason, Instant updatedAt) {
     }
 
-    private static boolean hasText(String value) {
-        return value != null && !value.isBlank();
-    }
 }

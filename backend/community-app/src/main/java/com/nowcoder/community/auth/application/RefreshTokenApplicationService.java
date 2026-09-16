@@ -98,33 +98,8 @@ public class RefreshTokenApplicationService {
                 && refreshTokenStore.rollbackPendingRotation(refreshToken, rotationLeaseId);
     }
 
-    public RefreshTokenRepository.StoredRefreshToken find(String refreshToken) {
-        RefreshTokenRepository.StoredRefreshToken token = refreshTokenStore.find(refreshToken);
-        if (token == null) {
-            return null;
-        }
-        if (refreshTokenDomainService.isExpired(token.expiresAt(), clock.instant())) {
-            refreshTokenStore.revoke(refreshToken);
-            return null;
-        }
-        return token;
-    }
-
-    public void revoke(String refreshToken) {
-        refreshTokenStore.revoke(refreshToken);
-    }
-
-    @Transactional
-    public void revokeFamilyByToken(String refreshToken) {
-        revokeFamilyByPresentedTokenCore(refreshToken);
-    }
-
     @Transactional
     public void revokeFamilyByPresentedToken(String refreshToken) {
-        revokeFamilyByPresentedTokenCore(refreshToken);
-    }
-
-    private void revokeFamilyByPresentedTokenCore(String refreshToken) {
         refreshTokenStore.revokeFamilyByPresentedToken(refreshToken);
     }
 

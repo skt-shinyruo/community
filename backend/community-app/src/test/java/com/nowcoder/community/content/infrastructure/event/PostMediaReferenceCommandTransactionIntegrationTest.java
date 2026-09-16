@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.PostMediaReferenceCommandPublisher;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
@@ -54,8 +53,6 @@ class PostMediaReferenceCommandTransactionIntegrationTest {
     @Autowired
     private PostMediaReferenceCommandPublisher publisher;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

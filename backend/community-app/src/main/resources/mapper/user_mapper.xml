@@ -61,22 +61,8 @@
         #{createTime}, #{policyVersion}, #{securityVersion})
     </insert>
 
-    <update id="updateStatus">
-        update user
-        set status = #{status},
-            security_version = #{securityVersion}
-        where id = #{id, jdbcType=BINARY}
-    </update>
-
     <update id="updateHeader">
         update user set header_url = #{headerUrl} where id = #{id, jdbcType=BINARY}
-    </update>
-
-    <update id="updatePassword">
-        update user
-        set password = #{password},
-            security_version = #{securityVersion}
-        where id = #{id, jdbcType=BINARY}
     </update>
 
     <update id="updatePasswordIfSecurityVersion">
@@ -176,12 +162,6 @@
         set current_version = #{version}
         where id = #{id}
     </update>
-
-    <select id="selectSecurityVersionCounter" resultType="long">
-        select coalesce(max(current_version), 0)
-        from user_security_version_counter
-        where id = #{id}
-    </select>
 
     <select id="selectUserSummariesByIds" resultType="com.nowcoder.community.user.infrastructure.persistence.dataobject.UserDataObject">
         select id, username, header_url, type

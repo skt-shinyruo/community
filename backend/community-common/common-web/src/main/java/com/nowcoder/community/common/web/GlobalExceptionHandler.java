@@ -1,15 +1,13 @@
 package com.nowcoder.community.common.web;
 
-import com.nowcoder.community.common.exception.ErrorKindHttpStatusMapper;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
 import com.nowcoder.community.common.web.Result;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMdcScope;
 import com.nowcoder.community.common.trace.TraceId;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import org.slf4j.MDC;
 import org.springframework.dao.DataAccessException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -34,9 +32,6 @@ public class GlobalExceptionHandler {
 
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
     private static final String CATEGORY = "exception";
-    private static final String MDC_CATEGORY = EventLogFields.EVENT_CATEGORY;
-    private static final String MDC_ACTION = EventLogFields.EVENT_ACTION;
-    private static final String MDC_OUTCOME = EventLogFields.EVENT_OUTCOME;
 
     @ExceptionHandler(AccessDeniedException.class)
     public ResponseEntity<Result<Void>> handleAccessDenied(AccessDeniedException e) {
@@ -46,7 +41,7 @@ public class GlobalExceptionHandler {
     @ExceptionHandler(BusinessException.class)
     public ResponseEntity<Result<Void>> handleBusiness(BusinessException e) {
         ErrorCode errorCode = e.getErrorCode() == null ? CommonErrorCode.INTERNAL_ERROR : e.getErrorCode();
-        int status = ErrorKindHttpStatusMapper.statusOf(errorCode.getKind());
+        int status = errorCode.getKind().statusOf();
         String message = e.getMessage();
         if (message == null) {
             message = errorCode.getMessage();
@@ -99,16 +94,16 @@ public class GlobalExceptionHandler {
             return response(CommonErrorCode.INTERNAL_ERROR);
         }
         int status = e.getStatusCode().value();
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.INVALID_ARGUMENT.getKind())) {
+        if (status == CommonErrorCode.INVALID_ARGUMENT.getKind().statusOf()) {
             return response(CommonErrorCode.INVALID_ARGUMENT);
         }
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.UNAUTHORIZED.getKind())) {
+        if (status == CommonErrorCode.UNAUTHORIZED.getKind().statusOf()) {
             return response(CommonErrorCode.UNAUTHORIZED);
         }
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.FORBIDDEN.getKind())) {
+        if (status == CommonErrorCode.FORBIDDEN.getKind().statusOf()) {
             return response(CommonErrorCode.FORBIDDEN);
         }
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.NOT_FOUND.getKind())) {
+        if (status == CommonErrorCode.NOT_FOUND.getKind().statusOf()) {
             return response(CommonErrorCode.NOT_FOUND);
         }
         return ResponseEntity.status(httpStatusOf(status))
@@ -136,7 +131,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Result<Void>> response(ErrorCode errorCode, String message) {
-        int status = ErrorKindHttpStatusMapper.statusOf(errorCode.getKind());
+        int status = errorCode.getKind().statusOf();
         Result<Void> body = Result.error(errorCode.getCode(), message, status);
         return ResponseEntity.status(httpStatusOf(status)).body(body);
     }
@@ -150,26 +145,8 @@ public class GlobalExceptionHandler {
     }
 
     private void errorEvent(String action, Runnable logAction) {
-        String previousCategory = MDC.get(MDC_CATEGORY);
-        String previousAction = MDC.get(MDC_ACTION);
-        String previousOutcome = MDC.get(MDC_OUTCOME);
-        MDC.put(MDC_CATEGORY, CATEGORY);
-        MDC.put(MDC_ACTION, action);
-        MDC.put(MDC_OUTCOME, "failure");
-        try {
+        try (var ignored = EventLogMdcScope.open(CATEGORY, action, "failure")) {
             logAction.run();
-        } finally {
-            restore(MDC_CATEGORY, previousCategory);
-            restore(MDC_ACTION, previousAction);
-            restore(MDC_OUTCOME, previousOutcome);
         }
-    }
-
-    private void restore(String key, String previousValue) {
-        if (previousValue == null) {
-            MDC.remove(key);
-            return;
-        }
-        MDC.put(key, previousValue);
     }
 }

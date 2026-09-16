@@ -111,7 +111,7 @@ class DriveEntryApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 clock,
-                DirectDriveTransactionOperations.INSTANCE,
+                new DriveTransactionOperations(),
                 new UuidV7Generator(clock)
         );
         DriveEntryResult result = service.createFolder(new CreateFolderCommand(userId, null, "Docs"));
@@ -306,7 +306,7 @@ class DriveEntryApplicationServiceTest {
                 entryRepository,
                 storagePort,
                 clock,
-                DirectDriveTransactionOperations.INSTANCE,
+                new DriveTransactionOperations(),
                 new UuidV7Generator(clock)
         );
 

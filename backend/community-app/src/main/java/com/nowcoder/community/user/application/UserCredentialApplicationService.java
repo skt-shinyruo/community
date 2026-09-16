@@ -26,7 +26,6 @@ import java.util.concurrent.atomic.AtomicReference;
 
 import static com.nowcoder.community.common.exception.CommonErrorCode.INVALID_ARGUMENT;
 import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UNAVAILABLE;
-import static com.nowcoder.community.user.exception.UserErrorCode.USER_NOT_FOUND;
 
 @Service
 public class UserCredentialApplicationService implements UserCredentialQueryApi, UserCredentialActionApi {
@@ -62,14 +61,6 @@ public class UserCredentialApplicationService implements UserCredentialQueryApi,
                 "usernameAuthenticationSubjectPort must not be null"
         );
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
-    }
-
-    public UserAuthenticationResultView authenticate(String username, String password) {
-        if (!StringUtils.hasText(userCredentialDomainService.trim(username))
-                || !StringUtils.hasText(password)) {
-            return UserAuthenticationResultView.invalidCredentials();
-        }
-        return authenticate(prepare(username), password);
     }
 
     public PreparedAuthentication prepare(String username) {
@@ -157,11 +148,6 @@ public class UserCredentialApplicationService implements UserCredentialQueryApi,
     }
 
     @Transactional
-    public void updatePassword(UUID userId, String newPassword) {
-        updatePasswordOnly(userId, newPassword);
-    }
-
-    @Transactional
     @Override
     public boolean updatePasswordIfSecurityVersion(
             UUID userId,
@@ -185,18 +171,6 @@ public class UserCredentialApplicationService implements UserCredentialQueryApi,
     @Override
     public void validatePasswordPolicy(String newPassword) {
         passwordPolicyDomainService.requireValidPassword(newPassword);
-    }
-
-    private void updatePasswordOnly(UUID userId, String newPassword) {
-        if (userId == null) {
-            throw new BusinessException(INVALID_ARGUMENT, "userId 非法");
-        }
-        String validatedPassword = passwordPolicyDomainService.requireValidPassword(newPassword);
-        if (userRepository.findById(userId).isEmpty()) {
-            throw new BusinessException(USER_NOT_FOUND);
-        }
-        long securityVersion = userRepository.nextUserSecurityVersion(userId);
-        userRepository.updatePassword(userId, passwordEncoder.encode(validatedPassword), securityVersion);
     }
 
     @Override

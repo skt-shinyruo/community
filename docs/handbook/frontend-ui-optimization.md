@@ -127,7 +127,6 @@
 | `UiInput` | 单行输入、`v-model`、size/variant、原生属性透传 | 1. 基础层 |
 | `UiTextarea` | 多行输入、`v-model`、原生属性透传 | 1. 基础层 |
 | `UiField` | label、帮助文本、错误文本、原生校验状态 | 1. 基础层 |
-| `UiTooltip` | hover/focus 提示和视口边界处理 | 1. 基础层 |
 | `UiModal` | 原生 `<dialog>` 外壳、尺寸/title、header/body/footer slots、close 事件 | 1. 基础层 |
 | `UiSkeleton` | 列表、卡片和详情首载的结构占位 | 1. 基础层 |
 | `UiTabs` | tablist/tab/tabpanel 和方向键/Home/End 切换 | 2. PostsView 试点 |

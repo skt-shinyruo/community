@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
 import com.nowcoder.community.market.domain.model.MarketOrderStatus;
@@ -66,8 +65,6 @@ class MarketOrderSagaApplicationServiceTest {
     @Autowired
     private MarketInventoryUnitMapper marketInventoryUnitMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     private UUID listingId;
     private UUID orderId;

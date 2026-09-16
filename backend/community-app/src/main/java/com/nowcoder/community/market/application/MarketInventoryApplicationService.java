@@ -160,10 +160,6 @@ public class MarketInventoryApplicationService {
         return MarketPagination.result(candidates, window);
     }
 
-    public List<MarketInventoryUnitResult> listInventory(UUID listingId, UUID sellerUserId) {
-        return listInventory(listingId, sellerUserId, null, null).items();
-    }
-
     @Transactional
     public void invalidateInventory(UUID inventoryUnitId, UUID sellerUserId) {
         MarketInventoryUnit unit = marketInventoryRepository.findById(inventoryUnitId);

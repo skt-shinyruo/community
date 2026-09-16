@@ -1,6 +1,7 @@
 package com.nowcoder.community.content.application;
 
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
 import com.nowcoder.community.content.domain.model.CommentDeletionResult;
@@ -69,7 +70,7 @@ class CommentDeletionCardinalityContractTest {
         eventPublisher = mock(ContentEventPublisher.class);
         when(postRepository.incrementActiveCommentCount(any(UUID.class), anyInt())).thenReturn(2L);
         ContentReadModelsAfterCommit cacheAfterCommit =
-                new ContentReadModelsAfterCommit(counterCache, pageCache, postCacheAfterCommit);
+                new ContentReadModelsAfterCommit(counterCache, pageCache, postCacheAfterCommit, new TransactionCompletion());
         service = new CommentApplicationService(
                 mock(ContentSanitizer.class),
                 mock(IdempotencyGuard.class),

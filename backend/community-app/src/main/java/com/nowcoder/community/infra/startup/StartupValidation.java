@@ -1,9 +1,5 @@
 package com.nowcoder.community.infra.startup;
 
-import com.nowcoder.community.common.net.TrustedProxyChain;
-import org.springframework.boot.context.properties.bind.BindException;
-import org.springframework.boot.context.properties.bind.Bindable;
-import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.core.env.Environment;
 import org.springframework.util.StringUtils;
 
@@ -52,9 +48,6 @@ public class StartupValidation {
         }
 
         validateNacosConfig(environment, errors);
-
-        // 1.5) trusted-proxy（可选）：启用后必须配置 CIDR allowlist，避免信任 XFF 造成伪造风险。
-        validateTrustedProxy(environment, errors);
 
         // 2) 服务特有的 prod 约束：由各服务自己提供 StartupValidator（避免 common 变大杂烩）。
         for (StartupValidator validator : validators) {
@@ -125,70 +118,6 @@ public class StartupValidation {
             }
         }
         errors.add("配置不合法：" + key + "=" + v + "（允许值=" + allowed + "；" + hint + "）");
-    }
-
-    private void validateTrustedProxy(Environment environment, List<String> errors) {
-        if (environment == null) {
-            return;
-        }
-        Boolean enabled = environment.getProperty("community.web.trusted-proxy.enabled", Boolean.class, Boolean.FALSE);
-        if (enabled == null || !enabled) {
-            return;
-        }
-
-        List<String> cidrs = bindTrustedProxyCidrs(environment, errors);
-        if (cidrs == null) {
-            return;
-        }
-        if (cidrs.isEmpty()) {
-            errors.add("配置不安全：community.web.trusted-proxy.enabled=true 但 community.web.trusted-proxy.cidrs 为空（必须配置可信代理 CIDR allowlist，例如 10.0.0.0/8）");
-            return;
-        }
-
-        for (int i = 0; i < cidrs.size(); i++) {
-            String cidr = cidrs.get(i);
-            if (!StringUtils.hasText(cidr)) {
-                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i + "] 为空");
-                continue;
-            }
-            String trimmed = cidr.trim();
-            try {
-                new TrustedProxyChain(List.of(trimmed));
-            } catch (IllegalArgumentException exception) {
-                errors.add("配置不合法：community.web.trusted-proxy.cidrs[" + i
-                        + "] 不是有效的 IPv4/IPv6 literal CIDR（禁止 hostname、端口和 zone id）");
-                continue;
-            }
-            if (hasZeroPrefixLength(trimmed)) {
-                errors.add("配置不安全：community.web.trusted-proxy.cidrs[" + i
-                        + "] 禁止使用全量信任 CIDR（prefix length 不能为 0）");
-            }
-        }
-    }
-
-    private boolean hasZeroPrefixLength(String cidr) {
-        int prefixStart = cidr.lastIndexOf('/') + 1;
-        if (prefixStart <= 0 || prefixStart == cidr.length()) {
-            return false;
-        }
-        for (int i = prefixStart; i < cidr.length(); i++) {
-            if (cidr.charAt(i) != '0') {
-                return false;
-            }
-        }
-        return true;
-    }
-
-    private List<String> bindTrustedProxyCidrs(Environment environment, List<String> errors) {
-        try {
-            return Binder.get(environment)
-                    .bind("community.web.trusted-proxy.cidrs", Bindable.listOf(String.class))
-                    .orElse(List.of());
-        } catch (BindException exception) {
-            errors.add("配置不合法：community.web.trusted-proxy.cidrs 无法绑定为 CIDR 列表"
-                    + "（请使用逗号分隔字符串或 YAML list）");
-            return null;
-        }
     }
 
     private String getTrimmed(Environment env, String key) {

@@ -8,6 +8,7 @@ import com.nowcoder.community.analytics.domain.repository.AnalyticsUserOrdinalRe
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Service;
+import org.springframework.util.StringUtils;
 
 import java.time.Clock;
 import java.time.LocalDate;
@@ -43,7 +44,7 @@ public class AnalyticsIngestApplicationService implements AnalyticsIngestActionA
     public void recordRequest(RecordRequestCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         LocalDate today = LocalDate.now(clock);
-        if (command.recordUv() && hasText(command.ip())) {
+        if (command.recordUv() && StringUtils.hasText(command.ip())) {
             recordUv(today, command.ip());
         }
         if (command.recordDau()) {
@@ -57,10 +58,6 @@ public class AnalyticsIngestApplicationService implements AnalyticsIngestActionA
             return;
         }
         recordDau(LocalDate.now(clock), userId);
-    }
-
-    private boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
     }
 
     private void recordUv(LocalDate date, String ip) {

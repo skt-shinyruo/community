@@ -9,8 +9,4 @@ import org.springframework.stereotype.Repository;
 public interface UserLevelRuleConfigMapper {
 
     UserLevelRuleConfig selectCurrent();
-
-    int updateCurrent(UserLevelRuleConfig config);
-
-    int insert(UserLevelRuleConfig config);
 }

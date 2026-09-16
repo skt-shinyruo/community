@@ -11,7 +11,6 @@ export type AuditFailure = {
 type AuditedResponse = {
   method: string
   url: string
-  path: string
   status: number
 }
 
@@ -46,11 +45,9 @@ export function createApiErrorAudit(apiBaseUrl: string): ApiErrorAudit {
       page.on('response', (response) => {
         const url = response.url()
         if (!isApiUrl(url, apiOrigin, webOrigin)) return
-        const parsed = new URL(url)
         responses.push({
           method: response.request().method(),
           url,
-          path: parsed.pathname,
           status: response.status()
         })
       })

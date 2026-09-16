@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
@@ -12,6 +11,7 @@ import com.nowcoder.community.wallet.domain.model.WalletEntry;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxn;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.CreateRechargeCommand;
@@ -57,6 +57,9 @@ class WalletAdminOpsApplicationServiceTest {
     private WalletLedgerApplicationService ledgerService;
 
     @Autowired
+    private WalletLedgerRepository walletLedgerRepository;
+
+    @Autowired
     private WalletTransferApplicationService transferService;
 
     @Autowired
@@ -68,8 +71,6 @@ class WalletAdminOpsApplicationServiceTest {
     @Autowired
     private WalletTxnMapper walletTxnMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @MockitoBean
     private UserReadApplicationService userReadApplicationService;
@@ -171,10 +172,10 @@ class WalletAdminOpsApplicationServiceTest {
         assertThat(BinaryUuidCodec.fromBytes(targetTxnId)).isEqualTo(original.getTxnId());
         assertThat(jdbcTemplate.queryForObject("select request_id from wallet_admin_action", String.class))
                 .isEqualTo("wallet-admin:reverse:" + txnRef);
-        assertThat(ledgerService.entriesOfTxn(original.getTxnId()))
+        assertThat(walletLedgerRepository.findEntriesByTxnId(original.getTxnId()))
                 .extracting(entry -> entry.getDirection() + ":" + entry.getAmount())
                 .containsExactly("DEBIT:300", "CREDIT:300");
-        assertThat(ledgerService.entriesOfTxn(reversal.getTxnId()))
+        assertThat(walletLedgerRepository.findEntriesByTxnId(reversal.getTxnId()))
                 .extracting(entry -> entry.getDirection() + ":" + entry.getAmount())
                 .containsExactly("CREDIT:300", "DEBIT:300");
     }
@@ -204,8 +205,8 @@ class WalletAdminOpsApplicationServiceTest {
         WalletTxn reversal = walletTxnMapper.selectByRequestId("reversal:" + txnRef);
         assertThat(reversal).isNotNull();
         assertThat(netAmountsByAccount(
-                ledgerService.entriesOfTxn(original.getTxnId()),
-                ledgerService.entriesOfTxn(reversal.getTxnId())
+                walletLedgerRepository.findEntriesByTxnId(original.getTxnId()),
+                walletLedgerRepository.findEntriesByTxnId(reversal.getTxnId())
         ).values()).containsOnly(0L);
     }
 

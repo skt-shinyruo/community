@@ -190,7 +190,7 @@ Kafka consumer 的配置键仍沿用 `user.reward.kafka.consumer.*` 以保持部
 - 分录不平衡直接拒绝。
 - 金额必须为正且不超过 `WalletAmountPolicy` 上限。
 - 账户余额更新使用锁和条件更新防止并发覆盖。
-- 所有带 `@Transactional` 的 wallet application 入口由 wallet deadlock retry advisor 从事务外层包裹。数据库死锁或悲观锁获取失败会回滚当前完整事务，再重新进入 transaction advisor；默认最多 `3` 次、退避 `10ms`，上限分别钳制为 `5` 次和 `1s`。
+- 所有带 `@Transactional` 的 wallet application 入口由 wallet deadlock retry advisor 从事务外层包裹（advisor 住在 wallet infrastructure，使 `org.springframework.dao` 锁异常类型不进 application 签名——ArchUnit 红线）。数据库死锁或悲观锁获取失败会回滚当前完整事务，再重新进入 transaction advisor；默认最多 `3` 次、退避 `10ms`，上限分别钳制为 `5` 次和 `1s`。
 - 已在 wallet 事务内部的嵌套 application 调用不自行重试，异常必须传播到最外层 wallet 事务边界，避免只重放总账子步骤。非锁异常不重试；次数耗尽后传播最后一次锁异常。
 - 重试参数由 `wallet.deadlock-retry.max-attempts` 和 `wallet.deadlock-retry.backoff` 配置。requestId / 业务订单幂等仍是安全重放的前提，重试不会绕过 replay fingerprint。
 

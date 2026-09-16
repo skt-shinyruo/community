@@ -1,12 +1,8 @@
 package com.nowcoder.community.growth.infrastructure.persistence;
 
-import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
-import com.nowcoder.community.growth.domain.repository.UserLevelRuleConfigRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository;
 import com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository;
-import com.nowcoder.community.growth.domain.model.UserLevelRuleConfig;
-import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserLevelRuleConfigMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskEventLogMapper;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.UserTaskProgressMapper;
 import org.junit.jupiter.api.Test;
@@ -88,34 +84,6 @@ class GrowthCreationOutcomeRepositoryTest {
         verify(mapper, never()).selectByUserTaskAndPeriod(USER_ID, TASK_CODE, PERIOD_KEY);
     }
 
-    @Test
-    void levelConfigCreateShouldReloadSingletonBeforeReturningAlreadyExists() {
-        UserLevelRuleConfigMapper mapper = mock(UserLevelRuleConfigMapper.class);
-        UserLevelRuleConfig candidate = levelConfig(uuid(4), 120);
-        UserLevelRuleConfig existing = levelConfig(uuid(5), 90);
-        when(mapper.insert(any())).thenThrow(new DuplicateKeyException("uk_user_level_rule_config_key"));
-        when(mapper.selectCurrent()).thenReturn(existing);
-
-        UserLevelRuleConfigRepository.CreateResult result = new MyBatisUserLevelRuleConfigRepository(mapper)
-                .create(candidate);
-
-        assertThat(result.status()).isEqualTo(UserLevelRuleConfigRepository.CreateStatus.ALREADY_EXISTS);
-        assertThat(result.config()).isSameAs(existing);
-    }
-
-    @Test
-    void levelConfigCreateShouldNotMaskUnknownIntegrityFailure() {
-        UserLevelRuleConfigMapper mapper = mock(UserLevelRuleConfigMapper.class);
-        UserLevelRuleConfig candidate = levelConfig(uuid(4), 120);
-        DataIntegrityViolationException failure = new DataIntegrityViolationException("unknown constraint");
-        when(mapper.insert(any())).thenThrow(failure);
-        when(mapper.selectCurrent()).thenReturn(levelConfig(uuid(5), 90));
-
-        assertThatThrownBy(() -> new MyBatisUserLevelRuleConfigRepository(mapper).create(candidate))
-                .isSameAs(failure);
-        verify(mapper, never()).selectCurrent();
-    }
-
     private static UserTaskProgress progressRow(int targetValue) {
         UserTaskProgress progress = new UserTaskProgress();
         progress.setId(uuid(9));
@@ -126,17 +94,6 @@ class GrowthCreationOutcomeRepositoryTest {
         progress.setTargetValue(targetValue);
         progress.setStatus("IN_PROGRESS");
         return progress;
-    }
-
-    private static UserLevelRuleConfig levelConfig(UUID id, int windowDays) {
-        UserLevelRuleConfig config = new UserLevelRuleConfig();
-        config.setId(id);
-        config.setWindowDays(windowDays);
-        config.setLv2SignInDays(20);
-        config.setLv3SignInDays(90);
-        config.setEnabled(true);
-        config.setUpdatedBy(USER_ID);
-        return config;
     }
 
     private static UUID uuid(long suffix) {

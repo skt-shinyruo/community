@@ -2,7 +2,6 @@ package com.nowcoder.community.growth.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
 import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import com.nowcoder.community.growth.infrastructure.persistence.mapper.TaskTemplateMapper;
@@ -59,8 +58,6 @@ class TaskProgressMapperPersistenceTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

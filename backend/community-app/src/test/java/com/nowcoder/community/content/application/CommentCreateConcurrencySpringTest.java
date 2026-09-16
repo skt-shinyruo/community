@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
 import com.nowcoder.community.content.domain.model.CommentDeletion;
@@ -107,8 +106,6 @@ class CommentCreateConcurrencySpringTest {
     @MockitoBean(extraInterfaces = ModerationNoticePublisher.class)
     private ContentEventPublisher eventPublisher;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     private ExecutorService executor;
 

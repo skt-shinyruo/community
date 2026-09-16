@@ -4,7 +4,6 @@ import com.nowcoder.community.common.outbox.OutboxEvent;
 import com.nowcoder.community.common.outbox.OutboxEventStatus;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
@@ -17,8 +16,6 @@ import java.time.ZoneOffset;
 import java.util.List;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class OutboxProjectionLagAdapterTest {
 
@@ -33,15 +30,12 @@ class OutboxProjectionLagAdapterTest {
             insertEvent(jdbcTemplate, "projection.im.policy", OutboxEventStatus.PENDING, Instant.parse("2026-07-07T00:00:00Z"));
             insertEvent(jdbcTemplate, "eventbus.content", OutboxEventStatus.PENDING, Instant.parse("2026-07-07T00:00:00Z"));
 
-            ObjectProvider<List<OutboxHandler>> handlersProvider = mock(ObjectProvider.class);
-            when(handlersProvider.getIfAvailable()).thenReturn(List.of(
-                    handler("projection.im.policy"),
-                    handler("eventbus.content")
-            ));
-
             OutboxProjectionLagAdapter adapter = new OutboxProjectionLagAdapter(
                     jdbcTemplate,
-                    new SpringOutboxHandlerCatalog(handlersProvider),
+                    new SpringOutboxHandlerCatalog(List.of(
+                            handler("projection.im.policy"),
+                            handler("eventbus.content")
+                    )),
                     Clock.fixed(Instant.parse("2026-07-07T00:05:00Z"), ZoneOffset.UTC)
             );
 

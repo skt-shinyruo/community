@@ -44,5 +44,15 @@ class ErrorCodeKindContractTest {
                 .containsExactlyInAnyOrderElementsOf(REQUIRED_KINDS);
     }
 
-
+    @Test
+    void errorKindShouldMapToStableHttpStatus() {
+        assertThat(ErrorKind.INVALID_INPUT.statusOf()).isEqualTo(400);
+        assertThat(ErrorKind.UNAUTHENTICATED.statusOf()).isEqualTo(401);
+        assertThat(ErrorKind.FORBIDDEN.statusOf()).isEqualTo(403);
+        assertThat(ErrorKind.NOT_FOUND.statusOf()).isEqualTo(404);
+        assertThat(ErrorKind.CONFLICT.statusOf()).isEqualTo(409);
+        assertThat(ErrorKind.THROTTLED.statusOf()).isEqualTo(429);
+        assertThat(ErrorKind.UNAVAILABLE.statusOf()).isEqualTo(503);
+        assertThat(ErrorKind.INTERNAL.statusOf()).isEqualTo(500);
+    }
 }

@@ -30,48 +30,19 @@ public class WalletRewardApplicationService implements WalletRewardActionApi {
     @Override
     @Transactional
     public void issue(String requestId, UUID userId, long amount, String sourceType) {
-        issueInternal(requestId, userId, amount, sourceType);
-    }
-
-    @Transactional
-    public void issue(RewardCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        issueInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
-    }
-
-    @Transactional
-    public void revoke(RewardCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        if (command.amount() <= 0) {
-            throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
-        }
-        postRewardTxn(command.requestId(), command.userId(), -command.amount(), command.sourceType(), WalletTxnType.REWARD_ISSUE);
-    }
-
-    @Override
-    @Transactional
-    public void applyDelta(String requestId, UUID userId, long amount, String sourceType) {
-        applyDeltaInternal(requestId, userId, amount, sourceType);
-    }
-
-    @Transactional
-    public void applyDelta(RewardCommand command) {
-        Objects.requireNonNull(command, "command must not be null");
-        applyDeltaInternal(command.requestId(), command.userId(), command.amount(), command.sourceType());
-    }
-
-    private void issueInternal(String requestId, UUID userId, long amount, String sourceType) {
         if (amount <= 0) {
             throw new BusinessException(WalletErrorCode.INVALID_REQUEST, "reward amount must be positive");
         }
         postRewardTxn(requestId, userId, amount, sourceType, WalletTxnType.REWARD_ISSUE);
     }
 
-    private void applyDeltaInternal(String requestId, UUID userId, long amount, String sourceType) {
-        if (amount == 0) {
+    @Transactional
+    public void applyDelta(RewardCommand command) {
+        Objects.requireNonNull(command, "command must not be null");
+        if (command.amount() == 0) {
             return;
         }
-        postRewardTxn(requestId, userId, amount, sourceType, WalletTxnType.REWARD_ISSUE);
+        postRewardTxn(command.requestId(), command.userId(), command.amount(), command.sourceType(), WalletTxnType.REWARD_ISSUE);
     }
 
     private void postRewardTxn(String requestId, UUID userId, long amount, String sourceType, WalletTxnType txnType) {

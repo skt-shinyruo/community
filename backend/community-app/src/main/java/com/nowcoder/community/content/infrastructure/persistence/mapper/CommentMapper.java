@@ -11,22 +11,10 @@ import java.util.UUID;
 @Mapper
 public interface CommentMapper {
 
-    List<CommentDataObject> selectRootComments(
-            @Param("postId") UUID postId,
-            @Param("offset") int offset,
-            @Param("limit") int limit
-    );
-
     List<CommentDataObject> selectRootCommentsAfter(
             @Param("postId") UUID postId,
             @Param("boundaryTime") Date boundaryTime,
             @Param("boundaryId") UUID boundaryId,
-            @Param("limit") int limit
-    );
-
-    List<CommentDataObject> selectRepliesByRootComment(
-            @Param("rootCommentId") UUID rootCommentId,
-            @Param("offset") int offset,
             @Param("limit") int limit
     );
 

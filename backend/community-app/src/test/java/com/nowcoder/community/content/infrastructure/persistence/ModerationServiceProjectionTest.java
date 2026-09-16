@@ -1,8 +1,12 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
-import com.nowcoder.community.content.domain.model.ModerationAction;
-import com.nowcoder.community.content.domain.model.Report;
-import com.nowcoder.community.content.infrastructure.persistence.mapper.ModerationActionMapper;
+import com.nowcoder.community.content.application.ModerationApplicationService;
+import com.nowcoder.community.content.application.ModerationApplicationService.ModerationActionResult;
+import com.nowcoder.community.content.application.ModerationApplicationService.ReportModerationResult;
+import com.nowcoder.community.content.domain.model.ModerationActionRecord;
+import com.nowcoder.community.content.domain.model.ReportSnapshot;
+import com.nowcoder.community.content.domain.repository.ModerationActionRepository;
+import com.nowcoder.community.content.domain.repository.ReportRepository;
 import org.junit.jupiter.api.Test;
 
 import java.util.Date;
@@ -24,55 +28,68 @@ class ModerationServiceProjectionTest {
 
     @Test
     void listReportsShouldReturnReportModels() {
-        MyBatisReportContentRepository reportService = mock(MyBatisReportContentRepository.class);
-        ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
-        Report report = new Report();
-        report.setId(REPORT_ID);
-        report.setReporterId(REPORTER_ID);
-        report.setTargetType(1);
-        report.setTargetId(TARGET_ID);
-        report.setReason("spam");
-        report.setDetail("details");
-        report.setStatus(0);
-        report.setCreateTime(new Date());
-        when(reportService.listReports(0, 1, REPORTER_ID, 0, 20)).thenReturn(List.of(report));
+        ReportRepository reportRepository = mock(ReportRepository.class);
+        Date createTime = new Date();
+        when(reportRepository.listReports(0, 1, REPORTER_ID, 0, 20)).thenReturn(List.of(new ReportSnapshot(
+                REPORT_ID,
+                REPORTER_ID,
+                1,
+                TARGET_ID,
+                "spam",
+                "details",
+                0,
+                createTime
+        )));
+        ModerationApplicationService service = service(reportRepository, mock(ModerationActionRepository.class));
 
-        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(reportService, actionMapper);
+        ReportModerationResult response = service.listReports(0, 1, REPORTER_ID, 0, 20).get(0);
 
-        Report response = service.listReports(0, 1, REPORTER_ID, 0, 20).get(0);
-
-        assertThat(response.getId()).isEqualTo(REPORT_ID);
-        assertThat(response.getReporterId()).isEqualTo(REPORTER_ID);
-        assertThat(response.getTargetType()).isEqualTo(1);
-        assertThat(response.getTargetId()).isEqualTo(TARGET_ID);
-        assertThat(response.getReason()).isEqualTo("spam");
-        assertThat(response.getDetail()).isEqualTo("details");
-        assertThat(response.getStatus()).isEqualTo(0);
+        assertThat(response.id()).isEqualTo(REPORT_ID);
+        assertThat(response.reporterId()).isEqualTo(REPORTER_ID);
+        assertThat(response.targetType()).isEqualTo(1);
+        assertThat(response.targetId()).isEqualTo(TARGET_ID);
+        assertThat(response.reason()).isEqualTo("spam");
+        assertThat(response.detail()).isEqualTo("details");
+        assertThat(response.status()).isEqualTo(0);
     }
 
     @Test
     void listActionsShouldReturnModerationActionModels() {
-        MyBatisReportContentRepository reportService = mock(MyBatisReportContentRepository.class);
-        ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
-        ModerationAction action = new ModerationAction();
-        action.setId(ACTION_ID);
-        action.setReportId(REPORT_ID);
-        action.setActorId(ACTOR_ID);
-        action.setAction("ban");
-        action.setReason("abuse");
-        action.setDurationSeconds(3600);
-        action.setCreateTime(new Date());
-        when(actionMapper.selectActions(ACTOR_ID, 0, 20)).thenReturn(List.of(action));
+        ModerationActionRepository actionRepository = mock(ModerationActionRepository.class);
+        when(actionRepository.listActions(ACTOR_ID, 0, 20)).thenReturn(List.of(new ModerationActionRecord(
+                ACTION_ID,
+                REPORT_ID,
+                ACTOR_ID,
+                "ban",
+                "abuse",
+                3600,
+                new Date()
+        )));
+        ModerationApplicationService service = service(mock(ReportRepository.class), actionRepository);
 
-        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(reportService, actionMapper);
+        ModerationActionResult response = service.listActions(ACTOR_ID, 0, 20).get(0);
 
-        ModerationAction response = service.listActions(ACTOR_ID, 0, 20).get(0);
+        assertThat(response.id()).isEqualTo(ACTION_ID);
+        assertThat(response.reportId()).isEqualTo(REPORT_ID);
+        assertThat(response.actorId()).isEqualTo(ACTOR_ID);
+        assertThat(response.action()).isEqualTo("ban");
+        assertThat(response.reason()).isEqualTo("abuse");
+        assertThat(response.durationSeconds()).isEqualTo(3600);
+    }
 
-        assertThat(response.getId()).isEqualTo(ACTION_ID);
-        assertThat(response.getReportId()).isEqualTo(REPORT_ID);
-        assertThat(response.getActorId()).isEqualTo(ACTOR_ID);
-        assertThat(response.getAction()).isEqualTo("ban");
-        assertThat(response.getReason()).isEqualTo("abuse");
-        assertThat(response.getDurationSeconds()).isEqualTo(3600);
+    private static ModerationApplicationService service(
+            ReportRepository reportRepository,
+            ModerationActionRepository actionRepository
+    ) {
+        return new ModerationApplicationService(
+                reportRepository,
+                actionRepository,
+                mock(com.nowcoder.community.content.domain.repository.ModerationTargetRepository.class),
+                mock(com.nowcoder.community.content.application.PostModerationApplicationService.class),
+                mock(com.nowcoder.community.content.application.CommentApplicationService.class),
+                mock(com.nowcoder.community.content.application.ModerationNoticePublisher.class),
+                mock(com.nowcoder.community.user.api.action.UserModerationActionApi.class),
+                mock(com.nowcoder.community.content.domain.service.ModerationDecisionDomainService.class)
+        );
     }
 }

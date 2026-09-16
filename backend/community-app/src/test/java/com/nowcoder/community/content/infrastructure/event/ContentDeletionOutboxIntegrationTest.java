@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.event;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.ContentEventPublisher;
 import com.nowcoder.community.content.application.PostIntegrationEventPublisher;
 import com.nowcoder.community.content.contracts.event.CommentPayload;
@@ -52,8 +51,6 @@ class ContentDeletionOutboxIntegrationTest {
     @Autowired
     private PostIntegrationEventPublisher postIntegrationEventPublisher;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

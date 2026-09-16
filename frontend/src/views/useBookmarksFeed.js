@@ -7,6 +7,7 @@ import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { mergeAppendedById } from '../utils/mergeById'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 
 export function useBookmarksFeed() {
   const router = useRouter()
@@ -23,9 +24,9 @@ export function useBookmarksFeed() {
   const page = ref(0)
   const size = 10
   const hasNext = ref(true)
-  let requestGeneration = 0
 
   const sessionScope = computed(() => identityScope(auth))
+  const loadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
   function categoryLabel(id) {
     const cid = normalizeOpaqueId(id)
@@ -41,8 +42,7 @@ export function useBookmarksFeed() {
 
   async function load(append = false, targetPage = page.value) {
     if (!auth.authed) return
-    const generation = ++requestGeneration
-    const scope = sessionScope.value
+    const requestHandle = loadTracker.begin()
     if (append) loadingMore.value = true
     else {
       loading.value = true
@@ -55,10 +55,10 @@ export function useBookmarksFeed() {
       await taxonomy.ensureCategories()
       await prefs.ensureBlocked()
 
-      if (generation !== requestGeneration || scope !== sessionScope.value) return
+      if (!loadTracker.isCurrent(requestHandle)) return
 
       const resp = await listBookmarks({ page: targetPage, size })
-      if (generation !== requestGeneration || scope !== sessionScope.value) return
+      if (!loadTracker.isCurrent(requestHandle)) return
 
       const raw = Array.isArray(resp?.data) ? resp.data : []
       const filtered = prefs.blockedSet.size > 0 ? raw.filter((p) => !prefs.blockedSet.has(normalizeOpaqueId(p?.userId))) : raw
@@ -68,11 +68,11 @@ export function useBookmarksFeed() {
       page.value = targetPage
       items.value = append ? mergeAppendedById(items.value, filtered) : filtered
     } catch (e) {
-      if (generation !== requestGeneration || scope !== sessionScope.value) return
+      if (!loadTracker.isCurrent(requestHandle)) return
       if (append) pageError.value = e?.message || '加载更多失败'
       else error.value = e?.message || '加载失败'
     } finally {
-      if (generation === requestGeneration) {
+      if (loadTracker.isCurrent(requestHandle)) {
         loading.value = false
         loadingMore.value = false
       }
@@ -93,7 +93,7 @@ export function useBookmarksFeed() {
   watch(
     sessionScope,
     () => {
-      requestGeneration += 1
+      loadTracker.invalidate()
       items.value = []
       page.value = 0
       hasNext.value = true
@@ -105,7 +105,7 @@ export function useBookmarksFeed() {
     }
   )
   onBeforeUnmount(() => {
-    requestGeneration += 1
+    loadTracker.invalidate()
   })
 
   return {

@@ -15,7 +15,6 @@ import org.springframework.util.StringUtils;
 
 import java.util.Map;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 @Service
@@ -26,15 +25,15 @@ public class NoticeProjectionApplicationService {
     private final JacksonJsonCodec jsonCodec;
     private final NoticeApplicationService noticeApplicationService;
     private final NoticePolicyProperties noticePolicyProperties;
-    private final Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder;
-    private final Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository;
+    private final NoticeProjectionEventRecorder noticeProjectionEventRecorder;
+    private final LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository;
 
     public NoticeProjectionApplicationService(
             JacksonJsonCodec jsonCodec,
             NoticeApplicationService noticeApplicationService,
             NoticePolicyProperties noticePolicyProperties,
-            Optional<NoticeProjectionEventRecorder> noticeProjectionEventRecorder,
-            Optional<LikeNoticeProjectionStateRepository> likeNoticeProjectionStateRepository
+            NoticeProjectionEventRecorder noticeProjectionEventRecorder,
+            LikeNoticeProjectionStateRepository likeNoticeProjectionStateRepository
     ) {
         this.jsonCodec = Objects.requireNonNull(jsonCodec, "jsonCodec must not be null");
         this.noticeApplicationService = Objects.requireNonNull(
@@ -155,8 +154,7 @@ public class NoticeProjectionApplicationService {
         if (!shouldProject(projection)) {
             return;
         }
-        NoticeProjectionEventRecorder eventRecorder = noticeProjectionEventRecorder.orElse(null);
-        if (eventRecorder != null && !eventRecorder.tryRecord(projection.sourceEventId())) {
+        if (!noticeProjectionEventRecorder.tryRecord(projection.sourceEventId())) {
             return;
         }
         createProjectedNotice(projection);
@@ -168,15 +166,10 @@ public class NoticeProjectionApplicationService {
             return;
         }
         LikeNoticeProjectionState incoming = likeState(command, active);
-        LikeNoticeProjectionStateRepository stateRepository = likeNoticeProjectionStateRepository.orElse(null);
-        if (stateRepository == null) {
-            throw new IllegalStateException("like notice projection state repository is required");
-        }
-        NoticeProjectionEventRecorder eventRecorder = noticeProjectionEventRecorder.orElse(null);
-        if (eventRecorder != null && !eventRecorder.tryRecord(command.sourceEventId())) {
+        if (!noticeProjectionEventRecorder.tryRecord(command.sourceEventId())) {
             return;
         }
-        LikeNoticeProjectionState.Transition transition = stateRepository.advance(incoming);
+        LikeNoticeProjectionState.Transition transition = likeNoticeProjectionStateRepository.advance(incoming);
         if (transition == LikeNoticeProjectionState.Transition.ACTIVATED) {
             noticeApplicationService.revokeLikeNotice(incoming.recipientUserId(), incoming.sourceRelationKey());
             createProjectedNotice(projection);

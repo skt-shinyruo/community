@@ -104,7 +104,7 @@ initialize_topology_defaults() {
     [COMMUNITY_NETWORK_SUBNET]="${subnet_prefix}.0.0/24"
     [COMMUNITY_NETWORK_DYNAMIC_RANGE]="${subnet_prefix}.0.128/25"
     [NGINX_STATIC_IP]="${subnet_prefix}.0.10"
-    [GATEWAY_TRUSTED_PROXY_CIDRS]="${subnet_prefix}.0.10/32"
+    [GATEWAY_TRUSTED_PROXIES]="${subnet_prefix//./\\.}\.0\.10"
   )
   declare -ga TOPOLOGY_VARIABLES=(
     COMMUNITY_VOLUME_NAMESPACE
@@ -128,7 +128,7 @@ initialize_topology_defaults() {
     TOPOLOGY_DEFAULTS[COMMUNITY_GATEWAY_STATIC_IP]="${subnet_prefix}.0.20"
     TOPOLOGY_DEFAULTS[COMMUNITY_APP_TRUSTED_PROXY_CIDRS]="${subnet_prefix}.0.20/32"
   fi
-  TOPOLOGY_VARIABLES+=(GATEWAY_TRUSTED_PROXY_CIDRS COMMUNITY_APP_TRUSTED_PROXY_CIDRS)
+  TOPOLOGY_VARIABLES+=(GATEWAY_TRUSTED_PROXIES COMMUNITY_APP_TRUSTED_PROXY_CIDRS)
 }
 
 validate_topology_value() {
@@ -144,6 +144,13 @@ validate_topology_value() {
     COMMUNITY_VOLUME_NAMESPACE)
       if [[ ! "${value}" =~ ^[A-Za-z0-9][A-Za-z0-9_.-]*$ ]]; then
         echo "[deployment.sh] ${variable} contains unsupported characters" >&2
+        exit 1
+      fi
+      ;;
+    GATEWAY_TRUSTED_PROXIES)
+      # Regular expression over literal IPs (dots escaped, alternation with |).
+      if [[ ! "${value}" =~ ^[0-9A-Fa-f.,:\\|]+$ ]]; then
+        echo "[deployment.sh] ${variable} must contain a literal-IP regex only" >&2
         exit 1
       fi
       ;;

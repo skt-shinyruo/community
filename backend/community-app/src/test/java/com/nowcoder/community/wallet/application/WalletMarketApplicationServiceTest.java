@@ -2,9 +2,11 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.api.action.WalletMarketActionApi;
 import com.nowcoder.community.wallet.api.model.WalletMarketTxnView;
+import com.nowcoder.community.wallet.domain.model.WalletAccount;
+import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
+import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
 import org.junit.jupiter.api.BeforeEach;
@@ -38,10 +40,11 @@ class WalletMarketApplicationServiceTest {
     private WalletAccountApplicationService walletAccountService;
 
     @Autowired
+    private WalletAccountRepository walletAccountRepository;
+
+    @Autowired
     private WalletTxnMapper walletTxnMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -63,33 +66,29 @@ class WalletMarketApplicationServiceTest {
 
         WalletMarketTxnView escrow = walletMarketActionApi.escrowOrder("order:1:escrow", firstBuyerId, 2_000L, "virtual-order:1");
 
-        assertThat(escrow.txnType()).isEqualTo("ORDER_ESCROW");
-        assertThat(escrow.status()).isEqualTo("SUCCEEDED");
         assertThat(escrow.txnId()).isNotNull();
         assertThat(escrow.txnId().version()).isEqualTo(7);
-        assertThat(escrow.amount()).isEqualTo(2_000L);
-        assertThat(escrow.bizId()).isEqualTo("virtual-order:1");
         assertThat(walletAccountService.balanceOfUser(firstBuyerId)).isEqualTo(3_000L);
-        assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(2_000L);
+        assertThat(systemBalance("ORDER_ESCROW")).isEqualTo(2_000L);
         assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getTxnType()).isEqualTo("ORDER_ESCROW");
+        assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getStatus()).isEqualTo("SUCCEEDED");
         assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getBizId()).isEqualTo("virtual-order:1");
+        assertThat(walletTxnMapper.selectByRequestId("order:1:escrow").getAmount()).isEqualTo(2_000L);
 
-        WalletMarketTxnView release = walletMarketActionApi.releaseOrder("order:1:release", sellerUserId, 2_000L, "virtual-order:1");
+        walletMarketActionApi.releaseOrder("order:1:release", sellerUserId, 2_000L, "virtual-order:1");
 
-        assertThat(release.txnType()).isEqualTo("ORDER_RELEASE");
         assertThat(walletAccountService.balanceOfUser(sellerUserId)).isEqualTo(2_000L);
-        assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(0L);
+        assertThat(systemBalance("ORDER_ESCROW")).isEqualTo(0L);
         assertThat(walletTxnMapper.selectByRequestId("order:1:release").getTxnType()).isEqualTo("ORDER_RELEASE");
         assertThat(walletTxnMapper.selectByRequestId("order:1:release").getBizId()).isEqualTo("virtual-order:1");
 
         seedUserBalance(secondBuyerId, 4_000L);
         walletMarketActionApi.escrowOrder("order:2:escrow", secondBuyerId, 1_500L, "virtual-order:2");
 
-        WalletMarketTxnView refund = walletMarketActionApi.refundOrder("order:2:refund", secondBuyerId, 1_500L, "virtual-order:2");
+        walletMarketActionApi.refundOrder("order:2:refund", secondBuyerId, 1_500L, "virtual-order:2");
 
-        assertThat(refund.txnType()).isEqualTo("ORDER_REFUND");
         assertThat(walletAccountService.balanceOfUser(secondBuyerId)).isEqualTo(4_000L);
-        assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isEqualTo(0L);
+        assertThat(systemBalance("ORDER_ESCROW")).isEqualTo(0L);
         assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getTxnType()).isEqualTo("ORDER_REFUND");
         assertThat(walletTxnMapper.selectByRequestId("order:2:refund").getBizId()).isEqualTo("virtual-order:2");
     }
@@ -102,14 +101,13 @@ class WalletMarketApplicationServiceTest {
         walletMarketActionApi.escrowOrder("order:frozen-release:escrow", buyerUserId, 2_000L, "virtual-order:frozen-release");
         freezeUserWallet(sellerUserId);
 
-        WalletMarketTxnView release = walletMarketActionApi.releaseOrder(
+        walletMarketActionApi.releaseOrder(
                 "order:frozen-release:release",
                 sellerUserId,
                 2_000L,
                 "virtual-order:frozen-release"
         );
 
-        assertThat(release.status()).isEqualTo("SUCCEEDED");
         assertThat(walletAccountService.balanceOfUser(sellerUserId)).isEqualTo(2_000L);
 
         UUID frozenBuyerUserId = uuid(13);
@@ -117,14 +115,13 @@ class WalletMarketApplicationServiceTest {
         walletMarketActionApi.escrowOrder("order:frozen-refund:escrow", frozenBuyerUserId, 1_000L, "virtual-order:frozen-refund");
         freezeUserWallet(frozenBuyerUserId);
 
-        WalletMarketTxnView refund = walletMarketActionApi.refundOrder(
+        walletMarketActionApi.refundOrder(
                 "order:frozen-refund:refund",
                 frozenBuyerUserId,
                 1_000L,
                 "virtual-order:frozen-refund"
         );
 
-        assertThat(refund.status()).isEqualTo("SUCCEEDED");
         assertThat(walletAccountService.balanceOfUser(frozenBuyerUserId)).isEqualTo(3_000L);
         assertThatThrownBy(() -> walletMarketActionApi.escrowOrder(
                 "order:frozen-escrow:escrow",
@@ -153,7 +150,16 @@ class WalletMarketApplicationServiceTest {
 
         assertThat(walletTxnMapper.selectByRequestId("order:too-large:escrow")).isNull();
         assertThat(walletAccountService.balanceOfUser(buyerUserId)).isEqualTo(200_000_000L);
-        assertThat(walletAccountService.balanceOfSystem("ORDER_ESCROW")).isZero();
+        assertThat(systemBalance("ORDER_ESCROW")).isZero();
+    }
+
+    private long systemBalance(String accountType) {
+        WalletAccount account = walletAccountRepository.findByOwner(
+                WalletAccountDomainService.OWNER_TYPE_SYSTEM,
+                new UUID(0, 0),
+                accountType
+        );
+        return account == null ? 0L : account.getBalance();
     }
 
     private void seedUserBalance(UUID userId, long balance) {

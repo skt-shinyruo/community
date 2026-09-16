@@ -210,16 +210,9 @@ public class OutboxGovernanceApplicationService {
                 command.reason(),
                 "{\"eventId\":\"" + (event == null ? "" : event.eventId()) + "\"}",
                 result,
-                "{\"message\":\"" + safeJson(message) + "\"}",
+                "{\"message\":\"" + GovernanceAuditJson.escape(message) + "\"}",
                 event == null ? null : event.traceId()
         ));
-    }
-
-    private String safeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     private ReplayDecision decideReplay(OutboxEventResult event) {

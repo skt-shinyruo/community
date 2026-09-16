@@ -2,7 +2,6 @@ package com.nowcoder.community.analytics.infrastructure.web;
 
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService;
 import com.nowcoder.community.analytics.application.AnalyticsRequestCaptureApplicationService.RequestObservation;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import org.junit.jupiter.api.AfterEach;
@@ -22,7 +21,6 @@ import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
-import static org.mockito.Mockito.when;
 
 class AnalyticsRequestCaptureFilterTest {
 
@@ -33,18 +31,16 @@ class AnalyticsRequestCaptureFilterTest {
 
     @Test
     void shouldCaptureRequestObservationAfterChain() throws Exception {
-        ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                clientIpResolver,
                 applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
+        request.setRemoteAddr("1.1.1.1");
         MockHttpServletResponse response = new MockHttpServletResponse();
         FilterChain chain = (req, res) -> ((MockHttpServletResponse) res).setStatus(200);
         UUID userId = UUID.fromString("11111111-1111-1111-1111-111111111111");
 
-        when(clientIpResolver.resolve(request)).thenReturn(new ClientIpResolver.ResolvedClientIp("1.1.1.1", ClientIpResolver.SOURCE_REMOTE));
         Jwt jwt = Jwt.withTokenValue("token")
                 .header("alg", "none")
                 .subject(userId.toString())
@@ -66,10 +62,8 @@ class AnalyticsRequestCaptureFilterTest {
 
     @Test
     void shouldFailOpenWhenAnalyticsCaptureThrows() throws Exception {
-        ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                clientIpResolver,
                 applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
@@ -78,22 +72,20 @@ class AnalyticsRequestCaptureFilterTest {
                 "GET",
                 "/api/posts/123",
                 200,
-                null,
+                "127.0.0.1",
                 null
         ));
 
         filter.doFilter(request, response, (req, res) -> ((MockHttpServletResponse) res).setStatus(200));
 
         assertThat(response.getStatus()).isEqualTo(200);
-        verify(applicationService).capture(new RequestObservation("GET", "/api/posts/123", 200, null, null));
+        verify(applicationService).capture(new RequestObservation("GET", "/api/posts/123", 200, "127.0.0.1", null));
     }
 
     @Test
     void shouldNotRecordWhenDownstreamRequestThrows() {
-        ClientIpResolver clientIpResolver = mock(ClientIpResolver.class);
         AnalyticsRequestCaptureApplicationService applicationService = mock(AnalyticsRequestCaptureApplicationService.class);
         AnalyticsRequestCaptureFilter filter = new AnalyticsRequestCaptureFilter(
-                clientIpResolver,
                 applicationService
         );
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/123");
@@ -103,6 +95,6 @@ class AnalyticsRequestCaptureFilterTest {
             throw new ServletException("downstream failed");
         })).isInstanceOf(ServletException.class);
 
-        verifyNoInteractions(clientIpResolver, applicationService);
+        verifyNoInteractions(applicationService);
     }
 }

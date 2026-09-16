@@ -58,11 +58,14 @@ class NoticeApplicationServiceTest {
 
     private NoticeApplicationService noticeService;
 
+    private NoticeRepository noticeRepository;
+
     @BeforeEach
     void setUp() {
         jdbcTemplate.update("delete from notice_record");
+        noticeRepository = new MyBatisNoticeRepository(noticeMapper);
         noticeService = new NoticeApplicationService(
-                new MyBatisNoticeRepository(noticeMapper),
+                noticeRepository,
                 new UuidV7Generator(),
                 Clock.systemUTC()
         );
@@ -106,11 +109,11 @@ class NoticeApplicationServiceTest {
     @Test
     void listNoticesShouldReturnNoticeOwnedRecords() {
         UUID recipientUserId = uuid(2);
-        insertNotice(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-comment\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "mention", "{\"eventId\":\"evt-mention\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_1, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-sentinel\"}", NoticeDomainService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-comment\"}", NoticeDomainService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "mention", "{\"eventId\":\"evt-mention\"}", NoticeDomainService.STATUS_UNREAD);
 
-        List<NoticeRecord> notices = noticeService.listNotices(recipientUserId, "comment", 0, 10);
+        List<NoticeRecord> notices = noticeRepository.findByUserAndTopic(recipientUserId, "comment", 0, 10);
 
         assertThat(notices)
                 .extracting(NoticeRecord::getSenderUserId, NoticeRecord::getRecipientUserId, NoticeRecord::getTopic)
@@ -124,16 +127,17 @@ class NoticeApplicationServiceTest {
     @Test
     void listNoticeItemsShouldReturnNoticeOwnedResults() {
         UUID recipientUserId = uuid(9);
-        insertNotice(NOTICE_ID_4, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_4, ZERO_UUID, recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeDomainService.STATUS_UNREAD);
 
-        List<NoticeItemResult> items = noticeService.listNoticeItems(recipientUserId, "comment", 0, 10);
+        List<NoticeItemResult> items = noticeService.listNoticeItems(
+                new NoticeApplicationService.ListNoticeItemsCommand(recipientUserId, "comment", 0, 10));
 
         assertThat(items).singleElement().satisfies(item -> {
             assertThat(item.id()).isEqualTo(NOTICE_ID_4);
             assertThat(item.senderUserId()).isEqualTo(ZERO_UUID);
             assertThat(item.recipientUserId()).isEqualTo(recipientUserId);
             assertThat(item.noticeTopic()).isEqualTo("comment");
-            assertThat(item.status()).isEqualTo(NoticeApplicationService.STATUS_UNREAD);
+            assertThat(item.status()).isEqualTo(NoticeDomainService.STATUS_UNREAD);
         });
     }
 
@@ -148,13 +152,13 @@ class NoticeApplicationServiceTest {
     void topicSummaryShouldReturnLatestCountsAndEmptyDefaultTopicsFromOneOwnerQuery() {
         UUID recipientUserId = uuid(19);
         insertNotice(NOTICE_ID_1, uuid(1), recipientUserId, NoticeTopic.COMMENT,
-                "{\"eventId\":\"comment-1\"}", NoticeApplicationService.STATUS_READ);
+                "{\"eventId\":\"comment-1\"}", NoticeDomainService.STATUS_READ);
         insertNotice(NOTICE_ID_2, uuid(2), recipientUserId, NoticeTopic.COMMENT,
-                "{\"eventId\":\"comment-2\"}", NoticeApplicationService.STATUS_UNREAD);
+                "{\"eventId\":\"comment-2\"}", NoticeDomainService.STATUS_UNREAD);
         insertNotice(NOTICE_ID_3, uuid(3), recipientUserId, NoticeTopic.LIKE,
                 "{\"eventId\":\"like-revoked\"}", NoticeApplicationService.STATUS_REVOKED);
         insertNotice(NOTICE_ID_4, uuid(4), recipientUserId, NoticeTopic.LIKE,
-                "{\"eventId\":\"like-1\"}", NoticeApplicationService.STATUS_UNREAD);
+                "{\"eventId\":\"like-1\"}", NoticeDomainService.STATUS_UNREAD);
 
         List<NoticeApplicationService.NoticeTopicSummaryResult> summaries =
                 noticeService.topicSummary(recipientUserId);
@@ -207,13 +211,13 @@ class NoticeApplicationServiceTest {
                 "{\"eventId\":\"evt-like-1\"}",
                 "LikeCreated",
                 "like:" + uuid(1) + ":3:" + uuid(100),
-                NoticeApplicationService.STATUS_UNREAD
+                NoticeDomainService.STATUS_UNREAD
         );
 
         noticeService.revokeLikeNotice(recipientUserId, "like:" + uuid(1) + ":3:" + uuid(100));
 
         assertThat(noticeService.unreadCount(recipientUserId, "like")).isZero();
-        assertThat(noticeService.listNotices(recipientUserId, "like", 0, 10)).isEmpty();
+        assertThat(noticeRepository.findByUserAndTopic(recipientUserId, "like", 0, 10)).isEmpty();
     }
 
     @Test
@@ -242,10 +246,10 @@ class NoticeApplicationServiceTest {
     @Test
     void markTopicReadShouldMarkAllUnreadNoticesOfTheTopicRead() {
         UUID recipientUserId = uuid(9);
-        insertNotice(NOTICE_ID_1, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-2\"}", NoticeApplicationService.STATUS_READ);
-        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "like", "{\"eventId\":\"evt-3\"}", NoticeApplicationService.STATUS_UNREAD);
-        insertNotice(NOTICE_ID_4, uuid(1), uuid(10), "comment", "{\"eventId\":\"evt-4\"}", NoticeApplicationService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_1, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-1\"}", NoticeDomainService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_2, uuid(1), recipientUserId, "comment", "{\"eventId\":\"evt-2\"}", NoticeDomainService.STATUS_READ);
+        insertNotice(NOTICE_ID_3, uuid(1), recipientUserId, "like", "{\"eventId\":\"evt-3\"}", NoticeDomainService.STATUS_UNREAD);
+        insertNotice(NOTICE_ID_4, uuid(1), uuid(10), "comment", "{\"eventId\":\"evt-4\"}", NoticeDomainService.STATUS_UNREAD);
 
         noticeService.markTopicRead(recipientUserId, "comment");
 

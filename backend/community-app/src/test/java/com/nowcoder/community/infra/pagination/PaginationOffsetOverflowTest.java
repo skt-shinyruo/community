@@ -7,9 +7,9 @@ import com.nowcoder.community.content.infrastructure.persistence.mapper.Moderati
 import com.nowcoder.community.content.infrastructure.persistence.mapper.ReportMapper;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisBookmarkRepository;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisCommentContentRepository;
-import com.nowcoder.community.content.infrastructure.persistence.MyBatisModerationQueryRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisModerationActionRepository;
 import com.nowcoder.community.content.infrastructure.persistence.MyBatisPostContentRepository;
-import com.nowcoder.community.content.infrastructure.persistence.MyBatisReportContentRepository;
+import com.nowcoder.community.content.infrastructure.persistence.MyBatisReportRepository;
 import com.nowcoder.community.content.domain.repository.PostContentRepository;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.notice.application.NoticeApplicationService;
@@ -50,15 +50,15 @@ class PaginationOffsetOverflowTest {
     @Test
     void commentServiceShouldNotPassNegativeOffsetWhenPageIsHuge() {
         CommentMapper commentMapper = mock(CommentMapper.class);
-        when(commentMapper.selectRootComments(any(), anyInt(), anyInt())).thenReturn(List.of());
-        UUID postId = uuid(1);
+        when(commentMapper.selectRecentCommentsByUser(any(), anyInt(), anyInt())).thenReturn(List.of());
+        UUID userId = uuid(1);
 
         MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, mock(PostContentRepository.class));
 
-        service.listRootComments(postId, Integer.MAX_VALUE, 50);
+        service.listRecentCommentsByUser(userId, Integer.MAX_VALUE, 50);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
-        verify(commentMapper).selectRootComments(eq(postId), offsetCaptor.capture(), eq(50));
+        verify(commentMapper).selectRecentCommentsByUser(eq(userId), offsetCaptor.capture(), eq(50));
         assertThat(offsetCaptor.getValue()).isGreaterThanOrEqualTo(0);
     }
 
@@ -73,7 +73,7 @@ class PaginationOffsetOverflowTest {
                 new UuidV7Generator(),
                 Clock.systemUTC()
         );
-        service.listNotices(userId, "comment", Integer.MAX_VALUE, 50);
+        service.listNoticeItems(new NoticeApplicationService.ListNoticeItemsCommand(userId, "comment", Integer.MAX_VALUE, 50));
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
         verify(noticeRepository).findByUserAndTopic(eq(userId), eq("comment"), offsetCaptor.capture(), eq(50));
@@ -100,8 +100,7 @@ class PaginationOffsetOverflowTest {
         ReportMapper reportMapper = mock(ReportMapper.class);
         when(reportMapper.selectReports(any(), any(), any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        MyBatisReportContentRepository service = new MyBatisReportContentRepository(
-                reportMapper, new com.nowcoder.community.common.id.UuidV7Generator());
+        MyBatisReportRepository service = new MyBatisReportRepository(reportMapper);
         service.listReports(null, null, null, Integer.MAX_VALUE, 100);
 
         ArgumentCaptor<Integer> offsetCaptor = ArgumentCaptor.forClass(Integer.class);
@@ -114,9 +113,10 @@ class PaginationOffsetOverflowTest {
         ModerationActionMapper actionMapper = mock(ModerationActionMapper.class);
         when(actionMapper.selectActions(any(), anyInt(), anyInt())).thenReturn(List.of());
 
-        MyBatisModerationQueryRepository service = new MyBatisModerationQueryRepository(
-                mock(MyBatisReportContentRepository.class),
-                actionMapper
+        MyBatisModerationActionRepository service = new MyBatisModerationActionRepository(
+                actionMapper,
+                new UuidV7Generator(),
+                Clock.systemUTC()
         );
 
         service.listActions(null, Integer.MAX_VALUE, 100);

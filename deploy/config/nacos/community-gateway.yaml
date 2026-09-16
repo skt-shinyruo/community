@@ -3,13 +3,44 @@ spring:
     gateway:
       server:
         webflux:
-          forwarded:
-            enabled: false
-          x-forwarded:
-            enabled: false
+          # Regex matching the controlled NGINX/load-balancer peers allowed to assert
+          # Forwarded/X-Forwarded-* identity headers (empty = strip them, safe default).
+          trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}
+          httpserver:
+            customizer-enabled: true
+          # CORS is only attached to the browser-facing API/file paths; the websocket
+          # route (/ws/im) is intentionally not registered and stays without CORS headers.
+          globalcors:
+            cors-configurations:
+              "[/api/**]":
+                allowed-origins: ${BROWSER_ALLOWED_ORIGINS}
+                allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+                allowed-headers: "*"
+                exposed-headers: "traceparent"
+                allow-credentials: true
+                max-age: 3600
+              "[/files/**]":
+                allowed-origins: ${BROWSER_ALLOWED_ORIGINS}
+                allowed-methods: "GET,POST,PUT,PATCH,DELETE,OPTIONS"
+                allowed-headers: "*"
+                exposed-headers: "traceparent"
+                allow-credentials: true
+                max-age: 3600
           default-filters:
             - DedupeResponseHeader=Access-Control-Allow-Origin Access-Control-Allow-Credentials Access-Control-Allow-Headers Access-Control-Allow-Methods Access-Control-Expose-Headers Access-Control-Max-Age, RETAIN_FIRST
           routes:
+            - id: drive-share-verify-rate-limit
+              order: -30
+              uri: lb://community-app
+              predicates:
+                - Path=/api/drive/shares/*/verify
+              filters:
+                - name: RequestRateLimiter
+                  args:
+                    redis-rate-limiter.replenishRate: 1
+                    redis-rate-limiter.burstCapacity: 10
+                    redis-rate-limiter.requestedTokens: 1
+                    key-resolver: "#{@gatewayRateLimitKeyResolver}"
             - id: im-session-edge
               order: -100
               uri: lb://community-im-gateway
@@ -45,21 +76,3 @@ security:
   jwt:
     issuer: community-auth
     access-token-audience: community-api
-
-gateway:
-  # Enable only with the controlled NGINX/load-balancer CIDRs supplied at runtime.
-  trusted-proxy:
-    enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}
-    cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}
-    source: compose-environment
-  cors:
-    allowed-origins: ${BROWSER_ALLOWED_ORIGINS}
-  http:
-    rate-limit:
-      enabled: true
-      fail-open-on-error: false
-      policies:
-        "[/api/drive/shares/{shareToken}/verify]":
-          enabled: true
-          limit: 10
-          window: 1m

@@ -99,6 +99,7 @@ import UiModalConfirm from '../components/ui/UiModalConfirm.vue'
 import { adminSearchUser, adminUpdateUserRole } from '../api/services/adminUserService'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { showErrorToast, showToast } from '../ui/toastService'
 
@@ -116,9 +117,9 @@ const user = ref(null)
 const nextType = ref(0)
 const reason = ref('')
 const confirmOpen = ref(false)
-let searchGeneration = 0
-let actionGeneration = 0
 const sessionScope = computed(() => identityScope(auth))
+const searchTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 const roleOptions = [
   { label: 'USER（普通用户）', value: 0 },
   { label: 'MODERATOR（版主）', value: 2 },
@@ -151,15 +152,14 @@ async function onSearch() {
   }
   if (!auth.authed || !auth.isAdmin) return
 
-  const generation = ++searchGeneration
-  const scope = sessionScope.value
+  const requestHandle = searchTracker.begin()
   const query = { userId: qUserId.value, username: qUsername.value, email: qEmail.value }
-  actionGeneration += 1
+  actionTracker.invalidate()
   confirmOpen.value = false
   loading.value = true
   try {
     const { data } = await adminSearchUser(query)
-    if (!isCurrentSearch(generation, scope)) return
+    if (!isCurrentSearch(requestHandle)) return
     if (!data) {
       successMsg.value = '未找到用户'
       return
@@ -168,15 +168,15 @@ async function onSearch() {
     nextType.value = Number(data.type || 0)
     reason.value = ''
   } catch (e) {
-    if (!isCurrentSearch(generation, scope)) return
+    if (!isCurrentSearch(requestHandle)) return
     error.value = e?.message || '搜索失败'
   } finally {
-    if (isCurrentSearch(generation, scope)) loading.value = false
+    if (isCurrentSearch(requestHandle)) loading.value = false
   }
 }
 
-function isCurrentSearch(generation, scope) {
-  return generation === searchGeneration && scope === sessionScope.value && auth.authed && auth.isAdmin
+function isCurrentSearch(requestHandle) {
+  return searchTracker.isCurrent(requestHandle) && auth.authed && auth.isAdmin
 }
 
 function openConfirm() {
@@ -196,8 +196,7 @@ async function onConfirmUpdate() {
   successMsg.value = ''
   if (!user.value || !auth.authed || !auth.isAdmin) return
 
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   const targetUserId = normalizeOpaqueId(user.value.id)
   const type = Number(nextType.value || 0)
   const auditReason = String(reason.value || '').trim()
@@ -209,30 +208,29 @@ async function onConfirmUpdate() {
       reason: auditReason,
       confirm: true
     })
-    if (!isCurrentAction(generation, scope, targetUserId)) return
+    if (!isCurrentAction(requestHandle, targetUserId)) return
     user.value = { ...user.value, type }
     successMsg.value = '角色已更新（用户需重新登录/刷新 token 后生效）。'
     showToast({ type: 'success', title: '已更新', text: successMsg.value })
   } catch (e) {
-    if (!isCurrentAction(generation, scope, targetUserId)) return
+    if (!isCurrentAction(requestHandle, targetUserId)) return
     error.value = e?.message || '更新失败'
     showErrorToast(e, { type: 'error', title: '更新失败', text: error.value }, showToast)
   } finally {
-    if (isCurrentAction(generation, scope, targetUserId)) loading.value = false
+    if (isCurrentAction(requestHandle, targetUserId)) loading.value = false
   }
 }
 
-function isCurrentAction(generation, scope, targetUserId) {
-  return generation === actionGeneration &&
-    scope === sessionScope.value &&
+function isCurrentAction(requestHandle, targetUserId) {
+  return actionTracker.isCurrent(requestHandle) &&
     normalizeOpaqueId(user.value?.id) === targetUserId &&
     auth.authed &&
     auth.isAdmin
 }
 
 function resetForSession() {
-  searchGeneration += 1
-  actionGeneration += 1
+  searchTracker.invalidate()
+  actionTracker.invalidate()
   loading.value = false
   error.value = ''
   successMsg.value = ''
@@ -247,8 +245,8 @@ function resetForSession() {
 
 watch(sessionScope, resetForSession)
 onBeforeUnmount(() => {
-  searchGeneration += 1
-  actionGeneration += 1
+  searchTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>
 

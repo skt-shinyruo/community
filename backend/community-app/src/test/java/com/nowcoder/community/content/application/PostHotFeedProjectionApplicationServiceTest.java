@@ -964,7 +964,7 @@ class PostHotFeedProjectionApplicationServiceTest {
                 postHotnessDomainService,
                 policyProperties,
                 projectionGuard,
-                new PostHotFeedProjectionTransactionOperations(postContentRepository),
+                new PostHotFeedProjectionTransactionOperations(postContentRepository, mock(ContentEventPublisher.class)),
                 projectionCompletion
         );
     }

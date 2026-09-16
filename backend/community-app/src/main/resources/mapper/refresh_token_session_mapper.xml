@@ -63,18 +63,6 @@
         for update
     </select>
 
-    <update id="consumeActive">
-        update auth_refresh_token
-        set state = 'CONSUMED',
-            pending_expires_at = null,
-            rotation_lease_id = null,
-            revoked_at = #{now}
-        where token_hash = #{tokenHash}
-          and state = 'ACTIVE'
-          and revoked_at is null
-          and expires_at &gt; #{now}
-    </update>
-
     <update id="recoverExpiredPending">
         update auth_refresh_token
         set state = 'ACTIVE',
@@ -127,17 +115,6 @@
         where token_hash = #{tokenHash}
           and state = 'PENDING_ROTATION'
           and rotation_lease_id = #{rotationLeaseId, jdbcType=BINARY}
-          and revoked_at is null
-    </update>
-
-    <update id="revoke">
-        update auth_refresh_token
-        set state = 'REVOKED',
-            pending_expires_at = null,
-            rotation_lease_id = null,
-            revoked_at = now()
-        where token_hash = #{tokenHash}
-          and state in ('ACTIVE', 'PENDING_ROTATION')
           and revoked_at is null
     </update>
 

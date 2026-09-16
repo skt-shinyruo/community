@@ -64,13 +64,11 @@ public class RoomUpdateCoalescer implements DisposableBean {
     }
 
     private void flushOnce() {
-        int processed = 0;
         while (true) {
             String connectionId = pendingConnectionIds.poll();
             if (connectionId == null) {
                 return;
             }
-            processed++;
 
             ConnectionState conn = connectionRegistry.get(connectionId);
             if (conn == null) {

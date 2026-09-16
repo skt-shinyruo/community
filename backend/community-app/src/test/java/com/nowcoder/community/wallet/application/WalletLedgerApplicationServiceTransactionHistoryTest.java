@@ -1,9 +1,9 @@
 package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.application.WalletLedgerApplicationService.ListWalletTransactionsCommand;
 import com.nowcoder.community.wallet.application.result.WalletTransactionResult;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
 import org.junit.jupiter.api.BeforeEach;
@@ -36,8 +36,6 @@ class WalletLedgerApplicationServiceTransactionHistoryTest {
     @Autowired
     private WalletAccountApplicationService accountService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -101,24 +99,26 @@ class WalletLedgerApplicationServiceTransactionHistoryTest {
         seedBalance(userAccountId, 500L);
         seedBalance(platformCashAccountId, 500L);
 
-        ledgerService.post(
+        ledgerService.post(new WalletLedgerCommand(
                 "wallet:withdraw:history:request",
                 WalletTxnType.WITHDRAW,
+                WalletTxnType.WITHDRAW.name(),
                 "withdraw-order-1",
                 List.of(
                         WalletPosting.debit(userAccountId, 200),
                         WalletPosting.credit(pendingAccountId, 200)
                 )
-        );
-        ledgerService.post(
+        ));
+        ledgerService.post(new WalletLedgerCommand(
                 "wallet:withdraw:history:settle",
                 WalletTxnType.WITHDRAW,
+                WalletTxnType.WITHDRAW.name(),
                 "withdraw-order-1",
                 List.of(
                         WalletPosting.debit(pendingAccountId, 200),
                         WalletPosting.credit(platformCashAccountId, 200)
                 )
-        );
+        ));
 
         List<WalletTransactionResult> rows = ledgerService.recentTransactions(new ListWalletTransactionsCommand(userId, 12));
 

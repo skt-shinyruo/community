@@ -30,8 +30,6 @@ import org.springframework.http.MediaType;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.multipart.MultipartFile;
 
-import java.io.IOException;
-import java.io.InputStream;
 import java.util.UUID;
 
 @RestController
@@ -94,7 +92,7 @@ public class OssObjectController {
                 objectId,
                 versionId,
                 new ObjectUploadContent(
-                        () -> openUploadStream(file),
+                        () -> OssControllerSupport.openUploadStream(file),
                         file == null ? "application/octet-stream" : file.getContentType(),
                         file == null ? 0 : file.getSize(),
                         checksumSha256
@@ -134,7 +132,7 @@ public class OssObjectController {
     ) {
         return permissionApplicationService.grantAccess(new GrantObjectAccessCommand(
                 objectId,
-                parseUuid(request.versionId()),
+                OssControllerSupport.parseUuid(request.versionId()),
                 request.principalType(),
                 request.principalValue(),
                 request.permission(),
@@ -160,21 +158,6 @@ public class OssObjectController {
     ) {
         return lifecycleApplicationService.deleteObject(new DeleteObjectCommand(
                 objectId, requireUserSubject(authentication)));
-    }
-
-    private InputStream openUploadStream(MultipartFile file) {
-        try {
-            return file == null ? InputStream.nullInputStream() : file.getInputStream();
-        } catch (IOException e) {
-            throw new IllegalStateException("failed to read upload file", e);
-        }
-    }
-
-    private UUID parseUuid(String value) {
-        if (value == null || value.isBlank()) {
-            return null;
-        }
-        return UUID.fromString(value.trim());
     }
 
     private String requireUserSubject(Authentication authentication) {

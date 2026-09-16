@@ -19,38 +19,9 @@ summary_path="/results/${profile}-${timestamp}.json"
 image="${K6_DOCKER_IMAGE:-grafana/k6:0.54.0}"
 
 env_args=()
-while IFS= read -r name; do
-  if [[ -n "${name}" ]] && [[ -v "${name}" ]]; then
-    env_args+=(-e "${name}=${!name}")
-  fi
-done <<'EOF'
-K6_BASE_URL
-K6_WS_URL
-K6_USERNAME
-K6_PASSWORD
-K6_LOGIN_EACH_ITERATION
-K6_WRITE_RATIO
-K6_READ_SIZE
-K6_BOARD_ID
-K6_POST_ID
-K6_THINK_MIN_MS
-K6_THINK_MAX_MS
-K6_IM_HOLD_SECONDS
-K6_IM_PING_INTERVAL_SECONDS
-K6_IM_SEND_MESSAGES
-K6_IM_ROOM_ID
-K6_POST_TAG
-K6_POST_CATEGORY_ID
-K6_ALLOW_WRITES
-K6_HTTP_FAILED_RATE
-K6_HTTP_P95_MS
-K6_HTTP_P99_MS
-K6_CHECK_RATE
-K6_WS_CONNECT_P95_MS
-K6_WS_SESSION_P95_MIN_MS
-K6_NO_CONNECTION_REUSE
-K6_USER_AGENT
-EOF
+for name in $(compgen -e K6_); do
+  env_args+=(-e "${name}=${!name}")
+done
 
 network_args=()
 if [ "$(uname -s)" = "Linux" ]; then

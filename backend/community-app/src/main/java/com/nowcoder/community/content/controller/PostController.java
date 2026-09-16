@@ -21,7 +21,6 @@ import com.nowcoder.community.content.application.CommentReadApplicationService;
 import com.nowcoder.community.content.application.PostModerationApplicationService;
 import com.nowcoder.community.content.application.PostReadApplicationService;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.HttpServletRequest;
@@ -53,7 +52,6 @@ public class PostController {
     private final PostModerationApplicationService postModerationApplicationService;
     private final CommentApplicationService commentApplicationService;
     private final PostCounterApplicationService postCounterApplicationService;
-    private final ClientIpResolver clientIpResolver;
     private final Clock clock;
 
     public PostController(
@@ -63,7 +61,6 @@ public class PostController {
             PostModerationApplicationService postModerationApplicationService,
             CommentApplicationService commentApplicationService,
             PostCounterApplicationService postCounterApplicationService,
-            ClientIpResolver clientIpResolver,
             Clock clock
     ) {
         this.postReadApplicationService = postReadApplicationService;
@@ -72,7 +69,6 @@ public class PostController {
         this.postModerationApplicationService = postModerationApplicationService;
         this.commentApplicationService = commentApplicationService;
         this.postCounterApplicationService = postCounterApplicationService;
-        this.clientIpResolver = Objects.requireNonNull(clientIpResolver, "clientIpResolver");
         this.clock = Objects.requireNonNull(clock, "clock");
     }
 
@@ -239,8 +235,8 @@ public class PostController {
         if (currentUserId != null) {
             return "auth:" + currentUserId;
         }
-        ClientIpResolver.ResolvedClientIp resolvedClientIp = clientIpResolver.resolve(request);
-        String clientIp = resolvedClientIp == null ? null : resolvedClientIp.ip();
+        // server.forward-headers-strategy=native has already resolved the client address.
+        String clientIp = request == null ? null : request.getRemoteAddr();
         return "anon:" + Objects.toString(clientIp, "unknown") + "|" + userAgent(request);
     }
 

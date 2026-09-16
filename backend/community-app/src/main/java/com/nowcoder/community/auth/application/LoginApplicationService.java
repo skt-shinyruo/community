@@ -224,8 +224,6 @@ public class LoginApplicationService {
             return new RefreshResult(accessToken, replacement.cookie());
         } catch (RefreshFailure ex) {
             throw ex;
-        } catch (BusinessException ex) {
-            throw recoverRefreshFailure(refreshToken, pending, ex);
         } catch (RuntimeException ex) {
             throw recoverRefreshFailure(refreshToken, pending, ex);
         }
@@ -235,7 +233,7 @@ public class LoginApplicationService {
         Objects.requireNonNull(command, "command must not be null");
         String refreshToken = command.refreshToken();
         if (StringUtils.hasText(refreshToken)) {
-            refreshTokenService.revokeFamilyByToken(refreshToken);
+            refreshTokenService.revokeFamilyByPresentedToken(refreshToken);
         }
     }
 
@@ -248,10 +246,9 @@ public class LoginApplicationService {
                 refreshToken,
                 pending.rotationLeaseId()
         );
-        if (rolledBack) {
-            return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause);
+        if (!rolledBack) {
+            refreshTokenService.revokeFamily(pending.familyId());
         }
-        refreshTokenService.revokeFamily(pending.familyId());
         return new RefreshFailure(CommonErrorCode.SERVICE_UNAVAILABLE, CommonErrorCode.SERVICE_UNAVAILABLE.getMessage(), cause);
     }
 

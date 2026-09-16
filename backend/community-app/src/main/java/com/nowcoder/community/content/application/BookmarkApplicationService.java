@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
@@ -18,12 +18,14 @@ public class BookmarkApplicationService {
     private final PostCounterCache postCounterCache;
     private final BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort;
     private final PostFeedSummaryLoader postFeedSummaryLoader;
+    private final TransactionCompletion transactionCompletion;
 
     public BookmarkApplicationService(
             BookmarkRepository bookmarkRepository,
             PostCounterCache postCounterCache,
             BookmarkCounterReconciliationPort bookmarkCounterReconciliationPort,
-            PostFeedSummaryLoader postFeedSummaryLoader
+            PostFeedSummaryLoader postFeedSummaryLoader,
+            TransactionCompletion transactionCompletion
     ) {
         this.bookmarkRepository = bookmarkRepository;
         this.postCounterCache = postCounterCache;
@@ -32,6 +34,7 @@ public class BookmarkApplicationService {
                 "bookmarkCounterReconciliationPort"
         );
         this.postFeedSummaryLoader = Objects.requireNonNull(postFeedSummaryLoader, "postFeedSummaryLoader");
+        this.transactionCompletion = Objects.requireNonNull(transactionCompletion, "transactionCompletion");
     }
 
     @Transactional
@@ -58,7 +61,7 @@ public class BookmarkApplicationService {
     }
 
     private void markBookmarkCountDirty(UUID postId) {
-        AfterCommitExecutor.runAfterCommit(() -> {
+        transactionCompletion.afterCommit(() -> {
             try {
                 postCounterCache.markDirty(postId);
             } catch (RuntimeException ignored) {

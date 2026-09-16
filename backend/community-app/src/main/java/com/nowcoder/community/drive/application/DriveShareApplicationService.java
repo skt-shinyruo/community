@@ -4,7 +4,6 @@ import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.pagination.Pagination;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
-import com.nowcoder.community.drive.application.port.DrivePasswordHasher;
 import com.nowcoder.community.drive.application.port.DriveShareTicketCodec;
 import com.nowcoder.community.drive.application.result.DriveDownloadUrlResult;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
@@ -18,6 +17,7 @@ import com.nowcoder.community.drive.domain.repository.DriveShareAccessRepository
 import com.nowcoder.community.drive.domain.repository.DriveShareRepository;
 import com.nowcoder.community.drive.domain.repository.DriveSpaceRepository;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
+import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -47,7 +47,7 @@ public class DriveShareApplicationService {
     private final DriveShareRepository shareRepository;
     private final DriveShareAccessRepository shareAccessRepository;
     private final DriveObjectStoragePort objectStoragePort;
-    private final DrivePasswordHasher passwordHasher;
+    private final BCryptPasswordEncoder passwordEncoder = new BCryptPasswordEncoder();
     private final DriveShareTicketCodec ticketCodec;
     private final Clock clock;
     private final DriveTransactionOperations transactionOperations;
@@ -60,7 +60,6 @@ public class DriveShareApplicationService {
             DriveShareRepository shareRepository,
             DriveShareAccessRepository shareAccessRepository,
             DriveObjectStoragePort objectStoragePort,
-            DrivePasswordHasher passwordHasher,
             DriveShareTicketCodec ticketCodec,
             Clock clock,
             DriveTransactionOperations transactionOperations,
@@ -71,7 +70,6 @@ public class DriveShareApplicationService {
         this.shareRepository = Objects.requireNonNull(shareRepository, "shareRepository must not be null");
         this.shareAccessRepository = Objects.requireNonNull(shareAccessRepository, "shareAccessRepository must not be null");
         this.objectStoragePort = Objects.requireNonNull(objectStoragePort, "objectStoragePort must not be null");
-        this.passwordHasher = Objects.requireNonNull(passwordHasher, "passwordHasher must not be null");
         this.ticketCodec = Objects.requireNonNull(ticketCodec, "ticketCodec must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.transactionOperations = Objects.requireNonNull(transactionOperations, "transactionOperations must not be null");
@@ -96,7 +94,7 @@ public class DriveShareApplicationService {
                 idGenerator.next(),
                 entry.entryId(),
                 nextToken(),
-                passwordHasher.hash(password),
+                passwordEncoder.encode(password),
                 command.expiresAt(),
                 actorUserId,
                 now
@@ -160,7 +158,7 @@ public class DriveShareApplicationService {
             recordAccess(share, command.visitorFingerprint(), false, now);
             throw new BusinessException(DriveErrorCode.DRIVE_SHARE_INVALID, "分享链接不可用");
         }
-        if (!passwordHasher.matches(command.password(), share.passwordHash())) {
+        if (!passwordEncoder.matches(command.password(), share.passwordHash())) {
             recordAccess(share, command.visitorFingerprint(), false, now);
             throw new BusinessException(DriveErrorCode.DRIVE_SHARE_PASSWORD_INVALID, "提取码错误");
         }

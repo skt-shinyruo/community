@@ -2,7 +2,6 @@ package com.nowcoder.community.social.domain.repository;
 
 import com.nowcoder.community.social.domain.model.LikeRelation;
 
-import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -22,20 +21,14 @@ public interface LikeRepository {
 
     Optional<LikeRelation> findLike(UUID actorUserId, int entityType, UUID entityId);
 
-    long deleteLikesByEntity(int entityType, UUID entityId);
-
     List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit);
 
-    default List<LikeRelation> scanCommentLikesByPost(
+    List<LikeRelation> scanCommentLikesByPost(
             UUID postId,
             UUID afterCommentId,
             UUID afterActorUserId,
             int limit
-    ) {
-        return List.of();
-    }
-
-    List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit);
+    );
 
     boolean isLiked(UUID userId, int entityType, UUID entityId);
 
@@ -43,38 +36,9 @@ public interface LikeRepository {
 
     long incrementUserLikeCount(UUID userId, long delta);
 
-    default long resetUserLikeCount(UUID userId, long likeCount) {
-        long current = getUserLikeCount(userId);
-        return incrementUserLikeCount(userId, Math.max(0, likeCount) - current);
-    }
-
     long getUserLikeCount(UUID userId);
 
-    default Map<UUID, Long> countEntityLikesBatch(int entityType, List<UUID> entityIds) {
-        Map<UUID, Long> out = new HashMap<>();
-        if (entityIds == null || entityIds.isEmpty()) {
-            return out;
-        }
-        for (UUID id : entityIds) {
-            if (id == null) {
-                continue;
-            }
-            out.put(id, countEntityLikes(entityType, id));
-        }
-        return out;
-    }
+    Map<UUID, Long> countEntityLikesBatch(int entityType, List<UUID> entityIds);
 
-    default Map<UUID, Boolean> likedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
-        Map<UUID, Boolean> out = new HashMap<>();
-        if (entityIds == null || entityIds.isEmpty()) {
-            return out;
-        }
-        for (UUID id : entityIds) {
-            if (id == null) {
-                continue;
-            }
-            out.put(id, isLiked(userId, entityType, id));
-        }
-        return out;
-    }
+    Map<UUID, Boolean> likedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds);
 }

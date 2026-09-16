@@ -3,6 +3,7 @@ package com.nowcoder.community.im.realtime.fanout;
 import com.nowcoder.community.im.common.command.RoomFanoutCommand;
 import com.nowcoder.community.im.common.event.RoomMessagePersistedEvent;
 import com.nowcoder.community.im.realtime.presence.RoomPresenceDirectory;
+import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.Test;
 
 import java.util.ArrayList;
@@ -111,7 +112,7 @@ class RoomFanoutOwnerServiceTest {
         return new RoomFanoutOwnerService(
                 presenceDirectory,
                 dispatcher,
-                RoomFanoutMetrics.noop()
+                new RoomFanoutMetrics(new SimpleMeterRegistry())
         );
     }
 

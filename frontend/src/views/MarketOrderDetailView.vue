@@ -214,6 +214,7 @@ import {
 } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
 import {
   buildMarketState,
@@ -250,8 +251,6 @@ const confirmation = reactive({
   variant: 'danger',
   action: /** @type {null | (() => Promise<void> | void)} */ (null)
 })
-let activeRequestToken = 0
-let actionGeneration = 0
 
 const detail = computed(() => {
   const orders = order.value?.orderId ? [order.value] : []
@@ -295,6 +294,8 @@ const viewScope = computed(() => [
   normalizeOpaqueId(route.params.orderId),
   identityScope(auth)
 ].join(':'))
+const loadTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 const addressSnapshot = computed(() => {
   const parts = [
     order.value?.provinceSnapshot,
@@ -337,33 +338,27 @@ async function runConfirmation() {
   await action()
 }
 
-function isCurrentDetailRequest(requestToken, scope) {
-  return requestToken === activeRequestToken && scope === viewScope.value
-}
-
-function isCurrentAction(generation, scope, orderId) {
-  return generation === actionGeneration &&
-    scope === viewScope.value &&
+function isCurrentAction(requestHandle, orderId) {
+  return actionTracker.isCurrent(requestHandle) &&
     normalizeOpaqueId(route.params.orderId) === orderId
 }
 
 async function runOrderAction(orderId, action, fallbackMessage) {
   if (actionSubmitting.value || !auth.authed || !orderId || !sameOpaqueId(order.value?.orderId, orderId)) return
-  const generation = ++actionGeneration
-  const scope = viewScope.value
+  const requestHandle = actionTracker.begin()
   actionSubmitting.value = true
   actionError.value = ''
   try {
     await action(orderId)
-    if (!isCurrentAction(generation, scope, orderId)) return
+    if (!isCurrentAction(requestHandle, orderId)) return
     await loadDetail()
-    if (!isCurrentAction(generation, scope, orderId)) return
+    if (!isCurrentAction(requestHandle, orderId)) return
     resetActionForms()
   } catch (e) {
-    if (!isCurrentAction(generation, scope, orderId)) return
+    if (!isCurrentAction(requestHandle, orderId)) return
     actionError.value = e?.message || fallbackMessage
   } finally {
-    if (isCurrentAction(generation, scope, orderId)) actionSubmitting.value = false
+    if (isCurrentAction(requestHandle, orderId)) actionSubmitting.value = false
   }
 }
 
@@ -441,29 +436,28 @@ async function submitDispute() {
 }
 
 async function loadDetail() {
-  const requestToken = ++activeRequestToken
-  const scope = viewScope.value
+  const requestHandle = loadTracker.begin()
   const orderId = normalizeOpaqueId(route.params.orderId)
   loading.value = true
   error.value = ''
   order.value = null
   try {
     const { data } = await getMarketOrderDetail(orderId)
-    if (!isCurrentDetailRequest(requestToken, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     order.value = data?.orderId ? data : null
   } catch (e) {
-    if (!isCurrentDetailRequest(requestToken, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载订单详情失败'
   } finally {
-    if (isCurrentDetailRequest(requestToken, scope)) loading.value = false
+    if (loadTracker.isCurrent(requestHandle)) loading.value = false
   }
 }
 
 watch(
   viewScope,
   () => {
-    activeRequestToken += 1
-    actionGeneration += 1
+    loadTracker.invalidate()
+    actionTracker.invalidate()
     loading.value = false
     actionSubmitting.value = false
     error.value = ''
@@ -476,8 +470,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  activeRequestToken += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>
 

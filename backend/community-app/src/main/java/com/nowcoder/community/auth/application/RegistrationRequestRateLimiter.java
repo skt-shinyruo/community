@@ -7,7 +7,6 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 
-import java.text.Normalizer;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
@@ -45,8 +44,8 @@ public class RegistrationRequestRateLimiter {
             RegistrationProperties.RequestLimit limits = properties.getRequestLimit();
             List<RegistrationRateLimitPort.Quota> quotas = new ArrayList<>(3);
             addQuota(quotas, REQUEST, IP, clientIpOrSentinel(clientIp), limits.getMaxRequestsPerIp());
-            addQuota(quotas, REQUEST, USERNAME, canonical(username), limits.getMaxRequestsPerUsername());
-            addQuota(quotas, REQUEST, EMAIL, canonical(email), limits.getMaxRequestsPerEmail());
+            addQuota(quotas, REQUEST, USERNAME, AuthIdentifierCanonicalizer.canonicalize(username), limits.getMaxRequestsPerUsername());
+            addQuota(quotas, REQUEST, EMAIL, AuthIdentifierCanonicalizer.canonicalize(email), limits.getMaxRequestsPerEmail());
             enforceAll(REQUEST, limits.getWindowSeconds(), quotas, "注册请求过于频繁，请稍后再试");
         } catch (BusinessException exception) {
             throw exception;
@@ -63,7 +62,7 @@ public class RegistrationRequestRateLimiter {
             RegistrationProperties.ResendLimit limits = properties.getResendLimit();
             List<RegistrationRateLimitPort.Quota> quotas = new ArrayList<>(3);
             addQuota(quotas, RESEND, IP, clientIpOrSentinel(clientIp), limits.getMaxRequestsPerIp());
-            addQuota(quotas, RESEND, EMAIL, canonical(email), limits.getMaxRequestsPerEmail());
+            addQuota(quotas, RESEND, EMAIL, AuthIdentifierCanonicalizer.canonicalize(email), limits.getMaxRequestsPerEmail());
             addQuota(quotas, RESEND, REGISTRATION,
                     registrationId.toString(), limits.getMaxRequestsPerRegistration());
             enforceAll(RESEND, limits.getWindowSeconds(), quotas, "注册验证码发送过于频繁，请稍后再试");
@@ -115,25 +114,7 @@ public class RegistrationRequestRateLimiter {
     }
 
     private String clientIpOrSentinel(String clientIp) {
-        String canonicalIp = canonical(clientIp);
+        String canonicalIp = AuthIdentifierCanonicalizer.canonicalize(clientIp);
         return StringUtils.hasText(canonicalIp) ? canonicalIp : UNRESOLVED_CLIENT_IP;
-    }
-
-    private String canonical(String value) {
-        if (!StringUtils.hasText(value)) {
-            return "";
-        }
-        String folded = value.trim().toUpperCase(Locale.ROOT).toLowerCase(Locale.ROOT);
-        String decomposed = Normalizer.normalize(folded, Normalizer.Form.NFKD);
-        StringBuilder result = new StringBuilder(decomposed.length());
-        decomposed.codePoints()
-                .filter(codePoint -> {
-                    int type = Character.getType(codePoint);
-                    return type != Character.NON_SPACING_MARK
-                            && type != Character.COMBINING_SPACING_MARK
-                            && type != Character.ENCLOSING_MARK;
-                })
-                .forEach(result::appendCodePoint);
-        return result.toString();
     }
 }

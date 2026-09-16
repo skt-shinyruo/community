@@ -22,9 +22,6 @@ import java.util.UUID;
 @Service
 public class NoticeApplicationService {
 
-    public static final UUID SYSTEM_NOTICE_SENDER_ID = NoticeRecord.SYSTEM_NOTICE_SENDER_ID;
-    public static final int STATUS_UNREAD = NoticeDomainService.STATUS_UNREAD;
-    public static final int STATUS_READ = NoticeDomainService.STATUS_READ;
     public static final int STATUS_REVOKED = 2;
 
     private final NoticeRepository noticeRepository;
@@ -47,22 +44,15 @@ public class NoticeApplicationService {
         noticeDomainService.validateCreate(command.toUserId(), command.noticeTopic(), command.contentJson());
         NoticeRecord notice = new NoticeRecord();
         notice.setId(idGenerator.next());
-        notice.setSenderUserId(SYSTEM_NOTICE_SENDER_ID);
+        notice.setSenderUserId(NoticeRecord.SYSTEM_NOTICE_SENDER_ID);
         notice.setRecipientUserId(command.toUserId());
         notice.setTopic(command.noticeTopic());
         notice.setContent(command.contentJson());
         notice.setSourceEventType(command.sourceEventType());
         notice.setSourceRelationKey(command.sourceRelationKey());
-        notice.setStatus(STATUS_UNREAD);
+        notice.setStatus(NoticeDomainService.STATUS_UNREAD);
         notice.setCreateTime(Date.from(clock.instant()));
         noticeRepository.insert(notice);
-    }
-
-    public List<NoticeRecord> listNotices(UUID userId, String noticeTopic, int page, int size) {
-        int p = noticeDomainService.pageOrDefault(page);
-        int s = noticeDomainService.sizeOrDefault(size);
-        int offset = Pagination.safeOffset(p, s);
-        return noticeRepository.findByUserAndTopic(userId, noticeTopic, offset, s);
     }
 
     public List<NoticeItemResult> listNoticeItems(ListNoticeItemsCommand command) {
@@ -75,10 +65,6 @@ public class NoticeApplicationService {
             return List.of();
         }
         return list.stream().map(this::toNoticeItemResult).toList();
-    }
-
-    public List<NoticeItemResult> listNoticeItems(UUID userId, String noticeTopic, Integer page, Integer size) {
-        return listNoticeItems(new ListNoticeItemsCommand(userId, noticeTopic, page, size));
     }
 
     public int unreadCount(UUID userId, String noticeTopic) {

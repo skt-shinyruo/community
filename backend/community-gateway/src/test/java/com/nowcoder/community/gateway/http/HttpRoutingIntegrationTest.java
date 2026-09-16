@@ -73,8 +73,16 @@ class HttpRoutingIntegrationTest {
         registry.add("spring.cloud.discovery.client.simple.instances.community-oss[0].uri", HttpRoutingIntegrationTest::ossBaseUrl);
         registry.add("spring.cloud.nacos.discovery.enabled", () -> "false");
         registry.add("spring.cloud.nacos.config.enabled", () -> "false");
-        registry.add("gateway.cors.allowed-origins[0]", () -> "http://localhost:12881");
-        registry.add("gateway.cors.allowed-origins[1]", () -> "http://127.0.0.1:12881");
+        String cors = "spring.cloud.gateway.server.webflux.globalcors.cors-configurations";
+        for (String pattern : new String[]{"/api/**", "/files/**"}) {
+            registry.add(cors + "[" + pattern + "].allowed-origins[0]", () -> "http://localhost:12881");
+            registry.add(cors + "[" + pattern + "].allowed-origins[1]", () -> "http://127.0.0.1:12881");
+            registry.add(cors + "[" + pattern + "].allowed-methods", () -> "GET,POST,PUT,PATCH,DELETE,OPTIONS");
+            registry.add(cors + "[" + pattern + "].allowed-headers", () -> "*");
+            registry.add(cors + "[" + pattern + "].exposed-headers", () -> "traceparent");
+            registry.add(cors + "[" + pattern + "].allow-credentials", () -> "true");
+            registry.add(cors + "[" + pattern + "].max-age", () -> "3600");
+        }
     }
 
     @AfterAll

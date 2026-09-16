@@ -2,7 +2,7 @@ package com.nowcoder.community.im.core.controller;
 
 import com.nowcoder.community.im.core.application.UnreadApplicationService;
 import com.nowcoder.community.im.core.application.result.UnreadSummaryResult;
-import com.nowcoder.community.im.core.security.CurrentUser;
+import com.nowcoder.community.common.security.jwt.JwtSubjects;
 import com.nowcoder.community.common.web.Result;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -28,7 +28,7 @@ public class UnreadController {
             @AuthenticationPrincipal Jwt jwt,
             @RequestParam(name = "limit", required = false, defaultValue = "500") int limit
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         return Result.ok(unreadApplicationService.summary(me, limit));
     }
 }

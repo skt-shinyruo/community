@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.domain.model.MarketDeliveryMode;
 import com.nowcoder.community.market.domain.model.MarketGoodsType;
 import com.nowcoder.community.market.domain.model.MarketOrder;
@@ -49,8 +48,6 @@ class MarketOrderTransitionRepositoryTest {
     @Autowired
     private MarketOrderRepository repository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

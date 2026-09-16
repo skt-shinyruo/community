@@ -2,7 +2,6 @@ package com.nowcoder.community.content.domain.repository;
 
 import com.nowcoder.community.content.domain.model.Report;
 
-import java.util.List;
 import java.util.UUID;
 
 public interface ReportContentRepository {
@@ -18,10 +17,4 @@ public interface ReportContentRepository {
     UUID createReport(Report report);
 
     UUID findExistingReportId(UUID reporterId, int targetType, UUID targetId);
-
-    Report getById(UUID reportId);
-
-    List<Report> listReports(Integer status, Integer targetType, UUID reporterId, int page, int size);
-
-    void markStatus(UUID reportId, int status);
 }

@@ -2,6 +2,7 @@ package com.nowcoder.community.search.infrastructure.persistence;
 
 import com.nowcoder.community.search.application.SearchIndexRebuildPort;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
+import com.nowcoder.community.search.infrastructure.LeaseRenewalScheduler;
 import jakarta.annotation.PreDestroy;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.slf4j.Logger;
@@ -11,10 +12,8 @@ import org.springframework.stereotype.Component;
 import java.time.Duration;
 import java.util.List;
 import java.util.Objects;
-import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.ScheduledFuture;
-import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 
 @Component
@@ -133,12 +132,10 @@ public class ElasticsearchSearchIndexRebuildAdapter implements SearchIndexRebuil
         private ElasticsearchRebuildSession(String indexName, Duration visibilityTtl) {
             this.indexName = indexName;
             this.visibilityTtl = visibilityTtl;
-            long renewalIntervalMs = Math.max(1L, visibilityTtl.dividedBy(3).toMillis());
-            this.renewal = targetRenewer.scheduleAtFixedRate(
-                    this::refreshTargetLease,
-                    renewalIntervalMs,
-                    renewalIntervalMs,
-                    TimeUnit.MILLISECONDS
+            this.renewal = LeaseRenewalScheduler.scheduleThirdOfTtl(
+                    targetRenewer,
+                    visibilityTtl,
+                    this::refreshTargetLease
             );
         }
 
@@ -208,10 +205,6 @@ public class ElasticsearchSearchIndexRebuildAdapter implements SearchIndexRebuil
     }
 
     private static ScheduledExecutorService newTargetRenewer() {
-        return Executors.newSingleThreadScheduledExecutor(runnable -> {
-            Thread thread = new Thread(runnable, "search-reindex-target-renewer");
-            thread.setDaemon(true);
-            return thread;
-        });
+        return LeaseRenewalScheduler.newDaemonScheduler("search-reindex-target-renewer");
     }
 }

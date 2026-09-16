@@ -127,7 +127,7 @@ terminal deletion 不等待帖子删除状态对当前数据库读取可见，�
 7. `PostRepository.create(...)` 写入帖子元信息。
 8. 校验媒体资源归属、类型和上传状态，并把被 blocks 引用的媒体资源绑定到帖子。
 9. `PostContentBlockRepository.replaceBlocks(...)` 写入有序正文 blocks。
-10. `PostTagRepository.bindTagsToPost(...)` 绑定标签。
+10. `TagContentRepository.bindTagsToPost(...)` 绑定标签。
 11. `PostIntegrationEventPublisher` 从 owner 当前事实组装 `PostPublished` contract event，并在同一事务写入 outbox。
 12. content contract event 进入 Kafka 后，驱动 Search、Notice、Wallet reward、Growth 和 Hot feed 投影异步追平。
 13. `PostHotFeedProjectionApplicationService` 收到该 owner event 后回源帖子/点赞当前状态，重算 score 并更新缓存与 hot feed。
@@ -370,7 +370,7 @@ contract events：
 - `content.application.CommentApplicationService`
 - `content.application.CommentReadApplicationService`
 - `content.application.BookmarkApplicationService`
-- `content.application.SubscriptionQuery`（纯读查询契约，由 persistence adapter 实现）
+- `content.application.SubscriptionApplicationService`（分类订阅纯读入口）
 - `content.application.ReportApplicationService`
 - `content.application.ModerationApplicationService`
 - `content.application.PostModerationApplicationService`

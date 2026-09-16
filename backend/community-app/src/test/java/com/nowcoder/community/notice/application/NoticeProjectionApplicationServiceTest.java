@@ -12,7 +12,6 @@ import org.mockito.ArgumentCaptor;
 
 import java.time.Instant;
 import java.util.List;
-import java.util.Optional;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.assertj.core.api.Assertions.assertThat;
@@ -125,7 +124,9 @@ class NoticeProjectionApplicationServiceTest {
     @Test
     void commentProjectionShouldBoundEscapedPreviewsWithoutChangingSourceContent() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionApplicationService service = projectionService(noticeService, null);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord(any())).thenReturn(true);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
         String quotedContent = "\"".repeat(2_000);
         String backslashContent = "\\".repeat(2_000);
         ProjectNoticeCommand.CommentCreated quoted = commentCommand(
@@ -150,7 +151,9 @@ class NoticeProjectionApplicationServiceTest {
     @Test
     void commentProjectionShouldEndEmojiPreviewOnAWholeCodePoint() {
         NoticeApplicationService noticeService = mock(NoticeApplicationService.class);
-        NoticeProjectionApplicationService service = projectionService(noticeService, null);
+        NoticeProjectionEventRecorder eventRecorder = mock(NoticeProjectionEventRecorder.class);
+        when(eventRecorder.tryRecord(any())).thenReturn(true);
+        NoticeProjectionApplicationService service = projectionService(noticeService, eventRecorder);
         String emoji = "\uD83D\uDE00";
         String sourceContent = emoji.repeat(241);
         ProjectNoticeCommand.CommentCreated command = commentCommand(
@@ -275,7 +278,7 @@ class NoticeProjectionApplicationServiceTest {
         NoticePolicyProperties properties = new NoticePolicyProperties();
         properties.setProjectionEnabled(false);
         NoticeProjectionApplicationService service = new NoticeProjectionApplicationService(
-                jsonCodec(), noticeService, properties, Optional.of(eventRecorder), Optional.empty());
+                jsonCodec(), noticeService, properties, eventRecorder, mock(LikeNoticeProjectionStateRepository.class));
 
         assertThatThrownBy(() -> service.projectReliably(commentCommand("evt-disabled", uuid(100), uuid(9))))
                 .isInstanceOf(IllegalStateException.class)
@@ -315,8 +318,8 @@ class NoticeProjectionApplicationServiceTest {
                 jsonCodec(),
                 noticeService,
                 new NoticePolicyProperties(),
-                Optional.ofNullable(eventRecorder),
-                Optional.ofNullable(stateRepository)
+                eventRecorder,
+                stateRepository
         );
     }
 

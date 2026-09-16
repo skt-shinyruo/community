@@ -3,8 +3,7 @@ package com.nowcoder.community.content.infrastructure.persistence;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
-import com.nowcoder.community.content.application.SubscriptionQuery;
+import com.nowcoder.community.content.domain.repository.SubscriptionRepository;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -26,16 +25,14 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
         webEnvironment = SpringBootTest.WebEnvironment.MOCK
 )
 @ActiveProfiles("test")
-class SubscriptionQueryPersistenceTest {
+class SubscriptionRepositoryPersistenceTest {
 
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
     @Autowired
-    private SubscriptionQuery subscriptionQuery;
+    private SubscriptionRepository subscriptionQuery;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

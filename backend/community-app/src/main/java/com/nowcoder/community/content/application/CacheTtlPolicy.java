@@ -30,13 +30,6 @@ public class CacheTtlPolicy {
         return safeBase.plusSeconds(offset);
     }
 
-    private static Duration positive(Duration value) {
-        if (value == null || value.isZero() || value.isNegative()) {
-            return Duration.ofSeconds(1L);
-        }
-        return value;
-    }
-
     private static long stablePositiveHash(String value) {
         CRC32 crc32 = new CRC32();
         crc32.update(value.getBytes(StandardCharsets.UTF_8));

@@ -3,7 +3,6 @@ package com.nowcoder.community.social.infrastructure.persistence;
 import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.EntityLikeCountDataObject;
-import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeOwnerCountDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeScanDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.LikeMapper;
 import org.springframework.dao.DuplicateKeyException;
@@ -90,23 +89,6 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public long deleteLikesByEntity(int entityType, UUID entityId) {
-        List<LikeOwnerCountDataObject> ownerCounts = mapper.countLikeOwnersByEntity(entityType, entityId);
-        int deleted = mapper.deleteLikesByEntity(entityType, entityId);
-        if (deleted <= 0 || ownerCounts == null || ownerCounts.isEmpty()) {
-            return deleted;
-        }
-        for (LikeOwnerCountDataObject ownerCount : ownerCounts) {
-            if (ownerCount == null || ownerCount.getEntityUserId() == null || ownerCount.getLikeCount() <= 0) {
-                continue;
-            }
-            long current = getUserLikeCount(ownerCount.getEntityUserId());
-            mapper.resetUserLikeCount(ownerCount.getEntityUserId(), Math.max(0, current - ownerCount.getLikeCount()));
-        }
-        return deleted;
-    }
-
-    @Override
     public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
         UUID cursor = afterActorUserId == null ? new UUID(0L, 0L) : afterActorUserId;
         List<LikeScanDataObject> rows = mapper.scanLikesByEntity(entityType, entityId, cursor, limit);
@@ -146,16 +128,6 @@ public class MyBatisLikeRepository implements LikeRepository {
     }
 
     @Override
-    public List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit) {
-        UUID cursor = afterEntityId == null ? new UUID(0L, 0L) : afterEntityId;
-        if (limit <= 0) {
-            return List.of();
-        }
-        List<UUID> targetIds = mapper.scanTargetIdsAfter(entityType, cursor, limit);
-        return targetIds == null ? List.of() : targetIds;
-    }
-
-    @Override
     public boolean isLiked(UUID userId, int entityType, UUID entityId) {
         return mapper.countLike(userId, entityType, entityId) > 0;
     }
@@ -171,13 +143,6 @@ public class MyBatisLikeRepository implements LikeRepository {
             return getUserLikeCount(userId);
         }
         mapper.incrementUserLikeCount(userId, delta);
-        return getUserLikeCount(userId);
-    }
-
-    @Override
-    public long resetUserLikeCount(UUID userId, long likeCount) {
-        long normalized = Math.max(0, likeCount);
-        mapper.resetUserLikeCount(userId, normalized);
         return getUserLikeCount(userId);
     }
 

@@ -5,7 +5,6 @@ import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.application.CommentApplicationService.CommentCreateResult;
 import com.nowcoder.community.content.application.PostCounterApplicationService.RecordPostViewCommand;
@@ -81,9 +80,6 @@ class PostControllerUnitTest {
     @Mock
     private PostCounterApplicationService postCounterApplicationService;
 
-    @Mock
-    private ClientIpResolver clientIpResolver;
-
     private PostController controller;
 
     @BeforeEach
@@ -95,7 +91,6 @@ class PostControllerUnitTest {
                 postModerationApplicationService,
                 commentApplicationService,
                 postCounterApplicationService,
-                clientIpResolver,
                 CLOCK
         );
     }
@@ -224,7 +219,6 @@ class PostControllerUnitTest {
                 .isEqualTo("auth:" + actorUserId)
                 .doesNotContain("198.51.100.1");
         assertThat(viewCommandCaptor.getValue().viewedAt()).isEqualTo(NOW);
-        verify(clientIpResolver, never()).resolve(request);
         verify(commentReadApplicationService).listRootComments(postId, rootCursor, 10);
         verify(commentReadApplicationService).listReplies(postId, commentId, replyCursor, 10);
     }
@@ -241,17 +235,16 @@ class PostControllerUnitTest {
     }
 
     @Test
-    void anonymousDetailShouldUseResolvedClientIpInsteadOfSpoofedForwardedHeader() {
+    void anonymousDetailShouldUseRemoteAddrInsteadOfSpoofedForwardedHeader() {
         UUID postId = uuid(11);
         UUID authorUserId = uuid(7);
         UUID categoryId = uuid(3);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
+        // The Tomcat RemoteIpValve (server.forward-headers-strategy=native) owns XFF trust
+        // decisions; the controller must only read the resolved remote address.
+        request.setRemoteAddr("198.51.100.1");
         request.addHeader("X-Forwarded-For", "192.0.2.66");
         request.addHeader("User-Agent", "test-agent");
-        when(clientIpResolver.resolve(request)).thenReturn(new ClientIpResolver.ResolvedClientIp(
-                "198.51.100.1",
-                ClientIpResolver.SOURCE_XFF
-        ));
         when(postReadApplicationService.getPostDetail(null, postId))
                 .thenReturn(postDetailView(postId, authorUserId, categoryId, "detail"));
 
@@ -266,14 +259,14 @@ class PostControllerUnitTest {
     }
 
     @Test
-    void anonymousDetailShouldUseUnknownWhenResolverReturnsNoResultInsteadOfReadingForwardedHeader() {
+    void anonymousDetailShouldUseUnknownWhenNoRemoteAddrInsteadOfReadingForwardedHeader() {
         UUID postId = uuid(11);
         UUID authorUserId = uuid(7);
         UUID categoryId = uuid(3);
         MockHttpServletRequest request = new MockHttpServletRequest("GET", "/api/posts/" + postId);
+        request.setRemoteAddr(null);
         request.addHeader("X-Forwarded-For", "192.0.2.66");
         request.addHeader("User-Agent", "test-agent");
-        when(clientIpResolver.resolve(request)).thenReturn(null);
         when(postReadApplicationService.getPostDetail(null, postId))
                 .thenReturn(postDetailView(postId, authorUserId, categoryId, "detail"));
 
@@ -281,7 +274,6 @@ class PostControllerUnitTest {
 
         ArgumentCaptor<RecordPostViewCommand> commandCaptor = ArgumentCaptor.forClass(RecordPostViewCommand.class);
         verify(postCounterApplicationService).recordView(commandCaptor.capture());
-        verify(clientIpResolver).resolve(request);
         assertThat(commandCaptor.getValue().viewerKey())
                 .isEqualTo("anon:unknown|test-agent")
                 .doesNotContain("192.0.2.66");

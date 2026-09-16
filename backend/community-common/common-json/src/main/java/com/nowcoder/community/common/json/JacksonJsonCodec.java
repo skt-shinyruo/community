@@ -1,6 +1,5 @@
 package com.nowcoder.community.common.json;
 
-import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.DeserializationFeature;
 import com.fasterxml.jackson.databind.JsonNode;
@@ -16,13 +15,6 @@ public class JacksonJsonCodec {
 
     public JacksonJsonCodec(ObjectMapper objectMapper) {
         this.objectMapper = Objects.requireNonNull(objectMapper, "objectMapper");
-    }
-
-    /**
-     * Standard codec: module auto-discovery, ISO-8601 dates, unknown properties ignored.
-     */
-    public static JacksonJsonCodec standard() {
-        return new JacksonJsonCodec(standardMapper());
     }
 
     /**

@@ -10,7 +10,6 @@ import org.springframework.stereotype.Component;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.List;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicInteger;
@@ -139,14 +138,6 @@ public class ConnectionRegistry {
                 consumer.accept(conn);
             }
         }
-    }
-
-    public int onlineConnectionCount() {
-        return onlineConnections.get();
-    }
-
-    public Map<String, ConnectionState> snapshotAll() {
-        return Map.copyOf(byConnectionId);
     }
 
     private void recordConnectionsPerUserSize(Set<String> ids) {

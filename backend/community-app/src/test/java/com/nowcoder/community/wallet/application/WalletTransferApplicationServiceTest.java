@@ -6,7 +6,6 @@ import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.api.query.UserLookupQueryApi;
 import com.nowcoder.community.user.application.UserReadApplicationService;
@@ -52,8 +51,6 @@ class WalletTransferApplicationServiceTest {
     @Autowired
     private WalletAccountApplicationService accountService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @MockitoBean
     private UserReadApplicationService userReadApplicationService;

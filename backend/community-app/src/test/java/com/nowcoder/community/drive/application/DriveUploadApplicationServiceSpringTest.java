@@ -2,7 +2,6 @@ package com.nowcoder.community.drive.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.CompleteUploadCommand;
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
@@ -70,8 +69,6 @@ class DriveUploadApplicationServiceSpringTest {
     @MockitoBean
     private DriveObjectStoragePort objectStoragePort;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

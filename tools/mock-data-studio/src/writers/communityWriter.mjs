@@ -1,6 +1,7 @@
 import { formatMysqlTimestamp } from '../db/mysql.mjs'
 import { generateCommunityPhaseDataset } from '../generator/contentGenerator.mjs'
 import { generateDomainPhaseDataset } from '../generator/domainGenerator.mjs'
+import { appendEntityRefs, buildTimestampSource, createGeneratedRef, formatBulkInsert, toInsertParams } from './shared.mjs'
 
 const ENTITY_TYPE_POST = 1
 const ENTITY_TYPE_COMMENT = 2
@@ -33,10 +34,6 @@ function buildEmptyInsertedCounts() {
   }
 }
 
-function resolveRunDb(db, txDb) {
-  return txDb ?? db
-}
-
 function expandInsertedIds(result, rowCount) {
   if (rowCount === 0) {
     return []
@@ -48,47 +45,6 @@ function expandInsertedIds(result, rowCount) {
   }
 
   return Array.from({ length: rowCount }, (_, index) => firstId + index)
-}
-
-function formatBulkInsert(tableName, columns, rowCount) {
-  const valueGroup = `(${columns.map(() => '?').join(', ')})`
-  return `insert into ${tableName} (${columns.join(', ')}) values ${Array.from({ length: rowCount }, () => valueGroup).join(', ')}`
-}
-
-function createGeneratedRef(entityType, entityKey, createdAt) {
-  return {
-    entityType,
-    entityKey: String(entityKey),
-    createdAt
-  }
-}
-
-async function appendEntityRefs({ db, entityRefRepository, batchId, refs, txDb = null }) {
-  if (refs.length === 0) {
-    return []
-  }
-
-  if (entityRefRepository?.appendForBatch) {
-    await entityRefRepository.appendForBatch(batchId, refs, {
-      txDb: resolveRunDb(db, txDb)
-    })
-    return refs
-  }
-
-  const runDb = resolveRunDb(db, txDb)
-  for (const ref of refs) {
-    await runDb.execute(
-      `insert into demo_entity_ref (
-        batch_id,
-        entity_type,
-        entity_key,
-        created_at
-      ) values (?, ?, ?, ?)`,
-      [batchId, ref.entityType, ref.entityKey, formatMysqlTimestamp(ref.createdAt, 'demo_entity_ref.createdAt')]
-    )
-  }
-
-  return refs
 }
 
 function resolveId(ref, ids) {
@@ -180,34 +136,24 @@ async function loadExistingDomainState(runDb, { batchRefs = [] } = {}) {
   }
 }
 
-function buildTimestampSource(now) {
-  return () => {
-    const timestamp = now()
-    return {
-      iso: timestamp,
-      mysql: formatMysqlTimestamp(timestamp, 'communityWriter.timestamp')
-    }
-  }
-}
-
-function toInsertParams(rows) {
-  return rows.flatMap((row) => row)
-}
-
 function resolveOptionalIsoTimestamp(value, label) {
   return value == null ? null : formatMysqlTimestamp(value, label)
 }
 
 export function createCommunityWriter({
   db,
-  entityRefRepository = null,
+  entityRefRepository,
   now = () => new Date().toISOString()
 } = {}) {
   if (!db?.query || !db?.execute) {
     throw new Error('db.query and db.execute are required')
   }
 
-  const nextTimestamp = buildTimestampSource(now)
+  if (!entityRefRepository?.appendForBatch || !entityRefRepository?.listByBatchId) {
+    throw new Error('entityRefRepository.appendForBatch and entityRefRepository.listByBatchId are required')
+  }
+
+  const nextTimestamp = buildTimestampSource(now, 'communityWriter.timestamp')
 
   return {
     async writePhase({ batchId, plan, seed = null } = {}) {
@@ -233,12 +179,9 @@ export function createCommunityWriter({
         }
       }
 
-      const runInTransaction = db.withTransaction ? (work) => db.withTransaction(work) : (work) => work(db)
-
-      return runInTransaction(async (txDb) => {
-        const runDb = resolveRunDb(db, txDb)
+      return db.withTransaction(async (runDb) => {
         const existing = await loadExistingState(runDb)
-        const batchRefs = entityRefRepository?.listByBatchId ? await entityRefRepository.listByBatchId(batchId) : []
+        const batchRefs = await entityRefRepository.listByBatchId(batchId)
         const existingDomain = await loadExistingDomainState(runDb, {
           batchRefs
         })
@@ -583,7 +526,6 @@ export function createCommunityWriter({
         insertedCounts.userTaskProgress = insertedTaskProgressIds.length
 
         await appendEntityRefs({
-          db,
           entityRefRepository,
           batchId,
           refs: generatedRefs,

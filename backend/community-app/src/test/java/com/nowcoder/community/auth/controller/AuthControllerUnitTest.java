@@ -37,7 +37,6 @@ import com.nowcoder.community.common.constants.ValidationLimits;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import jakarta.servlet.http.Cookie;
 import jakarta.validation.Validation;
 import jakarta.validation.Validator;
@@ -92,22 +91,17 @@ class AuthControllerUnitTest {
     @Mock
     private PasswordResetApplicationService passwordResetApplicationService;
 
-    @Mock
-    private ClientIpResolver clientIpResolver;
-
     private AuthController controller;
 
     @BeforeEach
     void setUp() {
         lenient().when(loginApplicationService.refreshCookieName()).thenReturn("refresh_token");
-        lenient().when(clientIpResolver.resolve(any())).thenReturn(new ClientIpResolver.ResolvedClientIp("127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
         controller = new AuthController(
                 loginApplicationService,
                 registrationApplicationService,
                 registrationVerificationApplicationService,
                 captchaApplicationService,
-                passwordResetApplicationService,
-                clientIpResolver
+                passwordResetApplicationService
         );
     }
 
@@ -181,7 +175,7 @@ class AuthControllerUnitTest {
 
         String setCookie = httpResponse.getHeader(HttpHeaders.SET_COOKIE);
         assertIssuedRefreshCookie(setCookie, "rt", true);
-        verify(loginApplicationService).login(new LoginCommand("u", "p", null, null, "127.0.0.1", ClientIpResolver.SOURCE_REMOTE));
+        verify(loginApplicationService).login(new LoginCommand("u", "p", null, null, "127.0.0.1", "remote"));
     }
 
     @Test

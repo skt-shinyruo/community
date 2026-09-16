@@ -2,11 +2,13 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.CreateRechargeCommand;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService.RechargeOrderResult;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.CreateWithdrawCommand;
 import com.nowcoder.community.wallet.application.WalletWithdrawApplicationService.WithdrawOrderResult;
+import com.nowcoder.community.wallet.domain.model.WalletAccount;
+import com.nowcoder.community.wallet.domain.repository.WalletAccountRepository;
+import com.nowcoder.community.wallet.domain.service.WalletAccountDomainService;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.AfterEach;
@@ -41,6 +43,9 @@ class WalletTestCreditApplicationServiceTest {
     private WalletAccountApplicationService accountService;
 
     @Autowired
+    private WalletAccountRepository walletAccountRepository;
+
+    @Autowired
     private WalletTestCreditQuotaPort quotaPort;
 
     @MockitoSpyBean
@@ -49,8 +54,6 @@ class WalletTestCreditApplicationServiceTest {
     @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -82,8 +85,8 @@ class WalletTestCreditApplicationServiceTest {
         assertThat(result.requestId()).isEqualTo("test-credit:grant:101");
         assertThat(result.orderId().version()).isEqualTo(7);
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(600L);
-        assertThat(accountService.balanceOfSystem("PLATFORM_TEST_CREDIT_EXPENSE")).isEqualTo(600L);
-        assertThat(accountService.balanceOfSystem("PLATFORM_CASH")).isZero();
+        assertThat(systemBalance("PLATFORM_TEST_CREDIT_EXPENSE")).isEqualTo(600L);
+        assertThat(systemBalance("PLATFORM_CASH")).isZero();
         assertThat(txnTypeFor("wallet:test-credit:grant:%")).isEqualTo("TEST_CREDIT_GRANT");
     }
 
@@ -98,9 +101,9 @@ class WalletTestCreditApplicationServiceTest {
 
         assertThat(result.status()).isEqualTo("SUCCEEDED");
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(350L);
-        assertThat(accountService.balanceOfSystem("PLATFORM_TEST_CREDIT_EXPENSE")).isEqualTo(350L);
-        assertThat(accountService.balanceOfSystem("PLATFORM_CASH")).isZero();
-        assertThat(accountService.balanceOfSystem("WITHDRAW_PENDING")).isZero();
+        assertThat(systemBalance("PLATFORM_TEST_CREDIT_EXPENSE")).isEqualTo(350L);
+        assertThat(systemBalance("PLATFORM_CASH")).isZero();
+        assertThat(systemBalance("WITHDRAW_PENDING")).isZero();
         assertThat(txnTypeFor("wallet:test-credit:discard:%")).isEqualTo("TEST_CREDIT_DISCARD");
         assertThat(jdbcTemplate.queryForObject(
                 "select count(*) from wallet_txn where txn_type = 'WITHDRAW'",
@@ -204,7 +207,7 @@ class WalletTestCreditApplicationServiceTest {
         int entryRowsBefore = countRows("wallet_entry");
         int accountRowsBefore = countRows("wallet_account");
         long userBalanceBefore = accountService.balanceOfUser(userId);
-        long expenseBalanceBefore = accountService.balanceOfSystem("PLATFORM_TEST_CREDIT_EXPENSE");
+        long expenseBalanceBefore = systemBalance("PLATFORM_TEST_CREDIT_EXPENSE");
         reset(ledgerService);
         doThrow(new IllegalStateException("ledger post failed"))
                 .when(ledgerService).post(any());
@@ -223,7 +226,7 @@ class WalletTestCreditApplicationServiceTest {
         assertThat(countRows("wallet_entry")).isEqualTo(entryRowsBefore);
         assertThat(countRows("wallet_account")).isEqualTo(accountRowsBefore);
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(userBalanceBefore);
-        assertThat(accountService.balanceOfSystem("PLATFORM_TEST_CREDIT_EXPENSE"))
+        assertThat(systemBalance("PLATFORM_TEST_CREDIT_EXPENSE"))
                 .isEqualTo(expenseBalanceBefore);
     }
 
@@ -233,6 +236,15 @@ class WalletTestCreditApplicationServiceTest {
                 String.class,
                 requestIdPattern
         );
+    }
+
+    private long systemBalance(String accountType) {
+        WalletAccount account = walletAccountRepository.findByOwner(
+                WalletAccountDomainService.OWNER_TYPE_SYSTEM,
+                new UUID(0, 0),
+                accountType
+        );
+        return account == null ? 0L : account.getBalance();
     }
 
     private int countRows(String tableName) {

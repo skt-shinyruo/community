@@ -3,17 +3,16 @@ package com.nowcoder.community.content.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.idempotency.IdempotencyGuard;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.CreatePostCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.PostContentBlockCommand;
 import com.nowcoder.community.content.application.command.PostMediaReferenceCommand;
 import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
-import com.nowcoder.community.content.domain.repository.CategoryRepository;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostRepository;
-import com.nowcoder.community.content.domain.repository.PostTagRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -90,10 +89,10 @@ class PostPublishingMediaMainTransactionIntegrationTest {
     private PostContentBlockRepository blockRepository;
 
     @MockitoBean
-    private CategoryRepository categoryRepository;
+    private CategoryContentRepository categoryRepository;
 
     @MockitoBean
-    private PostTagRepository tagRepository;
+    private TagContentRepository tagRepository;
 
     @MockitoBean
     private PostIntegrationEventPublisher integrationEventPublisher;
@@ -104,8 +103,6 @@ class PostPublishingMediaMainTransactionIntegrationTest {
     @MockitoBean
     private PostMediaStoragePort storagePort;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @MockitoSpyBean
     private PostMediaReferenceCommandPublisher commandPublisher;

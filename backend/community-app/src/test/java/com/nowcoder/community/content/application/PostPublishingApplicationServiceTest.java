@@ -12,11 +12,11 @@ import com.nowcoder.community.content.application.PostPublishingApplicationServi
 import com.nowcoder.community.content.application.PostPublishingApplicationService.PostCreateResult;
 import com.nowcoder.community.content.domain.model.PostDraft;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
-import com.nowcoder.community.content.domain.repository.CategoryRepository;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.PostRepository;
-import com.nowcoder.community.content.domain.repository.PostTagRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -66,8 +66,8 @@ class PostPublishingApplicationServiceTest {
     private PostContentBlockRepository postContentBlockRepository;
     private PostMediaAssetRepository postMediaAssetRepository;
     private PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher;
-    private CategoryRepository categoryRepository;
-    private PostTagRepository postTagRepository;
+    private CategoryContentRepository categoryRepository;
+    private TagContentRepository postTagRepository;
     private PostIntegrationEventPublisher integrationEventPublisher;
     private PostMediaReferenceScheduler mediaReferenceScheduler;
     private PostPublishingApplicationService service;
@@ -87,8 +87,8 @@ class PostPublishingApplicationServiceTest {
         postContentBlockRepository = mock(PostContentBlockRepository.class);
         postMediaAssetRepository = mock(PostMediaAssetRepository.class);
         mediaReferenceCommandPublisher = mock(PostMediaReferenceCommandPublisher.class);
-        categoryRepository = mock(CategoryRepository.class);
-        postTagRepository = mock(PostTagRepository.class);
+        categoryRepository = mock(CategoryContentRepository.class);
+        postTagRepository = mock(TagContentRepository.class);
         integrationEventPublisher = mock(PostIntegrationEventPublisher.class);
         mediaReferenceScheduler = mock(PostMediaReferenceScheduler.class);
         service = new PostPublishingApplicationService(

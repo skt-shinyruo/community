@@ -4,7 +4,6 @@ import com.nowcoder.community.wallet.infrastructure.persistence.mapper.*;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -37,8 +36,6 @@ class WalletAccountMapperPersistenceTest {
     @Autowired
     private WalletAccountMapper walletAccountMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

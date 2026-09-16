@@ -5,7 +5,6 @@ import com.nowcoder.community.common.constants.EntityTypes;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.outbox.JdbcOutboxEventStore;
 import com.nowcoder.community.common.outbox.OutboxWorkerScheduler;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.application.ModerationApplicationService.TakeModerationActionCommand;
 import com.nowcoder.community.content.domain.model.ReportStatuses;
 import org.junit.jupiter.api.BeforeEach;
@@ -56,8 +55,6 @@ class ModerationCommentTransactionSpringTest {
     @MockitoBean
     private OutboxWorkerScheduler outboxWorkerScheduler;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

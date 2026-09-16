@@ -16,13 +16,13 @@ class PostSearchDomainServiceTest {
     void normalizeSearchQueryShouldClampPagingAndTag() {
         UUID categoryId = uuid(3);
 
-        PostSearchQuery query = service.normalizeSearchQuery(" spring ", categoryId, "#java", -10, 200);
+        PostSearchQuery query = service.normalizeSearchQuery(" spring ", categoryId, "#java", -10, 200, 25);
 
         assertThat(query.keyword()).isEqualTo("spring");
         assertThat(query.categoryId()).isEqualTo(categoryId);
         assertThat(query.tag()).isEqualTo("java");
         assertThat(query.page()).isZero();
-        assertThat(query.size()).isEqualTo(50);
+        assertThat(query.size()).isEqualTo(25);
     }
 
     @Test

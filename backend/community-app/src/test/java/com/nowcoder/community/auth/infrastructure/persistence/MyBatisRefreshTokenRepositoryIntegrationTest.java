@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.auth.application.RefreshTokenApplicationService;
 import com.nowcoder.community.auth.domain.repository.RefreshTokenRepository;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.auth.infrastructure.persistence.mapper.RefreshTokenSessionMapper;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,8 +58,6 @@ class MyBatisRefreshTokenRepositoryIntegrationTest {
     @Autowired
     private RefreshTokenRepository refreshTokenRepository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

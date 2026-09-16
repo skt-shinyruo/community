@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -16,15 +16,18 @@ class PostCacheAfterCommit {
     private final PostFeedCache postFeedCache;
     private final PostSummaryCache postSummaryCache;
     private final PostDetailCache postDetailCache;
+    private final TransactionCompletion transactionCompletion;
 
     PostCacheAfterCommit(
             PostFeedCache postFeedCache,
             PostSummaryCache postSummaryCache,
-            PostDetailCache postDetailCache
+            PostDetailCache postDetailCache,
+            TransactionCompletion transactionCompletion
     ) {
         this.postFeedCache = postFeedCache;
         this.postSummaryCache = postSummaryCache;
         this.postDetailCache = postDetailCache;
+        this.transactionCompletion = transactionCompletion;
     }
 
     void evict(UUID postId, long aggregateVersion) {
@@ -56,7 +59,7 @@ class PostCacheAfterCommit {
     }
 
     private void runAfterCommit(String operation, UUID postId, Runnable action) {
-        AfterCommitExecutor.runAfterCommit(() -> {
+        transactionCompletion.afterCommit(() -> {
             try {
                 action.run();
             } catch (RuntimeException exception) {

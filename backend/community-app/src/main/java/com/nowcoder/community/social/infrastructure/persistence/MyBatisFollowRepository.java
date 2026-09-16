@@ -99,21 +99,6 @@ public class MyBatisFollowRepository implements FollowRepository {
     }
 
     @Override
-    public List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit) {
-        return mapRows(mapper.listFollowees(userId, entityType, offset, limit));
-    }
-
-    @Override
-    public List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit) {
-        return mapRows(mapper.listFollowers(entityType, entityId, offset, limit));
-    }
-
-    @Override
-    public List<UUID> listFolloweeIds(UUID userId, int entityType, int limit) {
-        return mapper.listFolloweeIds(userId, entityType, Math.min(200, Math.max(1, limit)));
-    }
-
-    @Override
     public List<UUID> listFolloweeIdsExcludingBlocked(
             UUID userId,
             int entityType,
@@ -121,28 +106,6 @@ public class MyBatisFollowRepository implements FollowRepository {
             int limit
     ) {
         return mapper.listFolloweeIds(userId, entityType, Math.min(200, Math.max(1, limit)));
-    }
-
-    @Override
-    public List<FollowRelation> listFolloweesExcludingBlocked(
-            UUID userId,
-            int entityType,
-            BlockRepository blockRepository,
-            int offset,
-            int limit
-    ) {
-        return mapRows(mapper.listFolloweesExcludingBlocked(userId, entityType, offset, limit));
-    }
-
-    @Override
-    public List<FollowRelation> listFollowersExcludingBlocked(
-            int entityType,
-            UUID entityId,
-            BlockRepository blockRepository,
-            int offset,
-            int limit
-    ) {
-        return mapRows(mapper.listFollowersExcludingBlocked(entityType, entityId, offset, limit));
     }
 
     @Override

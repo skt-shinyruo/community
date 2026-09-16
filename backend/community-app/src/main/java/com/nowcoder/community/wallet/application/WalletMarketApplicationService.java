@@ -45,7 +45,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
                         WalletPosting.credit(walletAccountService.ensureSystemAccount(ESCROW_ACCOUNT_TYPE), amount)
                 )
         ));
-        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_ESCROW.name(), result.status(), amount, bizId);
+        return new WalletMarketTxnView(result.txnId());
     }
 
     @Override
@@ -62,7 +62,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
                         WalletPosting.credit(walletAccountService.ensureUserWallet(sellerUserId), amount)
                 )
         ));
-        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_RELEASE.name(), result.status(), amount, bizId);
+        return new WalletMarketTxnView(result.txnId());
     }
 
     @Override
@@ -79,7 +79,7 @@ public class WalletMarketApplicationService implements WalletMarketActionApi {
                         WalletPosting.credit(walletAccountService.ensureUserWallet(buyerUserId), amount)
                 )
         ));
-        return new WalletMarketTxnView(result.txnId(), WalletTxnType.ORDER_REFUND.name(), result.status(), amount, bizId);
+        return new WalletMarketTxnView(result.txnId());
     }
 
     private void validateRequest(String requestId, UUID userId, long amount, String bizId) {

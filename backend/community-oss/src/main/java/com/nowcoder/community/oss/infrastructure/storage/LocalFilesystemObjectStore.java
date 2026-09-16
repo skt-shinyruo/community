@@ -2,6 +2,7 @@ package com.nowcoder.community.oss.infrastructure.storage;
 
 import com.nowcoder.community.oss.application.port.ObjectStore;
 import com.nowcoder.community.oss.application.port.ObjectStoreObject;
+import com.nowcoder.community.oss.application.port.ObjectStorageSettings;
 import com.nowcoder.community.oss.application.port.PresignedObjectUrl;
 import com.nowcoder.community.oss.application.port.StoredObject;
 import org.springframework.util.StringUtils;
@@ -31,7 +32,7 @@ public class LocalFilesystemObjectStore implements ObjectStore {
             throw new IllegalArgumentException("rootDirectory must not be null");
         }
         this.rootDirectory = rootDirectory.toAbsolutePath().normalize();
-        this.publicBaseUrl = normalizeBaseUrl(publicBaseUrl);
+        this.publicBaseUrl = ObjectStorageSettings.normalizePublicBaseUrl(publicBaseUrl);
     }
 
     @Override
@@ -180,14 +181,6 @@ public class LocalFilesystemObjectStore implements ObjectStore {
         String prefix = "objects/";
         if (normalized.startsWith(prefix)) {
             return normalized.substring(prefix.length());
-        }
-        return normalized;
-    }
-
-    private String normalizeBaseUrl(String value) {
-        String normalized = StringUtils.hasText(value) ? value.trim() : "http://localhost:18090";
-        while (normalized.endsWith("/")) {
-            normalized = normalized.substring(0, normalized.length() - 1);
         }
         return normalized;
     }

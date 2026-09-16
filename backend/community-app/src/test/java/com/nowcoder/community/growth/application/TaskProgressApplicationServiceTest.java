@@ -2,11 +2,11 @@ package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerCommentCreatedCommand;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeCreatedCommand;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerPostPublishedCommand;
+import com.nowcoder.community.growth.domain.model.UserTaskProgress;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -17,7 +17,6 @@ import org.springframework.test.context.ActiveProfiles;
 
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
@@ -41,8 +40,15 @@ class TaskProgressApplicationServiceTest {
     @Autowired
     private TaskProgressApplicationService service;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
+    @Autowired
+    private com.nowcoder.community.growth.domain.repository.UserTaskEventLogRepository userTaskEventLogRepository;
+
+    @Autowired
+    private com.nowcoder.community.growth.domain.repository.UserTaskProgressRepository userTaskProgressRepository;
+
+    @Autowired
+    private com.nowcoder.community.common.id.UuidV7Generator idGenerator;
+
 
     @BeforeEach
     void setUp() {
@@ -57,12 +63,12 @@ class TaskProgressApplicationServiceTest {
 
     @Test
     void dailyTaskProgressShouldBeUniqueByUserTaskAndBusinessDate() {
-        service.processEvent(USER_ID, "DailyCheckIn", "check-evt-1", LocalDate.of(2026, 3, 22));
-        service.processEvent(USER_ID, "DailyCheckIn", "check-evt-2", LocalDate.of(2026, 3, 22));
+        service.triggerPostPublished(new TriggerPostPublishedCommand(uuid(301), USER_ID, Instant.parse("2026-03-22T10:30:00Z")));
+        service.triggerPostPublished(new TriggerPostPublishedCommand(uuid(302), USER_ID, Instant.parse("2026-03-22T11:30:00Z")));
 
-        assertThat(countProgressRows("DAILY_CHECK_IN")).isEqualTo(1);
-        assertThat(progressValue("DAILY_CHECK_IN")).isEqualTo(1);
-        assertThat(walletTxnCountFor("task:" + USER_ID + ":DAILY_CHECK_IN:2026-03-22")).isEqualTo(1);
+        assertThat(countProgressRows("DAILY_POST")).isEqualTo(1);
+        assertThat(progressValue("DAILY_POST")).isEqualTo(1);
+        assertThat(walletTxnCountFor("task:" + USER_ID + ":DAILY_POST:2026-03-22")).isEqualTo(1);
     }
 
     @Test
@@ -95,8 +101,8 @@ class TaskProgressApplicationServiceTest {
 
     @Test
     void weeklyTaskProgressShouldBeKeyedByWeek() {
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 16));
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-2", LocalDate.of(2026, 3, 17));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(311), USER_ID, Instant.parse("2026-03-16T10:30:00Z")));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(312), USER_ID, Instant.parse("2026-03-17T10:30:00Z")));
 
         assertThat(progressPeriodKey("WEEKLY_COMMENTER")).isEqualTo("2026-W12");
         assertThat(progressValue("WEEKLY_COMMENTER")).isEqualTo(2);
@@ -105,10 +111,10 @@ class TaskProgressApplicationServiceTest {
 
     @Test
     void lifetimeTaskShouldUseStablePeriodKeyAndGrantOnlyOnce() {
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-1", LocalDate.of(2026, 3, 20));
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-2", LocalDate.of(2026, 3, 21));
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-3", LocalDate.of(2026, 3, 22));
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-4", LocalDate.of(2026, 3, 23));
+        triggerLikeCreated("like-created-1", 1L, "like:" + uuid(9) + ":3:" + uuid(110), uuid(731), uuid(9), Instant.parse("2026-03-20T10:30:00Z"));
+        triggerLikeCreated("like-created-2", 1L, "like:" + uuid(10) + ":3:" + uuid(111), uuid(732), uuid(10), Instant.parse("2026-03-21T10:30:00Z"));
+        triggerLikeCreated("like-created-3", 1L, "like:" + uuid(11) + ":3:" + uuid(112), uuid(733), uuid(11), Instant.parse("2026-03-22T10:30:00Z"));
+        triggerLikeCreated("like-created-4", 1L, "like:" + uuid(12) + ":3:" + uuid(113), uuid(734), uuid(12), Instant.parse("2026-03-23T10:30:00Z"));
 
         assertThat(progressPeriodKey("LIFETIME_RECEIVE_LIKE")).isEqualTo("LIFETIME");
         assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(3);
@@ -279,7 +285,7 @@ class TaskProgressApplicationServiceTest {
         String relationKey = "like:" + uuid(9) + ":3:" + uuid(100);
         UUID relationInstanceId = uuid(715);
 
-        service.processEvent(USER_ID, "LikeCreated", relationKey, LocalDate.of(2026, 3, 22));
+        seedLegacyLikeContribution("LIFETIME_RECEIVE_LIKE", "LIFETIME", relationKey, 3);
         triggerLikeCreated(
                 "modern-like-created",
                 4_611_686_018_427_387_905L,
@@ -310,7 +316,8 @@ class TaskProgressApplicationServiceTest {
         String relationKey = "like:" + uuid(9) + ":3:" + uuid(100);
         UUID relationInstanceId = uuid(716);
 
-        service.processEvent(USER_ID, "LikeCreated", relationKey, LocalDate.of(2026, 3, 21));
+        seedLegacyLikeContribution("LIFETIME_RECEIVE_LIKE", "LIFETIME", relationKey, 3);
+        seedLegacyLikeContribution("TEST_DAILY_LIKE_LIFECYCLE", "2026-03-21", relationKey, 5);
         triggerLikeCreated(
                 "modern-like-created",
                 4_611_686_018_427_387_905L,
@@ -358,23 +365,31 @@ class TaskProgressApplicationServiceTest {
 
     @Test
     void replayedSourceEventShouldNotIncrementTaskTwice() {
-        service.processEvent(USER_ID, "PostPublished", "post-evt-replayed", LocalDate.of(2026, 3, 22));
-        service.processEvent(USER_ID, "PostPublished", "post-evt-replayed", LocalDate.of(2026, 3, 22));
+        UUID postId = uuid(320);
+        TriggerPostPublishedCommand command = new TriggerPostPublishedCommand(
+                postId, USER_ID, Instant.parse("2026-03-22T10:30:00Z"));
+
+        service.triggerPostPublished(command);
+        service.triggerPostPublished(command);
 
         assertThat(countProgressRows("DAILY_POST")).isEqualTo(1);
         assertThat(progressValue("DAILY_POST")).isEqualTo(1);
-        assertThat(eventLogCount("DAILY_POST", "post-evt-replayed")).isEqualTo(1);
+        assertThat(eventLogCount("DAILY_POST", "post-published:" + postId)).isEqualTo(1);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":DAILY_POST:2026-03-22")).isEqualTo(1);
     }
 
     @Test
     void replayedLikeCreatedSourceEventShouldNotIncrementTaskTwice() {
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-replayed", LocalDate.of(2026, 3, 22));
-        service.processEvent(USER_ID, "LikeCreated", "like-evt-replayed", LocalDate.of(2026, 3, 22));
+        String relationKey = "like:" + uuid(9) + ":3:" + uuid(130);
+        UUID relationInstanceId = uuid(730);
+        Instant occurredAt = Instant.parse("2026-03-22T10:30:00Z");
+
+        triggerLikeCreated("like-evt-replayed", 1L, relationKey, relationInstanceId, uuid(9), occurredAt);
+        triggerLikeCreated("like-evt-replayed", 1L, relationKey, relationInstanceId, uuid(9), occurredAt);
 
         assertThat(countProgressRows("LIFETIME_RECEIVE_LIKE")).isEqualTo(1);
         assertThat(progressValue("LIFETIME_RECEIVE_LIKE")).isEqualTo(1);
-        assertThat(eventLogCount("LIFETIME_RECEIVE_LIKE", "like-evt-replayed")).isEqualTo(1);
+        assertThat(eventLogCount("LIFETIME_RECEIVE_LIKE", contributionId(relationInstanceId))).isEqualTo(1);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":LIFETIME_RECEIVE_LIKE:LIFETIME")).isZero();
     }
 
@@ -382,16 +397,17 @@ class TaskProgressApplicationServiceTest {
     void walletRewardShouldUseBalanceDeltaOnly() {
         String requestId = "task:" + USER_ID + ":DAILY_POST:2026-03-22";
 
-        service.processEvent(USER_ID, "PostPublished", "post-evt-balance-only", LocalDate.of(2026, 3, 22));
+        service.triggerPostPublished(new TriggerPostPublishedCommand(uuid(330), USER_ID, Instant.parse("2026-03-22T10:30:00Z")));
 
         assertThat(walletTxnAmountFor(requestId)).isEqualTo(1L);
     }
 
     @Test
     void nonAdjacentDuplicateSourceEventShouldNotAdvanceProgressAgain() {
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 16));
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-2", LocalDate.of(2026, 3, 17));
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 18));
+        UUID firstCommentId = uuid(341);
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(firstCommentId, USER_ID, Instant.parse("2026-03-16T10:30:00Z")));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(342), USER_ID, Instant.parse("2026-03-17T10:30:00Z")));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(firstCommentId, USER_ID, Instant.parse("2026-03-18T10:30:00Z")));
 
         assertThat(progressValue("WEEKLY_COMMENTER")).isEqualTo(2);
         assertThat(walletTxnCountFor("task:" + USER_ID + ":WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
@@ -399,9 +415,9 @@ class TaskProgressApplicationServiceTest {
 
     @Test
     void autoGrantShouldInsertRewardOutcomeOnlyOncePerPeriod() {
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-1", LocalDate.of(2026, 3, 16));
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-2", LocalDate.of(2026, 3, 17));
-        service.processEvent(USER_ID, "CommentCreated", "comment-evt-3", LocalDate.of(2026, 3, 18));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(351), USER_ID, Instant.parse("2026-03-16T10:30:00Z")));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(352), USER_ID, Instant.parse("2026-03-17T10:30:00Z")));
+        service.triggerCommentCreated(new TriggerCommentCreatedCommand(uuid(353), USER_ID, Instant.parse("2026-03-18T10:30:00Z")));
 
         assertThat(walletTxnCountFor("task:" + USER_ID + ":WEEKLY_COMMENTER:2026-W12")).isEqualTo(1);
         assertThat(countRows("wallet_entry")).isEqualTo(2);
@@ -512,6 +528,13 @@ class TaskProgressApplicationServiceTest {
                 taskCode
         );
         return count == null ? 0 : count;
+    }
+
+    private void seedLegacyLikeContribution(String taskCode, String periodKey, String relationKey, int targetValue) {
+        userTaskEventLogRepository.create(idGenerator.next(), USER_ID, taskCode, periodKey, relationKey);
+        userTaskProgressRepository.create(idGenerator.next(), USER_ID, taskCode, periodKey, targetValue, "IN_PROGRESS", null);
+        UserTaskProgress progress = userTaskProgressRepository.findByUserTaskAndPeriodForUpdate(USER_ID, taskCode, periodKey);
+        userTaskProgressRepository.updateProgress(progress.getId(), 1, "IN_PROGRESS", null, null, null, relationKey);
     }
 
     private void triggerLikeCreated(

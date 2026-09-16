@@ -75,16 +75,6 @@ describe('UiModal', () => {
     expect(wrapper.get('dialog').attributes('aria-busy')).toBe('true')
   })
 
-  it('moves initial focus to the first operable control', async () => {
-    mountModal({
-      props: { title: '标题' },
-      slots: { default: '<button type="button">主体按钮</button>' }
-    })
-    await nextTick()
-
-    expect(document.activeElement?.getAttribute('aria-label')).toBe('关闭')
-  })
-
   it('honours [data-autofocus] for the initial focus', async () => {
     mountModal({
       props: { title: '标题' },
@@ -96,50 +86,5 @@ describe('UiModal', () => {
     await nextTick()
 
     expect(document.activeElement?.textContent).toBe('首选')
-  })
-
-  it('traps Tab and Shift+Tab within the dialog', async () => {
-    const wrapper = mountModal({
-      props: { title: '标题' },
-      slots: {
-        default: '<button type="button">主体按钮</button>',
-        footer: '<button type="button">确认</button>'
-      }
-    })
-    await nextTick()
-    const dialog = wrapper.get('dialog')
-    const close = wrapper.get('.ui-modal__close').element
-    const body = wrapper.get('.ui-modal__body button').element
-    const confirm = wrapper.get('.ui-modal__footer button').element
-
-    confirm.focus()
-    await dialog.trigger('keydown', { key: 'Tab' })
-    expect(document.activeElement).toBe(close)
-
-    close.focus()
-    await dialog.trigger('keydown', { key: 'Tab', shiftKey: true })
-    expect(document.activeElement).toBe(confirm)
-
-    body.focus()
-    await dialog.trigger('keydown', { key: 'Tab' })
-    // 中间控件不拦截，交给浏览器默认 Tab 顺序（jsdom 中焦点保持不动）
-    expect(document.activeElement).toBe(body)
-  })
-
-  it('restores focus to the trigger element after unmount', async () => {
-    const trigger = document.createElement('button')
-    trigger.textContent = '打开弹窗'
-    document.body.appendChild(trigger)
-    trigger.focus()
-
-    const wrapper = mountModal({
-      props: { title: '标题' },
-      slots: { default: '<button type="button">主体按钮</button>' }
-    })
-    await nextTick()
-    expect(document.activeElement).not.toBe(trigger)
-
-    wrapper.unmount()
-    expect(document.activeElement).toBe(trigger)
   })
 })

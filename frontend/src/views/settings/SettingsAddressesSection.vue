@@ -141,6 +141,7 @@ import {
 } from '../../api/services/marketService'
 import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
+import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { buildMarketState } from '../marketState'
 
 const auth = useAuthStore()
@@ -152,19 +153,11 @@ const addresses = ref([])
 const editingAddressId = ref(null)
 const form = ref(emptyAddressForm())
 const editForm = ref(emptyAddressForm())
-let requestGeneration = 0
-let actionGeneration = 0
 
 const state = computed(() => buildMarketState({ addresses: addresses.value }))
 const sessionScope = computed(() => identityScope(auth))
-
-function isCurrentRequest(generation, scope) {
-  return generation === requestGeneration && scope === sessionScope.value
-}
-
-function isCurrentAction(generation, scope) {
-  return generation === actionGeneration && scope === sessionScope.value
-}
+const loadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 function emptyAddressForm() {
   return {
@@ -221,93 +214,89 @@ function startEdit(item) {
 }
 
 async function reload() {
-  const generation = ++requestGeneration
-  const scope = sessionScope.value
+  const requestHandle = loadTracker.begin()
   loading.value = true
   error.value = ''
   try {
     const { data } = await listMarketAddresses()
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     addresses.value = Array.isArray(data) ? data : []
     if (editingAddressId.value && !addresses.value.some((item) => item?.addressId === editingAddressId.value)) {
       cancelEdit()
     }
   } catch (e) {
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载地址簿失败'
   } finally {
-    if (isCurrentRequest(generation, scope)) loading.value = false
+    if (loadTracker.isCurrent(requestHandle)) loading.value = false
   }
 }
 
 async function submitCreate() {
   if (!auth.authed || submitting.value) return
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   submitting.value = true
   message.value = ''
   try {
     await createMarketAddress(buildPayload(form.value))
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = '地址已创建。'
     resetForm()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = e?.message || '创建地址失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submitting.value = false
+    if (actionTracker.isCurrent(requestHandle)) submitting.value = false
   }
 }
 
 async function submitUpdate() {
   if (!auth.authed || submitting.value || !editingAddressId.value) return
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   const addressId = editingAddressId.value
   submitting.value = true
   message.value = ''
   try {
     await updateMarketAddress(addressId, buildPayload(editForm.value))
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = '地址已更新。'
     cancelEdit()
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = e?.message || '更新地址失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submitting.value = false
+    if (actionTracker.isCurrent(requestHandle)) submitting.value = false
   }
 }
 
 async function submitDelete(addressId) {
   if (!auth.authed || submitting.value) return
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   submitting.value = true
   message.value = ''
   try {
     await deleteMarketAddress(addressId)
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = '地址已删除。'
     if (editingAddressId.value === addressId) {
       cancelEdit()
     }
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = e?.message || '删除地址失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submitting.value = false
+    if (actionTracker.isCurrent(requestHandle)) submitting.value = false
   }
 }
 
 watch(
   sessionScope,
   () => {
-    requestGeneration += 1
-    actionGeneration += 1
+    loadTracker.invalidate()
+    actionTracker.invalidate()
     addresses.value = []
     loading.value = false
     submitting.value = false
@@ -321,8 +310,8 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  requestGeneration += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>
 

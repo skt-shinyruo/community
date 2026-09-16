@@ -156,7 +156,7 @@ grep -F 'from: ${AUTH_MAIL_FROM:no-reply@community.local}' "${CONFIG_DIR}/commun
 grep -F 'expose-code: ${AUTH_REGISTRATION_EXPOSE_CODE:false}' "${CONFIG_DIR}/community-app.yaml"
 grep -F 'public-base-url: ${OSS_PUBLIC_BASE_URL}' "${CONFIG_DIR}/community-oss.yaml"
 grep -F 'public-ws-url: ${IM_GATEWAY_PUBLIC_WS_URL}' "${CONFIG_DIR}/community-im-gateway.yaml"
-grep -F '"[/api/drive/shares/{shareToken}/verify]":' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'id: drive-share-verify-rate-limit' "${CONFIG_DIR}/community-gateway.yaml"
 grep -F 'max-batches-per-root: ${CONTENT_COMMENT_THREAD_CLEANUP_MAX_BATCHES_PER_ROOT:10}' \
   "${CONFIG_DIR}/community-app.yaml"
 grep -F 'reset-base-url: http://localhost:13110' "${curl_log}"
@@ -290,13 +290,14 @@ if grep -F 'trusted-proxy:' "${CONFIG_DIR}/community-shared.yaml"; then
   echo "trusted proxy CIDRs must be owned by each service config, not community-shared" >&2
   exit 1
 fi
-grep -F 'enabled: ${GATEWAY_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-gateway.yaml"
-grep -F 'cidrs: ${GATEWAY_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-gateway.yaml"
-grep -Fx 'community:' "${CONFIG_DIR}/community-app.yaml"
-grep -Fx '  web:' "${CONFIG_DIR}/community-app.yaml"
-grep -Fx '    trusted-proxy:' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}' "${CONFIG_DIR}/community-app.yaml"
-grep -F 'cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'trusted-proxies: ${GATEWAY_TRUSTED_PROXIES:}' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'Path=/api/drive/shares/*/verify' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'redis-rate-limiter.replenishRate: 1' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'redis-rate-limiter.burstCapacity: 10' "${CONFIG_DIR}/community-gateway.yaml"
+grep -F 'key-resolver: "#{@gatewayRateLimitKeyResolver}"' "${CONFIG_DIR}/community-gateway.yaml"
+grep -Fx 'server:' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'forward-headers-strategy: ${COMMUNITY_APP_FORWARD_HEADERS_STRATEGY:none}' "${CONFIG_DIR}/community-app.yaml"
+grep -F 'internal-proxies: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:' "${CONFIG_DIR}/community-app.yaml"
 if awk '
   $0 == "gateway:" { in_gateway = 1; next }
   in_gateway && /^[^ ]/ { in_gateway = 0 }

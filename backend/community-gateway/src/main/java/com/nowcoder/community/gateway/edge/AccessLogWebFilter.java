@@ -1,6 +1,6 @@
 package com.nowcoder.community.gateway.edge;
 
-import com.nowcoder.community.common.logging.EventLogFields;
+import com.nowcoder.community.common.logging.EventLogMdcScope;
 import com.nowcoder.community.common.trace.OtelTraceContext;
 import com.nowcoder.community.common.trace.TraceContext;
 import com.nowcoder.community.common.trace.TraceHeaders;
@@ -20,9 +20,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
 
     private static final Logger log = LoggerFactory.getLogger(AccessLogWebFilter.class);
     private static final String MDC_KEY_TRACE_ID = TraceContext.MDC_KEY_TRACE_ID;
-    private static final String MDC_KEY_CATEGORY = EventLogFields.EVENT_CATEGORY;
-    private static final String MDC_KEY_ACTION = EventLogFields.EVENT_ACTION;
-    private static final String MDC_KEY_OUTCOME = EventLogFields.EVENT_OUTCOME;
     private static final String CATEGORY_ACCESS = "access";
     private static final String ACTION_HTTP_ACCESS = "gateway_http_access";
     static final int ORDER = TraceIdWebFilter.ORDER + 1;
@@ -48,9 +45,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                     String traceId = resolveTraceId(exchange);
                     String previousTraceId = MDC.get(MDC_KEY_TRACE_ID);
                     String previousSpanId = MDC.get(TraceContext.MDC_KEY_SPAN_ID);
-                    String previousCategory = MDC.get(MDC_KEY_CATEGORY);
-                    String previousAction = MDC.get(MDC_KEY_ACTION);
-                    String previousOutcome = MDC.get(MDC_KEY_OUTCOME);
                     try {
                         String spanId = resolveSpanId(exchange);
                         if (traceId == null || traceId.isBlank()) {
@@ -63,15 +57,15 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                         } else {
                             MDC.put(TraceContext.MDC_KEY_SPAN_ID, spanId);
                         }
-                        MDC.put(MDC_KEY_CATEGORY, CATEGORY_ACCESS);
-                        MDC.put(MDC_KEY_ACTION, ACTION_HTTP_ACCESS);
-                        MDC.put(MDC_KEY_OUTCOME, outcomeForStatus(statusCode));
-                        log.info("[gateway-http] method={} path={} status={} durationMs={} traceId={}",
-                                method,
-                                path,
-                                statusCode,
-                                durationMs,
-                                traceId == null ? "" : traceId);
+                        try (var ignored = EventLogMdcScope.open(
+                                CATEGORY_ACCESS, ACTION_HTTP_ACCESS, outcomeForStatus(statusCode))) {
+                            log.info("[gateway-http] method={} path={} status={} durationMs={} traceId={}",
+                                    method,
+                                    path,
+                                    statusCode,
+                                    durationMs,
+                                    traceId == null ? "" : traceId);
+                        }
                     } finally {
                         if (previousTraceId == null || previousTraceId.isBlank()) {
                             MDC.remove(MDC_KEY_TRACE_ID);
@@ -79,9 +73,6 @@ public class AccessLogWebFilter implements WebFilter, Ordered {
                             MDC.put(MDC_KEY_TRACE_ID, previousTraceId);
                         }
                         restore(TraceContext.MDC_KEY_SPAN_ID, previousSpanId);
-                        restore(MDC_KEY_CATEGORY, previousCategory);
-                        restore(MDC_KEY_ACTION, previousAction);
-                        restore(MDC_KEY_OUTCOME, previousOutcome);
                     }
                 });
     }

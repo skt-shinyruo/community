@@ -7,7 +7,6 @@ import com.nowcoder.community.common.outbox.OutboxEventStatus;
 import com.nowcoder.community.common.outbox.OutboxHandler;
 import com.nowcoder.community.ops.application.command.FindOutboxEventsCommand;
 import org.junit.jupiter.api.Test;
-import org.springframework.beans.factory.ObjectProvider;
 import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabase;
 import org.springframework.jdbc.datasource.embedded.EmbeddedDatabaseBuilder;
@@ -21,8 +20,6 @@ import java.util.List;
 import java.util.UUID;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
-import static org.mockito.Mockito.when;
 
 class JdbcOutboxGovernanceAdapterTest {
 
@@ -117,15 +114,12 @@ class JdbcOutboxGovernanceAdapterTest {
 
     @Test
     void catalogShouldTrimTopicsAndIgnoreBlanks() {
-        ObjectProvider<List<OutboxHandler>> handlersProvider = mock(ObjectProvider.class);
-        when(handlersProvider.getIfAvailable()).thenReturn(List.of(
+        SpringOutboxHandlerCatalog catalog = new SpringOutboxHandlerCatalog(List.of(
                 handler(" eventbus.content "),
                 handler(""),
                 handler(null),
                 handler("projection.im.policy")
         ));
-
-        SpringOutboxHandlerCatalog catalog = new SpringOutboxHandlerCatalog(handlersProvider);
 
         assertThat(catalog.hasHandler(" eventbus.content ")).isTrue();
         assertThat(catalog.hasHandler("projection.missing")).isFalse();

@@ -3,7 +3,6 @@ package com.nowcoder.community.user.infrastructure.persistence;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.domain.model.UserAccount;
 import com.nowcoder.community.user.domain.model.UserModerationStatus;
 import com.nowcoder.community.user.domain.model.UserProfile;
@@ -45,8 +44,6 @@ class MyBatisUserRepositoryTest {
     @Autowired
     private UserRepository userRepository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -112,14 +109,16 @@ class MyBatisUserRepositoryTest {
         insertUser(ALICE_ID, "alice", "encoded", "salt", "alice@example.com", 0, 1, "old", createTime, null, null);
 
         userRepository.updateHeaderUrl(ALICE_ID, "new-header");
-        long statusSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
-        userRepository.updateStatus(ALICE_ID, 0, statusSecurityVersion);
-        assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(statusSecurityVersion);
         long roleSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
         userRepository.updateRole(ALICE_ID, 2, roleSecurityVersion);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(roleSecurityVersion);
         long passwordSecurityVersion = userRepository.nextUserSecurityVersion(ALICE_ID);
-        userRepository.updatePassword(ALICE_ID, "new-password", passwordSecurityVersion);
+        assertThat(userRepository.updatePasswordIfSecurityVersion(
+                ALICE_ID,
+                "new-password",
+                passwordSecurityVersion,
+                roleSecurityVersion
+        )).isTrue();
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(passwordSecurityVersion);
         long policyVersion = userRepository.nextUserPolicyVersion(ALICE_ID);
         userRepository.updateModerationUntil(ALICE_ID, muteUntil, banUntil, policyVersion, 0L, 0L);
@@ -137,12 +136,12 @@ class MyBatisUserRepositoryTest {
 
     @Test
     void updateMethodsShouldRaiseInternalErrorWhenNoRowsChanged() {
-        long before = userRepository.currentUserSecurityVersion();
+        long before = currentSecurityVersionCounter();
         assertThatThrownBy(() -> userRepository.updateRole(MISSING_ID, 2, before + 1L))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(INTERNAL_ERROR))
                 .hasMessage("更新用户角色失败");
-        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(before);
+        assertThat(currentSecurityVersionCounter()).isEqualTo(before);
     }
 
     @Test
@@ -240,12 +239,12 @@ class MyBatisUserRepositoryTest {
         long first = userRepository.nextUserSecurityVersion(ALICE_ID);
         userRepository.updateRole(ALICE_ID, 2, first);
         long second = userRepository.nextUserSecurityVersion(ALICE_ID);
-        userRepository.updatePassword(ALICE_ID, "new-password", second);
+        assertThat(userRepository.updatePasswordIfSecurityVersion(ALICE_ID, "new-password", second, first)).isTrue();
 
         assertThat(first).isEqualTo(1L);
         assertThat(second).isEqualTo(2L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(second);
-        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(second);
+        assertThat(currentSecurityVersionCounter()).isEqualTo(second);
     }
 
     @Test
@@ -260,10 +259,10 @@ class MyBatisUserRepositoryTest {
         jdbcTemplate.update("update user_security_version_counter set current_version = 3 where id = 1");
 
         long allocated = userRepository.nextUserSecurityVersion(ALICE_ID);
-        userRepository.updatePassword(ALICE_ID, "new-password", allocated);
+        assertThat(userRepository.updatePasswordIfSecurityVersion(ALICE_ID, "new-password", allocated, 42L)).isTrue();
 
         assertThat(allocated).isEqualTo(43L);
-        assertThat(userRepository.currentUserSecurityVersion()).isEqualTo(43L);
+        assertThat(currentSecurityVersionCounter()).isEqualTo(43L);
         assertThat(userRepository.findById(ALICE_ID).orElseThrow().securityVersion()).isEqualTo(43L);
     }
 
@@ -341,6 +340,14 @@ class MyBatisUserRepositoryTest {
         assertThat(current.muteUntil()).isEqualTo(muteUntil);
         assertThat(current.banUntil()).isNull();
         assertThat(current.policyVersion()).isEqualTo(first);
+    }
+
+    private long currentSecurityVersionCounter() {
+        Long value = jdbcTemplate.queryForObject(
+                "select current_version from user_security_version_counter where id = 1",
+                Long.class
+        );
+        return value == null ? 0L : value;
     }
 
     private void insertUser(

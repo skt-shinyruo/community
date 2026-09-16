@@ -1,16 +1,14 @@
 package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.wallet.application.WalletRewardApplicationService.RewardCommand;
-import com.nowcoder.community.wallet.application.WalletRewardProjectionApplicationService.RewardProjectionCommand;
 import org.junit.jupiter.api.Test;
 
 import java.util.UUID;
 
-import static org.assertj.core.api.Assertions.assertThat;
-import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 
 class WalletRewardProjectionApplicationServiceTest {
 
@@ -20,9 +18,8 @@ class WalletRewardProjectionApplicationServiceTest {
         WalletRewardProjectionApplicationService service =
                 new WalletRewardProjectionApplicationService(walletRewardApplicationService);
         UUID userId = uuid(7);
-        RewardProjectionCommand command = service.commandForPostPublished(uuid(100), userId);
 
-        service.apply(command);
+        service.postPublished(uuid(100), userId);
 
         verify(walletRewardApplicationService).applyDelta(new RewardCommand(
                 "wallet-reward:post-published:" + uuid(100), userId, 10, "PostPublished"
@@ -30,12 +27,15 @@ class WalletRewardProjectionApplicationServiceTest {
     }
 
     @Test
-    void selfLikeShouldNotCreateProjectionCommand() {
+    void selfLikeShouldNotCreateWalletDelta() {
+        WalletRewardApplicationService walletRewardApplicationService = mock(WalletRewardApplicationService.class);
         WalletRewardProjectionApplicationService service =
-                new WalletRewardProjectionApplicationService(mock(WalletRewardApplicationService.class));
+                new WalletRewardProjectionApplicationService(walletRewardApplicationService);
         UUID userId = uuid(7);
 
-        assertThat(service.commandForLikeCreated("like:source", userId, userId)).isNull();
+        service.likeCreated("like:source", userId, userId);
+
+        verifyNoInteractions(walletRewardApplicationService);
     }
 
     @Test
@@ -46,13 +46,9 @@ class WalletRewardProjectionApplicationServiceTest {
         UUID ownerUserId = uuid(8);
         String lifecycleSource = uuid(801).toString();
 
-        RewardProjectionCommand removed = service.commandForLikeRemoved(
-                lifecycleSource + ":removed", uuid(7), ownerUserId);
-        RewardProjectionCommand created = service.commandForLikeCreated(
-                lifecycleSource + ":created", uuid(7), ownerUserId);
-        service.apply(removed);
-        service.apply(created);
-        service.apply(created);
+        service.likeRemoved(lifecycleSource + ":removed", uuid(7), ownerUserId);
+        service.likeCreated(lifecycleSource + ":created", uuid(7), ownerUserId);
+        service.likeCreated(lifecycleSource + ":created", uuid(7), ownerUserId);
 
         verify(walletRewardApplicationService).applyDelta(new RewardCommand(
                 "wallet-reward:" + lifecycleSource + ":removed", ownerUserId, -1, "LikeRemoved"
@@ -60,16 +56,6 @@ class WalletRewardProjectionApplicationServiceTest {
         verify(walletRewardApplicationService, times(2)).applyDelta(new RewardCommand(
                 "wallet-reward:" + lifecycleSource + ":created", ownerUserId, 1, "LikeCreated"
         ));
-    }
-
-    @Test
-    void applyShouldRejectNullCommand() {
-        WalletRewardProjectionApplicationService service =
-                new WalletRewardProjectionApplicationService(mock(WalletRewardApplicationService.class));
-
-        assertThatThrownBy(() -> service.apply(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
     }
 
     private static UUID uuid(long suffix) {

@@ -288,36 +288,6 @@ class CommentReadApplicationServiceTest {
         verifyNoInteractions(commentContentRepository, postContentRepository, commentPageCache);
     }
 
-    @Test
-    void legacyPageMethodsShouldContinueUsingOffsetRepositoryQueriesDirectly() {
-        CommentContentRepository commentContentRepository = mock(CommentContentRepository.class);
-        PostContentRepository postContentRepository = mock(PostContentRepository.class);
-        CommentPageCache commentPageCache = mock(CommentPageCache.class);
-        CommentReadApplicationService service = service(
-                commentContentRepository, postContentRepository, commentPageCache, cursorCodec());
-        UUID postId = uuid(100);
-        UUID rootCommentId = uuid(200);
-        Comment root = comment(
-                uuid(201), uuid(7), postId, uuid(201), null, null, "root",
-                Instant.parse("2026-07-06T13:00:00Z"));
-        Comment reply = comment(
-                uuid(202), uuid(8), postId, rootCommentId, rootCommentId, uuid(7), "reply",
-                Instant.parse("2026-07-06T13:00:01Z"));
-        when(commentContentRepository.listRootComments(postId, 0, 10)).thenReturn(List.of(root));
-        when(commentContentRepository.listReplies(rootCommentId, 3, 5)).thenReturn(List.of(reply));
-
-        List<CommentResult> roots = service.comments(postId, -2, 10);
-        List<CommentResult> replies = service.replies(postId, rootCommentId, 3, 5);
-
-        assertThat(roots).extracting(CommentResult::id).containsExactly(root.getId());
-        assertThat(replies).extracting(CommentResult::id).containsExactly(reply.getId());
-        verify(postContentRepository).getById(postId);
-        verify(commentContentRepository).listRootComments(postId, 0, 10);
-        verify(commentContentRepository).assertCommentBelongsToPost(postId, rootCommentId);
-        verify(commentContentRepository).listReplies(rootCommentId, 3, 5);
-        verifyNoInteractions(commentPageCache);
-    }
-
     private static CommentReadApplicationService service(
             CommentContentRepository commentContentRepository,
             PostContentRepository postContentRepository,

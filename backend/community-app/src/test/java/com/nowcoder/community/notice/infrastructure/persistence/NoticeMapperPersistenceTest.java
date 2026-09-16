@@ -3,7 +3,6 @@ package com.nowcoder.community.notice.infrastructure.persistence;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.notice.application.NoticeProjectionApplicationService;
 import com.nowcoder.community.notice.application.command.ProjectNoticeCommand;
 import com.nowcoder.community.notice.domain.model.NoticeRecord;
@@ -49,8 +48,6 @@ class NoticeMapperPersistenceTest {
     @Autowired
     private NoticeProjectionApplicationService noticeProjectionApplicationService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

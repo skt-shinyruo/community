@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.domain.model.PostMediaAsset;
 import com.nowcoder.community.content.domain.model.PostVideoState;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
@@ -44,8 +43,6 @@ class PostMediaReferenceRepositoryPersistenceTest {
     @Autowired
     private PostMediaAssetRepository repository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

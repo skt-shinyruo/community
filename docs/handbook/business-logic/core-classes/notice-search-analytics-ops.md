@@ -26,7 +26,6 @@
 | `search.application.SearchApplicationService` | 搜索查询。 |
 | `search.application.SearchPostProjectionApplicationService` | Kafka event 触发后回源 content 并 upsert/delete ES。 |
 | `search.domain.service.PostSearchDomainService` | 搜索 query 规则。 |
-| `search.domain.service.KeywordHighlightSupport` | 搜索关键词高亮。 |
 | `search.infrastructure.event.SearchPostProjectionKafkaListener` | 从 `content.events` 识别帖子投影事件并进入 application。 |
 | `search.infrastructure.persistence.PostIndexManager` | ES alias / index 管理。 |
 | `search.infrastructure.persistence.ElasticsearchPostSearchRepository` | ES 读写实现。 |

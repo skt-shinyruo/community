@@ -2,10 +2,8 @@ package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.domain.model.LikeRelation;
 import com.nowcoder.community.social.domain.repository.LikeRepository;
-import com.nowcoder.community.social.infrastructure.persistence.dataobject.LikeScanDataObject;
 import com.nowcoder.community.social.infrastructure.persistence.mapper.LikeMapper;
 import org.apache.ibatis.annotations.Delete;
 import org.junit.jupiter.api.BeforeEach;
@@ -17,7 +15,6 @@ import org.springframework.jdbc.core.JdbcTemplate;
 import org.springframework.test.context.ActiveProfiles;
 
 import java.lang.reflect.Method;
-import java.util.List;
 import java.util.UUID;
 
 import static com.nowcoder.community.common.constants.EntityTypes.COMMENT;
@@ -40,13 +37,8 @@ class MyBatisLikeRepositoryTest {
     private LikeRepository repository;
 
     @Autowired
-    private LikeMapper mapper;
-
-    @Autowired
     private JdbcTemplate jdbcTemplate;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -69,11 +61,6 @@ class MyBatisLikeRepositoryTest {
         assertThat(repository.scanLikesByEntity(POST, ENTITY_ID, ZERO_UUID, 10))
                 .containsExactly(first, second);
         assertThat(storedRelationInstance(uuid(1))).isEqualTo(first.relationInstanceId());
-
-        List<LikeScanDataObject> rows = mapper.scanLikes(POST, ZERO_UUID, ZERO_UUID, 10);
-        assertThat(rows)
-                .extracting(LikeScanDataObject::getRelationInstanceId)
-                .containsExactly(first.relationInstanceId(), second.relationInstanceId());
     }
 
     @Test

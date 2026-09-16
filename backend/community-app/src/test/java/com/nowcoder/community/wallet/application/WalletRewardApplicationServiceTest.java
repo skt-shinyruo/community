@@ -2,7 +2,6 @@ package com.nowcoder.community.wallet.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.user.api.model.UserSummaryView;
 import com.nowcoder.community.user.application.UserReadApplicationService;
 import com.nowcoder.community.wallet.application.WalletRewardApplicationService.RewardCommand;
@@ -43,8 +42,6 @@ class WalletRewardApplicationServiceTest {
     @Autowired
     private WalletTransferApplicationService transferService;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @MockitoBean
     private UserReadApplicationService userReadApplicationService;
@@ -60,20 +57,6 @@ class WalletRewardApplicationServiceTest {
     }
 
     @Test
-    void issueShouldRejectNullCommand() {
-        assertThatThrownBy(() -> service.issue(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
-    void revokeShouldRejectNullCommand() {
-        assertThatThrownBy(() -> service.revoke(null))
-                .isInstanceOf(NullPointerException.class)
-                .hasMessage("command must not be null");
-    }
-
-    @Test
     void applyDeltaShouldRejectNullCommand() {
         assertThatThrownBy(() -> service.applyDelta(null))
                 .isInstanceOf(NullPointerException.class)
@@ -81,14 +64,14 @@ class WalletRewardApplicationServiceTest {
     }
 
     @Test
-    void revokeShouldCreateDebtThenNormalIssueShouldPartiallyRepayItAndTransferRemainNormal() {
+    void negativeDeltaShouldCreateDebtThenNormalIssueShouldPartiallyRepayItAndTransferRemainNormal() {
         UUID userId = uuid(101);
         UUID recipientUserId = uuid(202);
 
-        service.revoke(new RewardCommand("reward:revoke:debt", userId, 5L, "TEST"));
+        service.applyDelta(new RewardCommand("reward:revoke:debt", userId, -5L, "TEST"));
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(-5L);
 
-        service.issue(new RewardCommand("reward:issue:repay", userId, 3L, "TEST"));
+        service.issue("reward:issue:repay", userId, 3L, "TEST");
         assertThat(accountService.balanceOfUser(userId)).isEqualTo(-2L);
         assertThat(countRows("wallet_txn")).isEqualTo(2);
         assertThat(countRows("wallet_entry")).isEqualTo(4);

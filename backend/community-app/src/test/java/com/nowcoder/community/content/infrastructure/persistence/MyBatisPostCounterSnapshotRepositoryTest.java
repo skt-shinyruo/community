@@ -1,7 +1,6 @@
 package com.nowcoder.community.content.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.domain.model.PostCounterSnapshot;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -32,8 +31,6 @@ class MyBatisPostCounterSnapshotRepositoryTest {
     @Autowired
     private MyBatisPostCounterSnapshotRepository repository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

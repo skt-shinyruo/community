@@ -33,23 +33,6 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
     }
 
     @Override
-    public List<Comment> listRootComments(UUID postId, int page, int size) {
-        return listRootComments(postId, page, size, normalizePageSize(size));
-    }
-
-    @Override
-    public List<Comment> listRootComments(UUID postId, int page, int size, int limit) {
-        if (postId == null) {
-            return List.of();
-        }
-        postContentPort.getById(postId);
-        int p = Math.max(0, page);
-        int s = normalizePageSize(size);
-        int fetchLimit = normalizeFetchLimit(limit, s);
-        return toAggregates(commentMapper.selectRootComments(postId, Pagination.safeOffset(p, s), fetchLimit));
-    }
-
-    @Override
     public List<Comment> listRootCommentsAfter(UUID postId, Date boundaryTime, UUID boundaryId, int limit) {
         if (postId == null) {
             return List.of();
@@ -62,22 +45,6 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
                 boundaryId,
                 normalizeKeysetFetchLimit(limit)
         ));
-    }
-
-    @Override
-    public List<Comment> listReplies(UUID rootCommentId, int page, int size) {
-        return listReplies(rootCommentId, page, size, normalizePageSize(size));
-    }
-
-    @Override
-    public List<Comment> listReplies(UUID rootCommentId, int page, int size, int limit) {
-        if (rootCommentId == null) {
-            return List.of();
-        }
-        int p = Math.max(0, page);
-        int s = normalizePageSize(size);
-        int fetchLimit = normalizeFetchLimit(limit, s);
-        return toAggregates(commentMapper.selectRepliesByRootComment(rootCommentId, Pagination.safeOffset(p, s), fetchLimit));
     }
 
     @Override
@@ -163,14 +130,6 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
         return rows.stream()
                 .map(CommentPersistenceConverter::toAggregate)
                 .toList();
-    }
-
-    private static int normalizePageSize(int size) {
-        return Math.min(MAX_PAGE_SIZE, Math.max(1, size));
-    }
-
-    private static int normalizeFetchLimit(int limit, int pageSize) {
-        return Math.min(pageSize + 1, Math.max(1, limit));
     }
 
     private static int normalizeKeysetFetchLimit(int limit) {

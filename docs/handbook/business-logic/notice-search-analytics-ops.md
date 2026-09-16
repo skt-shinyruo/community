@@ -89,15 +89,10 @@ HTTP：
 5. keyword 为空时可退化为 match-all。
 6. 命中结果带关键词高亮。
 
-关键词高亮由 `KeywordHighlightSupport` 处理：
+关键词高亮使用 Elasticsearch 原生 highlight：
 
-- text 或 keyword 为空时直接返回原 text。
-- keyword 按空白拆 token。
-- token trim 后转小写去重，并保留首次出现顺序。
-- 最多取 6 个 token，每个 token 最长 32 字符。
-- 使用 regex quote 后构造大小写不敏感匹配，避免用户输入被当作正则。
-- 命中内容用 `<em>...</em>` 包裹。
-- replacement 使用 `Matcher.quoteReplacement`，避免命中文本里的 `$` / `\` 破坏替换。
+- 查询对 title / content 字段挂 `HighlightQuery`，显式 `<em>` / `</em>` pre/post tags，`numberOfFragments(0)` 返回整字段。
+- 未命中的字段回退为原始文本。
 
 ### 投影流程
 
@@ -201,7 +196,6 @@ Search：
 - `search.application.SearchPostProjectionApplicationService`
 - `search.application.SearchReindexApplicationService`
 - `search.domain.service.PostSearchDomainService`
-- `search.domain.service.KeywordHighlightSupport`
 - `search.infrastructure.event.SearchPostProjectionKafkaListener`
 - `search.infrastructure.job.SearchReindexScheduler`
 - `search.infrastructure.persistence.PostIndexManager`

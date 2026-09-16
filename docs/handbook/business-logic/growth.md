@@ -18,13 +18,10 @@
 
 应用服务：
 
-- `TaskProgressApplicationService.processEvent(...)`
 - `triggerPostPublished(...)`
 - `triggerCommentCreated(...)`
 - `triggerLikeCreated(...)`
 - `UserLevelApplicationService.evaluateLevel(...)`
-- `getConfig(...)`
-- `updateConfig(...)`
 
 当前没有公开 growth controller。
 

@@ -60,10 +60,6 @@ public class PolicyProjectionService {
         return PolicyDecision.allow();
     }
 
-    public PolicyDecision canSendPrivate(UUID fromUserId, UUID toUserId) {
-        return canSendPrivateMessage(fromUserId, toUserId);
-    }
-
     public synchronized void applyUserMessagingPolicyChanged(UserMessagingPolicyChanged event) {
         if (event == null) {
             throw new IllegalArgumentException("user messaging policy changed event must not be null");

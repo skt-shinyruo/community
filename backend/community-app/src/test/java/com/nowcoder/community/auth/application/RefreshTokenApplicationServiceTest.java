@@ -351,21 +351,6 @@ class RefreshTokenApplicationServiceTest {
         }
 
         @Override
-        public StoredRefreshToken consume(String refreshToken) {
-            StoredRefreshToken token = tokens.remove(refreshToken);
-            if (token != null) {
-                revokedTokens.put(refreshToken, new RevokedRefreshToken(
-                        refreshToken,
-                        token.userId(),
-                        token.familyId(),
-                        token.expiresAt(),
-                        Instant.now()
-                ));
-            }
-            return token;
-        }
-
-        @Override
         public StoredRefreshToken beginRotation(
                 String refreshToken,
                 Instant pendingExpiresAt,
@@ -444,11 +429,6 @@ class RefreshTokenApplicationServiceTest {
         @Override
         public RevokedRefreshToken findRevoked(String refreshToken) {
             return revokedTokens.get(refreshToken);
-        }
-
-        @Override
-        public void revoke(String refreshToken) {
-            tokens.remove(refreshToken);
         }
 
         @Override

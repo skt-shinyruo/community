@@ -12,16 +12,6 @@
         id, post_id, user_id, root_comment_id, parent_comment_id, reply_to_user_id, content, status, create_time, version
     </sql>
 
-    <select id="selectRootComments" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
-        select <include refid="selectFields"></include>
-        from comment
-        where status = 0
-          and post_id = #{postId, jdbcType=BINARY}
-          and parent_comment_id is null
-        order by create_time desc, id desc
-        limit #{offset}, #{limit}
-    </select>
-
     <select id="selectRootCommentsAfter" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
         select <include refid="selectFields"></include>
         from comment
@@ -34,16 +24,6 @@
         </if>
         order by create_time desc, id desc
         limit #{limit}
-    </select>
-
-    <select id="selectRepliesByRootComment" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">
-        select <include refid="selectFields"></include>
-        from comment
-        where status = 0
-          and root_comment_id = #{rootCommentId, jdbcType=BINARY}
-          and parent_comment_id is not null
-        order by create_time asc, id asc
-        limit #{offset}, #{limit}
     </select>
 
     <select id="selectRepliesAfter" resultType="com.nowcoder.community.content.infrastructure.persistence.dataobject.CommentDataObject">

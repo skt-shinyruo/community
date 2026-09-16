@@ -112,7 +112,6 @@ mkdir -p "${output_dir}"
   write_common "$(require_process_env_then_dotenv_value NGINX_API_PORT)"
   env_line SPRING_DATA_REDIS_HOST 127.0.0.1
   env_line SPRING_DATA_REDIS_PORT "$(require_process_env_then_dotenv_value REDIS_HOST_PORT)"
-  env_line GATEWAY_TRUSTED_PROXY_ENABLED false
   env_line GATEWAY_WS_PROXY_AUTH_REQUIRED true
 } >"${output_dir}/community-gateway.env"
 

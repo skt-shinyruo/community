@@ -9,15 +9,7 @@ import java.util.UUID;
 
 public interface CommentContentRepository {
 
-    List<Comment> listRootComments(UUID postId, int page, int size);
-
-    List<Comment> listRootComments(UUID postId, int page, int size, int limit);
-
     List<Comment> listRootCommentsAfter(UUID postId, Date boundaryTime, UUID boundaryId, int limit);
-
-    List<Comment> listReplies(UUID rootCommentId, int page, int size);
-
-    List<Comment> listReplies(UUID rootCommentId, int page, int size, int limit);
 
     List<Comment> listRepliesAfter(UUID rootCommentId, Date boundaryTime, UUID boundaryId, int limit);
 

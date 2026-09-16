@@ -14,11 +14,11 @@ import com.nowcoder.community.content.domain.model.PostMediaReferenceOperation;
 import com.nowcoder.community.content.domain.model.PostMediaReferenceStatus;
 import com.nowcoder.community.content.domain.model.PostSnapshot;
 import com.nowcoder.community.content.domain.model.PostVideoState;
-import com.nowcoder.community.content.domain.repository.CategoryRepository;
+import com.nowcoder.community.content.domain.repository.CategoryContentRepository;
 import com.nowcoder.community.content.domain.repository.PostContentBlockRepository;
 import com.nowcoder.community.content.domain.repository.PostMediaAssetRepository;
 import com.nowcoder.community.content.domain.repository.PostRepository;
-import com.nowcoder.community.content.domain.repository.PostTagRepository;
+import com.nowcoder.community.content.domain.repository.TagContentRepository;
 import com.nowcoder.community.content.domain.service.PostContentBlockPolicy;
 import com.nowcoder.community.content.domain.service.PostPublishingDomainService;
 import com.nowcoder.community.content.exception.ContentErrorCode;
@@ -60,8 +60,8 @@ public class PostPublishingApplicationService {
     private final PostContentBlockRepository postContentBlockRepository;
     private final PostMediaAssetRepository postMediaAssetRepository;
     private final PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher;
-    private final CategoryRepository categoryRepository;
-    private final PostTagRepository postTagRepository;
+    private final CategoryContentRepository categoryRepository;
+    private final TagContentRepository postTagRepository;
     private final PostIntegrationEventPublisher integrationEventPublisher;
     private final PostMediaReferenceScheduler mediaReferenceScheduler;
     private final Clock clock;
@@ -79,8 +79,8 @@ public class PostPublishingApplicationService {
             PostContentBlockRepository postContentBlockRepository,
             PostMediaAssetRepository postMediaAssetRepository,
             PostMediaReferenceCommandPublisher mediaReferenceCommandPublisher,
-            CategoryRepository categoryRepository,
-            PostTagRepository postTagRepository,
+            CategoryContentRepository categoryRepository,
+            TagContentRepository postTagRepository,
             PostIntegrationEventPublisher integrationEventPublisher,
             PostMediaReferenceScheduler mediaReferenceScheduler,
             Clock clock,

@@ -5,7 +5,6 @@ import com.nowcoder.community.auth.config.LoginRateLimitProperties;
 import com.nowcoder.community.auth.config.RefreshTokenCleanupProperties;
 import com.nowcoder.community.common.spring.policy.KafkaPolicyProperties;
 import com.nowcoder.community.common.spring.policy.UploadPolicyProperties;
-import com.nowcoder.community.common.web.net.TrustedProxyProperties;
 import com.nowcoder.community.infra.oss.OssClientProperties;
 import com.nowcoder.community.infra.security.origin.OriginGuardProperties;
 import com.nowcoder.community.notice.application.NoticePolicyProperties;
@@ -164,26 +163,21 @@ class NacosPolicyBindingTest {
     }
 
     @Test
-    void bindsCommunityTrustedProxyFromOwnerSpecificRuntimeInputs() throws Exception {
+    void bindsCommunityForwardHeadersFromOwnerSpecificRuntimeInputs() throws Exception {
         StandardEnvironment environment = environmentFrom(
                 "community-app.yaml",
                 Map.of(
-                        "GATEWAY_TRUSTED_PROXY_ENABLED", "false",
-                        "GATEWAY_TRUSTED_PROXY_CIDRS", "192.0.2.10/32",
-                        "COMMUNITY_APP_TRUSTED_PROXY_ENABLED", "true",
+                        "COMMUNITY_APP_FORWARD_HEADERS_STRATEGY", "native",
                         "COMMUNITY_APP_TRUSTED_PROXY_CIDRS", "172.31.0.0/24,fd00:31::/64"
                 )
         );
 
-        TrustedProxyProperties trustedProxy = Binder.get(environment)
-                .bind("community.web.trusted-proxy", TrustedProxyProperties.class)
-                .orElseThrow(IllegalStateException::new);
-
-        assertThat(trustedProxy.isEnabled()).isTrue();
-        assertThat(trustedProxy.getCidrs()).containsExactly("172.31.0.0/24", "fd00:31::/64");
-        assertThat(trustedProxy.getSource()).isEqualTo("compose-environment");
-        assertThat(environment.getProperty("community.web.trusted-proxy.source"))
-                .isEqualTo("compose-environment");
+        assertThat(environment.getProperty("server.forward-headers-strategy")).isEqualTo("native");
+        assertThat(environment.getProperty("server.tomcat.remoteip.internal-proxies"))
+                .isEqualTo("172.31.0.0/24,fd00:31::/64");
+        // The Gateway owner's trusted-proxy path must not be consumed by community-app.
+        assertThat(environment.containsProperty("gateway.trusted-proxy.enabled")).isFalse();
+        assertThat(environment.containsProperty("community.web.trusted-proxy.enabled")).isFalse();
     }
 
     @Test

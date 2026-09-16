@@ -2,11 +2,10 @@ package com.nowcoder.community.social.domain.repository;
 
 import com.nowcoder.community.social.domain.model.FollowRelation;
 
-import java.util.HashMap;
+import java.time.Instant;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
-import java.time.Instant;
 
 public interface FollowRepository {
 
@@ -16,79 +15,22 @@ public interface FollowRepository {
 
     boolean hasFollowed(UUID userId, int entityType, UUID entityId);
 
-    default Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
-        Map<UUID, Boolean> statuses = new HashMap<>();
-        if (entityIds == null || entityIds.isEmpty()) {
-            return statuses;
-        }
-        for (UUID entityId : entityIds) {
-            if (entityId != null) {
-                statuses.put(entityId, hasFollowed(userId, entityType, entityId));
-            }
-        }
-        return statuses;
-    }
+    Map<UUID, Boolean> followedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds);
 
     long countFollowees(UUID userId, int entityType);
 
     long countFollowers(int entityType, UUID entityId);
 
-    default long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository) {
-        return listFollowees(userId, entityType, 0, Integer.MAX_VALUE).stream()
-                .filter(relation -> relation != null && !isEitherBlocked(userId, relation.targetId(), blockRepository))
-                .count();
-    }
+    long countFolloweesExcludingBlocked(UUID userId, int entityType, BlockRepository blockRepository);
 
-    default long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository) {
-        return listFollowers(entityType, entityId, 0, Integer.MAX_VALUE).stream()
-                .filter(relation -> relation != null && !isEitherBlocked(entityId, relation.targetId(), blockRepository))
-                .count();
-    }
+    long countFollowersExcludingBlocked(int entityType, UUID entityId, BlockRepository blockRepository);
 
-    List<FollowRelation> listFollowees(UUID userId, int entityType, int offset, int limit);
-
-    List<FollowRelation> listFollowers(int entityType, UUID entityId, int offset, int limit);
-
-    List<UUID> listFolloweeIds(UUID userId, int entityType, int limit);
-
-    default List<UUID> listFolloweeIdsExcludingBlocked(
+    List<UUID> listFolloweeIdsExcludingBlocked(
             UUID userId,
             int entityType,
             BlockRepository blockRepository,
             int limit
-    ) {
-        return listFolloweesExcludingBlocked(userId, entityType, blockRepository, 0, Math.max(0, limit)).stream()
-                .map(FollowRelation::targetId)
-                .toList();
-    }
-
-    default List<FollowRelation> listFolloweesExcludingBlocked(
-            UUID userId,
-            int entityType,
-            BlockRepository blockRepository,
-            int offset,
-            int limit
-    ) {
-        return listFollowees(userId, entityType, 0, Integer.MAX_VALUE).stream()
-                .filter(relation -> relation != null && !isEitherBlocked(userId, relation.targetId(), blockRepository))
-                .skip(Math.max(0, offset))
-                .limit(Math.max(0, limit))
-                .toList();
-    }
-
-    default List<FollowRelation> listFollowersExcludingBlocked(
-            int entityType,
-            UUID entityId,
-            BlockRepository blockRepository,
-            int offset,
-            int limit
-    ) {
-        return listFollowers(entityType, entityId, 0, Integer.MAX_VALUE).stream()
-                .filter(relation -> relation != null && !isEitherBlocked(entityId, relation.targetId(), blockRepository))
-                .skip(Math.max(0, offset))
-                .limit(Math.max(0, limit))
-                .toList();
-    }
+    );
 
     List<FollowRelation> listFolloweesAfterExcludingBlocked(
             UUID userId,
@@ -107,12 +49,4 @@ public interface FollowRepository {
             UUID beforeTargetId,
             int limit
     );
-
-    private boolean isEitherBlocked(UUID userIdA, UUID userIdB, BlockRepository blockRepository) {
-        if (userIdA == null || userIdB == null || userIdA.equals(userIdB) || blockRepository == null) {
-            return false;
-        }
-        return blockRepository.hasBlocked(userIdA, userIdB) || blockRepository.hasBlocked(userIdB, userIdA);
-    }
-
 }

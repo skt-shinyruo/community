@@ -8,21 +8,9 @@ public class PostSearchDomainService {
 
     private static final int DELETED_STATUS = 2;
 
-    public PostSearchQuery normalizeSearchQuery(String keyword, UUID categoryId, String tag, Integer page, Integer size) {
-        return normalizeSearchQuery(keyword, categoryId, tag, page, size, 50);
-    }
-
-    public PostSearchQuery normalizeSearchQuery(
-            String keyword,
-            UUID categoryId,
-            String tag,
-            Integer page,
-            Integer size,
-            int maxPageSize
-    ) {
+    public PostSearchQuery normalizeSearchQuery(String keyword, UUID categoryId, String tag, Integer page, Integer size, int maxPageSize) {
         int safePage = page == null ? 0 : Math.max(0, page);
-        int safeMaxPageSize = Math.max(1, maxPageSize);
-        int safeSize = size == null ? 10 : Math.min(safeMaxPageSize, Math.max(1, size));
+        int safeSize = size == null ? 10 : Math.min(maxPageSize, Math.max(1, size));
         return new PostSearchQuery(normalizeKeyword(keyword), categoryId, normalizeTag(tag), safePage, safeSize);
     }
 
@@ -42,7 +30,8 @@ public class PostSearchDomainService {
         return hasText(safeTag) ? safeTag : null;
     }
 
-    private boolean hasText(String value) {
-        return value != null && !value.trim().isEmpty();
+    // ponytail: domain 层禁用 Spring（ArchUnit 红线），保留 3 行纯 Java 判断
+    private static boolean hasText(String value) {
+        return value != null && !value.isBlank();
     }
 }

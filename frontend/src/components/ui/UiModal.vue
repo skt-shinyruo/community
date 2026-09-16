@@ -1,4 +1,4 @@
-<!-- 模态弹窗外壳：原生 <dialog> + useModalFocus 焦点圈定，统一 title/尺寸与 header/body/footer slots。
+<!-- 模态弹窗外壳：原生 <dialog>（showModal 圈定焦点、close 恢复焦点），统一 title/尺寸与 header/body/footer slots。
      Escape、backdrop 点击与关闭按钮都只发出 close 请求，由使用方决定何时卸载；busy 期间禁止关闭。 -->
 <template>
   <dialog
@@ -12,7 +12,6 @@
     :aria-busy="busy || undefined"
     @click.self="requestClose"
     @cancel.prevent="requestClose"
-    @keydown="onKeydown"
   >
     <div class="ui-modal__card">
       <header v-if="title || $slots.header" class="ui-modal__header">
@@ -39,9 +38,8 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import UiIconButton from './UiIconButton.vue'
-import { useModalFocus } from '../../composables/useModalFocus'
 
 const props = defineProps({
   title: { type: String, default: '' },
@@ -57,7 +55,6 @@ const titleId = `ui-modal-title-${uid}`
 const bodyId = `ui-modal-body-${uid}`
 
 const dialogRef = ref(null)
-const { onKeydown } = useModalFocus(dialogRef)
 
 const SIZES = ['sm', 'md', 'lg']
 const safeSize = computed(() => (SIZES.includes(props.size) ? props.size : 'md'))
@@ -70,7 +67,14 @@ function requestClose() {
   emit('close')
 }
 
-onMounted(() => dialogRef.value?.showModal?.())
+// 原生 showModal() 已将弹窗置于 top layer（Tab 圈定、首个控件聚焦），close() 原生恢复焦点到触发控件。
+onMounted(async () => {
+  const dialog = dialogRef.value
+  dialog?.showModal?.()
+  await nextTick()
+  // 唯一超出原生能力的约定：优先聚焦 [data-autofocus]。
+  dialog?.querySelector('[data-autofocus]')?.focus()
+})
 onBeforeUnmount(() => dialogRef.value?.close?.())
 </script>
 

@@ -3,7 +3,6 @@ package com.nowcoder.community.market.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.id.UuidV7Generator;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.application.result.MarketAddressResult;
 import com.nowcoder.community.market.domain.model.MarketAddress;
@@ -42,8 +41,6 @@ class MarketAddressApplicationServiceTest {
     @Autowired
     private MarketAddressRepository marketAddressRepository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

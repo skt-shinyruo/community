@@ -11,7 +11,6 @@ import com.nowcoder.community.drive.application.DriveShareApplicationService.Sha
 import com.nowcoder.community.drive.application.DriveShareApplicationService.SharePageResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
-import com.nowcoder.community.drive.infrastructure.security.BCryptDrivePasswordHasher;
 import com.nowcoder.community.drive.infrastructure.security.HmacDriveShareTicketCodec;
 import org.junit.jupiter.api.Test;
 
@@ -307,17 +306,12 @@ class DriveShareApplicationServiceTest {
     }
 
     @Test
-    void securityAdaptersShouldHashPasswordsAndValidateHmacTickets() {
-        BCryptDrivePasswordHasher passwordHasher = new BCryptDrivePasswordHasher();
+    void hmacTicketCodecShouldValidateTickets() {
         HmacDriveShareTicketCodec ticketCodec = new HmacDriveShareTicketCodec("test-secret");
         Instant expiresAt = TestDriveFixture.NOW.plusSeconds(600);
 
-        String passwordHash = passwordHasher.hash("1234");
         String ticket = ticketCodec.issue("share-token", expiresAt);
 
-        assertThat(passwordHash).isNotEqualTo("1234");
-        assertThat(passwordHasher.matches("1234", passwordHash)).isTrue();
-        assertThat(passwordHasher.matches("bad", passwordHash)).isFalse();
         assertThat(ticketCodec.valid("share-token", ticket, TestDriveFixture.NOW)).isTrue();
         assertThat(ticketCodec.valid("other-share", ticket, TestDriveFixture.NOW)).isFalse();
         assertThat(ticketCodec.valid("share-token", ticket, expiresAt)).isFalse();

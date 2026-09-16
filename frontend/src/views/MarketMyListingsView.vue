@@ -92,6 +92,7 @@ import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { listMyMarketListings } from '../api/services/marketService'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { buildMarketState, mergeMarketPage } from './marketState'
 
 const auth = useAuthStore()
@@ -103,33 +104,28 @@ const listings = ref([])
 const page = ref(0)
 const hasNext = ref(false)
 const pageSize = 20
-let requestGeneration = 0
 
 const state = computed(() => buildMarketState({ listings: listings.value }))
 const sessionScope = computed(() => identityScope(auth))
-
-function isCurrentRequest(generation, scope) {
-  return generation === requestGeneration && scope === sessionScope.value
-}
+const loadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 async function reload() {
-  const generation = ++requestGeneration
-  const scope = sessionScope.value
+  const requestHandle = loadTracker.begin()
   loading.value = true
   loadingMore.value = false
   error.value = ''
   pageError.value = ''
   try {
     const { data, hasNext: nextAvailable, page: loadedPage } = await listMyMarketListings({ page: 0, size: pageSize })
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     listings.value = Array.isArray(data) ? data : []
     page.value = loadedPage
     hasNext.value = nextAvailable
   } catch (e) {
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载我的出售商品失败'
   } finally {
-    if (isCurrentRequest(generation, scope)) loading.value = false
+    if (loadTracker.isCurrent(requestHandle)) loading.value = false
   }
 }
 
@@ -138,29 +134,28 @@ async function loadMore() {
   loadingMore.value = true
   pageError.value = ''
   const targetPage = page.value + 1
-  const generation = ++requestGeneration
-  const scope = sessionScope.value
+  const requestHandle = loadTracker.begin()
   try {
     const { data, hasNext: nextAvailable, page: loadedPage } = await listMyMarketListings({
       page: targetPage,
       size: pageSize
     })
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     listings.value = mergeMarketPage(listings.value, data, 'listingId')
     page.value = loadedPage
     hasNext.value = nextAvailable
   } catch (e) {
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     pageError.value = e?.message || '加载更多出售商品失败'
   } finally {
-    if (isCurrentRequest(generation, scope)) loadingMore.value = false
+    if (loadTracker.isCurrent(requestHandle)) loadingMore.value = false
   }
 }
 
 watch(
   sessionScope,
   () => {
-    requestGeneration += 1
+    loadTracker.invalidate()
     listings.value = []
     page.value = 0
     hasNext.value = false
@@ -174,7 +169,7 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  requestGeneration += 1
+  loadTracker.invalidate()
 })
 </script>
 

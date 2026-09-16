@@ -10,7 +10,11 @@ import java.util.UUID;
  * coalesced fanout. Implementations are transport-free; the WebSocket session and
  * Reactor sink stay behind {@link #output()}.
  */
-public interface ConnectionState extends ConnectionIdentity {
+public interface ConnectionState {
+
+    String connectionId();
+
+    UUID userId();
 
     ConnectionOutput output();
 

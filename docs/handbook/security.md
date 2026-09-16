@@ -183,35 +183,31 @@ Compose environment。`application.yml` 中的 `GATEWAY_CORS_ALLOWED_ORIGINS`、
 - 不信任 `X-Forwarded-For` / `X-Real-IP`。
 - 使用 `remoteAddr` 作为客户端 IP，避免客户端伪造转发头绕过风控、限流或统计。
 
-生产部署在 Nginx / Ingress / Load Balancer 后时，按服务 owner 分别配置 trusted proxy，不能把两个服务的 allowlist 放进共享配置：
+生产部署在 Nginx / Ingress / Load Balancer 后时，按服务 owner 分别配置 trusted proxy，不能把两个服务的 allowlist 放进共享配置。两侧信任判定都使用平台原生机制，没有自研 CIDR 解析：
 
-Gateway（WebFlux）使用 `gateway.trusted-proxy`，环境变量为 `GATEWAY_TRUSTED_PROXY_ENABLED` 和 `GATEWAY_TRUSTED_PROXY_CIDRS`：
-
-```text
-gateway.trusted-proxy.enabled=true
-gateway.trusted-proxy.cidrs=[10.0.0.0/8,192.168.0.0/16,...]
-```
-
-Community Servlet（`community-app` 及使用 common-web 的服务）使用 `community.web.trusted-proxy`，当前部署环境变量为 `COMMUNITY_APP_TRUSTED_PROXY_ENABLED` 和 `COMMUNITY_APP_TRUSTED_PROXY_CIDRS`：
+Gateway（WebFlux）使用 Spring Cloud Gateway 原生 `trusted-proxies`，环境变量为 `GATEWAY_TRUSTED_PROXIES`（正则，逗号分隔）：
 
 ```text
-community.web.trusted-proxy.enabled=true
-community.web.trusted-proxy.cidrs=[10.0.0.0/8,192.168.0.0/16,...]
+spring.cloud.gateway.server.webflux.trusted-proxies=${GATEWAY_TRUSTED_PROXIES:}
+spring.cloud.gateway.server.webflux.httpserver.customizer-enabled=true
 ```
 
-行为：
+- 直接对端命中 `trusted-proxies` 正则时，Netty 层把 `X-Forwarded-For` 解析进连接的 remote address；不命中则保留对端地址，伪造的 XFF 不生效。
+- `trusted-proxies` 为空（安全默认）时 SCG 自动注册 RemoveForwarded / RemoveXForwarded 头过滤器，剥离入站转发头。
+- 出站侧保留一个 55 行的 `CanonicalForwardedForHttpHeadersFilter`（order 1，只做头部卫生）：丢弃全部入站转发头，向下游只发一条 X-Forwarded-For = 已解析的客户端地址；信任判定不在该过滤器内。
 
-- 只有 `remoteAddr` 命中本服务的 CIDR allowlist，才读取 `X-Forwarded-For`。
-- XFF 按“客户端 -> 各级代理”排列；解析时从右向左剥离连续命中的可信代理 hop，选择最靠右的第一个不可信 hop 作为客户端 IP。
-- `remoteAddr` 不可信、XFF hop 格式非法或链路超出限制时，回退使用 `remoteAddr`。
-- Gateway 会先规范化转发头；Servlet 服务仍按自己的 `community.web.trusted-proxy` allowlist 独立解析。
+Community Servlet（`community-app` 及使用 common-web 的服务）使用 Spring Boot / Tomcat 原生 RemoteIpValve，环境变量为 `COMMUNITY_APP_FORWARD_HEADERS_STRATEGY` 和 `COMMUNITY_APP_TRUSTED_PROXY_CIDRS`：
 
-prod 下 `community-app` 如果开启 Servlet trusted proxy：
+```text
+server.forward-headers-strategy=${COMMUNITY_APP_FORWARD_HEADERS_STRATEGY:none}
+server.tomcat.remoteip.internal-proxies=${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:<Boot 默认私网段>}
+```
 
-- CIDR 为空、无法绑定为列表或不是 IPv4/IPv6 literal CIDR 会阻断启动。
-- 禁止 `0.0.0.0/0` 或 `::/0`。
+- `forward-headers-strategy=native`（compose 部署强制值）启用 Tomcat RemoteIpValve；仅当直接对端命中 `internal-proxies` CIDR 列表时才采纳转发头。
+- Boot 4 的 `internal-proxies` 原生接受 IPv4/IPv6 CIDR 列表；本地开发默认值为常见私网段。
+- 部署侧拓扑校验（CIDR 合法性、禁止全放行段）由 `deployment.sh` 与 deploy 契约测试承担。
 
-迁移说明：历史 Servlet 配置若使用 `gateway.trusted-proxy` 前缀，必须迁移到 `community.web.trusted-proxy`，并将 `GATEWAY_TRUSTED_PROXY_*` 改为 `COMMUNITY_APP_TRUSTED_PROXY_*`。`gateway.trusted-proxy` 仍仅归 Gateway owner 使用。
+迁移说明：历史 `gateway.trusted-proxy.*` / `community.web.trusted-proxy.*` 自定义配置键与 `GATEWAY_TRUSTED_PROXY_ENABLED` 开关已随自研栈一并删除；网关 allowlist 改用 `GATEWAY_TRUSTED_PROXIES`（正则），Servlet 侧沿用 `COMMUNITY_APP_TRUSTED_PROXY_CIDRS`（CIDR）并新增 `COMMUNITY_APP_FORWARD_HEADERS_STRATEGY` 开关。
 
 ## 限流和风控
 
@@ -240,10 +236,9 @@ prod 下 `community-app` 如果开启 Servlet trusted proxy：
 
 gateway 路径级限流：
 
-- 配置键：`gateway.http.rate-limit.*`
-- 当前默认 `enabled=true`、`fail-open-on-error=false`。
-- `POST /api/drive/shares/{shareToken}/verify` 默认按客户端身份限制为每分钟 10 次；匿名请求使用 canonical client IP，已认证请求使用 principal。所有实际 share token 共用稳定的路径模式键，不能靠更换 token 绕过同一身份预算。
-- 路径策略使用 Spring `PathPattern` 语义；精确路径优先，多个模式同时命中时使用更具体的模式。
+- 使用 Spring Cloud Gateway 原生 `RequestRateLimiter` + Redis token bucket，配置在 gateway `application.yml` / Nacos seed 的 `drive-share-verify-rate-limit` 路由上（`redis-rate-limiter.replenish-rate=1`、`burst-capacity=10`、`requested-tokens=1`）。
+- `POST /api/drive/shares/{shareToken}/verify` 按客户端身份限流：瞬时突发 10 次后按每秒 1 次持续补充；匿名请求使用 trusted-proxy 解析后的客户端 IP，已认证请求使用 principal。所有实际 share token 共用稳定的路由模式键，不能靠更换 token 绕过同一身份预算。
+- Redis key 布局为 SCG 原生 `request_rate_limiter.{key}.{routeId}`；Redis 故障时 fail-closed（请求报错，不放行）。
 - 生产全局限流仍建议优先由反代 / Ingress / WAF 承担。
 
 ## 审计日志

@@ -5,7 +5,6 @@ import com.nowcoder.community.drive.application.DriveUploadApplicationService.Co
 import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
-import com.nowcoder.community.drive.application.port.DrivePasswordHasher;
 import com.nowcoder.community.drive.application.port.DriveShareTicketCodec;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.UploadSessionResult;
@@ -49,7 +48,6 @@ final class TestDriveFixture {
     private final InMemoryDriveShareRepository shares = new InMemoryDriveShareRepository();
     private final InMemoryDriveShareAccessRepository shareAccesses = new InMemoryDriveShareAccessRepository();
     private final FakeStoragePort storage = new FakeStoragePort();
-    private final FakePasswordHasher passwordHasher = new FakePasswordHasher();
     private final FakeTicketCodec ticketCodec = new FakeTicketCodec();
     private final UuidV7Generator idGenerator = new UuidV7Generator(CLOCK);
 
@@ -66,23 +64,23 @@ final class TestDriveFixture {
 
     DriveEntryApplicationService entryService() {
         return new DriveEntryApplicationService(
-                spaces, spaceService(), entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, spaceService(), entries, storage, CLOCK, new DriveTransactionOperations(), idGenerator);
     }
 
     DriveUploadApplicationService uploadService() {
         return new DriveUploadApplicationService(
-                spaces, spaceService(), entries, uploads, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, spaceService(), entries, uploads, storage, CLOCK, new DriveTransactionOperations(), idGenerator);
     }
 
     DriveTrashApplicationService trashService() {
         return new DriveTrashApplicationService(
-                spaces, spaceService(), entries, storage, CLOCK, DirectDriveTransactionOperations.INSTANCE);
+                spaces, spaceService(), entries, storage, CLOCK, new DriveTransactionOperations());
     }
 
     DriveShareApplicationService shareService() {
         return new DriveShareApplicationService(
-                spaces, entries, shares, shareAccesses, storage, passwordHasher, ticketCodec,
-                CLOCK, DirectDriveTransactionOperations.INSTANCE, idGenerator);
+                spaces, entries, shares, shareAccesses, storage, ticketCodec,
+                CLOCK, new DriveTransactionOperations(), idGenerator);
     }
 
     UUID createFile(UUID userId, String name, long sizeBytes) {
@@ -454,18 +452,6 @@ final class TestDriveFixture {
         @Override
         public void deleteObject(UUID objectId, String actorId) {
             deletedObjects.add(objectId);
-        }
-    }
-
-    private static final class FakePasswordHasher implements DrivePasswordHasher {
-        @Override
-        public String hash(String rawPassword) {
-            return "hashed:" + rawPassword;
-        }
-
-        @Override
-        public boolean matches(String rawPassword, String passwordHash) {
-            return Objects.equals(hash(rawPassword), passwordHash);
         }
     }
 

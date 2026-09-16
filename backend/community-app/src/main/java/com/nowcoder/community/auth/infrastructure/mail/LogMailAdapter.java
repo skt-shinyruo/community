@@ -7,6 +7,8 @@ import org.slf4j.LoggerFactory;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
 import org.springframework.stereotype.Service;
 
+import static com.nowcoder.community.auth.domain.service.EmailMasking.maskEmail;
+
 @Service
 @ConditionalOnProperty(name = "auth.registration.mail.enabled", havingValue = "false", matchIfMissing = true)
 public class LogMailAdapter implements MailPort {
@@ -33,22 +35,5 @@ public class LogMailAdapter implements MailPort {
                 maskEmail(toEmail),
                 "重置密码"
         );
-    }
-
-    private String maskEmail(String email) {
-        String normalized = email == null ? "" : email.trim();
-        int at = normalized.indexOf('@');
-        if (at <= 0) {
-            return normalized.isEmpty() ? "" : "***";
-        }
-        String local = normalized.substring(0, at);
-        String domain = normalized.substring(at);
-        if (local.length() <= 1) {
-            return "*" + domain;
-        }
-        if (local.length() == 2) {
-            return local.charAt(0) + "*" + domain;
-        }
-        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
     }
 }

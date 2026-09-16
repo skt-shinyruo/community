@@ -41,10 +41,6 @@ public interface UserRepository {
      */
     void lockRoleManagement();
 
-    void updateStatus(UUID userId, int status, long securityVersion);
-
-    void updatePassword(UUID userId, String encodedPassword, long securityVersion);
-
     boolean updatePasswordIfSecurityVersion(
             UUID userId,
             String encodedPassword,
@@ -77,12 +73,6 @@ public interface UserRepository {
      * not require an unindexed maximum scan across all users.
      */
     long nextUserSecurityVersion(UUID userId);
-
-    /**
-     * Returns the durable allocator watermark. Authentication freshness is
-     * evaluated against the security version persisted on the relevant user.
-     */
-    long currentUserSecurityVersion();
 
     InsertResult insertUser(UserAccount user);
 }

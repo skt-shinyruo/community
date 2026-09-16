@@ -1,17 +1,16 @@
 package com.nowcoder.community.gateway.config;
 
-import com.nowcoder.community.gateway.edge.EdgeTrustedProxyProperties;
-import com.nowcoder.community.gateway.edge.RateLimitProperties;
-import com.nowcoder.community.gateway.security.GatewayCorsProperties;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.context.properties.bind.Binder;
 import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.cloud.gateway.config.GatewayProperties;
+import org.springframework.cloud.gateway.config.GlobalCorsProperties;
 import org.springframework.cloud.gateway.route.RouteDefinition;
 import org.springframework.core.env.MutablePropertySources;
 import org.springframework.core.env.MapPropertySource;
 import org.springframework.core.env.StandardEnvironment;
 import org.springframework.core.io.FileSystemResource;
+import org.springframework.web.cors.CorsConfiguration;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -28,57 +27,82 @@ class NacosGatewayBindingTest {
 
         GatewayProperties gateway = binder.bind("spring.cloud.gateway.server.webflux", GatewayProperties.class)
                 .orElseThrow(IllegalStateException::new);
-        RateLimitProperties rateLimit = binder.bind("gateway.http.rate-limit", RateLimitProperties.class)
-                .orElseThrow(IllegalStateException::new);
-        GatewayCorsProperties cors = binder.bind("gateway.cors", GatewayCorsProperties.class)
+        GlobalCorsProperties globalCors = binder
+                .bind("spring.cloud.gateway.server.webflux.globalcors", GlobalCorsProperties.class)
                 .orElseThrow(IllegalStateException::new);
 
         assertThat(gateway.getRoutes())
                 .extracting(RouteDefinition::getId)
-                .containsExactly("im-session-edge", "im-ws-edge", "oss-api", "im-core", "bootstrap-api", "oss-files");
+                .containsExactly(
+                        "drive-share-verify-rate-limit",
+                        "im-session-edge",
+                        "im-ws-edge",
+                        "oss-api",
+                        "im-core",
+                        "bootstrap-api",
+                        "oss-files");
         assertThat(gateway.getRoutes())
                 .extracting(route -> route.getUri().toString())
                 .contains("lb://community-im-gateway", "lb://community-app", "lb://community-oss", "lb://im-core");
         assertThat(gateway.getDefaultFilters())
                 .singleElement()
                 .satisfies(filter -> assertThat(filter.getName()).isEqualTo("DedupeResponseHeader"));
-        assertThat(environment.containsProperty("gateway.http.rate-limit.fail-open-on-error")).isTrue();
-        assertThat(rateLimit.isEnabled()).isTrue();
-        assertThat(rateLimit.isFailOpenOnError()).isFalse();
-        assertThat(rateLimit.getPolicies())
-                .containsKey("/api/drive/shares/{shareToken}/verify");
-        assertThat(rateLimit.getPolicies().get("/api/drive/shares/{shareToken}/verify").getLimit())
-                .isEqualTo(10);
-        assertThat(cors.getAllowedOrigins()).containsExactly(
-                "http://localhost:5173",
-                "http://127.0.0.1:5173",
-                "http://localhost:12881",
-                "http://127.0.0.1:12881",
-                "http://localhost:12888",
-                "http://127.0.0.1:12888"
-        );
+
+        RouteDefinition rateLimited = gateway.getRoutes().stream()
+                .filter(route -> route.getId().equals("drive-share-verify-rate-limit"))
+                .findFirst()
+                .orElseThrow(IllegalStateException::new);
+        assertThat(rateLimited.getPredicates().toString()).contains("/api/drive/shares/*/verify");
+        assertThat(rateLimited.getFilters())
+                .singleElement()
+                .satisfies(filter -> {
+                    assertThat(filter.getName()).isEqualTo("RequestRateLimiter");
+                    assertThat(filter.getArgs())
+                            .containsEntry("redis-rate-limiter.replenishRate", "1")
+                            .containsEntry("redis-rate-limiter.burstCapacity", "10")
+                            .containsEntry("redis-rate-limiter.requestedTokens", "1")
+                            .containsEntry("key-resolver", "#{@gatewayRateLimitKeyResolver}");
+                });
+        RouteDefinition bootstrap = gateway.getRoutes().stream()
+                .filter(route -> route.getId().equals("bootstrap-api"))
+                .findFirst()
+                .orElseThrow(IllegalStateException::new);
+        assertThat(bootstrap.getFilters()).isEmpty();
+
+        Map<String, CorsConfiguration> corsConfigurations = globalCors.getCorsConfigurations();
+        assertThat(corsConfigurations).containsOnlyKeys("/api/**", "/files/**");
+        for (CorsConfiguration cors : corsConfigurations.values()) {
+            assertThat(cors.getAllowedOrigins()).containsExactly(
+                    "http://localhost:5173",
+                    "http://127.0.0.1:5173",
+                    "http://localhost:12881",
+                    "http://127.0.0.1:12881",
+                    "http://localhost:12888",
+                    "http://127.0.0.1:12888"
+            );
+            assertThat(cors.getAllowedMethods())
+                    .containsExactlyInAnyOrder("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS");
+            assertThat(cors.getAllowedHeaders()).containsExactly("*");
+            assertThat(cors.getExposedHeaders()).containsExactly("traceparent");
+            assertThat(cors.getAllowCredentials()).isTrue();
+            assertThat(cors.getMaxAge()).isEqualTo(3600L);
+        }
         assertThat(environment.getProperty("security.jwt.issuer")).isEqualTo("community-auth");
     }
 
     @Test
-    void bindsGatewayTrustedProxyFromOwnerSpecificRuntimeInputs() throws Exception {
+    void bindsGatewayTrustedProxiesFromOwnerSpecificRuntimeInputs() throws Exception {
         StandardEnvironment environment = environmentFrom(
                 "community-gateway.yaml",
-                Map.of(
-                        "GATEWAY_TRUSTED_PROXY_ENABLED", "true",
-                        "GATEWAY_TRUSTED_PROXY_CIDRS", "172.30.0.0/24,fd00:30::/64"
-                )
+                Map.of("GATEWAY_TRUSTED_PROXIES", "172\\.30\\.0\\.10")
         );
 
-        EdgeTrustedProxyProperties trustedProxy = Binder.get(environment)
-                .bind("gateway.trusted-proxy", EdgeTrustedProxyProperties.class)
-                .orElseThrow(IllegalStateException::new);
-
-        assertThat(trustedProxy.isEnabled()).isTrue();
-        assertThat(trustedProxy.getCidrs()).containsExactly("172.30.0.0/24", "fd00:30::/64");
-        assertThat(trustedProxy.getSource()).isEqualTo("compose-environment");
-        assertThat(environment.getProperty("gateway.trusted-proxy.source"))
-                .isEqualTo("compose-environment");
+        assertThat(environment.getProperty("spring.cloud.gateway.server.webflux.trusted-proxies"))
+                .isEqualTo("172\\.30\\.0\\.10");
+        assertThat(environment.getProperty("spring.cloud.gateway.server.webflux.httpserver.customizer-enabled"))
+                .isEqualTo("true");
+        // The legacy CIDR property contract is gone: no gateway.* owner block may remain.
+        assertThat(environment.getProperty("gateway.trusted-proxy.enabled")).isNull();
     }
 
     private static StandardEnvironment environmentFrom(String fileName) throws Exception {

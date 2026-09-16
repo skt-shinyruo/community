@@ -1,6 +1,5 @@
 package com.nowcoder.community.common.webflux;
 
-import com.nowcoder.community.common.exception.ErrorKindHttpStatusMapper;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.CommonErrorCode;
 import com.nowcoder.community.common.exception.ErrorCode;
@@ -26,13 +25,13 @@ public class GlobalExceptionHandler {
             return response(CommonErrorCode.INTERNAL_ERROR);
         }
         int status = ex.getStatusCode().value();
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.UNAUTHORIZED.getKind())) {
+        if (status == CommonErrorCode.UNAUTHORIZED.getKind().statusOf()) {
             return response(CommonErrorCode.UNAUTHORIZED);
         }
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.FORBIDDEN.getKind())) {
+        if (status == CommonErrorCode.FORBIDDEN.getKind().statusOf()) {
             return response(CommonErrorCode.FORBIDDEN);
         }
-        if (status == ErrorKindHttpStatusMapper.statusOf(CommonErrorCode.NOT_FOUND.getKind())) {
+        if (status == CommonErrorCode.NOT_FOUND.getKind().statusOf()) {
             return response(CommonErrorCode.NOT_FOUND);
         }
         return ResponseEntity.status(status)
@@ -49,7 +48,7 @@ public class GlobalExceptionHandler {
     }
 
     private ResponseEntity<Result<Void>> response(ErrorCode errorCode, String message) {
-        int status = ErrorKindHttpStatusMapper.statusOf(errorCode.getKind());
+        int status = errorCode.getKind().statusOf();
         return ResponseEntity.status(status)
                 .body(Result.error(errorCode.getCode(), message, status));
     }

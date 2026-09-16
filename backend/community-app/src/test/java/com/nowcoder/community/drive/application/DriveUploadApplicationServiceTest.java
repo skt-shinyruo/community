@@ -960,7 +960,7 @@ class DriveUploadApplicationServiceTest {
                 uploads,
                 storage,
                 clock,
-                DirectDriveTransactionOperations.INSTANCE,
+                new DriveTransactionOperations(),
                 new UuidV7Generator(clock)
         );
     }

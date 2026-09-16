@@ -52,22 +52,6 @@ public class WalletLedgerApplicationService {
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
     }
 
-    public UUID ensureUserWallet(UUID userId) {
-        return walletAccountService.ensureUserWallet(userId);
-    }
-
-    public UUID ensureSystemAccount(String accountType) {
-        return walletAccountService.ensureSystemAccount(accountType);
-    }
-
-    public long balanceOfUser(UUID userId) {
-        return walletAccountService.balanceOfUser(userId);
-    }
-
-    public List<WalletEntry> entriesOfTxn(UUID txnId) {
-        return walletLedgerRepository.findEntriesByTxnId(txnId);
-    }
-
     public List<WalletTransactionResult> recentTransactions(WalletAccount userAccount, int limit) {
         if (userAccount == null) {
             return List.of();
@@ -105,14 +89,6 @@ public class WalletLedgerApplicationService {
     public WalletTxnResult post(String requestId, WalletTxnType txnType, List<WalletPosting> postings) {
         return postInsideTransaction(
                 new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), requestId, postings),
-                WalletPostingPolicy.NORMAL
-        );
-    }
-
-    @Transactional
-    public WalletTxnResult post(String requestId, WalletTxnType txnType, String bizId, List<WalletPosting> postings) {
-        return postInsideTransaction(
-                new WalletLedgerCommand(requestId, txnType, defaultBizType(txnType), bizId, postings),
                 WalletPostingPolicy.NORMAL
         );
     }

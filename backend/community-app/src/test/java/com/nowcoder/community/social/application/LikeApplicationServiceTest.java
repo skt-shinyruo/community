@@ -305,20 +305,6 @@ class LikeApplicationServiceTest {
     }
 
     @Test
-    void deleteLikesByEntityShouldDecrementStoredOwnerCounts() {
-        StatefulLikeRepository repo = new StatefulLikeRepository();
-
-        seedLike(repo, uuid(801), uuid(1), POST, uuid(100), uuid(2));
-        seedLike(repo, uuid(802), uuid(3), POST, uuid(100), uuid(2));
-        assertThat(repo.getUserLikeCount(uuid(2))).isEqualTo(2);
-
-        assertThat(repo.deleteLikesByEntity(POST, uuid(100))).isEqualTo(2);
-
-        assertThat(repo.countEntityLikes(POST, uuid(100))).isZero();
-        assertThat(repo.getUserLikeCount(uuid(2))).isZero();
-    }
-
-    @Test
     void cleanupShouldEmitLikeRemovedForEachExistingLike() {
         StatefulLikeRepository repo = new StatefulLikeRepository();
         RecordingSocialDomainEventPublisher publisher = new RecordingSocialDomainEventPublisher();
@@ -696,20 +682,6 @@ class LikeApplicationServiceTest {
         }
 
         @Override
-        public long deleteLikesByEntity(int entityType, UUID entityId) {
-            Map<UUID, LikeRelation> removed = entityLikes.remove(entityKey(entityType, entityId));
-            if (removed == null || removed.isEmpty()) {
-                return 0;
-            }
-            for (LikeRelation relation : removed.values()) {
-                if (relation.entityUserId() != null) {
-                    incrementUserLikeCount(relation.entityUserId(), -1);
-                }
-            }
-            return removed.size();
-        }
-
-        @Override
         public List<LikeRelation> scanLikesByEntity(int entityType, UUID entityId, UUID afterActorUserId, int limit) {
             Map<UUID, LikeRelation> map = entityLikes.get(entityKey(entityType, entityId));
             if (map == null || map.isEmpty()) {
@@ -725,15 +697,13 @@ class LikeApplicationServiceTest {
         }
 
         @Override
-        public List<UUID> scanTargetIdsAfter(int entityType, UUID afterEntityId, int limit) {
-            UUID cursor = afterEntityId == null ? new UUID(0L, 0L) : afterEntityId;
-            return entityLikes.keySet().stream()
-                    .filter(key -> key.startsWith("like:entity:" + entityType + ":"))
-                    .map(key -> UUID.fromString(key.substring(key.lastIndexOf(':') + 1)))
-                    .filter(entityId -> entityId.compareTo(cursor) > 0)
-                    .sorted()
-                    .limit(limit)
-                    .toList();
+        public List<LikeRelation> scanCommentLikesByPost(
+                UUID postId,
+                UUID afterCommentId,
+                UUID afterActorUserId,
+                int limit
+        ) {
+            return List.of();
         }
 
         @Override
@@ -756,6 +726,34 @@ class LikeApplicationServiceTest {
         @Override
         public long getUserLikeCount(UUID userId) {
             return userLikeCounts.getOrDefault(userId, 0L);
+        }
+
+        @Override
+        public Map<UUID, Long> countEntityLikesBatch(int entityType, List<UUID> entityIds) {
+            Map<UUID, Long> out = new java.util.HashMap<>();
+            if (entityIds == null || entityIds.isEmpty()) {
+                return out;
+            }
+            for (UUID id : entityIds) {
+                if (id != null) {
+                    out.put(id, countEntityLikes(entityType, id));
+                }
+            }
+            return out;
+        }
+
+        @Override
+        public Map<UUID, Boolean> likedStatusesBatch(UUID userId, int entityType, List<UUID> entityIds) {
+            Map<UUID, Boolean> out = new java.util.HashMap<>();
+            if (entityIds == null || entityIds.isEmpty()) {
+                return out;
+            }
+            for (UUID id : entityIds) {
+                if (id != null) {
+                    out.put(id, isLiked(userId, entityType, id));
+                }
+            }
+            return out;
         }
 
         private String entityKey(int entityType, UUID entityId) {

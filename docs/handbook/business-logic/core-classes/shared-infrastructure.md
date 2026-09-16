@@ -45,7 +45,7 @@
 
 | 类 | 核心职责 |
 | --- | --- |
-| `community-gateway.edge.RateLimitWebFilter` | gateway edge 限流。 |
+| `community-gateway.edge.EdgeConfig` | gateway edge 装配：原生 RequestRateLimiter 的 key resolver 等。 |
 | `community-gateway.edge.AccessLogWebFilter` | gateway HTTP access log。 |
 | `community-oss.infrastructure.persistence.typehandler.UuidBinaryTypeHandler` | community_oss schema 的 UUID binary 适配。 |
 | `community-oss-client.HttpCommunityOssClient` | 业务服务调用 OSS 的 typed HTTP client。 |

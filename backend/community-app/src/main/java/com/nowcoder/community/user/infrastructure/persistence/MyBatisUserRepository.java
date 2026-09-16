@@ -118,22 +118,6 @@ public class MyBatisUserRepository implements UserRepository {
     }
 
     @Override
-    public void updateStatus(UUID userId, int status, long securityVersion) {
-        int updated = userMapper.updateStatus(userId, status, securityVersion);
-        if (updated <= 0) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新用户状态失败");
-        }
-    }
-
-    @Override
-    public void updatePassword(UUID userId, String encodedPassword, long securityVersion) {
-        int updated = userMapper.updatePassword(userId, encodedPassword, securityVersion);
-        if (updated <= 0) {
-            throw new BusinessException(CommonErrorCode.INTERNAL_ERROR, "更新密码失败");
-        }
-    }
-
-    @Override
     public boolean updatePasswordIfSecurityVersion(
             UUID userId,
             String encodedPassword,
@@ -234,11 +218,6 @@ public class MyBatisUserRepository implements UserRepository {
         long next = Math.max(current, persisted) + 1L;
         userMapper.updateSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID, next);
         return next;
-    }
-
-    @Override
-    public long currentUserSecurityVersion() {
-        return userMapper.selectSecurityVersionCounter(USER_SECURITY_VERSION_COUNTER_ID);
     }
 
     @Override

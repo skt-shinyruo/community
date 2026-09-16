@@ -291,8 +291,6 @@ export function createDeleteBatchService({
     throw new Error('entityRefRepository.listByBatchId is required')
   }
 
-  const runInTransaction = db.withTransaction ? (work) => db.withTransaction(work) : (work) => work(db)
-
   return {
     async deleteBatch(batchId, { force = false } = {}) {
       const batch = await batchRepository.findById(batchId)
@@ -310,7 +308,7 @@ export function createDeleteBatchService({
       const refs = orderRefsForDeletion(await entityRefRepository.listByBatchId(batchId))
       const deleted = createEmptyDeletedCounts()
 
-      await runInTransaction(async (txDb) => {
+      await db.withTransaction(async (txDb) => {
         const survivingPostIdsNeedingCountRepair = new Set()
 
         for (const ref of refs) {

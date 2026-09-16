@@ -2,6 +2,7 @@ package com.nowcoder.community.growth.application;
 
 import com.nowcoder.community.common.id.UuidV7Generator;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeCreatedCommand;
+import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerPostPublishedCommand;
 import com.nowcoder.community.growth.application.TaskProgressApplicationService.TriggerLikeRemovedCommand;
 import com.nowcoder.community.growth.domain.model.LikeTaskLifecycleState;
 import com.nowcoder.community.growth.domain.model.TaskTemplate;
@@ -20,7 +21,6 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
-import java.time.LocalDate;
 import java.time.ZoneId;
 import java.util.List;
 import java.util.UUID;
@@ -90,8 +90,9 @@ class TaskProgressApplicationServiceUnitTest {
         locked.setStatus("IN_PROGRESS");
         UUID userId = uuid(1);
 
+        UUID postId = uuid(41);
         when(taskTemplateRepository.findActiveByTriggerEventType("PostPublished")).thenReturn(List.of(template));
-        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1")))
+        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-published:" + postId)))
                 .thenReturn(UserTaskEventLogRepository.CreateStatus.CREATED);
         when(userTaskProgressRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq(1), eq("IN_PROGRESS"), isNull()))
                 .thenReturn(new UserTaskProgressRepository.CreateResult(
@@ -100,7 +101,8 @@ class TaskProgressApplicationServiceUnitTest {
                 ));
         when(userTaskProgressRepository.findByUserTaskAndPeriodForUpdate(userId, "DAILY_POST", "2026-03-22")).thenReturn(locked);
 
-        service.processEvent(userId, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
+        service.triggerPostPublished(new TriggerPostPublishedCommand(
+                postId, userId, Instant.parse("2026-03-22T00:00:00Z")));
 
         verify(walletRewardService).issue("task:" + userId + ":DAILY_POST:2026-03-22", userId, 1L, "DAILY_POST");
         verify(userTaskProgressRepository).updateProgress(any(UUID.class), anyInt(), anyString(), any(), any(), anyString(), anyString());
@@ -130,11 +132,13 @@ class TaskProgressApplicationServiceUnitTest {
         template.setTargetValue(1);
         UUID userId = uuid(1);
 
+        UUID postId = uuid(42);
         when(taskTemplateRepository.findActiveByTriggerEventType("PostPublished")).thenReturn(List.of(template));
-        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-evt-1")))
+        when(userTaskEventLogRepository.create(any(UUID.class), eq(userId), eq("DAILY_POST"), eq("2026-03-22"), eq("post-published:" + postId)))
                 .thenReturn(UserTaskEventLogRepository.CreateStatus.ALREADY_EXISTS);
 
-        service.processEvent(userId, "PostPublished", "post-evt-1", LocalDate.of(2026, 3, 22));
+        service.triggerPostPublished(new TriggerPostPublishedCommand(
+                postId, userId, Instant.parse("2026-03-22T00:00:00Z")));
 
         verify(userTaskProgressRepository, never()).findByUserTaskAndPeriodForUpdate(any(UUID.class), anyString(), anyString());
         verify(userTaskProgressRepository, never()).updateProgress(any(UUID.class), anyInt(), anyString(), any(), any(), anyString(), anyString());

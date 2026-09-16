@@ -10,7 +10,6 @@ import com.nowcoder.community.user.domain.repository.UserRepository;
 import com.nowcoder.community.user.domain.service.PasswordPolicyDomainService;
 import com.nowcoder.community.user.domain.service.UserCredentialDomainService;
 import com.nowcoder.community.user.domain.service.UsernamePolicyDomainService;
-import com.nowcoder.community.user.exception.UserErrorCode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.ArgumentCaptor;
@@ -30,9 +29,7 @@ import static com.nowcoder.community.common.exception.CommonErrorCode.SERVICE_UN
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyLong;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
@@ -78,7 +75,7 @@ class UserCredentialApplicationServiceTest {
     void authenticateShouldRejectBlankCredentials() {
         UserCredentialApplicationService service = service();
 
-        UserAuthenticationResultView result = service.authenticate("  ", "secret");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("  "), "secret");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
@@ -91,7 +88,7 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice"))
                 .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "pw")));
 
-        UserAuthenticationResultView result = service.authenticate("alice", "pw");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("alice"), "pw");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.USER_DISABLED);
         assertThat(result.user()).isNotNull();
@@ -104,7 +101,7 @@ class UserCredentialApplicationServiceTest {
         when(userRepository.findByUsername("alice"))
                 .thenReturn(Optional.of(disabledUser(uuid(7), "alice", "correct-password")));
 
-        UserAuthenticationResultView result = service.authenticate("alice", "wrong-password");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("alice"), "wrong-password");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
@@ -115,7 +112,7 @@ class UserCredentialApplicationServiceTest {
         UserCredentialApplicationService service = service();
         when(userRepository.findByUsername("missing")).thenReturn(Optional.empty());
 
-        UserAuthenticationResultView result = service.authenticate("missing", "wrong-password");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("missing"), "wrong-password");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
@@ -166,7 +163,7 @@ class UserCredentialApplicationServiceTest {
         );
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResultView result = service.authenticate("alice", "secret12");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("alice"), "secret12");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.USER_DISABLED);
         assertThat(result.user().securityVersion()).isEqualTo(99L);
@@ -181,11 +178,10 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(userId, "alice", "plain-hash", "abc");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResultView authenticationResult = service.authenticate("alice", "secret");
+        UserAuthenticationResultView authenticationResult = service.authenticate(service.prepare("alice"), "secret");
 
         assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(authenticationResult.user()).isNull();
-        verify(userRepository, never()).updatePassword(any(), any(), anyLong());
     }
 
     @Test
@@ -194,7 +190,7 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(uuid(7), "alice", "$2a$10$malformed", "");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResultView result = service.authenticate("alice", "secret12");
+        UserAuthenticationResultView result = service.authenticate(service.prepare("alice"), "secret12");
 
         assertThat(result.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(result.user()).isNull();
@@ -254,7 +250,7 @@ class UserCredentialApplicationServiceTest {
         UserAccount user = activeUser(userId, "alice", encoded, "");
         when(userRepository.findByUsername("alice")).thenReturn(Optional.of(user));
 
-        UserAuthenticationResultView authenticationResult = service.authenticate("alice", " secret12 ");
+        UserAuthenticationResultView authenticationResult = service.authenticate(service.prepare("alice"), " secret12 ");
 
         assertThat(authenticationResult.failure()).isEqualTo(UserAuthenticationResultView.Failure.INVALID_CREDENTIALS);
         assertThat(authenticationResult.user()).isNull();
@@ -300,32 +296,6 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void updatePasswordShouldRejectMissingUser() {
-        UserCredentialApplicationService service = service();
-        UUID userId = uuid(7);
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
-
-        assertThatThrownBy(() -> service.updatePassword(userId, "secret12"))
-                .isInstanceOf(BusinessException.class)
-                .extracting(ex -> ((BusinessException) ex).getErrorCode())
-                .isEqualTo(UserErrorCode.USER_NOT_FOUND);
-    }
-
-    @Test
-    void updatePasswordShouldPersistBcryptHashForExistingUser() {
-        UserCredentialApplicationService service = service();
-        UUID userId = uuid(7);
-        when(userRepository.findById(userId)).thenReturn(Optional.of(activeUser(userId, "alice", "encoded", "")));
-        when(userRepository.nextUserSecurityVersion(userId)).thenReturn(123L);
-
-        service.updatePassword(userId, "secret12");
-
-        ArgumentCaptor<String> passwordCaptor = ArgumentCaptor.forClass(String.class);
-        verify(userRepository).updatePassword(eq(userId), passwordCaptor.capture(), eq(123L));
-        assertThat(new BCryptPasswordEncoder().matches("secret12", passwordCaptor.getValue())).isTrue();
-    }
-
-    @Test
     void updatePasswordIfSecurityVersionShouldHashAndUseExpectedVersionCas() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(8);
@@ -350,7 +320,7 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void updatePasswordIfSecurityVersionShouldReportStaleCasWithoutUnconditionalWrite() {
+    void updatePasswordIfSecurityVersionShouldReportStaleCas() {
         UserCredentialApplicationService service = service();
         UUID userId = uuid(9);
         when(userRepository.nextUserSecurityVersion(userId)).thenReturn(125L);
@@ -362,8 +332,6 @@ class UserCredentialApplicationServiceTest {
         )).thenReturn(false);
 
         assertThat(service.updatePasswordIfSecurityVersion(userId, "secret12", 17L)).isFalse();
-
-        verify(userRepository, never()).updatePassword(any(), any(), anyLong());
     }
 
     @Test
@@ -380,20 +348,20 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void updatePasswordShouldRejectBlankPassword() {
+    void updatePasswordIfSecurityVersionShouldRejectBlankPassword() {
         UserCredentialApplicationService service = service();
 
-        assertThatThrownBy(() -> service.updatePassword(uuid(7), "  "))
+        assertThatThrownBy(() -> service.updatePasswordIfSecurityVersion(uuid(7), "  ", 17L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(INVALID_ARGUMENT);
     }
 
     @Test
-    void updatePasswordShouldRejectLeadingOrTrailingWhitespaceInsteadOfTrimming() {
+    void updatePasswordIfSecurityVersionShouldRejectLeadingOrTrailingWhitespaceInsteadOfTrimming() {
         UserCredentialApplicationService service = service();
 
-        assertThatThrownBy(() -> service.updatePassword(uuid(7), " secret12 "))
+        assertThatThrownBy(() -> service.updatePasswordIfSecurityVersion(uuid(7), " secret12 ", 17L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(INVALID_ARGUMENT);
@@ -402,10 +370,10 @@ class UserCredentialApplicationServiceTest {
     }
 
     @Test
-    void updatePasswordShouldRejectWeakPassword() {
+    void updatePasswordIfSecurityVersionShouldRejectWeakPassword() {
         UserCredentialApplicationService service = service();
 
-        assertThatThrownBy(() -> service.updatePassword(uuid(7), "aaaaaaaa"))
+        assertThatThrownBy(() -> service.updatePasswordIfSecurityVersion(uuid(7), "aaaaaaaa", 17L))
                 .isInstanceOf(BusinessException.class)
                 .extracting(ex -> ((BusinessException) ex).getErrorCode())
                 .isEqualTo(INVALID_ARGUMENT);

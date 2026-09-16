@@ -19,13 +19,14 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 import org.springframework.util.StringUtils;
 
-import java.text.Normalizer;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.Locale;
 import java.util.Objects;
 import java.util.UUID;
+
+import static com.nowcoder.community.auth.domain.service.EmailMasking.maskEmail;
 
 @Service
 public class PasswordResetApplicationService {
@@ -231,9 +232,6 @@ public class PasswordResetApplicationService {
     }
 
     private void enforceIpRequestRateLimit(String clientIp) {
-        if (resetRequestRateLimitRepository == null) {
-            return;
-        }
         int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
         int maxRequestsPerIp = properties.getMaxRequestsPerIp();
         String ip = clientIp == null ? "" : clientIp.trim();
@@ -247,14 +245,11 @@ public class PasswordResetApplicationService {
     }
 
     private void enforceEmailRequestRateLimit(String normalizedEmail) {
-        if (resetRequestRateLimitRepository == null) {
-            return;
-        }
         int maxRequestsPerEmail = properties.getMaxRequestsPerEmail();
         if (maxRequestsPerEmail > 0 && StringUtils.hasText(normalizedEmail)) {
             int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
             String emailKey = RATE_LIMIT_EMAIL_KEY_PREFIX
-                    + passwordResetTokenDeriver.identifierId("email-request", canonicalQuotaEmail(normalizedEmail));
+                    + passwordResetTokenDeriver.identifierId("email-request", AuthIdentifierCanonicalizer.canonicalize(normalizedEmail));
             int emailCount = resetRequestRateLimitRepository.increment(emailKey, windowSeconds);
             if (emailCount > maxRequestsPerEmail) {
                 throw new BusinessException(CommonErrorCode.TOO_MANY_REQUESTS, "请求过于频繁，请稍后再试");
@@ -263,33 +258,17 @@ public class PasswordResetApplicationService {
     }
 
     private boolean acquireDeliveryQuota(UserCredentialView user, String normalizedEmail) {
-        if (resetRequestRateLimitRepository == null || properties.getMaxRequestsPerEmail() <= 0) {
+        if (properties.getMaxRequestsPerEmail() <= 0) {
             return true;
         }
         String identity = user != null && user.userId() != null
                 ? "user:" + user.userId()
-                : "email:" + canonicalQuotaEmail(normalizedEmail);
+                : "email:" + AuthIdentifierCanonicalizer.canonicalize(normalizedEmail);
         String deliveryKey = RATE_LIMIT_DELIVERY_KEY_PREFIX
                 + passwordResetTokenDeriver.identifierId("delivery", identity);
         int windowSeconds = Math.max(1, properties.getRequestWindowSeconds());
         return resetRequestRateLimitRepository.increment(deliveryKey, windowSeconds)
                 <= properties.getMaxRequestsPerEmail();
-    }
-
-    private String canonicalQuotaEmail(String email) {
-        String value = email == null ? "" : email.trim();
-        String caseFolded = value.toUpperCase(Locale.ROOT).toLowerCase(Locale.ROOT);
-        String decomposed = Normalizer.normalize(caseFolded, Normalizer.Form.NFKD);
-        StringBuilder canonical = new StringBuilder(decomposed.length());
-        decomposed.codePoints()
-                .filter(codePoint -> {
-                    int type = Character.getType(codePoint);
-                    return type != Character.NON_SPACING_MARK
-                            && type != Character.COMBINING_SPACING_MARK
-                            && type != Character.ENCLOSING_MARK;
-                })
-                .forEach(canonical::appendCodePoint);
-        return canonical.toString();
     }
 
     private void cleanupIssuedResetToken(String token) {
@@ -352,23 +331,6 @@ public class PasswordResetApplicationService {
         } catch (RuntimeException cleanupEx) {
             log.warn("[password-reset] failed to complete consumed reset token: {}", cleanupEx.toString());
         }
-    }
-
-    private String maskEmail(String email) {
-        String normalized = email == null ? "" : email.trim();
-        int at = normalized.indexOf('@');
-        if (at <= 0) {
-            return normalized;
-        }
-        String local = normalized.substring(0, at);
-        String domain = normalized.substring(at);
-        if (local.length() <= 1) {
-            return "*" + domain;
-        }
-        if (local.length() == 2) {
-            return local.charAt(0) + "*" + domain;
-        }
-        return local.charAt(0) + "***" + local.charAt(local.length() - 1) + domain;
     }
 
 }

@@ -1,10 +1,12 @@
-community:
-  web:
-    # Enable only with the controlled Community Gateway CIDRs supplied at runtime.
-    trusted-proxy:
-      enabled: ${COMMUNITY_APP_TRUSTED_PROXY_ENABLED:false}
-      cidrs: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:}
-      source: compose-environment
+server:
+  # Native Tomcat RemoteIpValve handles Forwarded/X-Forwarded-* anti-spoofing:
+  # X-Forwarded-For is honored only when the direct peer matches internal-proxies.
+  forward-headers-strategy: ${COMMUNITY_APP_FORWARD_HEADERS_STRATEGY:none}
+  tomcat:
+    remoteip:
+      # CIDR allowlist of the controlled Community Gateway peers. Falls back to the
+      # Spring Boot default private ranges for direct local development.
+      internal-proxies: ${COMMUNITY_APP_TRUSTED_PROXY_CIDRS:192.168.0.0/16,172.16.0.0/12,169.254.0.0/16,fc00::/7,10.0.0.0/8,100.64.0.0/10,127.0.0.0/8,fe80::/10,::1/128}
 
 gateway:
   origin-guard:

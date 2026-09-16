@@ -32,7 +32,6 @@ import com.nowcoder.community.auth.controller.dto.PasswordResetRequestRequest;
 import com.nowcoder.community.auth.exception.AuthErrorCode;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.web.Result;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.infra.security.auth.CurrentUser;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -60,34 +59,38 @@ public class AuthController {
     private final RegistrationVerificationApplicationService registrationVerificationApplicationService;
     private final CaptchaApplicationService captchaApplicationService;
     private final PasswordResetApplicationService passwordResetApplicationService;
-    private final ClientIpResolver clientIpResolver;
+
+    /**
+     * Login risk-control tag values for auth_login_rate_limit_total's ip_source:
+     * the Tomcat RemoteIpValve (server.forward-headers-strategy=native) has already resolved
+     * the client address, so the XFF header's presence is the only remaining source signal.
+     */
+    private static final String IP_SOURCE_REMOTE = "remote";
+    private static final String IP_SOURCE_XFF = "xff";
 
     public AuthController(
             LoginApplicationService loginApplicationService,
             RegistrationApplicationService registrationApplicationService,
             RegistrationVerificationApplicationService registrationVerificationApplicationService,
             CaptchaApplicationService captchaApplicationService,
-            PasswordResetApplicationService passwordResetApplicationService,
-            ClientIpResolver clientIpResolver
+            PasswordResetApplicationService passwordResetApplicationService
     ) {
         this.loginApplicationService = loginApplicationService;
         this.registrationApplicationService = registrationApplicationService;
         this.registrationVerificationApplicationService = registrationVerificationApplicationService;
         this.captchaApplicationService = captchaApplicationService;
         this.passwordResetApplicationService = passwordResetApplicationService;
-        this.clientIpResolver = clientIpResolver;
     }
 
     @PostMapping("/login")
     public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request, HttpServletRequest httpRequest, HttpServletResponse response) {
-        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         LoginResult result = loginApplicationService.login(new LoginCommand(
                 request.username(),
                 request.password(),
                 request.captchaId(),
                 request.captchaCode(),
-                resolvedIp == null ? null : resolvedIp.ip(),
-                resolvedIp == null ? null : resolvedIp.source()
+                httpRequest.getRemoteAddr(),
+                StringUtils.hasText(httpRequest.getHeader("X-Forwarded-For")) ? IP_SOURCE_XFF : IP_SOURCE_REMOTE
         ));
         addRefreshCookie(response, result.refreshCookie());
         return Result.ok(new LoginResponse(result.accessToken()));
@@ -123,14 +126,13 @@ public class AuthController {
 
     @PostMapping("/register")
     public Result<RegisterResult> register(@Valid @RequestBody RegisterRequest request, HttpServletRequest httpRequest) {
-        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         return Result.ok(registrationApplicationService.register(new RegisterCommand(
                 request.username(),
                 request.password(),
                 request.email(),
                 request.captchaId(),
                 request.captchaCode(),
-                resolvedIp == null ? null : resolvedIp.ip()
+                httpRequest.getRemoteAddr()
         )));
     }
 
@@ -139,12 +141,11 @@ public class AuthController {
             @Valid @RequestBody RegisterCodeResendRequest request,
             HttpServletRequest httpRequest
     ) {
-        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         return Result.ok(registrationVerificationApplicationService.resendCode(new ResendRegisterCodeCommand(
                 request.registrationToken(),
                 request.captchaId(),
                 request.captchaCode(),
-                resolvedIp == null ? null : resolvedIp.ip()
+                httpRequest.getRemoteAddr()
         )));
     }
 
@@ -160,9 +161,8 @@ public class AuthController {
 
     @GetMapping("/captcha")
     public Result<CaptchaIssueResult> captcha(HttpServletRequest request, HttpServletResponse response) {
-        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(request);
         CaptchaIssueResult result = captchaApplicationService.issue(new IssueCaptchaCommand(
-                resolvedIp == null ? null : resolvedIp.ip()
+                request.getRemoteAddr()
         ));
         response.setHeader(HttpHeaders.CACHE_CONTROL, "no-store, no-cache, must-revalidate, max-age=0");
         response.setHeader(HttpHeaders.PRAGMA, "no-cache");
@@ -174,12 +174,11 @@ public class AuthController {
             @Valid @RequestBody PasswordResetRequestRequest request,
             HttpServletRequest httpRequest
     ) {
-        ClientIpResolver.ResolvedClientIp resolvedIp = clientIpResolver.resolve(httpRequest);
         PasswordResetRequestResult result = passwordResetApplicationService.requestReset(new RequestPasswordResetCommand(
                 request.email(),
                 request.captchaId(),
                 request.captchaCode(),
-                resolvedIp == null ? null : resolvedIp.ip()
+                httpRequest.getRemoteAddr()
         ));
         return Result.ok(result);
     }

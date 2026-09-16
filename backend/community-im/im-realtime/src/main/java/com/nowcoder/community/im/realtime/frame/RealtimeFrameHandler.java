@@ -237,7 +237,7 @@ public class RealtimeFrameHandler {
             return Mono.empty();
         }
 
-        PolicyDecision decision = policyProjectionService.canSendPrivate(conn.userId(), frame.toUserId());
+        PolicyDecision decision = policyProjectionService.canSendPrivateMessage(conn.userId(), frame.toUserId());
         if (!decision.allowed()) {
             sendReject(
                     conn,

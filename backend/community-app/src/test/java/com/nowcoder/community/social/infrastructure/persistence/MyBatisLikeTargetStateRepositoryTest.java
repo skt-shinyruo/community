@@ -2,7 +2,6 @@ package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.domain.model.LikeTargetState;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -50,8 +49,6 @@ class MyBatisLikeTargetStateRepositoryTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

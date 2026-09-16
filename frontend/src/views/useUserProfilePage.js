@@ -9,6 +9,7 @@ import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 import { showToast } from '../ui/toastService'
 import { normalizeOpaqueId, sameOpaqueId } from '../utils/opaqueId'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { settleNamedRequests } from '../utils/settledRequests'
 import { buildCanonicalConversationId } from './conversationDetailState'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
@@ -72,8 +73,6 @@ export function useUserProfilePage({ userId: userIdSource }) {
   const followStatus = ref(null)
   const followStatusState = ref('idle')
   const reportOpen = ref(false)
-  let reloadGeneration = 0
-  let actionGeneration = 0
   let mounted = false
   let stopViewScopeWatch = null
   let stopAuthScopeWatch = null
@@ -85,6 +84,8 @@ export function useUserProfilePage({ userId: userIdSource }) {
   const isBlocked = computed(() => prefs.blockedSet.has(userId.value))
   const authScope = computed(() => identityScope(auth))
   const viewScope = computed(() => `${userId.value}:${authScope.value}`)
+  const reloadTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
+  const actionTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 
   const joinedYear = computed(() => {
     const timestamp = profile.value?.createTime
@@ -121,10 +122,6 @@ export function useUserProfilePage({ userId: userIdSource }) {
     limit: 6
   }))
 
-  function reloadIsCurrent(generation, scope) {
-    return generation === reloadGeneration && scope === viewScope.value
-  }
-
   function clearViewState() {
     profile.value = null
     recentPosts.value = []
@@ -140,13 +137,12 @@ export function useUserProfilePage({ userId: userIdSource }) {
   async function reload() {
     const targetId = userId.value
     if (!targetId) {
-      reloadGeneration += 1
+      reloadTracker.invalidate()
       clearViewState()
       return
     }
 
-    const scope = viewScope.value
-    const generation = ++reloadGeneration
+    const requestHandle = reloadTracker.begin()
     const loadFollowStatus = authed.value
       && Boolean(meUserId.value)
       && !sameOpaqueId(meUserId.value, targetId)
@@ -165,7 +161,7 @@ export function useUserProfilePage({ userId: userIdSource }) {
           ? getFollowStatus(3, targetId, { force: true })
           : null
       })
-      if (!reloadIsCurrent(generation, scope)) return
+      if (!reloadTracker.isCurrent(requestHandle)) return
 
       const profileResult = outcome.results.profile
       if (!profileResult.ok) throw profileResult.error
@@ -182,7 +178,7 @@ export function useUserProfilePage({ userId: userIdSource }) {
           nextTimelineUsers = await postMetaCache.ensureUserSummaries(timelineUserIds)
         } catch {}
       }
-      if (!reloadIsCurrent(generation, scope)) return
+      if (!reloadTracker.isCurrent(requestHandle)) return
 
       profile.value = profileResult.value
       recentPosts.value = nextPosts
@@ -198,9 +194,9 @@ export function useUserProfilePage({ userId: userIdSource }) {
       }
 
     } catch (cause) {
-      if (reloadIsCurrent(generation, scope)) error.value = cause?.message || '加载失败'
+      if (reloadTracker.isCurrent(requestHandle)) error.value = cause?.message || '加载失败'
     } finally {
-      if (reloadIsCurrent(generation, scope)) loading.value = false
+      if (reloadTracker.isCurrent(requestHandle)) loading.value = false
     }
   }
 
@@ -216,19 +212,18 @@ export function useUserProfilePage({ userId: userIdSource }) {
 
     actionLoading.value = true
     return {
-      generation: ++actionGeneration,
+      handle: actionTracker.begin(),
       targetId,
-      authScope: authScope.value,
-      viewScope: viewScope.value
+      authScope: authScope.value
     }
   }
 
   function actionIsCurrent(action) {
-    return action.generation === actionGeneration && action.viewScope === viewScope.value
+    return actionTracker.isCurrent(action.handle)
   }
 
   function finishAction(action) {
-    if (action.generation === actionGeneration) actionLoading.value = false
+    if (actionTracker.isCurrent(action.handle)) actionLoading.value = false
   }
 
   async function setFollowing(following) {
@@ -267,8 +262,8 @@ export function useUserProfilePage({ userId: userIdSource }) {
     if (mounted) return
     mounted = true
     stopViewScopeWatch = watch(viewScope, () => {
-      reloadGeneration += 1
-      actionGeneration += 1
+      reloadTracker.invalidate()
+      actionTracker.invalidate()
       actionLoading.value = false
       clearViewState()
       if (userId.value) void reload()
@@ -288,8 +283,8 @@ export function useUserProfilePage({ userId: userIdSource }) {
     stopAuthScopeWatch?.()
     stopViewScopeWatch = null
     stopAuthScopeWatch = null
-    reloadGeneration += 1
-    actionGeneration += 1
+    reloadTracker.invalidate()
+    actionTracker.invalidate()
   }
 
   const model = readonly(reactive({

@@ -1,5 +1,6 @@
 package com.nowcoder.community.content.application;
 
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.application.result.PostSummaryResult;
 import com.nowcoder.community.content.domain.model.DiscussPost;
 import com.nowcoder.community.content.domain.repository.BookmarkRepository;
@@ -37,7 +38,8 @@ class BookmarkApplicationServiceTest {
                 bookmarkRepository,
                 postCounterCache,
                 reconciliationPort,
-                mock(PostFeedSummaryLoader.class)
+                mock(PostFeedSummaryLoader.class),
+                new TransactionCompletion()
         );
     }
 
@@ -47,7 +49,8 @@ class BookmarkApplicationServiceTest {
                 mock(BookmarkRepository.class),
                 mock(PostCounterCache.class),
                 null,
-                mock(PostFeedSummaryLoader.class)
+                mock(PostFeedSummaryLoader.class),
+                new TransactionCompletion()
         )).isInstanceOf(NullPointerException.class)
                 .hasMessageContaining("bookmarkCounterReconciliationPort");
     }
@@ -60,7 +63,8 @@ class BookmarkApplicationServiceTest {
                 bookmarkRepository,
                 mock(PostCounterCache.class),
                 reconciliationPort(),
-                summaryLoader
+                summaryLoader,
+                new TransactionCompletion()
         );
         UUID userId = uuid(7);
         DiscussPost post = new DiscussPost();

@@ -2,7 +2,6 @@ package com.nowcoder.community.wallet.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.domain.model.WalletAccount;
 import com.nowcoder.community.wallet.domain.model.WalletAccountChange;
 import com.nowcoder.community.wallet.domain.model.WalletPostingPolicy;
@@ -36,8 +35,6 @@ class WalletAccountRepositoryApplyTest {
     @Autowired
     private WalletAccountRepository repository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

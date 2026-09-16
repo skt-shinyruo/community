@@ -12,7 +12,7 @@ import java.util.concurrent.atomic.AtomicBoolean;
  * Transport-free realtime connection: identity, bound session metadata and mutable
  * room/coalescing state. The transport adapter creates one instance per socket with a
  * production {@link ConnectionOutput}; every other module depends on the
- * {@link ConnectionState} / {@link ConnectionIdentity} / {@link ConnectionOutput}
+ * {@link ConnectionState} / {@link ConnectionOutput}
  * interfaces and never sees the WebSocket session or Reactor sink.
  */
 public class ConnectionSession implements ConnectionState {

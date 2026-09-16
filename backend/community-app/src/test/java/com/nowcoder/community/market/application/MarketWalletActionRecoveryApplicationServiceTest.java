@@ -1,7 +1,6 @@
 package com.nowcoder.community.market.application;
 
 import com.nowcoder.community.app.CommunityAppApplication;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService.MarketWalletActionRecoveryResult;
 import com.nowcoder.community.market.domain.model.MarketListing;
 import com.nowcoder.community.market.domain.model.MarketOrder;
@@ -65,8 +64,6 @@ class MarketWalletActionRecoveryApplicationServiceTest {
     @Autowired
     private MarketWalletActionMapper marketWalletActionMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     private UUID listingId;
     private UUID orderId;
@@ -84,9 +81,9 @@ class MarketWalletActionRecoveryApplicationServiceTest {
     void recoverExpiredProcessingShouldReturnActionToRetrying() {
         UUID actionId = seedProcessingActionWithExpiredLease(Instant.parse("2026-04-25T09:00:00Z"));
 
-        int recovered = recoveryService.recoverExpiredProcessing(Instant.parse("2026-04-25T10:00:00Z"));
+        MarketWalletActionRecoveryResult result = recoveryService.reconcileOnce(50);
 
-        assertThat(recovered).isEqualTo(1);
+        assertThat(result.recoveredLeases()).isEqualTo(1);
         MarketWalletAction action = marketWalletActionMapper.selectById(actionId);
         assertThat(action.getStatus()).isEqualTo("RETRYING");
         assertThat(action.getProcessingLeaseUntil()).isNull();

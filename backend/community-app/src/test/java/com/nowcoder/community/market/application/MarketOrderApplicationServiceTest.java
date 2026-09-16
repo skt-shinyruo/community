@@ -4,7 +4,6 @@ import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
 import com.nowcoder.community.common.exception.ErrorKind;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.market.controller.dto.CreateMarketAddressRequest;
 import com.nowcoder.community.market.controller.dto.CreateMarketListingRequest;
 import com.nowcoder.community.market.application.result.MarketOrderDetailResult;
@@ -63,8 +62,6 @@ class MarketOrderApplicationServiceTest {
     @Autowired
     private DataSource dataSource;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -163,10 +160,10 @@ class MarketOrderApplicationServiceTest {
         UUID virtualOrderId = seedDeliveredVirtualOrder(firstSellerUserId, buyerUserId);
         UUID physicalOrderId = seedEscrowedPhysicalOrder(secondSellerUserId, buyerUserId);
 
-        assertThat(marketQueryService.listBuyingOrders(buyerUserId))
+        assertThat(marketQueryService.listBuyingOrders(buyerUserId, null, null).items())
                 .extracting(MarketOrderResult::goodsType)
                 .contains("VIRTUAL", "PHYSICAL");
-        assertThat(marketQueryService.listSellingOrders(secondSellerUserId))
+        assertThat(marketQueryService.listSellingOrders(secondSellerUserId, null, null).items())
                 .extracting(MarketOrderResult::orderId)
                 .contains(physicalOrderId);
         assertThat(marketQueryService.getOrderDetail(virtualOrderId, buyerUserId).deliveryContents())

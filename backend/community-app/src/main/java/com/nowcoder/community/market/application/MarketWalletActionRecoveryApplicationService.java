@@ -27,7 +27,6 @@ public class MarketWalletActionRecoveryApplicationService {
     }
 
     private static final Logger log = LoggerFactory.getLogger(MarketWalletActionRecoveryApplicationService.class);
-    private static final int DEFAULT_RECOVERY_SCAN_LIMIT = 100;
 
     private final MarketWalletActionRepository walletActionRepository;
     private final MarketOrderRepository orderRepository;
@@ -98,11 +97,6 @@ public class MarketWalletActionRecoveryApplicationService {
         }
 
         return new MarketWalletActionRecoveryResult(recoveredLeases, reconciled, skipped);
-    }
-
-    public int recoverExpiredProcessing(Instant asOf) {
-        Objects.requireNonNull(asOf, "asOf must not be null");
-        return recoverExpiredProcessingInternal(asOf, DEFAULT_RECOVERY_SCAN_LIMIT);
     }
 
     private int recoverExpiredProcessingInternal(Instant asOf, int limit) {

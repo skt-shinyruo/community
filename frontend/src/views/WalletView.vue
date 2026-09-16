@@ -159,6 +159,7 @@ import UiState from '../components/ui/UiState.vue'
 import UiPageHeader from '../components/ui/UiPageHeader.vue'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { isUuid, normalizeOpaqueId } from '../utils/opaqueId'
 import { parsePointsAmount } from '../utils/pointsAmount'
 import {
@@ -211,10 +212,10 @@ const writeAttempts = {
   withdraw: createWriteAttempt(),
   transfer: createWriteAttempt()
 }
-let reloadGeneration = 0
-let actionGeneration = 0
 
 const sessionScope = computed(() => identityScope(auth))
+const reloadTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => sessionScope.value })
 
 const state = computed(() =>
   buildWalletState({
@@ -273,8 +274,7 @@ function normalizeCapabilities(data) {
 }
 
 async function reload() {
-  const generation = ++reloadGeneration
-  const scope = sessionScope.value
+  const requestHandle = reloadTracker.begin()
   loading.value = true
   error.value = ''
   feedError.value = ''
@@ -284,7 +284,7 @@ async function reload() {
       transactions: () => getWalletTransactions(feedLimit.value),
       capabilities: () => getWalletCapabilities()
     })
-    if (generation !== reloadGeneration || scope !== sessionScope.value) return
+    if (!reloadTracker.isCurrent(requestHandle)) return
     if (outcome.results.summary.ok) summary.value = normalizeSummary(outcome.results.summary.value?.data)
     if (outcome.results.transactions.ok) {
       txns.value = normalizeTxns(outcome.results.transactions.value?.data)
@@ -299,7 +299,7 @@ async function reload() {
         : (firstError?.message || '加载钱包失败')
     }
   } finally {
-    if (generation === reloadGeneration && scope === sessionScope.value) {
+    if (reloadTracker.isCurrent(requestHandle)) {
       loading.value = false
     }
   }
@@ -307,19 +307,18 @@ async function reload() {
 
 async function loadMore() {
   if (loading.value || loadingMore.value || submittingKey.value !== '' || !hasMoreFeed.value) return
-  const generation = ++reloadGeneration
-  const scope = sessionScope.value
+  const requestHandle = reloadTracker.begin()
   const targetLimit = nextWalletFeedLimit(feedLimit.value)
   loadingMore.value = true
   feedError.value = ''
   try {
     const outcome = await getWalletTransactions(targetLimit)
-    if (generation !== reloadGeneration || scope !== sessionScope.value) return
+    if (!reloadTracker.isCurrent(requestHandle)) return
     txns.value = normalizeTxns(outcome?.data)
     feedLimit.value = targetLimit
     txnsLoaded.value = true
   } catch (e) {
-    if (generation !== reloadGeneration || scope !== sessionScope.value) return
+    if (!reloadTracker.isCurrent(requestHandle)) return
     feedError.value = e?.message || '加载更多流水失败'
   } finally {
     // 结果可能因更新的 reload 而作废，但本次请求已结束，尾部指示必须复位。
@@ -349,10 +348,6 @@ async function runConfirmation() {
   await action()
 }
 
-function isCurrentAction(generation, scope) {
-  return generation === actionGeneration && scope === sessionScope.value
-}
-
 function rechargeIntent() {
   return JSON.stringify([Number(rechargeForm.value.amount || 0)])
 }
@@ -368,8 +363,8 @@ function transferIntent() {
   ])
 }
 
-function isCurrentActionIntent(generation, scope, requestedIntent, currentIntent) {
-  return isCurrentAction(generation, scope) && requestedIntent === currentIntent()
+function isCurrentActionIntent(requestHandle, requestedIntent, currentIntent) {
+  return actionTracker.isCurrent(requestHandle) && requestedIntent === currentIntent()
 }
 
 async function submitRecharge() {
@@ -381,23 +376,22 @@ async function submitRecharge() {
   }
   const amount = parsedAmount.amount
 
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   const requestedIntent = rechargeIntent()
   submittingKey.value = 'recharge'
   formErrors.value.recharge = ''
   actionErrors.value.recharge = ''
   try {
     await createRecharge({ amount }, { writeAttempt: writeAttempts.recharge })
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, rechargeIntent)) return
     rechargeForm.value.amount = ''
     writeAttempts.recharge.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, rechargeIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, rechargeIntent)) return
     actionErrors.value.recharge = e?.message || '领取测试积分失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submittingKey.value = ''
+    if (actionTracker.isCurrent(requestHandle)) submittingKey.value = ''
   }
 }
 
@@ -416,23 +410,22 @@ function requestWithdrawal() {
 }
 
 async function submitWithdrawal(amount) {
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   const requestedIntent = withdrawalIntent()
   submittingKey.value = 'withdraw'
   formErrors.value.withdraw = ''
   actionErrors.value.withdraw = ''
   try {
     await createWithdrawal({ amount }, { writeAttempt: writeAttempts.withdraw })
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, withdrawalIntent)) return
     withdrawForm.value.amount = ''
     writeAttempts.withdraw.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, withdrawalIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, withdrawalIntent)) return
     actionErrors.value.withdraw = e?.message || '销毁测试积分失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submittingKey.value = ''
+    if (actionTracker.isCurrent(requestHandle)) submittingKey.value = ''
   }
 }
 
@@ -459,8 +452,7 @@ function requestTransfer() {
 }
 
 async function submitTransfer(toUserId, amount) {
-  const generation = ++actionGeneration
-  const scope = sessionScope.value
+  const requestHandle = actionTracker.begin()
   const requestedIntent = transferIntent()
   submittingKey.value = 'transfer'
   formErrors.value.transferToUserId = ''
@@ -468,16 +460,16 @@ async function submitTransfer(toUserId, amount) {
   actionErrors.value.transfer = ''
   try {
     await createTransfer({ toUserId, amount }, { writeAttempt: writeAttempts.transfer })
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, transferIntent)) return
     transferForm.value.toUserId = ''
     transferForm.value.amount = ''
     writeAttempts.transfer.succeed()
     await reload()
   } catch (e) {
-    if (!isCurrentActionIntent(generation, scope, requestedIntent, transferIntent)) return
+    if (!isCurrentActionIntent(requestHandle, requestedIntent, transferIntent)) return
     actionErrors.value.transfer = e?.message || '转账失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submittingKey.value = ''
+    if (actionTracker.isCurrent(requestHandle)) submittingKey.value = ''
   }
 }
 
@@ -506,8 +498,8 @@ onMounted(() => {
   if (auth.authed) reload()
 })
 watch(sessionScope, () => {
-  reloadGeneration += 1
-  actionGeneration += 1
+  reloadTracker.invalidate()
+  actionTracker.invalidate()
   resetPrivateState()
   if (auth.authed) reload()
 })
@@ -515,8 +507,8 @@ watch(rechargeForm, () => writeAttempts.recharge.changeIntent(), { deep: true })
 watch(withdrawForm, () => writeAttempts.withdraw.changeIntent(), { deep: true })
 watch(transferForm, () => writeAttempts.transfer.changeIntent(), { deep: true })
 onBeforeUnmount(() => {
-  reloadGeneration += 1
-  actionGeneration += 1
+  reloadTracker.invalidate()
+  actionTracker.invalidate()
   Object.values(writeAttempts).forEach((attempt) => attempt.cancel())
 })
 </script>

@@ -78,6 +78,7 @@ import UiAvatar from './UiAvatar.vue'
 import UiButton from './UiButton.vue'
 import UiRoleBadge from './UiRoleBadge.vue'
 import ReportModal from '../modals/ReportModal.vue'
+import { createLatestRequestTracker } from '../../utils/latestRequest'
 import { hasOpaqueId, normalizeOpaqueId, sameOpaqueId } from '../../utils/opaqueId'
 
 const props = defineProps({
@@ -105,23 +106,9 @@ let timer = null
 
 const reportOpen = ref(false)
 const actionLoading = ref(false)
-let profileRequestId = 0
-let actionRequestId = 0
-let disposed = false
-
-function isCurrentScope(requestId, uid, authScope) {
-  return !disposed
-    && requestId === profileRequestId
-    && uid === resolvedUserId.value
-    && identityScope(auth) === authScope
-}
-
-function isCurrentAction(requestId, uid, authScope) {
-  return !disposed
-    && requestId === actionRequestId
-    && uid === resolvedUserId.value
-    && identityScope(auth) === authScope
-}
+const cardScope = () => `${resolvedUserId.value}:${identityScope(auth)}`
+const profileTracker = createLatestRequestTracker({ getScope: cardScope })
+const actionTracker = createLatestRequestTracker({ getScope: cardScope })
 
 function shouldFetchProfile(user) {
   if (!user) return true
@@ -134,17 +121,16 @@ function shouldFetchProfile(user) {
 async function ensureProfile() {
   const uid = resolvedUserId.value
   if (!uid) return
-  const requestId = ++profileRequestId
-  const authScope = identityScope(auth)
+  const requestHandle = profileTracker.begin()
   if (profile.value && !shouldFetchProfile(profile.value)) return
   if (!shouldFetchProfile(props.user)) {
     // props already has a rich profile
-    if (isCurrentScope(requestId, uid, authScope)) profile.value = props.user
+    if (profileTracker.isCurrent(requestHandle)) profile.value = props.user
     return
   }
 
   const nextProfile = await getUserProfile(uid).catch(() => null)
-  if (isCurrentScope(requestId, uid, authScope)) profile.value = nextProfile
+  if (profileTracker.isCurrent(requestHandle)) profile.value = nextProfile
 }
 
 async function onEnter() {
@@ -166,15 +152,15 @@ function hide() {
 }
 
 watch(resolvedUserId, () => {
-  profileRequestId += 1
-  actionRequestId += 1
+  profileTracker.invalidate()
+  actionTracker.invalidate()
   profile.value = null
   reportOpen.value = false
 })
 
 watch(() => identityScope(auth), () => {
-  profileRequestId += 1
-  actionRequestId += 1
+  profileTracker.invalidate()
+  actionTracker.invalidate()
   profile.value = null
   reportOpen.value = false
   actionLoading.value = false
@@ -191,8 +177,7 @@ function openReport() {
 async function toggleBlock() {
   if (!canInteract.value) return
   const targetId = resolvedUserId.value
-  const authScope = identityScope(auth)
-  const requestId = ++actionRequestId
+  const requestHandle = actionTracker.begin()
   const wasBlocked = isBlocked.value
   actionLoading.value = true
   try {
@@ -201,23 +186,22 @@ async function toggleBlock() {
     } else {
       await blockUser(targetId)
     }
-    if (!isCurrentAction(requestId, targetId, authScope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     // 读侧屏蔽列表重同步失败不把已成功的写操作报成失败：静默重同步，避免成功 toast 与错误 toast 同时出现。
     await prefs.ensureBlocked(true, { silent: true }).catch(() => {})
-    if (!isCurrentAction(requestId, targetId, authScope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     showToast({ type: 'success', text: wasBlocked ? '已解除屏蔽' : '已屏蔽该用户' })
   } catch (e) {
-    if (!isCurrentAction(requestId, targetId, authScope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     showErrorToast(e, { type: 'error', title: '操作失败', text: e?.message || '请稍后重试' })
   } finally {
-    if (isCurrentAction(requestId, targetId, authScope)) actionLoading.value = false
+    if (actionTracker.isCurrent(requestHandle)) actionLoading.value = false
   }
 }
 
 onBeforeUnmount(() => {
-  disposed = true
-  profileRequestId += 1
-  actionRequestId += 1
+  profileTracker.invalidate()
+  actionTracker.invalidate()
 })
 </script>
 

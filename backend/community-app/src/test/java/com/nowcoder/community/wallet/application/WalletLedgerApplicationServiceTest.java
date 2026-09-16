@@ -3,13 +3,14 @@ package com.nowcoder.community.wallet.application;
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
 import com.nowcoder.community.common.exception.BusinessException;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.wallet.exception.WalletErrorCode;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletAccountMapper;
 import com.nowcoder.community.wallet.infrastructure.persistence.mapper.WalletTxnMapper;
+import com.nowcoder.community.wallet.domain.model.WalletLedgerCommand;
 import com.nowcoder.community.wallet.domain.model.WalletPosting;
 import com.nowcoder.community.wallet.application.result.WalletTxnResult;
 import com.nowcoder.community.wallet.domain.model.WalletTxnType;
+import com.nowcoder.community.wallet.domain.repository.WalletLedgerRepository;
 import com.nowcoder.community.wallet.domain.service.WalletAmountPolicy;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -42,11 +43,15 @@ class WalletLedgerApplicationServiceTest {
     @Autowired
     private WalletLedgerApplicationService service;
 
+    @Autowired
+    private WalletAccountApplicationService accountService;
+
+    @Autowired
+    private WalletLedgerRepository walletLedgerRepository;
+
     @MockitoSpyBean
     private WalletAccountMapper walletAccountMapper;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {
@@ -59,8 +64,8 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void appendTxnShouldPersistBalancedEntriesAndUpdateBalances() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         WalletTxnResult result = service.post(
                 "reward:101:2026-04-02",
@@ -73,15 +78,15 @@ class WalletLedgerApplicationServiceTest {
 
         assertThat(result.txnId()).isNotNull();
         assertThat(result.txnId().version()).isEqualTo(7);
-        assertThat(service.balanceOfUser(userId)).isEqualTo(500);
-        assertThat(service.entriesOfTxn(result.txnId())).hasSize(2);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(500);
+        assertThat(walletLedgerRepository.findEntriesByTxnId(result.txnId())).hasSize(2);
     }
 
     @Test
     void postShouldAggregateRepeatedAccountsAndAdvanceEachAccountOnce() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         WalletTxnResult result = service.post(
                 "reward:101:aggregated",
@@ -93,7 +98,7 @@ class WalletLedgerApplicationServiceTest {
                 )
         );
 
-        assertThat(service.entriesOfTxn(result.txnId()))
+        assertThat(walletLedgerRepository.findEntriesByTxnId(result.txnId()))
                 .extracting(entry -> entry.getAccountId() + ":" + entry.getDirection() + ":" + entry.getAmount())
                 .containsExactlyInAnyOrder(
                         systemAccountId + ":DEBIT:500",
@@ -105,8 +110,8 @@ class WalletLedgerApplicationServiceTest {
 
     @Test
     void postShouldEnforceTheAmountLimitBeforeNettingRepeatedAccounts() {
-        UUID userAccountId = service.ensureUserWallet(uuid(101));
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(uuid(101));
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         assertThatThrownBy(() -> service.post(
                 "reward:101:oversized-netting",
@@ -138,8 +143,8 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void postShouldBeIdempotentByRequestId() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
         WalletTxnResult first = service.post(
                 "reward:101:idempotent",
@@ -160,7 +165,7 @@ class WalletLedgerApplicationServiceTest {
 
         assertThat(second.txnId()).isEqualTo(first.txnId());
         assertThat(second.status()).isEqualTo("SUCCEEDED");
-        assertThat(service.balanceOfUser(userId)).isEqualTo(500);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(500);
         assertThat(txnCount()).isEqualTo(1);
         assertThat(entryCount()).isEqualTo(2);
     }
@@ -168,28 +173,30 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void postShouldRejectReplayWithDifferentTxnType() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
-        service.post(
+        service.post(new WalletLedgerCommand(
                 "wallet:replay:type",
                 WalletTxnType.REWARD_ISSUE,
+                WalletTxnType.REWARD_ISSUE.name(),
                 "reward:biz:1",
                 List.of(
                         WalletPosting.debit(systemAccountId, 100),
                         WalletPosting.credit(userAccountId, 100)
                 )
-        );
+        ));
 
-        assertThatThrownBy(() -> service.post(
+        assertThatThrownBy(() -> service.post(new WalletLedgerCommand(
                 "wallet:replay:type",
                 WalletTxnType.TRANSFER,
+                WalletTxnType.TRANSFER.name(),
                 "reward:biz:1",
                 List.of(
                         WalletPosting.debit(systemAccountId, 100),
                         WalletPosting.credit(userAccountId, 100)
                 )
-        ))
+        )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("wallet request replay conflict");
@@ -198,28 +205,30 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void postShouldRejectReplayWithDifferentAmountOrBizId() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
 
-        service.post(
+        service.post(new WalletLedgerCommand(
                 "wallet:replay:amount",
                 WalletTxnType.REWARD_ISSUE,
+                WalletTxnType.REWARD_ISSUE.name(),
                 "reward:biz:1",
                 List.of(
                         WalletPosting.debit(systemAccountId, 100),
                         WalletPosting.credit(userAccountId, 100)
                 )
-        );
+        ));
 
-        assertThatThrownBy(() -> service.post(
+        assertThatThrownBy(() -> service.post(new WalletLedgerCommand(
                 "wallet:replay:amount",
                 WalletTxnType.REWARD_ISSUE,
+                WalletTxnType.REWARD_ISSUE.name(),
                 "reward:biz:2",
                 List.of(
                         WalletPosting.debit(systemAccountId, 200),
                         WalletPosting.credit(userAccountId, 200)
                 )
-        ))
+        )))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.REQUEST_REPLAY_CONFLICT))
                 .hasMessageContaining("wallet request replay conflict");
@@ -227,7 +236,7 @@ class WalletLedgerApplicationServiceTest {
 
     @Test
     void ensureSystemAccountShouldRejectUserWalletAccountType() {
-        assertThatThrownBy(() -> service.ensureSystemAccount("USER_WALLET"))
+        assertThatThrownBy(() -> accountService.ensureSystemAccount("USER_WALLET"))
                 .isInstanceOf(BusinessException.class)
                 .satisfies(ex -> assertThat(((BusinessException) ex).getErrorCode()).isEqualTo(WalletErrorCode.INVALID_REQUEST))
                 .hasMessageContaining("system accountType");
@@ -238,8 +247,8 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void postShouldReportInsufficientBalanceWhenDebitWouldOverdraft() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID pendingAccountId = accountService.ensureSystemAccount("WITHDRAW_PENDING");
 
         assertThatThrownBy(() -> service.post(
                 "withdraw:101:overdraft",
@@ -260,8 +269,8 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void privilegedCorrectionShouldAllowDebtAndReuseReplayValidation() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID systemAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID systemAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
         List<WalletPosting> correction = List.of(
                 WalletPosting.debit(userAccountId, 5),
                 WalletPosting.credit(systemAccountId, 5)
@@ -279,9 +288,9 @@ class WalletLedgerApplicationServiceTest {
         );
 
         assertThat(replay).isEqualTo(first);
-        assertThat(service.balanceOfUser(userId)).isEqualTo(-5L);
+        assertThat(accountService.balanceOfUser(userId)).isEqualTo(-5L);
         assertThat(systemBalance("PLATFORM_REWARD_EXPENSE")).isEqualTo(-5L);
-        assertThat(service.entriesOfTxn(first.txnId()))
+        assertThat(walletLedgerRepository.findEntriesByTxnId(first.txnId()))
                 .extracting(entry -> entry.getBalanceAfter())
                 .containsExactly(-5L, -5L);
         assertThat(txnCount()).isEqualTo(1);
@@ -318,8 +327,8 @@ class WalletLedgerApplicationServiceTest {
     void postShouldRejectIfAnyPostingWouldDriveBalanceBelowZero() {
         UUID senderUserId = uuid(101);
         UUID receiverUserId = uuid(202);
-        UUID senderAccountId = service.ensureUserWallet(senderUserId);
-        UUID receiverAccountId = service.ensureUserWallet(receiverUserId);
+        UUID senderAccountId = accountService.ensureUserWallet(senderUserId);
+        UUID receiverAccountId = accountService.ensureUserWallet(receiverUserId);
 
         assertThatThrownBy(() -> service.post(
                 "transfer:101:too-much",
@@ -340,8 +349,8 @@ class WalletLedgerApplicationServiceTest {
     @Test
     void postShouldReportConflictWhenDebitUpdateLosesOptimisticLock() {
         UUID userId = uuid(101);
-        UUID userAccountId = service.ensureUserWallet(userId);
-        UUID pendingAccountId = service.ensureSystemAccount("WITHDRAW_PENDING");
+        UUID userAccountId = accountService.ensureUserWallet(userId);
+        UUID pendingAccountId = accountService.ensureSystemAccount("WITHDRAW_PENDING");
         jdbcTemplate.update(
                 "update wallet_account set balance = ?, version = ? where account_id = ?",
                 500L,
@@ -368,10 +377,10 @@ class WalletLedgerApplicationServiceTest {
 
     @Test
     void postShouldRejectPostingAmountSumOverflowAsInvalidRequest() {
-        UUID firstDebitAccountId = service.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
-        UUID secondDebitAccountId = service.ensureSystemAccount("PLATFORM_CASH");
-        UUID firstCreditAccountId = service.ensureUserWallet(uuid(101));
-        UUID secondCreditAccountId = service.ensureUserWallet(uuid(202));
+        UUID firstDebitAccountId = accountService.ensureSystemAccount("PLATFORM_REWARD_EXPENSE");
+        UUID secondDebitAccountId = accountService.ensureSystemAccount("PLATFORM_CASH");
+        UUID firstCreditAccountId = accountService.ensureUserWallet(uuid(101));
+        UUID secondCreditAccountId = accountService.ensureUserWallet(uuid(202));
 
         assertThatThrownBy(() -> service.post(
                 "wallet:overflow:amount",

@@ -2,7 +2,6 @@ package com.nowcoder.community.content.infrastructure.persistence.mapper;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.content.domain.model.Report;
 import com.nowcoder.community.content.domain.model.ReportStatuses;
 import com.nowcoder.community.content.domain.repository.ReportRepository;
@@ -38,8 +37,6 @@ class ReportMapperPersistenceTest {
     @Autowired
     private ReportRepository reportRepository;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

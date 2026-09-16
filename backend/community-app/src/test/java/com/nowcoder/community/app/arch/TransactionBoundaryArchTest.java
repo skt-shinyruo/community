@@ -1,6 +1,5 @@
 package com.nowcoder.community.app.arch;
 
-import com.nowcoder.community.growth.application.UserLevelApplicationService;
 import com.nowcoder.community.market.application.MarketOrderApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryApplicationService;
 import com.nowcoder.community.market.application.MarketWalletActionRecoveryTransactionOperations;
@@ -16,7 +15,6 @@ import com.nowcoder.community.social.application.command.CleanupDeletedContentLi
 import com.nowcoder.community.user.application.AdminUserApplicationService;
 import com.nowcoder.community.user.application.UserAvatarApplicationService;
 import com.nowcoder.community.user.application.UserAvatarTransactionOperations;
-import com.nowcoder.community.user.application.UserCredentialApplicationService;
 import com.nowcoder.community.user.application.UserModerationApplicationService;
 import com.nowcoder.community.user.api.action.UserModerationActionApi;
 import com.nowcoder.community.wallet.application.WalletRechargeApplicationService;
@@ -111,17 +109,10 @@ class TransactionBoundaryArchTest {
                 MarketOrderApplicationService.CreateOrderCommand.class
         );
         assertTransactional(
-                UserLevelApplicationService.class,
-                "updateConfig",
-                UUID.class,
-                UserLevelApplicationService.UpdateConfigCommand.class
-        );
-        assertTransactional(
                 AdminUserApplicationService.class,
                 "updateRole",
                 AdminUserApplicationService.UpdateRoleCommand.class
         );
-        assertTransactional(UserCredentialApplicationService.class, "updatePassword", UUID.class, String.class);
         assertTransactional(
                 UserModerationApplicationService.class,
                 "applyModeration",
@@ -169,11 +160,6 @@ class TransactionBoundaryArchTest {
                 int.class
         );
         assertNotTransactional(MarketWalletActionRecoveryApplicationService.class, "reconcileOnce", int.class);
-        assertNotTransactional(
-                MarketWalletActionRecoveryApplicationService.class,
-                "recoverExpiredProcessing",
-                java.time.Instant.class
-        );
         assertTransactionalWithPropagation(
                 MarketWalletActionRecoveryTransactionOperations.class,
                 "recoverExpiredProcessing",

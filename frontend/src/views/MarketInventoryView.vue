@@ -133,6 +133,7 @@ import {
 import { createWriteAttempt } from '../api/writeAttempt'
 import { useAuthStore } from '../stores/auth'
 import { identityScope } from '../stores/identityScope'
+import { createLatestRequestTracker } from '../utils/latestRequest'
 import { normalizeOpaqueId } from '../utils/opaqueId'
 import { buildMarketState, mergeMarketPage, nextTableSort, sortMarketInventory } from './marketState'
 
@@ -168,8 +169,6 @@ const invalidateTarget = ref(null)
 const page = ref(0)
 const hasNext = ref(false)
 const pageSize = 20
-let requestGeneration = 0
-let actionGeneration = 0
 // 追加库存是同一批卡密的高风险写：WriteAttempt 让模糊失败后的人工重试复用同一幂等键。
 const appendAttempt = createWriteAttempt()
 
@@ -187,18 +186,11 @@ const viewScope = computed(() => [
   normalizeOpaqueId(route.params.listingId),
   identityScope(auth)
 ].join(':'))
-
-function isCurrentRequest(generation, scope) {
-  return generation === requestGeneration && scope === viewScope.value
-}
-
-function isCurrentAction(generation, scope) {
-  return generation === actionGeneration && scope === viewScope.value
-}
+const loadTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
+const actionTracker = createLatestRequestTracker({ getScope: () => viewScope.value })
 
 async function reload() {
-  const generation = ++requestGeneration
-  const scope = viewScope.value
+  const requestHandle = loadTracker.begin()
   const listingId = normalizeOpaqueId(route.params.listingId)
   loading.value = true
   loadingMore.value = false
@@ -209,15 +201,15 @@ async function reload() {
       listingId,
       { page: 0, size: pageSize }
     )
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     inventory.value = Array.isArray(data) ? data : []
     page.value = loadedPage
     hasNext.value = nextAvailable
   } catch (e) {
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     error.value = e?.message || '加载库存失败'
   } finally {
-    if (isCurrentRequest(generation, scope)) loading.value = false
+    if (loadTracker.isCurrent(requestHandle)) loading.value = false
   }
 }
 
@@ -226,23 +218,22 @@ async function loadMore() {
   loadingMore.value = true
   pageError.value = ''
   const targetPage = page.value + 1
-  const generation = ++requestGeneration
-  const scope = viewScope.value
+  const requestHandle = loadTracker.begin()
   const listingId = normalizeOpaqueId(route.params.listingId)
   try {
     const { data, hasNext: nextAvailable, page: loadedPage } = await listMarketInventory(
       listingId,
       { page: targetPage, size: pageSize }
     )
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     inventory.value = mergeMarketPage(inventory.value, data, 'inventoryUnitId')
     page.value = loadedPage
     hasNext.value = nextAvailable
   } catch (e) {
-    if (!isCurrentRequest(generation, scope)) return
+    if (!loadTracker.isCurrent(requestHandle)) return
     pageError.value = e?.message || '加载更多库存失败'
   } finally {
-    if (isCurrentRequest(generation, scope)) loadingMore.value = false
+    if (loadTracker.isCurrent(requestHandle)) loadingMore.value = false
   }
 }
 
@@ -263,8 +254,7 @@ async function submitInventory() {
     return
   }
 
-  const generation = ++actionGeneration
-  const scope = viewScope.value
+  const requestHandle = actionTracker.begin()
   const listingId = normalizeOpaqueId(route.params.listingId)
   submitting.value = true
   message.value = ''
@@ -273,16 +263,16 @@ async function submitInventory() {
       payloadType: payloadType.value,
       payloads
     }, { writeAttempt: appendAttempt })
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     appendAttempt.succeed()
     inventoryText.value = ''
     message.value = '库存已追加。'
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     actionError.value = e?.message || '追加库存失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submitting.value = false
+    if (actionTracker.isCurrent(requestHandle)) submitting.value = false
   }
 }
 
@@ -305,29 +295,28 @@ async function confirmInvalidate() {
 
 async function invalidateItem(inventoryUnitId) {
   if (!auth.authed || submitting.value) return
-  const generation = ++actionGeneration
-  const scope = viewScope.value
+  const requestHandle = actionTracker.begin()
   submitting.value = true
   message.value = ''
   actionError.value = ''
   try {
     await invalidateMarketInventory(inventoryUnitId)
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     message.value = '库存已失效。'
     await reload()
   } catch (e) {
-    if (!isCurrentAction(generation, scope)) return
+    if (!actionTracker.isCurrent(requestHandle)) return
     actionError.value = e?.message || '失效库存失败'
   } finally {
-    if (isCurrentAction(generation, scope)) submitting.value = false
+    if (actionTracker.isCurrent(requestHandle)) submitting.value = false
   }
 }
 
 watch(
   viewScope,
   () => {
-    requestGeneration += 1
-    actionGeneration += 1
+    loadTracker.invalidate()
+    actionTracker.invalidate()
     appendAttempt.cancel()
     inventory.value = []
     inventorySort.value = { key: '', direction: 'asc' }
@@ -360,8 +349,8 @@ watch(payloadType, () => {
 })
 
 onBeforeUnmount(() => {
-  requestGeneration += 1
-  actionGeneration += 1
+  loadTracker.invalidate()
+  actionTracker.invalidate()
   appendAttempt.cancel()
 })
 </script>

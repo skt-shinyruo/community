@@ -43,8 +43,7 @@ class RoomFanoutConfigurationTest {
     void explicitWorkerInboxSlotWithinFixedPartitionRangeStarts() {
         contextRunner
                 .withPropertyValues(
-                        "im.room-fanout.worker-inbox-slot=0",
-                        "im.room-fanout.routed-command-partitions=64"
+                        "im.room-fanout.worker-inbox-slot=0"
                 )
                 .run(context -> {
                     assertThat(context).hasNotFailed();
@@ -57,8 +56,7 @@ class RoomFanoutConfigurationTest {
     void workerInboxSlotAtFixedPartitionCountFailsStartup() {
         contextRunner
                 .withPropertyValues(
-                        "im.room-fanout.worker-inbox-slot=64",
-                        "im.room-fanout.routed-command-partitions=64"
+                        "im.room-fanout.worker-inbox-slot=64"
                 )
                 .run(context -> {
                     assertThat(context).hasFailed();
@@ -113,21 +111,6 @@ class RoomFanoutConfigurationTest {
                     assertThat(context).hasNotFailed();
                     assertThat(context.getBean(RoomFanoutProperties.class).normalizedPublishTimeout())
                             .isEqualTo(Duration.ofMillis(250));
-                });
-    }
-
-    @Test
-    void routedCommandPartitionCountMustRemainFixedAt64() {
-        contextRunner
-                .withPropertyValues(
-                        "im.room-fanout.worker-inbox-slot=0",
-                        "im.room-fanout.routed-command-partitions=63"
-                )
-                .run(context -> {
-                    assertThat(context).hasFailed();
-                    assertThat(context.getStartupFailure())
-                            .hasRootCauseInstanceOf(IllegalStateException.class)
-                            .hasRootCauseMessage("im.room-fanout.routed-command-partitions must be 64");
                 });
     }
 

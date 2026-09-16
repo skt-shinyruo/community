@@ -2,7 +2,7 @@ package com.nowcoder.community.im.core.controller;
 
 import com.nowcoder.community.im.core.application.ConversationApplicationService;
 import com.nowcoder.community.im.core.application.result.ConversationResults;
-import com.nowcoder.community.im.core.security.CurrentUser;
+import com.nowcoder.community.common.security.jwt.JwtSubjects;
 import com.nowcoder.community.common.web.Result;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -27,7 +27,7 @@ public class ConversationController {
             @RequestParam(name = "page", required = false, defaultValue = "0") int page,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         return Result.ok(conversationApplicationService.listConversations(me, page, size));
     }
 
@@ -37,7 +37,7 @@ public class ConversationController {
             @RequestParam(name = "cursor", required = false, defaultValue = "") String cursor,
             @RequestParam(name = "size", required = false, defaultValue = "20") int size
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         return Result.ok(conversationApplicationService.listConversationPage(me, cursor, size));
     }
 
@@ -48,7 +48,7 @@ public class ConversationController {
             @RequestParam(name = "beforeSeq", required = false) Long beforeSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         return Result.ok(conversationApplicationService.listMessageHistory(me, conversationId, beforeSeq, limit));
     }
 
@@ -59,7 +59,7 @@ public class ConversationController {
             @RequestParam(name = "afterSeq", required = false, defaultValue = "0") long afterSeq,
             @RequestParam(name = "limit", required = false, defaultValue = "50") int limit
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         return Result.ok(conversationApplicationService.listMessages(me, conversationId, afterSeq, limit));
     }
 
@@ -69,7 +69,7 @@ public class ConversationController {
             @PathVariable String conversationId,
             @RequestBody MarkReadRequest req
     ) {
-        UUID me = CurrentUser.userIdOrThrow(jwt);
+        UUID me = JwtSubjects.userUuidOrThrow(jwt);
         long lastReadSeq = req == null ? 0L : req.lastReadSeq();
         conversationApplicationService.markRead(me, conversationId, lastReadSeq);
         return Result.ok();

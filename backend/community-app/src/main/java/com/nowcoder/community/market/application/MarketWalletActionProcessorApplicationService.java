@@ -23,7 +23,6 @@ import java.time.Instant;
 import java.util.Date;
 import java.util.List;
 import java.util.Objects;
-import java.util.Set;
 import java.util.UUID;
 
 @Service
@@ -31,12 +30,7 @@ public class MarketWalletActionProcessorApplicationService {
 
     private static final Logger log = LoggerFactory.getLogger(MarketWalletActionProcessorApplicationService.class);
     private static final Duration DEFAULT_PROCESSING_LEASE = Duration.ofSeconds(60);
-    private static final int MAX_LAST_ERROR_LENGTH = 255;
     private static final String SAGA_COMPLETION_FAILED = "SAGA_COMPLETION_FAILED";
-    private static final Set<Integer> RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES = Set.of(
-            WalletErrorCodes.ACCOUNT_UPDATE_CONFLICT,
-            WalletErrorCodes.ACCOUNT_BALANCE_INSUFFICIENT
-    );
 
     private final MarketWalletActionRepository walletActionRepository;
     private final WalletMarketActionApi walletApi;
@@ -255,7 +249,8 @@ public class MarketWalletActionProcessorApplicationService {
             return false;
         }
         return errorCode != null
-                && RECOVERABLE_RELEASE_REFUND_WALLET_ERROR_CODES.contains(errorCode.getCode());
+                && MarketWalletActionFailureSupport.RECOVERABLE_RELEASE_REFUND_FAILURE_CODES
+                        .contains(String.valueOf(errorCode.getCode()));
     }
 
     private Instant nextRetryAt(MarketWalletAction action) {
@@ -275,6 +270,6 @@ public class MarketWalletActionProcessorApplicationService {
         if (message == null || message.isBlank()) {
             message = ex.getClass().getName();
         }
-        return message.length() <= MAX_LAST_ERROR_LENGTH ? message : message.substring(0, MAX_LAST_ERROR_LENGTH);
+        return MarketWalletActionFailureSupport.truncateLastError(message);
     }
 }

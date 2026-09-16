@@ -120,16 +120,9 @@ public class CompensationGovernanceApplicationService {
                         + ",\"processed\":" + result.processedCount()
                         + ",\"repaired\":" + result.repairedCount()
                         + ",\"skipped\":" + result.skippedCount()
-                        + ",\"message\":\"" + safeJson(result.message()) + "\"}",
+                        + ",\"message\":\"" + GovernanceAuditJson.escape(result.message()) + "\"}",
                 null
         ));
-    }
-
-    private static String safeJson(String value) {
-        if (value == null) {
-            return "";
-        }
-        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 
     public record TriggerCommand(UUID actorUserId, String jobName, int limit, String reason) {

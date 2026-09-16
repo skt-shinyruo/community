@@ -114,11 +114,6 @@ public class TaskProgressApplicationService {
     }
 
     @Transactional
-    public void processEvent(UUID userId, String triggerEventType, String sourceEventId, LocalDate bizDate) {
-        recordProgress(userId, triggerEventType, sourceEventId, null, bizDate);
-    }
-
-    @Transactional
     public void triggerPostPublished(TriggerPostPublishedCommand command) {
         Objects.requireNonNull(command, "command must not be null");
         if (command.postId() == null || command.userId() == null || command.createTime() == null) {

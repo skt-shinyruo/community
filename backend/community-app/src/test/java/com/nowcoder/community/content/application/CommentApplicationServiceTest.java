@@ -8,6 +8,7 @@ import com.nowcoder.community.common.idempotency.IdempotencyProperties;
 import com.nowcoder.community.common.idempotency.IdempotencyStore;
 import com.nowcoder.community.common.idempotency.TransactionalIdempotencyStore;
 import com.nowcoder.community.common.json.JacksonJsonCodec;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import com.nowcoder.community.content.application.CommentApplicationService.CreateCommentCommand;
 import com.nowcoder.community.content.infrastructure.text.SpringHtmlContentTextCodec;
 import com.nowcoder.community.content.application.ContentSanitizer;
@@ -101,7 +102,7 @@ class CommentApplicationServiceTest {
         deletionOperations = new CommentDeletionTransactionOperations(
                 commentRepository,
                 postContentPort,
-                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit, new TransactionCompletion()),
                 eventPublisher,
                 CLOCK
         );
@@ -113,7 +114,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit, new TransactionCompletion()),
                 interactionActionApi,
                 eventPublisher,
                 deletionOperations,
@@ -278,7 +279,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit, new TransactionCompletion()),
                 interactionActionApi,
                 eventPublisher,
                 deletionOperations,
@@ -798,7 +799,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit, new TransactionCompletion()),
                 interactionActionApi,
                 eventPublisher,
                 deletionOperations,
@@ -817,7 +818,7 @@ class CommentApplicationServiceTest {
                 new CommentDomainService(),
                 commentRepository,
                 postContentPort,
-                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit),
+                new ContentReadModelsAfterCommit(postCounterCache, commentPageCache, postCacheAfterCommit, new TransactionCompletion()),
                 interactionActionApi,
                 eventPublisher,
                 deletionOperations,

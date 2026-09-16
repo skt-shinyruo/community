@@ -1,6 +1,6 @@
 package com.nowcoder.community.content.application;
 
-import com.nowcoder.community.common.tx.AfterCommitExecutor;
+import com.nowcoder.community.common.tx.TransactionCompletion;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.stereotype.Component;
@@ -15,15 +15,18 @@ public class ContentReadModelsAfterCommit {
     private final PostCounterCache postCounterCache;
     private final CommentPageCache commentPageCache;
     private final PostCacheAfterCommit postCacheAfterCommit;
+    private final TransactionCompletion transactionCompletion;
 
     public ContentReadModelsAfterCommit(
             PostCounterCache postCounterCache,
             CommentPageCache commentPageCache,
-            PostCacheAfterCommit postCacheAfterCommit
+            PostCacheAfterCommit postCacheAfterCommit,
+            TransactionCompletion transactionCompletion
     ) {
         this.postCounterCache = postCounterCache;
         this.commentPageCache = commentPageCache;
         this.postCacheAfterCommit = postCacheAfterCommit;
+        this.transactionCompletion = transactionCompletion;
     }
 
     public void commentCreated(UUID postId, long aggregateVersion) {
@@ -60,7 +63,7 @@ public class ContentReadModelsAfterCommit {
     }
 
     private void runBestEffortAfterCommit(String operation, UUID postId, Runnable action) {
-        AfterCommitExecutor.runAfterCommit(() -> {
+        transactionCompletion.afterCommit(() -> {
             try {
                 action.run();
             } catch (RuntimeException ignored) {

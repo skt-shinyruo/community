@@ -8,8 +8,10 @@ import java.time.Duration;
 @ConfigurationProperties(prefix = "im.room-fanout")
 public class RoomFanoutProperties {
 
+    /** Fixed partition count of the routed command topic; must match topic provisioning. */
+    public static final int ROUTED_COMMAND_PARTITIONS = 64;
+
     private String routedCommandTopic = "im.command.room-fanout-routed";
-    private int routedCommandPartitions = 64;
     private Integer workerInboxSlot;
     private String workerInboxSlotMetadataKey = "roomFanoutInboxSlot";
     private Duration workerDirectoryCacheTtl = Duration.ofMillis(500);
@@ -21,14 +23,6 @@ public class RoomFanoutProperties {
 
     public void setRoutedCommandTopic(String routedCommandTopic) {
         this.routedCommandTopic = routedCommandTopic;
-    }
-
-    public int getRoutedCommandPartitions() {
-        return routedCommandPartitions;
-    }
-
-    public void setRoutedCommandPartitions(int routedCommandPartitions) {
-        this.routedCommandPartitions = routedCommandPartitions;
     }
 
     public Integer getWorkerInboxSlot() {
@@ -87,18 +81,10 @@ public class RoomFanoutProperties {
         return routedCommandTopic.trim();
     }
 
-    public int normalizedRoutedCommandPartitions() {
-        if (routedCommandPartitions != 64) {
-            throw new IllegalStateException("im.room-fanout.routed-command-partitions must be 64");
-        }
-        return 64;
-    }
-
     public int normalizedWorkerInboxSlot() {
-        int partitions = normalizedRoutedCommandPartitions();
-        if (workerInboxSlot == null || workerInboxSlot < 0 || workerInboxSlot >= partitions) {
+        if (workerInboxSlot == null || workerInboxSlot < 0 || workerInboxSlot >= ROUTED_COMMAND_PARTITIONS) {
             throw new IllegalStateException(
-                    "im.room-fanout.worker-inbox-slot is required and must be between 0 and " + (partitions - 1)
+                    "im.room-fanout.worker-inbox-slot is required and must be between 0 and " + (ROUTED_COMMAND_PARTITIONS - 1)
             );
         }
         return workerInboxSlot;

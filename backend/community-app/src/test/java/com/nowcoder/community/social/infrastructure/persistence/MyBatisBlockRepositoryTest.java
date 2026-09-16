@@ -2,7 +2,6 @@ package com.nowcoder.community.social.infrastructure.persistence;
 
 import com.nowcoder.community.app.CommunityAppApplication;
 import com.nowcoder.community.common.id.BinaryUuidCodec;
-import com.nowcoder.community.common.web.net.ClientIpResolver;
 import com.nowcoder.community.social.domain.model.BlockRelation;
 import com.nowcoder.community.social.domain.repository.BlockRepository;
 import org.junit.jupiter.api.BeforeEach;
@@ -47,8 +46,6 @@ class MyBatisBlockRepositoryTest {
     @Autowired
     private PlatformTransactionManager transactionManager;
 
-    @MockitoBean
-    private ClientIpResolver clientIpResolver;
 
     @BeforeEach
     void setUp() {

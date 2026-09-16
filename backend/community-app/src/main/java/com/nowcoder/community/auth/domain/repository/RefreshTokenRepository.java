@@ -33,11 +33,7 @@ public interface RefreshTokenRepository {
 
     boolean rollbackPendingRotation(String refreshToken, UUID rotationLeaseId);
 
-    StoredRefreshToken consume(String refreshToken);
-
     RevokedRefreshToken findRevoked(String refreshToken);
-
-    void revoke(String refreshToken);
 
     void revokeFamily(String familyId);
 

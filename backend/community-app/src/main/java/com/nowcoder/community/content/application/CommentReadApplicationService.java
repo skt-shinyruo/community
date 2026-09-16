@@ -96,20 +96,6 @@ public class CommentReadApplicationService {
         );
     }
 
-    public List<CommentResult> comments(UUID postId, Integer page, Integer size) {
-        int p = Math.max(0, page == null ? 0 : page);
-        int s = requestedSize(size);
-        assertPostReadable(postId);
-        return toResults(commentContentPort.listRootComments(postId, p, s));
-    }
-
-    public List<CommentResult> replies(UUID postId, UUID rootCommentId, Integer page, Integer size) {
-        int p = Math.max(0, page == null ? 0 : page);
-        int s = requestedSize(size);
-        commentContentPort.assertCommentBelongsToPost(postId, rootCommentId);
-        return toResults(commentContentPort.listReplies(rootCommentId, p, s));
-    }
-
     private CommentPageResult toPageResult(
             List<Comment> rows,
             int size,

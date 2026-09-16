@@ -70,8 +70,8 @@ public class MyBatisNoticeRepository implements NoticeRepository {
                 com.nowcoder.community.notice.domain.model.NoticeTopic.LIKE,
                 com.nowcoder.community.social.contracts.event.SocialEventTypes.LIKE_CREATED,
                 relationKey,
-                com.nowcoder.community.notice.application.NoticeApplicationService.STATUS_UNREAD,
-                com.nowcoder.community.notice.application.NoticeApplicationService.STATUS_READ,
+                NoticeDomainService.STATUS_UNREAD,
+                NoticeDomainService.STATUS_READ,
                 revokedStatus
         );
     }

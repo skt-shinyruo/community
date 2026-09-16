@@ -489,7 +489,7 @@ class ImRealtimeWebSocketIntegrationTest {
     private void awaitPrivatePolicyDenied(UUID fromUserId, UUID toUserId, Duration timeout) throws Exception {
         long deadlineMs = System.currentTimeMillis() + timeout.toMillis();
         while (System.currentTimeMillis() < deadlineMs) {
-            if (!policyProjectionService.canSendPrivate(fromUserId, toUserId).allowed()) {
+            if (!policyProjectionService.canSendPrivateMessage(fromUserId, toUserId).allowed()) {
                 return;
             }
             Thread.sleep(50L);

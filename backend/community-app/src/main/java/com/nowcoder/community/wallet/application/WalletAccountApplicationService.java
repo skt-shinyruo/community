@@ -82,12 +82,6 @@ public class WalletAccountApplicationService {
         return account == null ? WalletAccountDomainService.STATUS_UNKNOWN : account.getStatus();
     }
 
-    public long balanceOfSystem(String accountType) {
-        domainService.validateSystemAccountType(accountType);
-        WalletAccount account = walletAccountRepository.findByOwner(WalletAccountDomainService.OWNER_TYPE_SYSTEM, SYSTEM_OWNER_ID, accountType);
-        return account == null ? 0L : account.getBalance();
-    }
-
     public WalletAccount loadUserWallet(UUID userId) {
         return ensureAccount(
                 WalletAccountDomainService.OWNER_TYPE_USER,

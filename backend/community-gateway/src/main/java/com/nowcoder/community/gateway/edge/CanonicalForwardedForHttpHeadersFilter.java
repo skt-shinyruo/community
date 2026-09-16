@@ -6,10 +6,23 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.util.StringUtils;
 import org.springframework.web.server.ServerWebExchange;
 
+import java.net.InetSocketAddress;
 import java.util.ArrayList;
 
+/**
+ * Egress header hygiene: downstream services receive exactly one forwarding signal,
+ * X-Forwarded-For = the gateway's remote address, already resolved from inbound
+ * Forwarded/X-Forwarded-For by the Netty server customizer for trusted proxy peers
+ * (spring.cloud.gateway.server.webflux.trusted-proxies). All other client-supplied
+ * forwarding headers are dropped.
+ *
+ * ponytail: SCG 5.0.2's built-in XForwardedHeadersFilter cannot express this — in strict
+ * (trusted-proxies) mode it strips the whole chain for untrusted resolved remotes and only
+ * keeps trusted-proxy entries otherwise, so the real client IP never reaches downstream.
+ */
 public class CanonicalForwardedForHttpHeadersFilter implements HttpHeadersFilter, Ordered {
 
+    // After the native XForwarded/Forwarded/Remove* header filters (order 0).
     public static final int ORDER = 1;
 
     private static final String FORWARDED = "Forwarded";
@@ -26,11 +39,10 @@ public class CanonicalForwardedForHttpHeadersFilter implements HttpHeadersFilter
             }
         });
 
-        String canonicalClientIp = exchange.getAttribute(
-                ForwardedHeaderCanonicalizationWebFilter.CANONICAL_CLIENT_IP_ATTRIBUTE
-        );
-        if (StringUtils.hasText(canonicalClientIp)) {
-            output.set(X_FORWARDED_FOR, canonicalClientIp);
+        InetSocketAddress remoteAddress = exchange.getRequest().getRemoteAddress();
+        String host = remoteAddress == null ? null : remoteAddress.getHostString();
+        if (StringUtils.hasText(host)) {
+            output.set(X_FORWARDED_FOR, host);
         }
         return output;
     }

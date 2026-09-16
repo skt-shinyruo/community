@@ -88,6 +88,10 @@ class Emitter {
 }
 
 export class ImRealtimeClient {
+  /**
+   * @param {*} [sessionHttp]
+   * @param {{ webSocketFactory?: (url: string) => WebSocket, onListenerError?: (type: string, error: unknown) => void }} [options]
+   */
   constructor(sessionHttp = imCoreHttp, { webSocketFactory, onListenerError } = {}) {
     this.sessionHttp = sessionHttp
     this.webSocketFactory = webSocketFactory || defaultWebSocketFactory

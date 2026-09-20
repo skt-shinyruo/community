@@ -24,16 +24,22 @@ describe('UiToast', () => {
     expect(region.text()).toContain('内容已保存')
   })
 
-  it('exposes an accessible close button that removes the message', async () => {
+  it('exposes an accessible close button that removes only its message', async () => {
     const wrapper = mountToast()
     wrapper.vm.show({ title: '通知', text: '第一条', duration: 0 })
+    wrapper.vm.show({ title: '通知', text: '第二条', duration: 0 })
     await wrapper.vm.$nextTick()
 
-    const close = wrapper.get('.toast button[aria-label="关闭通知"]')
+    const toasts = wrapper.findAll('.toast')
+    expect(toasts).toHaveLength(2)
+
+    const close = toasts[0].get('button[aria-label="关闭通知"]')
     expect(close.attributes('type')).toBe('button')
 
     await close.trigger('click')
-    expect(wrapper.find('.toast').exists()).toBe(false)
+    const remaining = wrapper.findAll('.toast')
+    expect(remaining).toHaveLength(1)
+    expect(remaining[0].text()).toContain('第二条')
   })
 
   it('keeps the action button behaviour and removes the toast on action', async () => {

@@ -1,5 +1,5 @@
 <template>
-  <TransitionGroup name="toast" tag="div" class="toast-container">
+  <TransitionGroup name="toast" tag="div" class="toast-container" role="status" aria-live="polite">
     <div 
       v-for="msg in messages" 
       :key="msg.id" 
@@ -13,7 +13,7 @@
           <UiButton size="sm" type="button" @click="handleAction(msg)">{{ msg.actionText }}</UiButton>
         </div>
       </div>
-      <UiIconButton aria-label="关闭通知" title="关闭通知" size="sm" @click="remove(msg.id)">
+      <UiIconButton aria-label="关闭通知" title="关闭通知" type="button" size="sm" @click="remove(msg.id)">
         <X :size="16" aria-hidden="true" />
       </UiIconButton>
     </div>

@@ -23,6 +23,7 @@ import java.util.UUID;
 
 import static com.nowcoder.community.support.TestUuids.uuid;
 import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.verifyNoInteractions;
 import static org.mockito.Mockito.when;
 import static org.springframework.security.test.web.servlet.request.SecurityMockMvcRequestPostProcessors.jwt;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
@@ -66,24 +67,41 @@ class AdminMarketControllerTest {
     }
 
     @Test
-    void adminResolutionApisShouldAcceptBlankNote() throws Exception {
+    void adminResolutionApisShouldRejectBlankNote() throws Exception {
+        UUID disputeId = UUID.fromString("00000000-0000-7000-8000-000000000001");
+        UUID adminUserId = uuid(99);
+
+        for (String body : new String[]{"{}", "{\"note\":\"\"}", "{\"note\":\"  \"}"}) {
+            mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-refund")
+                            .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(400));
+
+            mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-release")
+                            .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
+                            .contentType("application/json")
+                            .content(body))
+                    .andExpect(status().isBadRequest())
+                    .andExpect(jsonPath("$.code").value(400));
+        }
+
+        verifyNoInteractions(marketDisputeService);
+    }
+
+    @Test
+    void adminResolutionApisShouldIgnoreLegacyResolutionType() throws Exception {
         UUID disputeId = UUID.fromString("00000000-0000-7000-8000-000000000001");
         UUID adminUserId = uuid(99);
 
         mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-refund")
                         .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
                         .contentType("application/json")
-                        .content("{}"))
+                        .content("{\"resolutionType\":\"REFUND\",\"note\":\"refund\"}"))
                 .andExpect(status().isOk());
 
-        mockMvc.perform(post("/api/admin/market/disputes/" + disputeId + "/resolve-release")
-                        .with(jwt().jwt(jwt -> jwt.subject(adminUserId.toString())).authorities(() -> "ROLE_ADMIN"))
-                        .contentType("application/json")
-                        .content("{\"note\":\"\"}"))
-                .andExpect(status().isOk());
-
-        verify(marketDisputeService).adminResolveRefund(disputeId, adminUserId, null);
-        verify(marketDisputeService).adminResolveRelease(disputeId, adminUserId, "");
+        verify(marketDisputeService).adminResolveRefund(disputeId, adminUserId, "refund");
     }
 
     @Test

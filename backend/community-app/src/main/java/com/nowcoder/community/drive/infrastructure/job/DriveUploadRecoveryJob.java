@@ -1,7 +1,7 @@
 package com.nowcoder.community.drive.infrastructure.job;
 
 import com.nowcoder.community.common.trace.TraceJobRunner;
-import com.nowcoder.community.drive.application.DriveUploadApplicationService;
+import com.nowcoder.community.drive.application.DriveUploadRecoveryApplicationService;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Value;
@@ -19,22 +19,22 @@ public class DriveUploadRecoveryJob {
     private static final Logger log = LoggerFactory.getLogger(DriveUploadRecoveryJob.class);
     private static final String JOB_NAME = "drive-upload-recovery";
 
-    private final DriveUploadApplicationService uploadApplicationService;
+    private final DriveUploadRecoveryApplicationService recoveryApplicationService;
     private final Clock clock;
     private final boolean enabled;
     private final int batchSize;
     private final Duration staleAge;
 
     public DriveUploadRecoveryJob(
-            DriveUploadApplicationService uploadApplicationService,
+            DriveUploadRecoveryApplicationService recoveryApplicationService,
             Clock clock,
             @Value("${drive.upload.recovery.enabled:true}") boolean enabled,
             @Value("${drive.upload.recovery.batch-size:100}") int batchSize,
             @Value("${drive.upload.recovery.stale-seconds:300}") long staleSeconds
     ) {
-        this.uploadApplicationService = Objects.requireNonNull(
-                uploadApplicationService,
-                "uploadApplicationService must not be null"
+        this.recoveryApplicationService = Objects.requireNonNull(
+                recoveryApplicationService,
+                "recoveryApplicationService must not be null"
         );
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.enabled = enabled;
@@ -50,8 +50,8 @@ public class DriveUploadRecoveryJob {
             }
             try {
                 Instant updatedBefore = clock.instant().minus(staleAge);
-                DriveUploadApplicationService.RecoveryResult result =
-                        uploadApplicationService.recoverStaleUploads(updatedBefore, batchSize);
+                DriveUploadRecoveryApplicationService.RecoveryResult result =
+                        recoveryApplicationService.recoverStaleUploads(updatedBefore, batchSize);
                 if (result.prepared() > 0 || result.finalized() > 0 || result.markedObjectCompleted() > 0
                         || result.failed() > 0 || result.skipped() > 0) {
                     log.info(

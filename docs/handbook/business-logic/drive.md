@@ -83,7 +83,7 @@ Front-end：
 9. 如果 OSS 已成功但后续只是瞬时数据库故障，upload 会停在 `OBJECT_COMPLETED`，用户暂时看不到文件，`used_bytes` 不增加，后续重试或 recovery 会用同一个 entryId 补完，不会再次 complete OSS。
 10. 如果 OSS 已成功但父目录已失效或同目录出现重名，drive 会把 upload 标记为 `CLEANUP_PENDING`、释放 `reserved_bytes` 并删除刚完成的 OSS 对象；删除成功后才转为 `FAILED`，失败则由 recovery 重试。
 11. 如果 OSS complete 返回失败但 OSS 元数据已显示对象 active，upload 也会进入 `OBJECT_COMPLETED` 等待补偿；如果元数据无法确认，则保持 `COMPLETING`，由 recovery 后续判断。
-12. `DriveUploadRecoveryJob` 定期扫描 stale `COMPLETING/OBJECT_COMPLETED/CLEANUP_PENDING`：可确认 OSS active 的会补写 entry 和 used quota；无法确认且到期的上传先由 OSS 取消并 fence 旧 claim；业务终止或取消成功的对象进入可重试清理，清理成功后才标记 failed。
+12. `DriveUploadRecoveryJob` 定期调用 `DriveUploadRecoveryApplicationService.recoverStaleUploads(...)` 扫描 stale `PREPARING/COMPLETING/OBJECT_COMPLETED/CLEANUP_PENDING`：可确认 OSS active 的会补写 entry 和 used quota；无法确认且到期的上传先由 OSS 取消并 fence 旧 claim；业务终止或取消成功的对象进入可重试清理，清理成功后才标记 failed。完成链状态机核心（`markObjectCompleted` / `finalizeObjectCompletedUpload` / cleanup 过渡）仍由 `DriveUploadApplicationService` 持有，recovery 通过同域互调复用。
 
 回收站：
 
@@ -143,6 +143,7 @@ Front-end：
 - `drive.application.DriveSpaceApplicationService`
 - `drive.application.DriveEntryApplicationService`
 - `drive.application.DriveUploadApplicationService`
+- `drive.application.DriveUploadRecoveryApplicationService`
 - `drive.application.DriveTrashApplicationService`
 - `drive.application.DriveShareApplicationService`
 - `drive.domain.service.DriveEntryDomainService`

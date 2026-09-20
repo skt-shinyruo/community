@@ -57,6 +57,9 @@ class DriveUploadApplicationServiceSpringTest {
     @Autowired
     private DriveUploadApplicationService service;
 
+    @Autowired
+    private DriveUploadRecoveryApplicationService recoveryService;
+
     @MockitoSpyBean
     private DriveSpaceRepository spaceRepository;
 
@@ -252,11 +255,11 @@ class DriveUploadApplicationServiceSpringTest {
             Instant updatedBefore = Instant.now();
             Future<?> first = executor.submit(() -> {
                 await(start);
-                return service.recoverStaleUploads(updatedBefore, 10);
+                return recoveryService.recoverStaleUploads(updatedBefore, 10);
             });
             Future<?> second = executor.submit(() -> {
                 await(start);
-                return service.recoverStaleUploads(updatedBefore, 10);
+                return recoveryService.recoverStaleUploads(updatedBefore, 10);
             });
 
             start.countDown();

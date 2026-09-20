@@ -7,8 +7,9 @@
 1. `DriveSpaceApplicationService`
 2. `DriveEntryApplicationService`
 3. `DriveUploadApplicationService`
-4. `DriveTrashApplicationService`
-5. `DriveShareApplicationService`
+4. `DriveUploadRecoveryApplicationService`
+5. `DriveTrashApplicationService`
+6. `DriveShareApplicationService`
 
 ## 应用服务
 
@@ -17,6 +18,7 @@
 | `drive.application.DriveSpaceApplicationService` | 空间 lazy create、quota / used / remaining 查询。 | 看默认配额如何初始化。 |
 | `drive.application.DriveEntryApplicationService` | 文件夹、列表、搜索、重命名、移动和私有下载 URL。 | 看目录树状态和路径校验。 |
 | `drive.application.DriveUploadApplicationService` | 上传会话、OSS prepare/complete、quota reserve 和 entry 创建。 | 看它如何把空间占用和对象上传串起来。 |
+| `drive.application.DriveUploadRecoveryApplicationService` | stale 上传的 expire、cancel、cleanup 与补偿 finalize。 | 看失败/恢复链与完成链如何通过同域互调共享状态机核心。 |
 | `drive.application.DriveTrashApplicationService` | 回收站、恢复、彻底删除、quota 释放和 OSS 删除重试。 | 看恢复和彻底删除如何保持幂等。 |
 | `drive.application.DriveShareApplicationService` | 分享创建、撤销、提取码校验、ticket 和分享下载 URL。 | 看分享状态、密码和过期时间如何耦合。 |
 

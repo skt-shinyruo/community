@@ -16,7 +16,6 @@ import com.nowcoder.community.drive.domain.repository.DriveUploadRepository;
 import com.nowcoder.community.drive.domain.service.DriveEntryDomainService;
 import com.nowcoder.community.drive.exception.DriveErrorCode;
 import org.springframework.stereotype.Service;
-import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Clock;
 import java.time.Instant;
@@ -123,7 +122,7 @@ public class DriveUploadApplicationService {
         return upload;
     }
 
-    private DriveObjectStoragePort.PreparedObject prepareObject(DriveUpload upload) {
+    DriveObjectStoragePort.PreparedObject prepareObject(DriveUpload upload) {
         DriveObjectStoragePort.PreparedObject prepared = objectStoragePort.prepareUpload(new DriveObjectStoragePort.PrepareObject(
                 upload.uploadId(),
                 USAGE,
@@ -142,7 +141,7 @@ public class DriveUploadApplicationService {
         return prepared;
     }
 
-    private DriveUpload persistPreparedUpload(UUID uploadId, DriveObjectStoragePort.PreparedObject prepared) {
+    DriveUpload persistPreparedUpload(UUID uploadId, DriveObjectStoragePort.PreparedObject prepared) {
         return transactionOperations.requiresNew(() -> persistPreparedUploadInCurrentTransaction(uploadId, prepared));
     }
 
@@ -223,104 +222,6 @@ public class DriveUploadApplicationService {
         return finalizeObjectCompletedUpload(objectCompleted.uploadId(), actorUserId);
     }
 
-    public RecoveryResult recoverStaleUploads(Instant updatedBefore, int limit) {
-        if (updatedBefore == null || limit <= 0) {
-            return new RecoveryResult(0, 0, 0, 0);
-        }
-        Instant now = clock.instant();
-        RecoveryResult result = new RecoveryResult(0, 0, 0, 0);
-        for (DriveUpload upload : uploadRepository.listRecoverableBefore(updatedBefore, limit)) {
-            RecoveryOutcome outcome;
-            try {
-                outcome = recoverStaleUpload(upload, now);
-            } catch (RuntimeException ignored) {
-                outcome = RecoveryOutcome.SKIPPED;
-            }
-            result = add(result, outcome);
-        }
-        return result;
-    }
-
-    private RecoveryOutcome recoverStaleUpload(DriveUpload upload, Instant now) {
-        if (!uploadRepository.recordRecoveryAttempt(upload.uploadId(), upload.status(), now)) {
-            return RecoveryOutcome.SKIPPED;
-        }
-        return switch (upload.status()) {
-            case PREPARING -> recoverPreparingUpload(upload, now);
-            case COMPLETING -> recoverCompletingUpload(upload, now);
-            case OBJECT_COMPLETED -> recoverObjectCompletedUpload(upload);
-            case CLEANUP_PENDING -> cleanupPendingUpload(upload.uploadId(), upload.createdBy())
-                    ? RecoveryOutcome.FAILED
-                    : RecoveryOutcome.SKIPPED;
-            default -> RecoveryOutcome.SKIPPED;
-        };
-    }
-
-    private RecoveryOutcome recoverPreparingUpload(DriveUpload upload, Instant now) {
-        if (upload.expiredAt(now)) {
-            expirePreparingUpload(upload.uploadId());
-            return RecoveryOutcome.FAILED;
-        }
-        DriveObjectStoragePort.PreparedObject remote = prepareObject(upload);
-        persistPreparedUpload(upload.uploadId(), remote);
-        return RecoveryOutcome.PREPARED;
-    }
-
-    private RecoveryOutcome recoverObjectCompletedUpload(DriveUpload upload) {
-        try {
-            finalizeObjectCompletedUpload(upload.uploadId(), upload.createdBy());
-            return RecoveryOutcome.FINALIZED;
-        } catch (RuntimeException e) {
-            DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
-            return latest.status() == DriveUploadStatus.FAILED
-                    ? RecoveryOutcome.FAILED
-                    : RecoveryOutcome.SKIPPED;
-        }
-    }
-
-    private RecoveryOutcome recoverCompletingUpload(DriveUpload upload, Instant now) {
-        StorageCompletionState storageState = storageCompletionState(upload);
-        if (storageState == StorageCompletionState.COMPLETED) {
-            return recoverCompletedUpload(upload);
-        }
-        if (storageState != StorageCompletionState.NOT_COMPLETED && !upload.expiredAt(now)) {
-            return RecoveryOutcome.SKIPPED;
-        }
-        DriveObjectStoragePort.UploadCancellation cancellation = cancelUpload(upload);
-        if (cancellation == null) {
-            return RecoveryOutcome.SKIPPED;
-        }
-        if (cancellation.completed()) {
-            return recoverCompletedUpload(upload);
-        }
-        if (cancellation.cancelled()
-                && beginUploadCleanup(upload.uploadId(), DriveUploadStatus.COMPLETING, now)
-                && cleanupPendingUpload(upload.uploadId(), upload.createdBy())) {
-            return RecoveryOutcome.FAILED;
-        }
-        return RecoveryOutcome.SKIPPED;
-    }
-
-    private static RecoveryResult add(RecoveryResult result, RecoveryOutcome outcome) {
-        return new RecoveryResult(
-                result.prepared() + outcome.prepared(),
-                result.finalized() + outcome.finalized(),
-                result.markedObjectCompleted() + outcome.markedObjectCompleted(),
-                result.failed() + outcome.failed(),
-                result.skipped() + outcome.skipped()
-        );
-    }
-
-    private void expirePreparingUpload(UUID uploadId) {
-        transactionOperations.requiresNew(() -> {
-            DriveUpload current = loadUpload(uploadId);
-            if (current.status() != DriveUploadStatus.PREPARING) {
-                return;
-            }
-            uploadRepository.transitionStatus(current.expirePreparation(clock.instant()), DriveUploadStatus.PREPARING);
-        });
-    }
-
     private CompletionClaim claimUploadForCompletion(UUID uploadId, UUID actorUserId, DriveUploadContent content) {
         return runInCompletionTransaction(() -> {
             Instant now = clock.instant();
@@ -365,7 +266,7 @@ public class DriveUploadApplicationService {
         });
     }
 
-    private DriveUpload markObjectCompleted(UUID uploadId) {
+    DriveUpload markObjectCompleted(UUID uploadId) {
         return runInCompletionTransaction(() -> {
             Instant now = clock.instant();
             DriveUpload upload = loadUpload(uploadId);
@@ -383,26 +284,7 @@ public class DriveUploadApplicationService {
         });
     }
 
-    private RecoveryOutcome recoverCompletedUpload(DriveUpload upload) {
-        boolean markedObjectCompleted = false;
-        try {
-            DriveUpload objectCompleted = markObjectCompleted(upload.uploadId());
-            if (objectCompleted.status() != DriveUploadStatus.OBJECT_COMPLETED) {
-                return RecoveryOutcome.SKIPPED;
-            }
-            markedObjectCompleted = true;
-            finalizeObjectCompletedUpload(objectCompleted.uploadId(), objectCompleted.createdBy());
-            return RecoveryOutcome.MARKED_AND_FINALIZED;
-        } catch (RuntimeException e) {
-            DriveUpload latest = uploadRepository.findById(upload.uploadId()).orElse(upload);
-            if (latest.status() == DriveUploadStatus.FAILED) {
-                return markedObjectCompleted ? RecoveryOutcome.MARKED_AND_FAILED : RecoveryOutcome.FAILED;
-            }
-            return markedObjectCompleted ? RecoveryOutcome.MARKED_AND_SKIPPED : RecoveryOutcome.SKIPPED;
-        }
-    }
-
-    private StorageCompletionState storageCompletionState(DriveUpload upload) {
+    StorageCompletionState storageCompletionState(DriveUpload upload) {
         DriveObjectStoragePort.ObjectMetadata metadata;
         try {
             metadata = objectStoragePort.getMetadata(upload.objectId());
@@ -421,19 +303,7 @@ public class DriveUploadApplicationService {
         return StorageCompletionState.UNKNOWN;
     }
 
-    private DriveObjectStoragePort.UploadCancellation cancelUpload(DriveUpload upload) {
-        try {
-            return objectStoragePort.cancelUpload(
-                    upload.ossSessionId(),
-                    upload.objectId(),
-                    upload.versionId()
-            );
-        } catch (RuntimeException ignored) {
-            return null;
-        }
-    }
-
-    private boolean beginUploadCleanup(UUID uploadId, DriveUploadStatus expectedStatus, Instant now) {
+    boolean beginUploadCleanup(UUID uploadId, DriveUploadStatus expectedStatus, Instant now) {
         return runInCompletionTransaction(() -> {
             DriveUpload upload = loadUpload(uploadId);
             if (upload.status() != expectedStatus) {
@@ -450,7 +320,7 @@ public class DriveUploadApplicationService {
         });
     }
 
-    private boolean cleanupPendingUpload(UUID uploadId, UUID actorUserId) {
+    boolean cleanupPendingUpload(UUID uploadId, UUID actorUserId) {
         DriveUpload upload = loadUpload(uploadId);
         if (upload.status() != DriveUploadStatus.CLEANUP_PENDING) {
             return false;
@@ -472,7 +342,7 @@ public class DriveUploadApplicationService {
         });
     }
 
-    private DriveEntryResult finalizeObjectCompletedUpload(UUID uploadId, UUID actorUserId) {
+    DriveEntryResult finalizeObjectCompletedUpload(UUID uploadId, UUID actorUserId) {
         try {
             return runInCompletionTransaction(() -> {
                 Instant now = clock.instant();
@@ -575,7 +445,7 @@ public class DriveUploadApplicationService {
         }
     }
 
-    private DriveUpload loadUpload(UUID uploadId) {
+    DriveUpload loadUpload(UUID uploadId) {
         return uploadRepository.findById(uploadId)
                 .orElseThrow(() -> new BusinessException(DriveErrorCode.DRIVE_UPLOAD_INVALID, "上传会话不可用"));
     }
@@ -614,18 +484,7 @@ public class DriveUploadApplicationService {
     private record CompletionClaim(DriveUpload upload, boolean owned) {
     }
 
-    private record RecoveryOutcome(int prepared, int finalized, int markedObjectCompleted, int failed, int skipped) {
-
-        private static final RecoveryOutcome PREPARED = new RecoveryOutcome(1, 0, 0, 0, 0);
-        private static final RecoveryOutcome FINALIZED = new RecoveryOutcome(0, 1, 0, 0, 0);
-        private static final RecoveryOutcome MARKED_AND_FINALIZED = new RecoveryOutcome(0, 1, 1, 0, 0);
-        private static final RecoveryOutcome FAILED = new RecoveryOutcome(0, 0, 0, 1, 0);
-        private static final RecoveryOutcome MARKED_AND_FAILED = new RecoveryOutcome(0, 0, 1, 1, 0);
-        private static final RecoveryOutcome SKIPPED = new RecoveryOutcome(0, 0, 0, 0, 1);
-        private static final RecoveryOutcome MARKED_AND_SKIPPED = new RecoveryOutcome(0, 0, 1, 0, 1);
-    }
-
-    private enum StorageCompletionState {
+    enum StorageCompletionState {
         COMPLETED,
         NOT_COMPLETED,
         UNKNOWN
@@ -728,18 +587,6 @@ public class DriveUploadApplicationService {
     }
 
     public record CompleteUploadCommand(UUID actorUserId, UUID uploadId, DriveUploadContent content) {
-    }
-
-    public record RecoveryResult(
-            int prepared,
-            int finalized,
-            int markedObjectCompleted,
-            int failed,
-            int skipped
-    ) {
-        public RecoveryResult(int finalized, int markedObjectCompleted, int failed, int skipped) {
-            this(0, finalized, markedObjectCompleted, failed, skipped);
-        }
     }
 
     public record UploadSessionResult(

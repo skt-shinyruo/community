@@ -300,6 +300,7 @@
 | `drive.application.DriveSpaceApplicationService` | 网盘空间 lazy create、quota / used / remaining 查询 | [网盘业务逻辑](business-logic/drive.md) | Covered |
 | `drive.application.DriveEntryApplicationService` | 文件夹、列表、搜索、重命名、移动和私有下载 URL | [网盘业务逻辑](business-logic/drive.md) | Covered |
 | `drive.application.DriveUploadApplicationService` | 上传会话、OSS prepare/complete、quota reserve 和 entry 创建 | [网盘业务逻辑](business-logic/drive.md) | Covered |
+| `drive.application.DriveUploadRecoveryApplicationService` | stale 上传的 expire、cancel、cleanup 与补偿 finalize | [网盘业务逻辑](business-logic/drive.md) | Covered |
 | `drive.application.DriveTrashApplicationService` | 回收站、恢复、彻底删除、quota 释放和 OSS 删除重试 | [网盘业务逻辑](business-logic/drive.md) | Covered |
 | `drive.application.DriveShareApplicationService` | 分享创建、撤销、提取码校验、ticket 和分享下载 URL | [网盘业务逻辑](business-logic/drive.md) | Covered |
 | `drive.application.port.DriveShareTicketCodec` | share download ticket 编解码端口 | [网盘业务逻辑](business-logic/drive.md) | Covered |

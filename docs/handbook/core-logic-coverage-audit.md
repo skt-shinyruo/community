@@ -139,6 +139,7 @@ handbook 行为文档使用中文说明，类名、状态名、topic、配置键
 | `ops.application.HotCacheGovernanceApplicationService` | `Covered` | [可靠性机制](reliability.md#hot-cache-governance) |
 | `wallet.application.WalletRewardProjectionApplicationService` | `Covered` | [Wallet 钱包业务逻辑](business-logic/wallet.md#奖励) |
 | `wallet.infrastructure.event.WalletRewardKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
+| `drive.application.DriveUploadRecoveryApplicationService` | `Covered` | [网盘业务逻辑](business-logic/drive.md#详细链路) |
 | `drive.infrastructure.job.DriveUploadRecoveryJob` | `Covered` | [网盘业务逻辑](business-logic/drive.md#详细链路) |
 | `growth.infrastructure.event.TaskProgressEventBackboneKafkaListener` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |
 | `im.application.ImPolicyProjectionApplicationService` | `Covered` | [异步事件骨干](core-logic/async-event-backbone.md) |

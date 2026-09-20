@@ -7,7 +7,7 @@ import com.nowcoder.community.drive.application.command.DriveUploadContent;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.PrepareUploadCommand;
 import com.nowcoder.community.drive.application.port.DriveObjectStoragePort;
 import com.nowcoder.community.drive.application.result.DriveEntryResult;
-import com.nowcoder.community.drive.application.DriveUploadApplicationService.RecoveryResult;
+import com.nowcoder.community.drive.application.DriveUploadRecoveryApplicationService.RecoveryResult;
 import com.nowcoder.community.drive.application.DriveUploadApplicationService.UploadSessionResult;
 import com.nowcoder.community.drive.domain.model.DriveEntry;
 import com.nowcoder.community.drive.domain.model.DriveEntryStatus;
@@ -91,7 +91,7 @@ class DriveUploadApplicationServiceTest {
                 userId, NOW.minusSeconds(10), NOW.plusSeconds(900));
         uploads.save(preparing);
 
-        RecoveryResult result = service.recoverStaleUploads(NOW, 10);
+        RecoveryResult result = recovery(spaces, entries, uploads, storage).recoverStaleUploads(NOW, 10);
 
         assertThat(result.prepared()).isOne();
         assertThat(storage.prepared).singleElement()
@@ -121,7 +121,7 @@ class DriveUploadApplicationServiceTest {
         uploads.save(recovered);
         uploads.failRecoveryAttempt(failed.uploadId());
 
-        RecoveryResult result = service.recoverStaleUploads(NOW, 10);
+        RecoveryResult result = recovery(spaces, entries, uploads, storage).recoverStaleUploads(NOW, 10);
 
         assertThat(result).isEqualTo(new RecoveryResult(1, 0, 0, 0, 1));
         assertThat(uploads.findById(failed.uploadId()).orElseThrow().status())
@@ -333,7 +333,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(uploads.transitionStatus(prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
         storage.metadataStatuses.put(prepared.objectId(), "PURGED");
 
-        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
+        RecoveryResult result = recovery(spaces, entries, uploads, storage).recoverStaleUploads(NOW.plusSeconds(1), 10);
 
         assertThat(result.finalized()).isEqualTo(1);
         assertThat(result.markedObjectCompleted()).isZero();
@@ -370,7 +370,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().usedBytes()).isZero();
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
 
-        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(1), 10);
+        RecoveryResult result = recovery(spaces, entries, uploads, storage).recoverStaleUploads(NOW.plusSeconds(1), 10);
 
         assertThat(result.finalized()).isEqualTo(1);
         assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETED);
@@ -396,7 +396,7 @@ class DriveUploadApplicationServiceTest {
                 prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
         storage.metadataUnavailable = true;
 
-        RecoveryResult beforeDeadline = service(
+        RecoveryResult beforeDeadline = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
 
@@ -404,7 +404,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(uploads.findById(uploadId).orElseThrow().status()).isEqualTo(DriveUploadStatus.COMPLETING);
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
 
-        RecoveryResult atDeadline = service(
+        RecoveryResult atDeadline = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -432,7 +432,7 @@ class DriveUploadApplicationServiceTest {
                     prepared.startCompleting(uuid(500), NOW), DriveUploadStatus.PREPARED)).isTrue();
             storage.metadataStatuses.put(prepared.objectId(), ossStatus);
 
-            RecoveryResult result = service(
+            RecoveryResult result = recovery(
                     spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_599), ZoneOffset.UTC))
                     .recoverStaleUploads(NOW.plusSeconds(3_600), 10);
 
@@ -466,7 +466,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataUnavailable = true;
         storage.cancellationCompleted = true;
 
-        RecoveryResult result = service(
+        RecoveryResult result = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -498,7 +498,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataUnavailable = true;
         storage.cancelFailuresRemaining = 1;
 
-        RecoveryResult first = service(
+        RecoveryResult first = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -507,7 +507,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
         assertThat(storage.deletedObjects).isEmpty();
 
-        RecoveryResult retried = service(
+        RecoveryResult retried = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -537,7 +537,7 @@ class DriveUploadApplicationServiceTest {
         storage.metadataStatuses.put(prepared.objectId(), "STAGED");
         storage.deleteFailuresRemaining = 1;
 
-        RecoveryResult first = service(
+        RecoveryResult first = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -550,7 +550,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(storage.deleteAttempts).containsExactly(prepared.objectId());
         assertThat(storage.deletedObjects).isEmpty();
 
-        RecoveryResult retried = service(
+        RecoveryResult retried = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -588,7 +588,7 @@ class DriveUploadApplicationServiceTest {
                 new DriveUploadContent(() -> new ByteArrayInputStream("file".getBytes()), "text/plain", 512L)
         ));
 
-        RecoveryResult result = service(
+        RecoveryResult result = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -621,7 +621,7 @@ class DriveUploadApplicationServiceTest {
                 .hasMessage("网盘条目创建失败");
         entries.returnNextCreate(DriveEntryRepository.CreateStatus.CONFLICT);
 
-        RecoveryResult failedAttempt = service(
+        RecoveryResult failedAttempt = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -634,7 +634,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(spaces.findByUserId(userId).orElseThrow().reservedBytes()).isEqualTo(512L);
         assertThat(storage.deletedObjects).isEmpty();
 
-        RecoveryResult retried = service(
+        RecoveryResult retried = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_601), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_602), 10);
 
@@ -667,7 +667,7 @@ class DriveUploadApplicationServiceTest {
         assertThat(uploads.transitionStatus(
                 secondCompleting.startCleanup(NOW.plusSeconds(2)), DriveUploadStatus.COMPLETING)).isTrue();
         storage.alwaysFailDeleteObjectId = firstPrepared.objectId();
-        DriveUploadApplicationService recoveryService = service(
+        DriveUploadRecoveryApplicationService recoveryService = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(10), ZoneOffset.UTC));
 
         RecoveryResult firstBatch = recoveryService.recoverStaleUploads(NOW.plusSeconds(10), 1);
@@ -701,7 +701,7 @@ class DriveUploadApplicationServiceTest {
         ))).isInstanceOf(BusinessException.class)
                 .hasMessage("网盘条目创建失败");
 
-        RecoveryResult result = service(
+        RecoveryResult result = recovery(
                 spaces, entries, uploads, storage, Clock.fixed(NOW.plusSeconds(3_600), ZoneOffset.UTC))
                 .recoverStaleUploads(NOW.plusSeconds(3_601), 10);
 
@@ -765,7 +765,7 @@ class DriveUploadApplicationServiceTest {
         spaces.forceReserved(space.spaceId(), 1_024L, NOW.plusSeconds(2));
         entries.save(parent.trash(NOW.plusSeconds(3), NOW.plusSeconds(86_400)));
 
-        RecoveryResult result = service.recoverStaleUploads(NOW.plusSeconds(10), 10);
+        RecoveryResult result = recovery(spaces, entries, uploads, storage).recoverStaleUploads(NOW.plusSeconds(10), 10);
 
         assertThat(result.failed()).isEqualTo(1);
         assertThat(result.finalized()).isZero();
@@ -962,6 +962,31 @@ class DriveUploadApplicationServiceTest {
                 clock,
                 new DriveTransactionOperations(),
                 new UuidV7Generator(clock)
+        );
+    }
+
+    private static DriveUploadRecoveryApplicationService recovery(
+            DriveSpaceRepository spaces,
+            DriveEntryRepository entries,
+            DriveUploadRepository uploads,
+            DriveObjectStoragePort storage
+    ) {
+        return recovery(spaces, entries, uploads, storage, CLOCK);
+    }
+
+    private static DriveUploadRecoveryApplicationService recovery(
+            DriveSpaceRepository spaces,
+            DriveEntryRepository entries,
+            DriveUploadRepository uploads,
+            DriveObjectStoragePort storage,
+            Clock clock
+    ) {
+        return new DriveUploadRecoveryApplicationService(
+                service(spaces, entries, uploads, storage, clock),
+                uploads,
+                storage,
+                clock,
+                new DriveTransactionOperations()
         );
     }
 

@@ -13,6 +13,10 @@ describe('api/services/walletService', () => {
     setActivePinia(createPinia())
   })
 
+  afterEach(() => {
+    mock?.restore()
+    mock = null
+  })
 
   it('createTransfer should POST to the transfers endpoint with the write attempt Idempotency-Key', async () => {
     mock = new MockAdapter(http)

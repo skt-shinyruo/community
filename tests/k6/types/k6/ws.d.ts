@@ -1,5 +1,5 @@
 export interface Socket {
-  on(event: 'open' | 'message' | 'close' | 'error', handler: (...args: never[]) => void): void
+  on(event: 'open' | 'message' | 'close' | 'error', handler: (...args: unknown[]) => void): void
   send(data: string): void
   close(): void
   setInterval(handler: () => void, intervalMs: number): number

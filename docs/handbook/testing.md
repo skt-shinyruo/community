@@ -32,6 +32,8 @@
 | tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | `npm --prefix tools/mock-data-studio run lint && npm --prefix tools/mock-data-studio run typecheck` + 全量 mock-data-studio 测试 |
 | tools/mock-data-studio 依赖更新 | `npm --prefix tools/mock-data-studio audit --omit=dev --audit-level=moderate` | 前述审计 + lint / typecheck + 全量 mock-data-studio 测试 |
 
+四个 JS 包（frontend、tests/playwright-single、tests/k6、tools/mock-data-studio）的 `package.json` 依赖统一使用 `^` 范围，不精确钉版；确定性由各包 lockfile 经 `npm ci` 保证（含 mock-data-studio Docker 镜像构建）。新增依赖遵循同一策略。
+
 ## 后端测试
 
 从 `backend/` 执行：

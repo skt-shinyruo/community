@@ -23,7 +23,7 @@
           </div>
           <div class="settings-summary-card">
             <div class="settings-summary-label">上传状态</div>
-            <div class="settings-summary-value">{{ uploadSession.objectId ? '已获取上传参数' : '尚未开始' }}</div>
+            <div class="settings-summary-value">{{ upload.session.objectId ? '已获取上传参数' : '尚未开始' }}</div>
             <div class="settings-summary-text">选择图片后创建上传会话并提交保存。</div>
           </div>
         </div>
@@ -40,15 +40,15 @@
         <div class="settings-upload-meta">
           <div class="settings-upload-meta-item">
             <span class="settings-upload-label">上传会话</span>
-            <strong>{{ uploadSession.objectId ? '已获取' : '等待创建' }}</strong>
+            <strong>{{ upload.session.objectId ? '已获取' : '等待创建' }}</strong>
           </div>
           <div class="settings-upload-meta-item">
             <span class="settings-upload-label">大小限制</span>
-            <strong>{{ uploadSession.constraints.maxBytes ? `${Math.round(uploadSession.constraints.maxBytes / 1024)}KB` : '获取后显示' }}</strong>
+            <strong>{{ upload.session.constraints.maxBytes ? `${Math.round(upload.session.constraints.maxBytes / 1024)}KB` : '获取后显示' }}</strong>
           </div>
           <div class="settings-upload-meta-item">
             <span class="settings-upload-label">预览状态</span>
-            <strong>{{ previewUrl ? '已生成预览' : '尚未上传新头像' }}</strong>
+            <strong>{{ upload.previewUrl ? '已生成预览' : '尚未上传新头像' }}</strong>
           </div>
         </div>
 
@@ -63,22 +63,22 @@
                 type="file"
                 name="avatar-file"
                 accept="image/*"
-                :disabled="loading"
+                :disabled="upload.loading"
                 @change="onAvatarFilePicked"
               />
             </template>
           </UiField>
 
           <div class="settings-upload-actions">
-            <UiButton :disabled="loading || !pickedFile" @click="uploadAndUpdate">
-              {{ uploadActionText }}
+            <UiButton :disabled="upload.loading || !upload.file" @click="upload.submit">
+              {{ upload.actionText }}
             </UiButton>
-            <UiButton v-if="pickedFile" variant="ghost" :disabled="loading" @click="clearAvatarFile">清除</UiButton>
-            <UiButton v-if="canCancelUpload" variant="secondary" @click="cancelUpload">取消上传</UiButton>
+            <UiButton v-if="upload.file" variant="ghost" :disabled="upload.loading" @click="clearAvatarFile">清除</UiButton>
+            <UiButton v-if="upload.canCancel" variant="secondary" @click="upload.cancel">取消上传</UiButton>
           </div>
 
-          <div v-if="error" class="error" role="alert">{{ error }}</div>
-          <div v-if="successMsg" class="success" role="status">{{ successMsg }}</div>
+          <div v-if="upload.error" class="error" role="alert">{{ upload.error }}</div>
+          <div v-if="upload.successMsg" class="success" role="status">{{ upload.successMsg }}</div>
         </div>
       </div>
     </section>
@@ -86,167 +86,43 @@
 </template>
 
 <script setup>
-import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, ref, watch } from 'vue'
 import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
-import { me as apiMe } from '../../api/services/authService'
-import { createAvatarUploadSession, invalidateUserProfile, updateAvatar } from '../../api/services/userService'
-import { executeUploadSession, normalizeUploadSession } from '../../api/uploadSession'
 import UiCard from '../../components/ui/UiCard.vue'
 import UiAvatar from '../../components/ui/UiAvatar.vue'
 import UiButton from '../../components/ui/UiButton.vue'
 import UiField from '../../components/ui/UiField.vue'
-import { normalizeOpaqueId } from '../../utils/opaqueId'
+import { useAvatarUploadWorkflow } from './useAvatarUploadWorkflow'
 
 const auth = useAuthStore()
 
-const loading = ref(false)
-const error = ref('')
-const successMsg = ref('')
-const uploadSession = reactive(normalizeUploadSession())
-
-const pickedFile = ref(null)
 const avatarFileInput = ref(null)
-const uploadProgress = ref(null)
-const uploadPhase = ref('idle')
-const selectedPreviewUrl = ref('')
-let uploadGeneration = 0
-let uploadController = null
 
-const sessionScope = computed(() => identityScope(auth))
+const { model: upload, invalidate: invalidateUpload } = useAvatarUploadWorkflow()
 
 const currentAvatarUrl = computed(() => String(auth?.me?.headerUrl || '').trim())
 
-const previewUrl = computed(() => selectedPreviewUrl.value)
-
-const displayAvatarUrl = computed(() => previewUrl.value || currentAvatarUrl.value)
-
-const canCancelUpload = computed(() => loading.value && ['creating', 'uploading'].includes(uploadPhase.value))
-
-const uploadActionText = computed(() => {
-  if (!loading.value) return '上传并保存'
-  if (uploadPhase.value === 'saving') return '保存中…'
-  return uploadProgress.value == null ? '上传中…' : `上传中 ${uploadProgress.value}%`
-})
+const displayAvatarUrl = computed(() => upload.previewUrl || currentAvatarUrl.value)
 
 function onAvatarFilePicked(event) {
-  pickedFile.value = event?.target?.files?.[0] || null
+  upload.selectFile(event?.target?.files?.[0] || null)
 }
 
 function clearAvatarFile() {
+  resetFileInput()
+  upload.clearFile()
+}
+
+function resetFileInput() {
   if (avatarFileInput.value) avatarFileInput.value.value = ''
-  pickedFile.value = null
 }
 
-watch(pickedFile, (file, _previousFile, onCleanup) => {
-  if (selectedPreviewUrl.value && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
-    URL.revokeObjectURL(selectedPreviewUrl.value)
-  }
-  selectedPreviewUrl.value = ''
-  Object.assign(uploadSession, normalizeUploadSession())
-  if (!file || typeof URL === 'undefined' || typeof URL.createObjectURL !== 'function') return
-
-  const objectUrl = URL.createObjectURL(file)
-  selectedPreviewUrl.value = objectUrl
-  onCleanup(() => {
-    if (typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
-      URL.revokeObjectURL(objectUrl)
-    }
-  })
-})
-
-function isCurrentUpload(generation, scope) {
-  return generation === uploadGeneration && scope === sessionScope.value
-}
-
-async function uploadAndUpdate() {
-  error.value = ''
-  successMsg.value = ''
-  const file = pickedFile.value
-  const userId = normalizeOpaqueId(auth.userId)
-  if (!file || !userId) return
-
-  const generation = ++uploadGeneration
-  const scope = sessionScope.value
-  const controller = new AbortController()
-  uploadController = controller
-  uploadProgress.value = null
-  uploadPhase.value = 'creating'
-  loading.value = true
-  try {
-    const created = await createAvatarUploadSession(file, userId, controller.signal)
-    if (!isCurrentUpload(generation, scope)) return
-    Object.assign(uploadSession, created.session)
-
-    uploadPhase.value = 'uploading'
-    const { data } = await executeUploadSession({
-      session: created.session,
-      file,
-      operation: 'Upload Avatar',
-      signal: controller.signal,
-      onProgress: ({ percent }) => {
-        if (isCurrentUpload(generation, scope) && percent != null) uploadProgress.value = percent
-      }
-    })
-    if (!isCurrentUpload(generation, scope)) return
-    const objectId = String(data?.objectId || created.session.objectId || '').trim()
-    if (!objectId) {
-      throw new Error('头像对象缺失，请重新上传')
-    }
-    uploadPhase.value = 'saving'
-    await updateAvatar(objectId, userId)
-    if (!isCurrentUpload(generation, scope)) return
-    invalidateUserProfile(userId)
-    try {
-      const { data } = await apiMe()
-      if (!isCurrentUpload(generation, scope)) return
-      auth.setMe(data)
-    } catch {
-      if (!isCurrentUpload(generation, scope)) return
-      // ignore: 头像已更新，页面可通过刷新/重新进入触发 me 拉取。
-    }
-    if (!isCurrentUpload(generation, scope)) return
-    successMsg.value = '头像已更新。'
-  } catch (e) {
-    if (!isCurrentUpload(generation, scope)) return
-    error.value = e?.message || '更新失败'
-  } finally {
-    if (isCurrentUpload(generation, scope)) {
-      loading.value = false
-      uploadPhase.value = 'idle'
-      uploadController = null
-    }
-  }
-}
-
-function cancelUpload() {
-  if (!canCancelUpload.value) return
-  uploadGeneration += 1
-  uploadController?.abort()
-  uploadController = null
-  uploadProgress.value = null
-  uploadPhase.value = 'idle'
-  loading.value = false
-  error.value = '上传已取消'
-}
-
-watch(sessionScope, () => {
-  uploadGeneration += 1
-  uploadController?.abort()
-  uploadController = null
-  uploadProgress.value = null
-  uploadPhase.value = 'idle'
-  loading.value = false
-  error.value = ''
-  successMsg.value = ''
-  clearAvatarFile()
-  Object.assign(uploadSession, normalizeUploadSession())
-})
+// 只能在这里清，否则旧身份的文件名残留、同名重选不再触发 change。
+watch(() => identityScope(auth), resetFileInput)
 onBeforeUnmount(() => {
-  uploadGeneration += 1
-  uploadController?.abort()
-  uploadController = null
-  uploadPhase.value = 'idle'
+  resetFileInput()
+  invalidateUpload()
 })
 </script>
 

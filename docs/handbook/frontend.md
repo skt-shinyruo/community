@@ -416,6 +416,7 @@ application wiring。
 | `search/useSearchPageState.js` | 搜索条件、路由解析与序列化、追加式分页（加载更多与失败重试）、请求竞态和结果 hydration 生命周期。 |
 | `searchResultSurface.js` | 搜索结果展示状态。 |
 | `settingsSection.js` | Settings 的 section query 深链合同（`profile` / `appearance` / `addresses`）与缺省、无效值回落。 |
+| `settings/useAvatarUploadWorkflow.js` | Settings 头像上传会话 transport：创建会话 -> OSS 提交 -> 保存头像 -> 刷新 `me`，进度 / 取消（AbortController）、`uploadGeneration` + 身份作用域竞态丢弃与身份切换整体失效；组件只绑定公开 model。 |
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
 跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation（两条路由复用同一组件实例，`relationKind` 并入视图 scope，切换类型即重置并重取）；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；危险操作 / 资损动作的二次确认状态由 `useConfirmationState.js` 统一承载（网盘删除、钱包转账 / 销毁共用，busy 期间禁止发起新确认）；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型与危险操作确认，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。

@@ -276,6 +276,8 @@ describe('SettingsProfileSection', () => {
     expect(findUiButton(wrapper, '上传并保存').get('button').attributes('disabled')).toBeDefined()
     expect(wrapper.text()).not.toContain('头像已更新。')
     expect(wrapper.text()).not.toContain('已获取上传参数')
+    // 身份切换同时清空选中的文件（模型层重置，DOM input 由视图 watch 清空）。
+    expect(wrapper.findAllComponents(UiButton).some((button) => button.text().includes('清除'))).toBe(false)
   })
 
   it('does not let an old me response overwrite the newly installed identity', async () => {

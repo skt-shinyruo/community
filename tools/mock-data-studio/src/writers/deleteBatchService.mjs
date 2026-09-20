@@ -276,6 +276,9 @@ async function countVisibleCommentsForPost(db, postId) {
   return Number(rows[0]?.comment_count ?? 0)
 }
 
+/**
+ * @param {{ db?: *, batchRepository?: *, entityRefRepository?: * }} [deps]
+ */
 export function createDeleteBatchService({
   db,
   batchRepository,
@@ -321,6 +324,9 @@ export function createDeleteBatchService({
           }
 
           const step = DELETE_STEP_BY_ENTITY_TYPE.get(ref.entityType)
+          if (!step) {
+            throw createUnsupportedEntityTypeError(ref.entityType)
+          }
           const result = await step.deleteRef(txDb, ref)
           deleted.business[step.countKey] += Number(result?.affectedRows ?? 0)
         }

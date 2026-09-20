@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "Bundler",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": [],
+    "paths": {
+      "k6": ["./types/k6/index.d.ts"],
+      "k6/http": ["./types/k6/http.d.ts"],
+      "k6/ws": ["./types/k6/ws.d.ts"],
+      "k6/metrics": ["./types/k6/metrics.d.ts"]
+    }
+  },
+  "include": ["config/**/*.js", "lib/**/*.js", "scenarios/**/*.js", "types/**/*.d.ts"]
+}

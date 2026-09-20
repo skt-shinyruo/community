@@ -105,6 +105,10 @@ export function createBatchRepository(db, { createId = generateUuidV7 } = {}) {
       return requireBatchById(db, batchId)
     },
 
+    /**
+     * @param {string} batchId
+     * @param {{ finishedAt?: *, status?: *, summaryJson?: *, errorMessage?: *, fromStatuses?: * }} [options]
+     */
     async markFinished(
       batchId,
       {

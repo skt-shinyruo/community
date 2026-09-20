@@ -1,9 +1,8 @@
 import { check } from 'k6'
 import { config } from './config.js'
-import { authHeaders, postJson, resultData } from './http.js'
+import { authHeaders, postJson, resultData, setAuthRecovery } from './http.js'
 import { loginFailures } from './metrics.js'
-
-let cachedToken
+import { createTokenSession } from './authRetry.js'
 
 export function login(username = config.username, password = config.password) {
   const response = postJson('/api/auth/login', {
@@ -26,11 +25,14 @@ export function login(username = config.username, password = config.password) {
   return token
 }
 
+// One login per VU, cached; the cache is force-refreshed on the first 401
+// from any authenticated request (recovery wired in lib/http.js).
+const session = createTokenSession(login)
+
+setAuthRecovery(() => session.get(true))
+
 export function token() {
-  if (config.loginOnEveryIteration || !cachedToken) {
-    cachedToken = login()
-  }
-  return cachedToken
+  return session.get(config.loginOnEveryIteration)
 }
 
 export function authenticatedParams(accessToken, extraHeaders = {}) {

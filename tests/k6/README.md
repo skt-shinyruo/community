@@ -36,6 +36,13 @@ npm run stress
 npm run spike
 ```
 
+静态检查：
+
+```bash
+npm run lint
+npm run typecheck
+```
+
 结果写入 `temp/k6-results`。
 
 场景用途：

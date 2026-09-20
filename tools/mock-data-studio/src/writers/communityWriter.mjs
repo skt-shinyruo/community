@@ -140,6 +140,9 @@ function resolveOptionalIsoTimestamp(value, label) {
   return value == null ? null : formatMysqlTimestamp(value, label)
 }
 
+/**
+ * @param {{ db?: *, entityRefRepository?: *, now?: * }} [deps]
+ */
 export function createCommunityWriter({
   db,
   entityRefRepository,
@@ -156,6 +159,9 @@ export function createCommunityWriter({
   const nextTimestamp = buildTimestampSource(now, 'communityWriter.timestamp')
 
   return {
+    /**
+     * @param {{ batchId?: *, plan?: *, seed?: * }} [options]
+     */
     async writePhase({ batchId, plan, seed = null } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')

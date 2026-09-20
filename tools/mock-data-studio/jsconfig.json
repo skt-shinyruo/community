@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "allowJs": true,
+    "checkJs": true,
+    "noEmit": true,
+    "strict": true,
+    "noImplicitAny": false,
+    "skipLibCheck": true,
+    "types": ["node"],
+    "paths": {
+      // eslint's uri-js hoists punycode@2.x (no bundled .d.ts, untyped JS);
+      // redirect module resolution so tsc never checks its implementation.
+      "punycode": ["./node_modules/@types/node/punycode.d.ts"]
+    }
+  },
+  "include": ["src/**/*.mjs", "types/**/*.d.ts"]
+}

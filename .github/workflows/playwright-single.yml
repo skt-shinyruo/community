@@ -71,6 +71,9 @@ jobs:
       - name: Install Playwright dependencies
         working-directory: tests/playwright-single
         run: npm ci
+      - name: Lint Playwright suite
+        working-directory: tests/playwright-single
+        run: npm run lint
 
       - name: Type-check Playwright suite
         working-directory: tests/playwright-single

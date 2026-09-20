@@ -28,9 +28,9 @@
 | 前端路由 / session / HTTP / store / 页面状态 | 定向 Vitest 文件 | `cd frontend && npm run lint && npm run typecheck && npm run test:coverage && npm run build` |
 | 前端构建相关 | `cd frontend && npm run build` | 前端完整质量命令 |
 | 前端依赖更新 | `cd frontend && npm audit --omit=dev --audit-level=moderate` | 前述审计 + 前端完整质量命令 |
-| tests/k6 压测脚本 | `cd tests/k6 && npm test` | 在本地 cluster 启动后运行 `npm run smoke`，再按目标运行 profile。 |
-| tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | 全量 mock-data-studio 测试 |
-| tools/mock-data-studio 依赖更新 | `npm --prefix tools/mock-data-studio audit --omit=dev --audit-level=moderate` | 前述审计 + 全量 mock-data-studio 测试 |
+| tests/k6 压测脚本 | `cd tests/k6 && npm run lint && npm run typecheck && npm test` | 在本地 cluster 启动后运行 `npm run smoke`，再按目标运行 profile。 |
+| tools/mock-data-studio | 定向 `npm --prefix tools/mock-data-studio test -- <files>` | `npm --prefix tools/mock-data-studio run lint && npm --prefix tools/mock-data-studio run typecheck` + 全量 mock-data-studio 测试 |
+| tools/mock-data-studio 依赖更新 | `npm --prefix tools/mock-data-studio audit --omit=dev --audit-level=moderate` | 前述审计 + lint / typecheck + 全量 mock-data-studio 测试 |
 
 ## 后端测试
 
@@ -199,11 +199,11 @@ tests/playwright-single
 ```bash
 ./deploy/deployment.sh up --stack single --no-observability -- --wait --wait-timeout 120
 npm --prefix tests/playwright-single install
+npm --prefix tests/playwright-single run lint
 npm --prefix tests/playwright-single run typecheck
 npm --prefix tests/playwright-single run test:smoke
 npm --prefix tests/playwright-single run test:regression
 npm --prefix tests/playwright-single run test:visual
-```
 
 `test` 是 `test:regression` 的别名。所有产品用例都使用成功语义；统一 fixture
 会审计 API 4xx/5xx、浏览器页面错误和应用控制台错误，除明确的匿名认证探针和
@@ -231,6 +231,8 @@ Run these from the repository root after changing observability docs, contracts,
 从仓库根目录执行：
 
 ```bash
+npm --prefix tools/mock-data-studio run lint
+npm --prefix tools/mock-data-studio run typecheck
 npm --prefix tools/mock-data-studio test
 ```
 

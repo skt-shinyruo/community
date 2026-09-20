@@ -27,6 +27,9 @@ async function loadExistingState(runDb) {
   }
 }
 
+/**
+ * @param {{ db?: *, entityRefRepository?: *, now?: * }} [deps]
+ */
 export function createImWriter({
   db,
   entityRefRepository,
@@ -43,6 +46,9 @@ export function createImWriter({
   const nextTimestamp = buildTimestampSource(now, 'imWriter.timestamp')
 
   return {
+    /**
+     * @param {{ batchId?: *, plan?: *, seed?: * }} [options]
+     */
     async writePhase({ batchId, plan, seed = null } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')

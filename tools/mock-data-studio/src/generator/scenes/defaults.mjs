@@ -94,6 +94,9 @@ function buildHotStartPhase2Targets(sceneKey, normalizedDefaults) {
   ]
 }
 
+/**
+ * @param {{ defaults?: * }} [options]
+ */
 export function buildScenePresets({ defaults } = {}) {
   const normalizedDefaults = {
     users: normalizeCount(defaults?.users ?? 100),
@@ -208,6 +211,9 @@ export function buildScenePresets({ defaults } = {}) {
   }
 }
 
+/**
+ * @param {{ sceneKey?: *, config?: * }} [options]
+ */
 export function resolveScenePreset({ sceneKey = defaultAutoFillSceneKey, config } = {}) {
   const presets = buildScenePresets({
     defaults: config?.autoFill?.defaults

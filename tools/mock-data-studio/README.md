@@ -44,6 +44,8 @@ npm --prefix tools/mock-data-studio start -- generate --seed demo
 ## 验证
 
 ```bash
+npm --prefix tools/mock-data-studio run lint
+npm --prefix tools/mock-data-studio run typecheck
 npm --prefix tools/mock-data-studio test
 npm --prefix tools/mock-data-studio start -- --help
 ```

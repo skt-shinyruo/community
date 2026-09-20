@@ -92,6 +92,9 @@ function buildUserPool({ existingUsers, generatedUsers }) {
   ]
 }
 
+/**
+ * @param {{ plan?: *, existing?: *, seed?: * }} [options]
+ */
 export function generateCommunityPhaseDataset({ plan, existing = {}, seed } = {}) {
   const deficits = communityDeficitsFromPlan(plan)
   const normalizedExisting = normalizeExisting(existing)

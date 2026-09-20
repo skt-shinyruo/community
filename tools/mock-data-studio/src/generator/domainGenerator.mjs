@@ -168,6 +168,9 @@ function ensureAvailableUsers(users, label) {
   }
 }
 
+/**
+ * @param {{ plan?: *, existing?: *, seed?: * }} [options]
+ */
 export function generateDomainPhaseDataset({ plan, existing = {}, seed } = {}) {
   const deficits = buildDomainDeficits(plan)
   const normalizedExisting = normalizeDomainExisting(existing)
@@ -348,6 +351,9 @@ function minimumRoomMemberCount(roomCount, requestedMemberCount) {
     : MINIMUM_ROOM_MEMBER_COUNT
 }
 
+/**
+ * @param {{ plan?: *, existing?: *, seed?: * }} [options]
+ */
 export function generateImPhaseDataset({ plan, existing = {}, seed } = {}) {
   const deficits = buildImDeficits(plan)
   const normalizedExisting = normalizeImExisting(existing)

@@ -45,6 +45,9 @@ function formatResponseError(status, bodyText) {
   return `community-app search reindex failed with status ${status}: ${bodyText}`
 }
 
+/**
+ * @param {{ config?: *, fetchImpl?: * }} [deps]
+ */
 export function createCommunityApi({ config, fetchImpl = globalThis.fetch } = {}) {
   if (!fetchImpl) {
     throw new Error('fetch implementation is required')

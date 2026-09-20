@@ -74,6 +74,9 @@ function mergeCounts(...counts) {
   return Object.assign({}, ...counts)
 }
 
+/**
+ * @param {{ generatedRefs: *, communityApi: *, enabled: * }} options
+ */
 async function reindexGeneratedContent({ generatedRefs, communityApi, enabled }) {
   if (!generatedRefs.some((ref) => ref.entityType === 'posts' || ref.entityType === 'comments')) {
     return { attempted: false, reason: 'no-content' }
@@ -83,11 +86,14 @@ async function reindexGeneratedContent({ generatedRefs, communityApi, enabled })
   try {
     await communityApi.reindexSearch()
     return { attempted: true, succeeded: true }
-  } catch (error) {
+  } catch (/** @type {*} */ error) {
     return { attempted: true, succeeded: false, error: error?.message ?? String(error) }
   }
 }
 
+/**
+ * @param {{ options: *, config: *, batchRepository: *, planner: *, communityWriter: *, imWriter: *, communityApi: *, createBatchKey?: * }} deps
+ */
 export async function generateBatch({
   options,
   config,
@@ -127,7 +133,7 @@ export async function generateBatch({
 
     await batchRepository.markFinished(batch.id, { status: 'succeeded', summaryJson: summary })
     return { batchId: batch.id, status: 'succeeded', ...summary }
-  } catch (error) {
+  } catch (/** @type {*} */ error) {
     await batchRepository.markFinished(batch.id, {
       status: 'failed',
       errorMessage: error?.message ?? String(error),

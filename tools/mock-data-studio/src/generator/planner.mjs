@@ -52,6 +52,9 @@ function buildPhasePlan(name, targets, existingCounts) {
   }
 }
 
+/**
+ * @param {{ config?: *, targetRepository?: *, entityRefRepository?: *, resolveScenePresetImpl?: * }} [deps]
+ */
 export function createPlanner({
   config,
   targetRepository,
@@ -67,6 +70,9 @@ export function createPlanner({
   }
 
   return {
+    /**
+     * @param {{ batchId?: *, sceneKey?: * }} [options]
+     */
     async planDefaultBatch({ batchId, sceneKey = config?.autoFill?.sceneKey } = {}) {
       if (batchId == null) {
         throw new Error('batchId is required')

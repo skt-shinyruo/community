@@ -10,9 +10,18 @@
   },
   "scripts": {
     "start": "node src/cli.mjs",
+    "typecheck": "tsc --noEmit -p jsconfig.json",
+    "lint": "eslint . --max-warnings 0",
     "test": "node --test test/*.test.mjs"
   },
   "dependencies": {
-    "mysql2": "3.23.3"
+    "mysql2": "^3.23.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "^10.0.1",
+    "@types/node": "^26.6.2",
+    "eslint": "^10.8.1",
+    "globals": "^16.4.0",
+    "typescript": "^7.0.2"
   }
 }

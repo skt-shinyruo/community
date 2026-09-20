@@ -61,6 +61,7 @@ tools/**/node_modules/
 
 ### Load testing ###
 temp/k6-results/
+tests/k6/node_modules/
 
 ### Playwright single E2E ###
 /test-results/

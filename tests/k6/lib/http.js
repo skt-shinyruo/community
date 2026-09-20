@@ -2,7 +2,15 @@ import http from 'k6/http'
 import { check, sleep } from 'k6'
 import { config } from './config.js'
 import { recordUnexpected } from './metrics.js'
+import { withAuthRecovery } from './authRetry.js'
 
+// Registered by lib/auth.js at import time: re-login callback used by
+// withAuthRecovery when an authenticated request answers 401.
+let authRecovery
+
+export function setAuthRecovery(recover) {
+  authRecovery = recover
+}
 function jsonHeaders(extra = {}) {
   const headers = {
     'Content-Type': 'application/json',
@@ -41,6 +49,12 @@ function parseJson(response, fallback = null) {
   }
 }
 
+/**
+ * Extracts the `data` member of a Result envelope.
+ * @param {*} response
+ * @param {*} [fallback=null]
+ * @returns {*}
+ */
 export function resultData(response, fallback = null) {
   const body = parseJson(response)
   if (body && Object.prototype.hasOwnProperty.call(body, 'data')) {
@@ -59,6 +73,11 @@ function expectStatus(response, expected, name) {
   return ok
 }
 
+/**
+ * @param {string} path
+ * @param {*} [params={}]
+ * @param {Record<string, string>} [headers]
+ */
 function requestOptions(path, params = {}, headers = undefined) {
   const requestParams = params || {}
   const merged = {
@@ -69,21 +88,41 @@ function requestOptions(path, params = {}, headers = undefined) {
 }
 
 export function get(path, params = {}, expected = 200) {
-  const response = http.get(url(path), requestOptions(path, params))
+  const response = withAuthRecovery((request) => http.get(url(path), request), requestOptions(path, params), authRecovery)
   expectStatus(response, expected, `GET ${path} returned ${Array.isArray(expected) ? expected.join('/') : expected}`)
   return response
 }
-
+/**
+ * @param {string} path
+ * @param {*} body
+ * @param {*} [params={}]
+ * @param {number|number[]} [expected=200]
+ * @returns {import('../types/k6/http').Response}
+ */
 export function postJson(path, body, params = {}, expected = 200) {
   const requestParams = params || {}
-  const response = http.post(url(path), JSON.stringify(body || {}), requestOptions(path, params, jsonHeaders(requestParams.headers || {})))
+  const response = withAuthRecovery(
+    (request) => http.post(url(path), JSON.stringify(body || {}), request),
+    { ...requestOptions(path, requestParams), headers: jsonHeaders(requestParams.headers || {}) },
+    authRecovery
+  )
   expectStatus(response, expected, `POST ${path} returned ${Array.isArray(expected) ? expected.join('/') : expected}`)
   return response
 }
-
+/**
+ * @param {string} path
+ * @param {*} body
+ * @param {*} [params={}]
+ * @param {number|number[]} [expected=200]
+ * @returns {import('../types/k6/http').Response}
+ */
 export function putJson(path, body, params = {}, expected = 200) {
   const requestParams = params || {}
-  const response = http.put(url(path), JSON.stringify(body || {}), requestOptions(path, params, jsonHeaders(requestParams.headers || {})))
+  const response = withAuthRecovery(
+    (request) => http.put(url(path), JSON.stringify(body || {}), request),
+    { ...requestOptions(path, requestParams), headers: jsonHeaders(requestParams.headers || {}) },
+    authRecovery
+  )
   expectStatus(response, expected, `PUT ${path} returned ${Array.isArray(expected) ? expected.join('/') : expected}`)
   return response
 }

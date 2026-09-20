@@ -100,6 +100,8 @@ npm --prefix tests/playwright-single run test:visual
 | `npm --prefix tests/playwright-single run test:smoke` | 只执行 `00-smoke.spec.ts`，快速验证部署可达、匿名访问、受保护路由跳转和登录。 |
 | `npm --prefix tests/playwright-single run test:regression` | 执行全部带 `@regression` 标签的产品回归。 |
 | `npm --prefix tests/playwright-single run test:visual` | 执行 Chromium light 的 18 个视觉用例和 dark 的 4 个核心用例，共比对 22 张 PNG。 |
+| `npm --prefix tests/playwright-single run lint` | ESLint 静态检查（`--max-warnings 0`）。 |
+| `npm --prefix tests/playwright-single run typecheck` | TypeScript 编译期检查（`tsc -p tsconfig.json`）。 |
 | `npm --prefix tests/playwright-single run test` | `test:regression` 的别名。 |
 | `npm --prefix tests/playwright-single run test:headed` | 以有界面模式运行常规回归，便于本地观察交互。 |
 | `npm --prefix tests/playwright-single run show-report` | 打开 Playwright HTML 报告 `playwright-report/`。 |

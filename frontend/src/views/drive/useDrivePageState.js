@@ -4,7 +4,7 @@ import { useAuthStore } from '../../stores/auth'
 import { identityScope } from '../../stores/identityScope'
 import { showToast } from '../../ui/toastService'
 import { createLatestRequestTracker } from '../../utils/latestRequest'
-import { useDriveConfirmation } from './useDriveConfirmation'
+import { useConfirmationState } from '../useConfirmationState'
 import { useDriveEntryWorkflow } from './useDriveEntryWorkflow'
 import { useDriveShareWorkflow } from './useDriveShareWorkflow'
 import { useDriveUploadWorkflow } from './useDriveUploadWorkflow'
@@ -68,7 +68,7 @@ export function useDrivePageState() {
     if (message) showToast({ type: 'info', text: message })
   }
 
-  const { confirmation, confirm, closeConfirmation, runConfirmation } = useDriveConfirmation({ isBusy })
+  const { confirmation, confirm, closeConfirmation, runConfirmation } = useConfirmationState({ isBusy })
 
   async function reload() {
     const token = reloadTracker.begin()

@@ -407,6 +407,7 @@ application wiring。
 | `conversationDetailReadMarker.js` | 私信已读上报的连续 seq 水位：HTTP 历史页锚定基线（`anchorAndReport`），实时帧连续推进（`advanceAndReport`），乱序帧不提前标读缺口之后的消息；已读落库后防抖调度壳层未读角标刷新。 |
 | `marketState.js` | 商品、订单、争议、地址的展示投影；订单标签、资金、履约、下一步和允许动作来自同一份完整状态事实。商品投影含状态徽章变体（`statusVariant`）与页内搜索过滤（`filterMarketListings`，对已加载商品按标题 / 描述 / 卖家过滤）；订单投影含状态徽章变体（`statusVariant`，处理中映射 pending）、下单数量校验（`marketOrderQuantityError`，0 / 负数 / 小数 / 空输入内联拒绝）与资损确认文案（`marketOrderConfirmConfirmation` / `marketOrderCancelConfirmation`）；争议投影含订单金额文案（`totalAmountText`）与裁定确认文案（`marketDisputeResolutionConfirmation`）；库存投影含状态标签 / 徽章变体 / 排序秩与内容类型文案，卖家库存表的排序钩子状态与本地排序由 `nextTableSort` / `sortMarketInventory` 承担。 |
 | `walletState.js` | 钱包状态文案、交易类型标签、金额展示、feed key 生成、流水追加窗口（limit 递增、到底判定与到达后端上限的明示）和资损确认文案（含管理员冻结钱包 / 回滚交易）。 |
+| `useWalletWorkflow.js` | 钱包页的 transport 流程：概览 / 流水 / 能力三区 reload 与部分成功语义、流水追加分页、三个资损写（领取 / 销毁 / 转账）各自的 WriteAttempt 生命周期（人工重试复用 key，成功 / 取消 / 改意图换 key）、二次确认弹窗和身份 scope 隔离；组件只绑定 model / actions。 |
 | `driveState.js` | 网盘 quota 展示、breadcrumb、entry capability、分享表单校验和选择收敛。 |
 | `moderationState.js` | 治理后台处置表单的时长解析与校验：自定义时长必须是正整数秒数，非法输入返回行内错误，不再静默回落到后端默认时长。 |
 | `registerFlowState.js` | 注册后邮箱验证码步骤的持久化、恢复和错误处理。 |
@@ -417,8 +418,7 @@ application wiring。
 | `settingsSection.js` | Settings 的 section query 深链合同（`profile` / `appearance` / `addresses`）与缺省、无效值回落。 |
 
 新增复杂页面逻辑时，优先抽出纯函数并新增同名测试。跨请求或跨会话的页面流程使用页面专用 module，并向组件公开按页面意图命名的 model/actions/lifecycle 或语义分组；组件只保留 UI 绑定与纯格式化。
-
-跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation（两条路由复用同一组件实例，`relationKind` 并入视图 scope，切换类型即重置并重取）；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型与危险操作确认（`useDriveConfirmation`），目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
+跨页面重复的有状态流程使用 focused module：`FollowRelationListView.vue` 通过 route props 的 `relationKind` 统一关注 / 粉丝列表的「加载更多」游标追加分页、hydration、账号 / 路由隔离和逐项 mutation（两条路由复用同一组件实例，`relationKind` 并入视图 scope，切换类型即重置并重取）；`MarketOrderListView.vue` 通过 route props 的 `side` 统一买单 / 卖单呈现，并由 `useMarketOrderList.js` 统一会话隔离、分页和过期请求丢弃；危险操作 / 资损动作的二次确认状态由 `useConfirmationState.js` 统一承载（网盘删除、钱包转账 / 销毁共用，busy 期间禁止发起新确认）；`useDrivePageState.js` 只协调 `page/workspace/entries/upload/shares` 五个页面模型与危险操作确认，目录、条目、上传和分享各自由对应 workflow 管理 transport 与请求生命周期；`usePostDetailLoader.js` 只组合 `page/postActions/discussion` 三个模型，主帖动作和评论树分别由 `usePostDetailActions.js`、`usePostDetailDiscussion.js` 负责；`useTagSuggestions.js` 统一去抖、热门标签回退和 latest-request 竞态处理。聚合页面通过 `settledRequests.js` 独立提交成功分区；某个统计、钱包、首页计数或 Drive 分区失败时保留其他成功数据和上一份可用数据，不能用一个 rejected Promise 抹掉整个页面。
 
 `utils/latestRequest.js` 的无参数 tracker 保持 token-only interface；传入 `getScope` 后，request handle 同时捕获 route / session scope，只有最新 token 且 scope 未变化时才能提交。当前先在关系列表试点，pagination append、mutation-by-id、partial success 和 IM backfill 继续保留各自状态语义，不做通用 async 状态机。
 

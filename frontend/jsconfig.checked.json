@@ -136,6 +136,8 @@
     "src/views/useConversationsFeed.js",
     "src/views/useUserProfilePage.js",
     "src/views/useUserProfilePage.test.js",
+    "src/views/useWalletWorkflow.js",
+    "src/views/useWalletWorkflow.test.js",
     "src/views/userProfileTimeline.test.js",
     "src/views/walletState.js",
     "src/views/walletState.test.js",

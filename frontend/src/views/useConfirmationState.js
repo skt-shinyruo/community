@@ -1,9 +1,9 @@
 // @ts-check
 import { reactive } from 'vue'
 
-// 网盘危险操作的二次确认状态：删除到回收站 / 彻底删除 / 撤销分享经 UiModalConfirm 确认。
-// 确认后立即关闭弹窗，动作本身的 busy 语义由 runAction 承担；busy 期间不允许发起新确认。
-export function useDriveConfirmation({ isBusy }) {
+// 资损 / 危险操作的二次确认状态（UiModalConfirm）：网盘删除、钱包转账 / 销毁共用。
+// 确认后立即关闭弹窗，动作本身的 busy 语义由调用方的提交流程承担；busy 期间不允许发起新确认。
+export function useConfirmationState({ isBusy }) {
   const confirmation = reactive({
     open: false,
     title: '',

@@ -13,7 +13,7 @@
     <version>0.0.1-SNAPSHOT</version>
     <packaging>pom</packaging>
     <name>community</name>
-    <description>community parent (single backend module)</description>
+    <description>community backend parent: multi-module Maven reactor aggregating the main-site app, gateways, IM, OSS and shared common modules</description>
 
     <properties>
         <java.version>17</java.version>

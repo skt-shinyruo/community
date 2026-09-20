@@ -12,7 +12,7 @@
 
     <artifactId>community-app</artifactId>
     <name>community-app</name>
-    <description>Single deployable backend (flattened monolith)</description>
+    <description>Community main-site business monolith deployable (one of the reactor's runnable services, alongside the gateways, IM and OSS)</description>
     <packaging>jar</packaging>
 
     <properties>

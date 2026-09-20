@@ -26,7 +26,8 @@
    - 为 single 开启可观测性 overlay（可选）：`./deploy/deployment.sh up --stack single --observability`
 
 ## 本地开发 / 测试
-- 单测：`mvn test`
+- 日常单测（Surefire）：`mvn test`（可加 `-pl <module> -Dtest=<TestName>` 聚焦）
+- 完整验证（测试 + Failsafe 集成测试等全部生命周期门禁）：`mvn verify`，详见 `../docs/handbook/testing.md`
 - 打包后端单体：`mvn -q -DskipTests -pl :community-app -am package`
 
 ## 目录结构（后端）

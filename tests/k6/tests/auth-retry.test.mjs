@@ -35,6 +35,29 @@ describe('k6 token session', () => {
   })
 })
 
+describe('k6 token session 401 refresh', () => {
+  it('shares one re-login across requests failing with the same stale token', () => {
+    let logins = 0
+    const session = createTokenSession(() => `token-${++logins}`)
+
+    assert.equal(session.get(), 'token-1')
+    assert.equal(session.refresh('token-1'), 'token-2')
+    assert.equal(session.refresh('token-1'), 'token-2')
+    assert.equal(session.refresh('token-1'), 'token-2')
+    assert.equal(logins, 2)
+  })
+
+  it('re-logins again when a newer token also goes stale', () => {
+    let logins = 0
+    const session = createTokenSession(() => `token-${++logins}`)
+
+    assert.equal(session.get(), 'token-1')
+    assert.equal(session.refresh('token-1'), 'token-2')
+    assert.equal(session.refresh('token-2'), 'token-3')
+    assert.equal(logins, 3)
+  })
+})
+
 describe('k6 401 auth recovery', () => {
   it('re-logins and retries once with the fresh bearer token', () => {
     const seenHeaders = []

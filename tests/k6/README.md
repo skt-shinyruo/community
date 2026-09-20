@@ -54,6 +54,10 @@ npm run typecheck
 - `im-ws`：IM session、WebSocket 建连、携带 schemaVersion 的 `connect`/`ping` 帧；观察 `connected`/`pong`，connect reject 触发失败；可选 `sendRoomText` 按 clientMsgId 关联 `ack`/`committed`/`reject`
 - `soak`、`stress`、`spike`：长稳、饱和点和突发恢复
 
+## Token 缓存与 401 恢复
+
+每个 VU 默认只登录一次并缓存 access token。任何鉴权请求返回 `401` 时（如 access token 过期、`security_version` 变化），套件强制重新登录并保留原 `Idempotency-Key` 重试一次，对齐前端 401 → refresh → 单次重试语义；重新登录失败则保留原始 `401`。同一过期窗口内的多个 `401` 共享一次重新登录。check 与 threshold 指标只看重试后的结果，因此 soak / stress 长压不会因 token 过期而大面积 401 判定失败；注意 k6 原生 `http_reqs` / `http_req_duration` 仍会记录被重试的请求样本。
+
 ## 配置
 
 本地种子账号为 `aaa / aaa`、`bbb / aaa`、`admin / aaa`。常用覆盖项：

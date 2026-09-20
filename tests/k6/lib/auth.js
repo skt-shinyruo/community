@@ -25,11 +25,11 @@ export function login(username = config.username, password = config.password) {
   return token
 }
 
-// One login per VU, cached; the cache is force-refreshed on the first 401
-// from any authenticated request (recovery wired in lib/http.js).
+// One login per VU, cached; the first 401 of an expiry window re-logins and
+// later 401s reuse that fresh token (recovery wired in lib/http.js).
 const session = createTokenSession(login)
 
-setAuthRecovery(() => session.get(true))
+setAuthRecovery((staleToken) => session.refresh(staleToken))
 
 export function token() {
   return session.get(config.loginOnEveryIteration)

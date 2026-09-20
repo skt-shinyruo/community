@@ -196,7 +196,7 @@ import UiSelect from '../components/ui/UiSelect.vue'
 import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import UiState from '../components/ui/UiState.vue'
 import { formatTimeAgo } from '../utils/time'
-import { escapeHtml } from '../components/ui/markdown'
+import { emOnlyHtml } from '../utils/highlight'
 import { describeSearchActivity } from './searchResultSurface'
 import { normalizeSearchTag, useSearchPageState } from './search/useSearchPageState'
 
@@ -226,12 +226,6 @@ const {
   loadMore
 } = useSearchPageState()
 const normalizeTag = normalizeSearchTag
-
-// 高亮内容安全渲染：默认转义所有标签，仅放行 <em> 与 </em>。
-function emOnlyHtml(text) {
-  const escaped = escapeHtml(text)
-  return escaped.replace(/&lt;\/?em&gt;/g, (m) => (m === '&lt;em&gt;' ? '<em>' : '</em>'))
-}
 
 function titleHtml(item) {
   return emOnlyHtml(item?.highlightedTitle || item?.title || '')

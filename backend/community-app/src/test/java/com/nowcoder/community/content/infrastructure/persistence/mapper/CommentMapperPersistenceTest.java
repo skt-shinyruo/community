@@ -168,11 +168,11 @@ class CommentMapperPersistenceTest {
         insertRootComment(newestRootId, USER_ID, POST_ID, 0, "newest-root", sharedTime);
 
         List<CommentDataObject> firstPage = commentMapper.selectRootCommentsAfter(
-                POST_ID, null, null, 2);
+                POST_ID, null, null, 0, 2);
         jdbcTemplate.update("delete from comment where id = ?", BinaryUuidCodec.toBytes(newestRootId));
         insertRootComment(insertedBeforeBoundaryId, USER_ID, POST_ID, 0, "inserted-root", sharedTime);
         List<CommentDataObject> secondPage = commentMapper.selectRootCommentsAfter(
-                POST_ID, Date.from(sharedTime), boundaryRootId, 10);
+                POST_ID, Date.from(sharedTime), boundaryRootId, 0, 10);
 
         assertThat(firstPage).extracting(CommentDataObject::getId)
                 .containsExactly(newestRootId, boundaryRootId);
@@ -208,6 +208,27 @@ class CommentMapperPersistenceTest {
                 .containsExactly(oldestReplyId, boundaryReplyId);
         assertThat(secondPage).extracting(CommentDataObject::getId)
                 .containsExactly(newerReplyId, newestReplyId);
+    }
+
+    @Test
+    void rootKeysetShouldSupportAscendingEarliestOrderWithSameTieBreak() {
+        UUID oldestRootId = UUID.fromString("00000000-0000-7000-8000-000000000451");
+        UUID boundaryRootId = UUID.fromString("00000000-0000-7000-8000-000000000452");
+        UUID newestRootId = UUID.fromString("00000000-0000-7000-8000-000000000453");
+        Instant sharedTime = Instant.parse("2026-04-29T01:02:07.123Z");
+        insertRootComment(oldestRootId, USER_ID, POST_ID, 0, "oldest-root", sharedTime);
+        insertRootComment(boundaryRootId, USER_ID, POST_ID, 0, "boundary-root", sharedTime);
+        insertRootComment(newestRootId, USER_ID, POST_ID, 0, "newest-root", sharedTime);
+
+        List<CommentDataObject> firstPage = commentMapper.selectRootCommentsAfter(
+                POST_ID, null, null, 1, 2);
+        List<CommentDataObject> secondPage = commentMapper.selectRootCommentsAfter(
+                POST_ID, Date.from(sharedTime), boundaryRootId, 1, 10);
+
+        assertThat(firstPage).extracting(CommentDataObject::getId)
+                .containsExactly(oldestRootId, boundaryRootId);
+        assertThat(secondPage).extracting(CommentDataObject::getId)
+                .containsExactly(newestRootId);
     }
 
     @Test

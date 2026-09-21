@@ -250,6 +250,15 @@ Complete upload：
 - 对每条被删评论发布删除事件。
 - 被删评论的点赞由 `content.events -> SocialContentDeletionKafkaListener` 异步清理，并由 social reconciliation 追平。
 
+### 评论排序与游标
+
+`GET /api/posts/{postId}/comments` 支持 `sort=latest|earliest|hot`（缺省 `latest`，未知取值返回 `400`）；回复列表恒定按时间正序，不带排序参数：
+
+- `latest` / `earliest`：`CommentContentRepository.listRootCommentsAfter(...)` 以 SQL keyset 实现（`idx_comment_post_root`），id tie-break 保证同秒评论稳定排序，探针行（`size+1`）决定 `nextCursor` 是否存在。
+- `hot`：点赞数优先、时间倒序、id 倒序。每页固定取该帖最新的 `200` 条根评论作为候选窗口（不带时间边界，翻页游标不缩小窗口），通过 social owner query `SocialLikeQueryApi.counts(COMMENT, ids)` 批量取评论点赞数并在内存重排；翻页游标携带 `(likeCount, createTime, commentId)` 三元组，续页保留严格小于该 rank 的候选。固定窗口保证翻页不漏行：同一候选集反复重排、只由 rank 游标推进；更旧的评论不参与热度视图（超出窗口即不进 hot 排序）。social 读取失败时降级为按时间排序，不让评论读取失败。
+- 游标 payload 是版本化 opaque 结构（v2），根评论游标携带 `sort` scope，跨排序 / 跨帖 / 跨 kind 的游标一律按 `400 invalid argument` 拒绝，客户端不能把一种排序的 `nextCursor` 用于另一种排序。
+- 首页（空 cursor）按 `(postId, sort, size)` 维度缓存于 `CommentPageCache`（Redis key `comment:root-page:v4:*`），评论写入 / 编辑 / 删除后整帖驱逐；深链 `commentId` / `replyId` 依赖逐页加载定位，与排序无耦合——前端在目标不在当前页时按当前排序继续加载更多。
+
 ## 分类、标签、收藏、订阅
 
 分类：

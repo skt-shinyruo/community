@@ -274,6 +274,7 @@ public class LikeApplicationService implements SocialLikeActionApi, SocialLikeQu
         return sourceEventId != null && sourceEventId.startsWith("social-like-reconciliation:");
     }
 
+    @Override
     public Map<UUID, Long> counts(int entityType, List<UUID> entityIds) {
         validateLikeEntityType(entityType);
         List<UUID> ids = normalizeBatchEntityIds(entityIds);

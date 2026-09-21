@@ -118,11 +118,12 @@ public class PostController {
     @GetMapping("/{postId}/comments")
     public Result<CommentPageResult> comments(
             @PathVariable UUID postId,
+            @RequestParam(required = false) String sort,
             @RequestParam(required = false) String cursor,
             @RequestParam(required = false) Integer size
     ) {
         return Result.ok(normalizeCommentPage(
-                commentReadApplicationService.listRootComments(postId, cursor, size)));
+                commentReadApplicationService.listRootComments(postId, sort, cursor, size)));
     }
 
     @PostMapping("/{postId}/comments")

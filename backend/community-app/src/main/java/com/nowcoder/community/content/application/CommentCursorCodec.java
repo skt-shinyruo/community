@@ -21,7 +21,9 @@ import java.util.UUID;
 @Component
 public class CommentCursorCodec {
 
-    private static final int VERSION = 1;
+    // v1: time-only root cursors. v2: root cursors carry sort + likeCount; reply cursors keep the
+    // same wire shape plus null sort/likeCount placeholders so one payload schema serves both kinds.
+    private static final int VERSION = 2;
     private static final String INVALID_CURSOR_MESSAGE = "评论游标非法";
     private static final Instant MYSQL_TIMESTAMP_MIN = Instant.parse("1970-01-01T00:00:01Z");
     private static final Instant MYSQL_TIMESTAMP_MAX = Instant.parse("2038-01-19T03:14:07Z");
@@ -30,6 +32,8 @@ public class CommentCursorCodec {
             "kind",
             "postId",
             "rootCommentId",
+            "sort",
+            "likeCount",
             "createTime",
             "commentId"
     );
@@ -40,34 +44,40 @@ public class CommentCursorCodec {
         this.jsonCodec = jsonCodec;
     }
 
-    public Optional<Boundary> decodeRoot(String cursor, UUID postId) {
-        return decode(cursor, Kind.ROOT, postId, null);
-    }
-
-    public Optional<Boundary> decodeReply(String cursor, UUID postId, UUID rootCommentId) {
-        return decode(cursor, Kind.REPLY, postId, rootCommentId);
-    }
-
-    public String encodeRoot(UUID postId, Instant createTime, UUID commentId) {
-        return encode(Kind.ROOT, postId, null, createTime, commentId);
-    }
-
-    public String encodeReply(UUID postId, UUID rootCommentId, Instant createTime, UUID commentId) {
-        return encode(Kind.REPLY, postId, rootCommentId, createTime, commentId);
-    }
-
-    private Optional<Boundary> decode(
-            String cursor,
-            Kind expectedKind,
-            UUID expectedPostId,
-            UUID expectedRootCommentId
-    ) {
+    public Optional<Boundary> decodeRoot(String cursor, UUID postId, CommentSort sort) {
         if (!StringUtils.hasText(cursor)) {
             return Optional.empty();
         }
+        Boundary boundary = decode(cursor, Kind.ROOT, postId, null, sort);
+        return Optional.of(boundary);
+    }
+
+    public Optional<Boundary> decodeReply(String cursor, UUID postId, UUID rootCommentId) {
+        if (!StringUtils.hasText(cursor)) {
+            return Optional.empty();
+        }
+        return Optional.of(decode(cursor, Kind.REPLY, postId, rootCommentId, null));
+    }
+
+    public String encodeRoot(UUID postId, CommentSort sort, long likeCount, Instant createTime, UUID commentId) {
+        return encode(Kind.ROOT, postId, null, sort, likeCount, createTime, commentId);
+    }
+
+    public String encodeReply(UUID postId, UUID rootCommentId, Instant createTime, UUID commentId) {
+        return encode(Kind.REPLY, postId, rootCommentId, null, 0L, createTime, commentId);
+    }
+
+    private Boundary decode(
+            String cursor,
+            Kind expectedKind,
+            UUID expectedPostId,
+            UUID expectedRootCommentId,
+            CommentSort expectedSort
+    ) {
         try {
             if (expectedPostId == null
-                    || (expectedKind == Kind.REPLY && expectedRootCommentId == null)) {
+                    || (expectedKind == Kind.REPLY && expectedRootCommentId == null)
+                    || (expectedKind == Kind.ROOT && expectedSort == null)) {
                 throw invalidCursor();
             }
             String json = new String(Base64.getUrlDecoder().decode(cursor), StandardCharsets.UTF_8);
@@ -84,15 +94,18 @@ public class CommentCursorCodec {
             Kind kind = Kind.valueOf(requiredText(node, "kind"));
             UUID postId = parseUuid(requiredText(node, "postId"));
             UUID rootCommentId = parseRootCommentId(node.get("rootCommentId"), kind);
+            CommentSort sort = parseSort(node.get("sort"), kind);
+            long likeCount = parseLikeCount(node.get("likeCount"), kind);
             Instant createTime = parseCreateTime(requiredText(node, "createTime"));
             UUID commentId = parseUuid(requiredText(node, "commentId"));
 
             if (kind != expectedKind
                     || !postId.equals(expectedPostId)
-                    || !Objects.equals(rootCommentId, expectedRootCommentId)) {
+                    || !Objects.equals(rootCommentId, expectedRootCommentId)
+                    || (kind == Kind.ROOT && sort != expectedSort)) {
                 throw invalidCursor();
             }
-            return Optional.of(new Boundary(createTime, commentId));
+            return new Boundary(likeCount, createTime, commentId);
         } catch (BusinessException error) {
             throw error;
         } catch (IllegalArgumentException | DateTimeException | JsonCodecException ignored) {
@@ -104,6 +117,8 @@ public class CommentCursorCodec {
             Kind kind,
             UUID postId,
             UUID rootCommentId,
+            CommentSort sort,
+            long likeCount,
             Instant createTime,
             UUID commentId
     ) {
@@ -111,7 +126,7 @@ public class CommentCursorCodec {
                 || postId == null
                 || createTime == null
                 || commentId == null
-                || (kind == Kind.ROOT && rootCommentId != null)
+                || (kind == Kind.ROOT && (sort == null || rootCommentId != null))
                 || (kind == Kind.REPLY && rootCommentId == null)) {
             throw invalidCursor();
         }
@@ -120,6 +135,8 @@ public class CommentCursorCodec {
                 kind.name(),
                 postId.toString(),
                 rootCommentId == null ? null : rootCommentId.toString(),
+                kind == Kind.ROOT ? sort.name() : null,
+                kind == Kind.ROOT ? Math.max(0L, likeCount) : 0L,
                 createTime.toString(),
                 commentId.toString()
         );
@@ -159,6 +176,32 @@ public class CommentCursorCodec {
         return parseUuid(node.textValue());
     }
 
+    private CommentSort parseSort(JsonNode node, Kind kind) {
+        if (kind == Kind.REPLY) {
+            if (node == null || !node.isNull()) {
+                throw invalidCursor();
+            }
+            return null;
+        }
+        if (node == null || !node.isTextual() || !StringUtils.hasText(node.textValue())) {
+            throw invalidCursor();
+        }
+        return CommentSort.valueOf(node.textValue());
+    }
+
+    private long parseLikeCount(JsonNode node, Kind kind) {
+        if (kind == Kind.REPLY) {
+            if (node == null || !node.isIntegralNumber() || node.asLong() != 0L) {
+                throw invalidCursor();
+            }
+            return 0L;
+        }
+        if (node == null || !node.isIntegralNumber() || !node.canConvertToLong() || node.asLong() < 0L) {
+            throw invalidCursor();
+        }
+        return node.asLong();
+    }
+
     private UUID parseUuid(String value) {
         UUID parsed = UUID.fromString(value);
         if (!parsed.toString().equalsIgnoreCase(value)) {
@@ -185,10 +228,17 @@ public class CommentCursorCodec {
         REPLY
     }
 
-    public record Boundary(Instant createTime, UUID commentId) {
+    public record Boundary(long likeCount, Instant createTime, UUID commentId) {
         public Boundary {
             Objects.requireNonNull(createTime, "createTime must not be null");
             Objects.requireNonNull(commentId, "commentId must not be null");
+            if (likeCount < 0L) {
+                throw new IllegalArgumentException("likeCount must not be negative");
+            }
+        }
+
+        public Boundary(Instant createTime, UUID commentId) {
+            this(0L, createTime, commentId);
         }
     }
 
@@ -197,6 +247,8 @@ public class CommentCursorCodec {
             String kind,
             String postId,
             String rootCommentId,
+            String sort,
+            long likeCount,
             String createTime,
             String commentId
     ) {

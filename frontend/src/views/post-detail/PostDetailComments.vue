@@ -2,7 +2,18 @@
   <section class="post-comments-card" aria-label="评论区">
     <div class="post-comments-head">
       <h2 class="post-comments-title">评论 {{ post?.commentCount || 0 }}</h2>
-      <UiButton variant="secondary" :disabled="discussion.loading" @click="discussion.reload">刷新</UiButton>
+      <div class="post-comments-head-actions">
+        <UiSelect
+          :model-value="discussion.sort || 'latest'"
+          :options="sortOptions"
+          label="评论排序"
+          :disabled="discussion.loading"
+          data-test="comments-sort"
+          class="post-comments-sort"
+          @update:model-value="discussion.setSort"
+        />
+        <UiButton variant="secondary" :disabled="discussion.loading" @click="discussion.reload">刷新</UiButton>
+      </div>
     </div>
 
     <div v-if="discussion.loading && discussion.comments.length === 0" class="post-comments-skeletons">
@@ -246,6 +257,7 @@ import UiButton from '../../components/ui/UiButton.vue'
 import UiIconButton from '../../components/ui/UiIconButton.vue'
 import UiMarkdown from '../../components/ui/UiMarkdown.vue'
 import UiRoleBadge from '../../components/ui/UiRoleBadge.vue'
+import UiSelect from '../../components/ui/UiSelect.vue'
 import UiSkeleton from '../../components/ui/UiSkeleton.vue'
 import UiState from '../../components/ui/UiState.vue'
 import UiTextarea from '../../components/ui/UiTextarea.vue'
@@ -268,6 +280,13 @@ const props = defineProps({
     required: true
   }
 })
+
+// 排序选项与后端 GET /api/posts/{postId}/comments 的 sort 参数一致：latest 缺省。
+const sortOptions = [
+  { value: 'latest', label: '最新' },
+  { value: 'earliest', label: '最早' },
+  { value: 'hot', label: '最热' }
+]
 
 // 评论/回复举报复用 ReportModal（targetType=comment）；提交结果的 toast 由 ReportModal 负责。
 const reportTarget = ref(null)

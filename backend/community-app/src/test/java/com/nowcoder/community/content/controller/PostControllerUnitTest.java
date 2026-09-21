@@ -186,13 +186,13 @@ class PostControllerUnitTest {
                 0
         );
         when(postReadApplicationService.getPostDetail(actorUserId, postId)).thenReturn(detailView);
-        when(commentReadApplicationService.listRootComments(postId, rootCursor, 10))
+        when(commentReadApplicationService.listRootComments(postId, "latest", rootCursor, 10))
                 .thenReturn(new CommentPageResult(List.of(commentView), "cursor-roots-1"));
         when(commentReadApplicationService.listReplies(postId, commentId, replyCursor, 10))
                 .thenReturn(new CommentPageResult(List.of(commentView), "cursor-replies-1"));
 
         Result<PostDetailResult> detailResult = controller.detail(authentication, request, postId);
-        Result<CommentPageResult> commentsResult = controller.comments(postId, rootCursor, 10);
+        Result<CommentPageResult> commentsResult = controller.comments(postId, "latest", rootCursor, 10);
         Result<CommentPageResult> repliesResult = controller.replies(postId, commentId, replyCursor, 10);
 
         assertThat(detailResult.getData().id()).isEqualTo(postId);
@@ -219,16 +219,16 @@ class PostControllerUnitTest {
                 .isEqualTo("auth:" + actorUserId)
                 .doesNotContain("198.51.100.1");
         assertThat(viewCommandCaptor.getValue().viewedAt()).isEqualTo(NOW);
-        verify(commentReadApplicationService).listRootComments(postId, rootCursor, 10);
+        verify(commentReadApplicationService).listRootComments(postId, "latest", rootCursor, 10);
         verify(commentReadApplicationService).listReplies(postId, commentId, replyCursor, 10);
     }
 
     @Test
     void commentsShouldKeepNullApplicationPageAsEmptyResponse() {
         UUID postId = uuid(11);
-        when(commentReadApplicationService.listRootComments(postId, null, null)).thenReturn(null);
+        when(commentReadApplicationService.listRootComments(postId, null, null, null)).thenReturn(null);
 
-        Result<CommentPageResult> result = controller.comments(postId, null, null);
+        Result<CommentPageResult> result = controller.comments(postId, null, null, null);
 
         assertThat(result.getData().items()).isEmpty();
         assertThat(result.getData().nextCursor()).isEmpty();

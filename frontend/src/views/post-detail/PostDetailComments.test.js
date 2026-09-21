@@ -1,4 +1,5 @@
-import { mount } from '@vue/test-utils'
+import { mount, flushPromises } from '@vue/test-utils'
+import { nextTick } from 'vue'
 import { describe, expect, it, vi } from 'vitest'
 import PostDetailComments from './PostDetailComments.vue'
 
@@ -35,6 +36,8 @@ function createDiscussion(overrides = {}) {
     hasNext: true,
     error: '',
     comments: [],
+    sort: 'latest',
+    setSort: vi.fn(),
     reload: vi.fn(),
     loadMore: vi.fn(),
     commentAnchorId: vi.fn((id) => `comment-${id}`),
@@ -87,7 +90,7 @@ describe('PostDetailComments', () => {
     const wrapper = mountComments(discussion)
     expect(wrapper.text()).toContain('暂无评论')
 
-    await wrapper.find('.post-comments-head button').trigger('click')
+    await wrapper.findAll('.post-comments-head button').find((button) => button.text() === '刷新').trigger('click')
     expect(discussion.reload).toHaveBeenCalledTimes(1)
 
     await wrapper.setProps({ discussion: createDiscussion({ loading: true, comments: [] }) })
@@ -111,6 +114,25 @@ describe('PostDetailComments', () => {
     await wrapper.setProps({ discussion: appendFailed })
     expect(wrapper.text()).toContain('next page failed')
     expect(wrapper.text()).toContain('Root comment')
+  })
+
+  it('renders the sort control and forwards sort changes', async () => {
+    const discussion = createDiscussion({ comments: [rootComment()], sort: 'hot' })
+    const wrapper = mountComments(discussion)
+
+    const trigger = wrapper.get('[data-test="comments-sort"]')
+    expect(trigger.text()).toContain('最热')
+    expect(discussion.setSort).not.toHaveBeenCalled()
+    await trigger.trigger('click')
+    await nextTick()
+    const option = [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
+      .find((el) => el.textContent === '最早')
+    expect(option).toBeTruthy()
+    option.dispatchEvent(new MouseEvent('click', { bubbles: true }))
+    await nextTick()
+    await flushPromises()
+
+    expect(discussion.setSort).toHaveBeenCalledWith('earliest')
   })
 
   it('forwards root-comment, reply-editor, and nested-reply interactions', async () => {

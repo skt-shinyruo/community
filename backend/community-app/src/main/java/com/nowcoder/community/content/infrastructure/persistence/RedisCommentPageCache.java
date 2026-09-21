@@ -4,6 +4,7 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.CommentPageCache;
+import com.nowcoder.community.content.application.CommentSort;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -20,7 +21,7 @@ import java.util.UUID;
 @Repository
 public class RedisCommentPageCache implements CommentPageCache {
 
-    private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:v3:";
+    private static final String ROOT_PAGE_KEY_PREFIX = "comment:root-page:v4:";
 
     private final StringRedisTemplate redisTemplate;
     private final JacksonJsonCodec jsonCodec;
@@ -50,11 +51,11 @@ public class RedisCommentPageCache implements CommentPageCache {
     }
 
     @Override
-    public CommentPageResult getRootPage(UUID postId, String cursor, int size) {
+    public CommentPageResult getRootPage(UUID postId, CommentSort sort, String cursor, int size) {
         if (postId == null) {
             return null;
         }
-        String key = pageKey(postId, cursor, size);
+        String key = pageKey(postId, sort, cursor, size);
         String raw = redisTemplate.opsForValue().get(key);
         if (!StringUtils.hasText(raw)) {
             return null;
@@ -68,11 +69,11 @@ public class RedisCommentPageCache implements CommentPageCache {
     }
 
     @Override
-    public void putRootPage(UUID postId, String cursor, int size, CommentPageResult result) {
+    public void putRootPage(UUID postId, CommentSort sort, String cursor, int size, CommentPageResult result) {
         if (postId == null || result == null) {
             return;
         }
-        String key = pageKey(postId, cursor, size);
+        String key = pageKey(postId, sort, cursor, size);
         String indexKey = indexKey(postId);
         Duration effectiveTtl = ttlPolicy.jitteredTtl(key, ttl);
         redisTemplate.opsForValue().set(key, jsonCodec.toJson(result), effectiveTtl);
@@ -99,9 +100,11 @@ public class RedisCommentPageCache implements CommentPageCache {
         redisTemplate.delete(keys);
     }
 
-    private static String pageKey(UUID postId, String cursor, int size) {
+    private static String pageKey(UUID postId, CommentSort sort, String cursor, int size) {
         return ROOT_PAGE_KEY_PREFIX
                 + postId
+                + ":sort:"
+                + (sort == null ? CommentSort.LATEST : sort).name().toLowerCase(java.util.Locale.ROOT)
                 + ":cursor:"
                 + (StringUtils.hasText(cursor) ? cursor.trim() : "initial")
                 + ":size:"

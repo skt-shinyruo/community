@@ -33,7 +33,13 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
     }
 
     @Override
-    public List<Comment> listRootCommentsAfter(UUID postId, Date boundaryTime, UUID boundaryId, int limit) {
+    public List<Comment> listRootCommentsAfter(
+            UUID postId,
+            Date boundaryTime,
+            UUID boundaryId,
+            int orderDirection,
+            int limit
+    ) {
         if (postId == null) {
             return List.of();
         }
@@ -43,8 +49,13 @@ public class MyBatisCommentContentRepository implements CommentContentRepository
                 postId,
                 boundaryTime,
                 boundaryId,
+                normalizeOrderDirection(orderDirection),
                 normalizeKeysetFetchLimit(limit)
         ));
+    }
+
+    private static int normalizeOrderDirection(int orderDirection) {
+        return orderDirection == ROOT_ORDER_EARLIEST ? ROOT_ORDER_EARLIEST : ROOT_ORDER_LATEST;
     }
 
     @Override

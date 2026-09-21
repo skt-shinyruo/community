@@ -5,6 +5,7 @@ import com.nowcoder.community.common.json.JacksonJsonCodec;
 import com.nowcoder.community.common.json.JsonCodecException;
 import com.nowcoder.community.content.application.CacheTtlPolicy;
 import com.nowcoder.community.content.application.ContentHotPathProperties;
+import com.nowcoder.community.content.application.CommentSort;
 import com.nowcoder.community.content.application.result.CommentPageResult;
 import com.nowcoder.community.content.application.result.CommentResult;
 import org.junit.jupiter.api.Test;
@@ -51,7 +52,7 @@ class RedisCommentPageCacheTest {
 
         RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, ttlPolicy, properties);
 
-        cache.putRootPage(postId, "", 10, page);
+        cache.putRootPage(postId, CommentSort.LATEST, "", 10, page);
 
         verify(valueOps).set(eq(pageKey(postId, 10)), anyString(), eq(Duration.ofSeconds(177)));
         verify(redisTemplate).expire(indexKey(postId), Duration.ofSeconds(177));
@@ -71,7 +72,7 @@ class RedisCommentPageCacheTest {
 
         RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, 15);
 
-        CommentPageResult result = cache.getRootPage(postId, "", 10);
+        CommentPageResult result = cache.getRootPage(postId, CommentSort.LATEST, "", 10);
 
         assertThat(result).isNotNull();
         assertThat(result.items()).singleElement().satisfies(item -> {
@@ -95,7 +96,7 @@ class RedisCommentPageCacheTest {
 
         RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, 15);
 
-        assertThat(cache.getRootPage(postId, "", 10)).isNull();
+        assertThat(cache.getRootPage(postId, CommentSort.LATEST, "", 10)).isNull();
         verify(valueOps).get(pageKey(postId, 10));
         verify(valueOps, never()).get(legacyPageKey(postId, 10));
     }
@@ -116,7 +117,7 @@ class RedisCommentPageCacheTest {
 
         RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, 15);
 
-        cache.putRootPage(postId, "", 10, page);
+        cache.putRootPage(postId, CommentSort.LATEST, "", 10, page);
 
         verify(valueOps).set(eq(pageKey(postId, 10)), anyString(), eq(Duration.ofSeconds(15)));
         verify(setOps).add(indexKey(postId), pageKey(postId, 10));
@@ -138,7 +139,7 @@ class RedisCommentPageCacheTest {
 
         RedisCommentPageCache cache = new RedisCommentPageCache(redisTemplate, jsonCodec, 15);
 
-        assertThat(cache.getRootPage(postId, "", 10)).isNull();
+        assertThat(cache.getRootPage(postId, CommentSort.LATEST, "", 10)).isNull();
         verify(redisTemplate).delete(pageKey(postId, 10));
     }
 
@@ -181,11 +182,15 @@ class RedisCommentPageCacheTest {
     }
 
     private static String pageKey(UUID postId, int size) {
-        return "comment:root-page:v3:" + postId + ":cursor:initial:size:" + size;
+        return pageKey(postId, CommentSort.LATEST, size);
+    }
+
+    private static String pageKey(UUID postId, CommentSort sort, int size) {
+        return "comment:root-page:v4:" + postId + ":sort:" + sort.name().toLowerCase() + ":cursor:initial:size:" + size;
     }
 
     private static String indexKey(UUID postId) {
-        return "comment:root-page:v3:" + postId + ":keys";
+        return "comment:root-page:v4:" + postId + ":keys";
     }
 
     private static String legacyPageKey(UUID postId, int size) {

@@ -39,7 +39,7 @@ class CommentServiceTest {
     }
 
     @Test
-    void listRootCommentsAfterShouldPassBoundaryAndClampFetchLimit() {
+    void listRootCommentsAfterShouldPassBoundaryOrderAndClampFetchLimit() {
         CommentMapper commentMapper = mock(CommentMapper.class);
         PostContentRepository postContentPort = mock(PostContentRepository.class);
         MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
@@ -47,14 +47,27 @@ class CommentServiceTest {
         Date boundaryTime = new Date(1_234L);
         UUID boundaryId = uuid(302);
         CommentDataObject row = aComment().id(uuid(303)).postId(postId).buildDataObject();
-        when(commentMapper.selectRootCommentsAfter(postId, boundaryTime, boundaryId, 51))
+        when(commentMapper.selectRootCommentsAfter(postId, boundaryTime, boundaryId, 1, 51))
                 .thenReturn(List.of(row));
 
-        List<Comment> rows = service.listRootCommentsAfter(postId, boundaryTime, boundaryId, 999);
+        List<Comment> rows = service.listRootCommentsAfter(postId, boundaryTime, boundaryId, 1, 999);
 
         assertThat(rows).extracting(Comment::getId).containsExactly(uuid(303));
         verify(postContentPort).getById(postId);
-        verify(commentMapper).selectRootCommentsAfter(postId, boundaryTime, boundaryId, 51);
+        verify(commentMapper).selectRootCommentsAfter(postId, boundaryTime, boundaryId, 1, 51);
+    }
+
+    @Test
+    void listRootCommentsAfterShouldClampUnknownOrderToLatest() {
+        CommentMapper commentMapper = mock(CommentMapper.class);
+        PostContentRepository postContentPort = mock(PostContentRepository.class);
+        MyBatisCommentContentRepository service = new MyBatisCommentContentRepository(commentMapper, postContentPort);
+        UUID postId = uuid(304);
+        when(commentMapper.selectRootCommentsAfter(postId, null, null, 0, 51)).thenReturn(List.of());
+
+        service.listRootCommentsAfter(postId, null, null, 99, 999);
+
+        verify(commentMapper).selectRootCommentsAfter(postId, null, null, 0, 51);
     }
 
     @Test
@@ -86,8 +99,9 @@ class CommentServiceTest {
         UUID boundaryId = uuid(503);
         Date boundaryTime = new Date(5_000L);
 
-        assertInvalidBoundary(() -> service.listRootCommentsAfter(postId, boundaryTime, null, 10));
-        assertInvalidBoundary(() -> service.listRootCommentsAfter(postId, null, boundaryId, 10));
+        assertInvalidBoundary(() -> service.listRootCommentsAfter(postId, boundaryTime, null, 0, 10));
+        assertInvalidBoundary(() -> service.listRootCommentsAfter(postId, null, boundaryId, 0, 10));
+        assertInvalidBoundary(() -> service.listRootCommentsAfter(postId, boundaryTime, null, 1, 10));
         assertInvalidBoundary(() -> service.listRepliesAfter(rootCommentId, boundaryTime, null, 10));
         assertInvalidBoundary(() -> service.listRepliesAfter(rootCommentId, null, boundaryId, 10));
 

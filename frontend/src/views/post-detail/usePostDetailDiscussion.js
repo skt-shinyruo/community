@@ -116,6 +116,7 @@ export function usePostDetailDiscussion({
   }
 
   const comments = ref(/** @type {Array<Record<string, any>>} */ ([]))
+  const commentsSort = ref('latest')
   const commentsSize = 10
   const commentsNextCursor = ref('')
   const commentsLoading = ref(false)
@@ -256,7 +257,7 @@ export function usePostDetailDiscussion({
     commentsError.value = ''
     commentsLoading.value = true
     try {
-      const resp = await apiListComments(postId.value, { cursor, size: commentsSize })
+      const resp = await apiListComments(postId.value, { sort: commentsSort.value, cursor, size: commentsSize })
       if (!commentsRequestTracker.isCurrent(token)) return
       const page = normalizeCommentCursorPage(resp?.data)
       const { users, counts, statuses } = await hydrateThreadPage(page.items)
@@ -283,7 +284,7 @@ export function usePostDetailDiscussion({
   async function prependLatestComments({ revealId = '' } = {}) {
     const token = commentsRequestTracker.begin()
     try {
-      const resp = await apiListComments(postId.value, { cursor: '', size: commentsSize })
+      const resp = await apiListComments(postId.value, { sort: commentsSort.value, cursor: '', size: commentsSize })
       if (!commentsRequestTracker.isCurrent(token)) return
       const page = normalizeCommentCursorPage(resp?.data)
       const { users, counts, statuses } = await hydrateThreadPage(page.items)
@@ -379,6 +380,17 @@ export function usePostDetailDiscussion({
   async function loadMoreComments() {
     if (!commentsHasNext.value || commentsLoading.value) return
     await loadComments({ append: true })
+  }
+
+  // 排序切换：重置列表并重新读取第一页；load-more / prepend 流程按当前 sort 续接。
+  async function setSort(sort) {
+    const next = String(sort || 'latest')
+    if (next === commentsSort.value) return
+    commentsSort.value = next
+    commentsRequestTracker.invalidate()
+    comments.value = []
+    commentsNextCursor.value = ''
+    await loadComments({ reset: true })
   }
 
   async function loadMoreReplies(comment) {
@@ -635,12 +647,14 @@ export function usePostDetailDiscussion({
 
   const model = reactive({
     comments,
+    sort: commentsSort,
     hasNext: commentsHasNext,
     loading: commentsLoading,
     error: commentsError,
     composer,
     reload: reloadComments,
     loadMore: loadMoreComments,
+    setSort,
     commentAnchorId,
     replyAnchorId,
     clearReplyQuote,

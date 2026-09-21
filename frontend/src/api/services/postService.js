@@ -76,9 +76,15 @@ export async function deletePostByAuthor(postId) {
   return { traceId }
 }
 
-export async function listComments(postId, { cursor = '', size = 10 } = {}) {
+/**
+ * @param {unknown} postId
+ * @param {{ sort?: unknown, cursor?: string, size?: number }} [options]
+ */
+export async function listComments(postId, { sort = 'latest', cursor = '', size = 10 } = {}) {
   const pid = requireOpaqueId(postId, 'postId')
   const params = {}
+  const safeSort = String(sort || 'latest').trim() || 'latest'
+  if (safeSort && safeSort !== 'latest') params.sort = safeSort
   if (cursor) params.cursor = cursor
   if (size != null) params.size = size
   const resp = await http.get(`/api/posts/${pid}/comments`, { params })

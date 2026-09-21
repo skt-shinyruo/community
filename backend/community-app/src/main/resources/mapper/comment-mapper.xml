@@ -18,11 +18,20 @@
         where status = 0
           and post_id = #{postId, jdbcType=BINARY}
           and parent_comment_id is null
-        <if test="boundaryTime != null">
+        <if test="boundaryTime != null and orderDirection == 0">
           and (create_time &lt; #{boundaryTime}
             or (create_time = #{boundaryTime} and id &lt; #{boundaryId, jdbcType=BINARY}))
         </if>
-        order by create_time desc, id desc
+        <if test="boundaryTime != null and orderDirection == 1">
+          and (create_time &gt; #{boundaryTime}
+            or (create_time = #{boundaryTime} and id &gt; #{boundaryId, jdbcType=BINARY}))
+        </if>
+        <if test="orderDirection == 1">
+          order by create_time asc, id asc
+        </if>
+        <if test="orderDirection != 1">
+          order by create_time desc, id desc
+        </if>
         limit #{limit}
     </select>
 

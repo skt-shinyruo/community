@@ -9,7 +9,16 @@ import java.util.UUID;
 
 public interface CommentContentRepository {
 
-    List<Comment> listRootCommentsAfter(UUID postId, Date boundaryTime, UUID boundaryId, int limit);
+    int ROOT_ORDER_LATEST = 0;
+    int ROOT_ORDER_EARLIEST = 1;
+
+    List<Comment> listRootCommentsAfter(
+            UUID postId,
+            Date boundaryTime,
+            UUID boundaryId,
+            int orderDirection,
+            int limit
+    );
 
     List<Comment> listRepliesAfter(UUID rootCommentId, Date boundaryTime, UUID boundaryId, int limit);
 

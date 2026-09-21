@@ -88,12 +88,14 @@ PostsView 内的 UiTabs（最新/最热）组成，帖子卡的分类 chip 与 `
 分享是可见按钮，分享复制当前帖子的规范链接并以 toast 反馈；关注作者、举报帖子、屏蔽作者和
 治理动作（置顶 / 加精 / 删除）收敛进「更多」`UiDropdown`。评论与回复使用「加载更多」追加
 分页（游标续接、失败保留已加载内容并以同一游标重试），首载用 `UiSkeleton`，空 / 错态用
-`UiState`（错态带重试），不使用裸加载文本。发布评论 / 回复后静默把最新一页
-按 id 归并到列表头部并滚动定位到新内容；评论编辑保存后原位更新内容，不弹成功 toast。深链
-`?commentId=` / `?replyId=` 与高亮保持：目标不在已加载页时按追加分页自动续载（有界），再
-滚动定位。评论 / 回复的举报复用 `ReportModal`（`targetType=comment`），帖子 / 评论编辑复用
-`EditContentModal`；两个弹窗外壳均已收敛到 `UiModal`（焦点圈定、Escape / backdrop 策略、
-busy 禁关）。
+`UiState`（错态带重试），不使用裸加载文本。评论区头部提供排序 `UiSelect`（最新 / 最早 /
+最热，映射 `GET /api/posts/{postId}/comments` 的 `sort` 参数）：切换排序会重置已加载页并
+从首页重读，「加载更多」与发布后的静默头部归并都按当前排序续接，不把一种排序的游标用于
+另一种。发布评论 / 回复后静默把最新一页按 id 归并到列表头部并滚动定位到新内容；评论编辑保存后
+原位更新内容，不弹成功 toast。深链 `?commentId=` / `?replyId=` 与高亮保持：目标不在已加载页
+时按追加分页自动续载（有界），再滚动定位。评论 / 回复的举报复用 `ReportModal`
+（`targetType=comment`），帖子 / 评论编辑复用 `EditContentModal`；两个弹窗外壳均已收敛到
+`UiModal`（焦点圈定、Escape / backdrop 策略、busy 禁关）。
 
 `/bookmarks` 的收藏流与帖子流共享 8px 扁平列表语言（`--radius-md`、1px 边框、hover 只改描边/表面色），
 但保留自己的内容结构：整卡即「打开帖子」链接（`role="link"` + Enter 打开，嵌套的分类 chip 与 `#标签`

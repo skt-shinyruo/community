@@ -30,8 +30,8 @@ class CommentCursorCodecTest {
         UUID postId = uuid(1);
         UUID rootCommentId = uuid(2);
 
-        assertThat(codec.decodeRoot(null, postId)).isEqualTo(Optional.empty());
-        assertThat(codec.decodeRoot("  ", postId)).isEqualTo(Optional.empty());
+        assertThat(codec.decodeRoot(null, postId, CommentSort.LATEST)).isEqualTo(Optional.empty());
+        assertThat(codec.decodeRoot("  ", postId, CommentSort.HOT)).isEqualTo(Optional.empty());
         assertThat(codec.decodeReply("", postId, rootCommentId)).isEqualTo(Optional.empty());
     }
 
@@ -41,10 +41,10 @@ class CommentCursorCodecTest {
         UUID commentId = uuid(11);
         Instant createTime = Instant.parse("2026-07-21T01:02:03.123456789Z");
 
-        String cursor = codec.encodeRoot(postId, createTime, commentId);
+        String cursor = codec.encodeRoot(postId, CommentSort.LATEST, 0L, createTime, commentId);
 
-        assertThat(codec.decodeRoot(cursor, postId))
-                .contains(new CommentCursorCodec.Boundary(createTime, commentId));
+        assertThat(codec.decodeRoot(cursor, postId, CommentSort.LATEST))
+                .contains(new CommentCursorCodec.Boundary(0L, createTime, commentId));
     }
 
     @Test
@@ -61,21 +61,76 @@ class CommentCursorCodecTest {
     }
 
     @Test
+    void hotRootCursorShouldRoundTripSortLikeCountAndBoundary() {
+        UUID postId = uuid(70);
+        UUID commentId = uuid(71);
+        Instant createTime = Instant.parse("2026-07-21T07:08:09Z");
+
+        String cursor = codec.encodeRoot(postId, CommentSort.HOT, 42L, createTime, commentId);
+
+        assertThat(codec.decodeRoot(cursor, postId, CommentSort.HOT))
+                .contains(new CommentCursorCodec.Boundary(42L, createTime, commentId));
+    }
+
+    @Test
+    void timeRootCursorShouldCarryLikeCountZero() {
+        UUID postId = uuid(72);
+        UUID commentId = uuid(73);
+
+        String cursor = codec.encodeRoot(postId, CommentSort.EARLIEST, 0L, Instant.EPOCH.plusSeconds(60), commentId);
+
+        assertThat(codec.decodeRoot(cursor, postId, CommentSort.EARLIEST))
+                .contains(new CommentCursorCodec.Boundary(0L, Instant.EPOCH.plusSeconds(60), commentId));
+    }
+
+    @Test
+    void rootCursorSortMustMatchRequestScope() {
+        UUID postId = uuid(74);
+        UUID commentId = uuid(75);
+        Instant createTime = Instant.parse("2026-07-21T08:09:10Z");
+        String latestCursor = codec.encodeRoot(postId, CommentSort.LATEST, 0L, createTime, commentId);
+        String hotCursor = codec.encodeRoot(postId, CommentSort.HOT, 3L, createTime, commentId);
+
+        assertInvalid(hotCursor, () -> codec.decodeRoot(hotCursor, postId, CommentSort.LATEST));
+        assertInvalid(latestCursor, () -> codec.decodeRoot(latestCursor, postId, CommentSort.HOT));
+    }
+
+    @Test
+    void negativeLikeCountCursorShouldReturnStableInvalidArgument() {
+        UUID postId = uuid(76);
+        UUID commentId = uuid(77);
+        String cursor = encodePayload(payload(
+                2,
+                "ROOT",
+                postId.toString(),
+                null,
+                "HOT",
+                -1L,
+                "2026-07-21T09:10:11Z",
+                commentId.toString()
+        ));
+
+        assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId, CommentSort.HOT));
+    }
+
+    @Test
     void parseableButDateUnrepresentableCursorTimesShouldReturnStableInvalidArgument() {
         UUID postId = uuid(23);
         UUID commentId = uuid(24);
 
         for (Instant createTime : List.of(Instant.MIN, Instant.MAX)) {
             String cursor = encodePayload(payload(
-                    1,
+                    2,
                     "ROOT",
                     postId.toString(),
                     null,
+                    "HOT",
+                    0L,
                     createTime.toString(),
                     commentId.toString()
             ));
 
-            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId, CommentSort.HOT));
         }
     }
 
@@ -90,15 +145,17 @@ class CommentCursorCodecTest {
 
         for (Instant createTime : createTimes) {
             String cursor = encodePayload(payload(
-                    1,
+                    2,
                     "ROOT",
                     postId.toString(),
                     null,
+                    "HOT",
+                    0L,
                     createTime.toString(),
                     commentId.toString()
             ));
 
-            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId, CommentSort.HOT));
         }
     }
 
@@ -108,12 +165,12 @@ class CommentCursorCodecTest {
         List<String> cursors = List.of(
                 "%%%",
                 encodeJson("{not-json"),
-                encodePayload(payload(2, "ROOT", postId.toString(), null,
-                        "2026-07-21T03:04:05Z", uuid(31).toString()))
+                encodePayload(payload(3, "ROOT", postId.toString(), null,
+                        "HOT", 0L, "2026-07-21T03:04:05Z", uuid(31).toString()))
         );
 
         for (String cursor : cursors) {
-            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId, CommentSort.HOT));
         }
     }
 
@@ -123,23 +180,27 @@ class CommentCursorCodecTest {
         UUID commentId = uuid(41);
         List<Map<String, Object>> payloads = List.of(
                 Map.of(),
-                payload(1, "ROOT", postId.toString(), null,
-                        "2026-07-21T04:05:06Z", null),
-                payload(1, "ROOT", "not-a-uuid", null,
-                        "2026-07-21T04:05:06Z", commentId.toString()),
-                payload(1, "ROOT", postId.toString(), null,
-                        "not-an-instant", commentId.toString()),
-                payload(1, "ROOT", postId.toString(), null,
-                        "2026-07-21T04:05:06Z", "not-a-uuid"),
-                payload("1", "ROOT", postId.toString(), null,
-                        "2026-07-21T04:05:06Z", commentId.toString()),
-                payload(1, 7, postId.toString(), null,
-                        "2026-07-21T04:05:06Z", commentId.toString())
+                payload(2, "ROOT", postId.toString(), null,
+                        "HOT", 0L, "2026-07-21T04:05:06Z", null),
+                payload(2, "ROOT", "not-a-uuid", null,
+                        "HOT", 0L, "2026-07-21T04:05:06Z", commentId.toString()),
+                payload(2, "ROOT", postId.toString(), null,
+                        "not-a-sort", 0L, "2026-07-21T04:05:06Z", commentId.toString()),
+                payload(2, "ROOT", postId.toString(), null,
+                        "HOT", "7", "2026-07-21T04:05:06Z", commentId.toString()),
+                payload(2, "ROOT", postId.toString(), null,
+                        "HOT", 0L, "not-an-instant", commentId.toString()),
+                payload(2, "ROOT", postId.toString(), null,
+                        "HOT", 0L, "2026-07-21T04:05:06Z", "not-a-uuid"),
+                payload("2", "ROOT", postId.toString(), null,
+                        "HOT", 0L, "2026-07-21T04:05:06Z", commentId.toString()),
+                payload(2, 7, postId.toString(), null,
+                        "HOT", 0L, "2026-07-21T04:05:06Z", commentId.toString())
         );
 
         for (Map<String, Object> payload : payloads) {
             String cursor = encodePayload(payload);
-            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId));
+            assertInvalid(cursor, () -> codec.decodeRoot(cursor, postId, CommentSort.HOT));
         }
     }
 
@@ -152,12 +213,12 @@ class CommentCursorCodecTest {
         Instant createTime = Instant.parse("2026-07-21T05:06:07Z");
         UUID rootBoundaryId = uuid(54);
         UUID replyBoundaryId = uuid(55);
-        String rootCursor = codec.encodeRoot(postId, createTime, rootBoundaryId);
+        String rootCursor = codec.encodeRoot(postId, CommentSort.LATEST, 0L, createTime, rootBoundaryId);
         String replyCursor = codec.encodeReply(postId, rootCommentId, createTime, replyBoundaryId);
 
         assertInvalid(rootCursor, () -> codec.decodeReply(rootCursor, postId, rootCommentId));
-        assertInvalid(replyCursor, () -> codec.decodeRoot(replyCursor, postId));
-        assertInvalid(rootCursor, () -> codec.decodeRoot(rootCursor, otherPostId));
+        assertInvalid(replyCursor, () -> codec.decodeRoot(replyCursor, postId, CommentSort.LATEST));
+        assertInvalid(rootCursor, () -> codec.decodeRoot(rootCursor, otherPostId, CommentSort.LATEST));
         assertInvalid(replyCursor, () -> codec.decodeReply(replyCursor, otherPostId, rootCommentId));
         assertInvalid(replyCursor, () -> codec.decodeReply(replyCursor, postId, otherRootCommentId));
     }
@@ -167,24 +228,28 @@ class CommentCursorCodecTest {
         UUID postId = uuid(60);
         UUID commentId = uuid(61);
         String replyWithoutRoot = encodePayload(payload(
-                1,
+                2,
                 "REPLY",
                 postId.toString(),
                 null,
+                null,
+                0L,
                 "2026-07-21T06:07:08Z",
                 commentId.toString()
         ));
         String rootWithRoot = encodePayload(payload(
-                1,
+                2,
                 "ROOT",
                 postId.toString(),
                 uuid(62).toString(),
+                "HOT",
+                0L,
                 "2026-07-21T06:07:08Z",
                 commentId.toString()
         ));
 
         assertInvalid(replyWithoutRoot, () -> codec.decodeReply(replyWithoutRoot, postId, uuid(62)));
-        assertInvalid(rootWithRoot, () -> codec.decodeRoot(rootWithRoot, postId));
+        assertInvalid(rootWithRoot, () -> codec.decodeRoot(rootWithRoot, postId, CommentSort.HOT));
     }
 
     private Map<String, Object> payload(
@@ -192,6 +257,8 @@ class CommentCursorCodecTest {
             Object kind,
             Object postId,
             Object rootCommentId,
+            Object sort,
+            Object likeCount,
             Object createTime,
             Object commentId
     ) {
@@ -200,6 +267,8 @@ class CommentCursorCodecTest {
         payload.put("kind", kind);
         payload.put("postId", postId);
         payload.put("rootCommentId", rootCommentId);
+        payload.put("sort", sort);
+        payload.put("likeCount", likeCount);
         payload.put("createTime", createTime);
         payload.put("commentId", commentId);
         return payload;

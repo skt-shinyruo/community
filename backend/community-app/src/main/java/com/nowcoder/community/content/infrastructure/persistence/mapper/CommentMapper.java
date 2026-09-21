@@ -15,6 +15,7 @@ public interface CommentMapper {
             @Param("postId") UUID postId,
             @Param("boundaryTime") Date boundaryTime,
             @Param("boundaryId") UUID boundaryId,
+            @Param("orderDirection") int orderDirection,
             @Param("limit") int limit
     );
 

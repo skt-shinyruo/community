@@ -6,9 +6,9 @@ import java.util.UUID;
 
 public interface CommentPageCache {
 
-    CommentPageResult getRootPage(UUID postId, String cursor, int size);
+    CommentPageResult getRootPage(UUID postId, CommentSort sort, String cursor, int size);
 
-    void putRootPage(UUID postId, String cursor, int size, CommentPageResult result);
+    void putRootPage(UUID postId, CommentSort sort, String cursor, int size, CommentPageResult result);
 
     void evictPost(UUID postId);
 }

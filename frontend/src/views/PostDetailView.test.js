@@ -364,7 +364,11 @@ describe('PostDetailView', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(listComments).toHaveBeenCalledWith(routeState.params.postId, { cursor: '', size: 10 })
+    expect(listComments).toHaveBeenCalledWith(routeState.params.postId, {
+      sort: 'latest',
+      cursor: '',
+      size: 10
+    })
 
     await wrapper.vm.discussion.toggleReplies({
       id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -386,6 +390,60 @@ describe('PostDetailView', () => {
       'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
       { cursor: '', size: 5 }
     )
+  })
+
+  it('reloads the first comment page when the sort changes and keeps the same sort on load-more', async () => {
+    const firstComment = {
+      id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'first page comment'
+    }
+    const secondComment = {
+      id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
+      userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
+      content: 'second page comment'
+    }
+    const hotFirst = {
+      id: '12121212-1212-7121-8121-121212121212',
+      userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
+      content: 'hot first page'
+    }
+    listComments
+      .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
+      .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
+      .mockResolvedValue({ data: { items: [hotFirst], nextCursor: '' } })
+
+    const wrapper = mountLoader()
+    await flushPromises()
+    await flushPromises()
+    expect(listComments).toHaveBeenLastCalledWith(routeState.params.postId, {
+      sort: 'latest',
+      cursor: '',
+      size: 10
+    })
+
+    await wrapper.vm.discussion.loadMore()
+    expect(listComments).toHaveBeenLastCalledWith(routeState.params.postId, {
+      sort: 'latest',
+      cursor: 'cursor-page-2',
+      size: 10
+    })
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['first page comment', 'second page comment'])
+
+    wrapper.vm.discussion.setSort('hot')
+    await flushPromises()
+    await flushPromises()
+
+    expect(listComments).toHaveBeenLastCalledWith(routeState.params.postId, {
+      sort: 'hot',
+      cursor: '',
+      size: 10
+    })
+    expect(wrapper.vm.discussion.sort).toBe('hot')
+    expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
+      .toEqual(['hot first page'])
+    expect(wrapper.vm.discussion.hasNext).toBe(false)
   })
 
   it('appends comment pages and retries the same cursor after failure', async () => {

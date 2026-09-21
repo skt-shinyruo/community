@@ -44,6 +44,13 @@ import {
 } from '../../api/services/driveService'
 import { useDrivePageState } from './useDrivePageState'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const getDriveSpaceMock = /** @type {import('vitest').Mock} */ (getDriveSpace)
+const listDriveEntriesMock = /** @type {import('vitest').Mock} */ (listDriveEntries)
+const listDriveSharesMock = /** @type {import('vitest').Mock} */ (listDriveShares)
+const listDriveTrashMock = /** @type {import('vitest').Mock} */ (listDriveTrash)
+const searchDriveEntriesMock = /** @type {import('vitest').Mock} */ (searchDriveEntries)
+
 const USER_ID = '11111111-1111-7111-8111-111111111111'
 const OTHER_USER_ID = '22222222-2222-7222-8222-222222222222'
 
@@ -55,6 +62,7 @@ function mountState() {
     me: { userId: USER_ID, username: 'drive-user' }
   })
 
+  /** @type {ReturnType<typeof useDrivePageState> | undefined} */
   let state
   const Harness = defineComponent({
     setup() {
@@ -63,6 +71,7 @@ function mountState() {
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!state) throw new Error('harness state not initialized')
   return state
 }
 
@@ -73,15 +82,15 @@ function entry(entryId, name, extra = {}) {
 describe('useDrivePageState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    getDriveSpace.mockResolvedValue({ data: { quotaBytes: 1000, usedBytes: 250, remainingBytes: 750 } })
-    listDriveEntries.mockResolvedValue({ data: [] })
-    listDriveTrash.mockResolvedValue({ data: [] })
-    searchDriveEntries.mockResolvedValue({ data: [] })
-    listDriveShares.mockResolvedValue({ data: { items: [], hasNext: false, page: 0, size: 20 } })
+    getDriveSpaceMock.mockResolvedValue({ data: { quotaBytes: 1000, usedBytes: 250, remainingBytes: 750 } })
+    listDriveEntriesMock.mockResolvedValue({ data: [] })
+    listDriveTrashMock.mockResolvedValue({ data: [] })
+    searchDriveEntriesMock.mockResolvedValue({ data: [] })
+    listDriveSharesMock.mockResolvedValue({ data: { items: [], hasNext: false, page: 0, size: 20 } })
   })
 
   it('loads the file workspace on mount and keeps the page error clear', async () => {
-    listDriveEntries.mockResolvedValueOnce({ data: [entry('file-1', 'guide.pdf')] })
+    listDriveEntriesMock.mockResolvedValueOnce({ data: [entry('file-1', 'guide.pdf')] })
 
     const state = mountState()
     await flushPromises()
@@ -96,8 +105,8 @@ describe('useDrivePageState', () => {
   })
 
   it('reports a full load failure on page.error with the first failing section', async () => {
-    getDriveSpace.mockRejectedValueOnce(new Error('space unavailable'))
-    listDriveEntries.mockRejectedValueOnce(new Error('entries unavailable'))
+    getDriveSpaceMock.mockRejectedValueOnce(new Error('space unavailable'))
+    listDriveEntriesMock.mockRejectedValueOnce(new Error('entries unavailable'))
 
     const state = mountState()
     await flushPromises()
@@ -108,8 +117,8 @@ describe('useDrivePageState', () => {
   })
 
   it('keeps successful sections when only part of the drive data fails', async () => {
-    getDriveSpace.mockResolvedValueOnce({ data: { quotaBytes: 1000, usedBytes: 250, remainingBytes: 750 } })
-    listDriveEntries.mockRejectedValueOnce(new Error('entries unavailable'))
+    getDriveSpaceMock.mockResolvedValueOnce({ data: { quotaBytes: 1000, usedBytes: 250, remainingBytes: 750 } })
+    listDriveEntriesMock.mockRejectedValueOnce(new Error('entries unavailable'))
 
     const state = mountState()
     await flushPromises()
@@ -119,7 +128,7 @@ describe('useDrivePageState', () => {
   })
 
   it('switching to the shares mode reloads both entries and persisted shares', async () => {
-    listDriveShares.mockResolvedValueOnce({
+    listDriveSharesMock.mockResolvedValueOnce({
       data: {
         items: [{
           shareId: 'share-1',
@@ -147,7 +156,7 @@ describe('useDrivePageState', () => {
   })
 
   it('navigating folders requests the child entries of the opened folder', async () => {
-    listDriveEntries
+    listDriveEntriesMock
       .mockResolvedValueOnce({ data: [entry('folder-1', '文档', { type: 'FOLDER' })] })
       .mockResolvedValueOnce({ data: [entry('file-2', 'inner.txt')] })
 
@@ -163,7 +172,7 @@ describe('useDrivePageState', () => {
   })
 
   it('searching reloads through the search endpoint and clearing returns to the folder', async () => {
-    searchDriveEntries.mockResolvedValueOnce({ data: [entry('file-hit', 'report.csv')] })
+    searchDriveEntriesMock.mockResolvedValueOnce({ data: [entry('file-hit', 'report.csv')] })
 
     const state = mountState()
     await flushPromises()
@@ -180,7 +189,7 @@ describe('useDrivePageState', () => {
   })
 
   it('gates trash behind a danger confirmation and reloads after it is confirmed', async () => {
-    listDriveEntries.mockResolvedValue({ data: [entry('file-1', 'old.txt')] })
+    listDriveEntriesMock.mockResolvedValue({ data: [entry('file-1', 'old.txt')] })
     const state = mountState()
     await flushPromises()
 
@@ -195,11 +204,11 @@ describe('useDrivePageState', () => {
     await state.runConfirmation()
     await flushPromises()
     expect(state.confirmation.open).toBe(false)
-    expect(listDriveEntries.mock.calls.filter((call) => call[0]?.parentId === '').length).toBeGreaterThanOrEqual(2)
+    expect(listDriveEntriesMock.mock.calls.filter((call) => call[0]?.parentId === '').length).toBeGreaterThanOrEqual(2)
   })
 
   it('closes the confirmation without running the action on cancel', async () => {
-    listDriveEntries.mockResolvedValue({ data: [entry('file-1', 'old.txt')] })
+    listDriveEntriesMock.mockResolvedValue({ data: [entry('file-1', 'old.txt')] })
     const state = mountState()
     await flushPromises()
 
@@ -212,9 +221,11 @@ describe('useDrivePageState', () => {
   })
 
   it('keeps an in-flight action busy and clears busyAction when it settles', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveCreate
     const { createDriveFolder } = await import('../../api/services/driveService')
-    createDriveFolder.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
+    const createDriveFolderMock = /** @type {import('vitest').Mock} */ (createDriveFolder)
+    createDriveFolderMock.mockImplementationOnce(() => new Promise((resolve) => { resolveCreate = resolve }))
 
     const state = mountState()
     await flushPromises()
@@ -226,6 +237,7 @@ describe('useDrivePageState', () => {
     expect(state.page.isBusy).toBe(true)
 
     await vi.waitFor(() => expect(typeof resolveCreate).toBe('function'))
+    if (!resolveCreate) throw new Error('create promise not resolved')
     resolveCreate({ data: {} })
     await pending
     await flushPromises()
@@ -235,9 +247,10 @@ describe('useDrivePageState', () => {
 
   it('surfaces a failed action through the located section error instead of a toast', async () => {
     const { renameDriveEntry } = await import('../../api/services/driveService')
-    renameDriveEntry.mockRejectedValueOnce(new Error('重命名被拒绝'))
+    const renameDriveEntryMock = /** @type {import('vitest').Mock} */ (renameDriveEntry)
+    renameDriveEntryMock.mockRejectedValueOnce(new Error('重命名被拒绝'))
 
-    listDriveEntries.mockResolvedValue({ data: [entry('file-1', 'a.txt')] })
+    listDriveEntriesMock.mockResolvedValue({ data: [entry('file-1', 'a.txt')] })
     const state = mountState()
     await flushPromises()
 
@@ -250,9 +263,11 @@ describe('useDrivePageState', () => {
     expect(state.page.error).toBe('')
     expect(state.page.busyAction).toBe('')
   })
+
   it('resets owner state and reloads for the new identity, discarding stale responses', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
-    listDriveEntries
+    listDriveEntriesMock
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
       .mockResolvedValueOnce({ data: [entry('file-current', '当前身份文件')] })
 
@@ -266,7 +281,7 @@ describe('useDrivePageState', () => {
     await flushPromises()
     expect(listDriveEntries).toHaveBeenCalledTimes(2)
     expect(state.workspace.visibleEntries[0].entryId).toBe('file-current')
-
+    if (!resolvePrevious) throw new Error('previous identity promise not resolved')
     resolvePrevious({ data: [entry('file-previous', '旧身份文件')] })
     await flushPromises()
     expect(state.workspace.visibleEntries[0].entryId).toBe('file-current')
@@ -274,7 +289,7 @@ describe('useDrivePageState', () => {
   })
 
   it('clears the workspace when the session ends', async () => {
-    listDriveEntries.mockResolvedValue({ data: [entry('file-1', 'a.txt')] })
+    listDriveEntriesMock.mockResolvedValue({ data: [entry('file-1', 'a.txt')] })
     const state = mountState()
     await flushPromises()
     expect(state.workspace.visibleEntries).toHaveLength(1)

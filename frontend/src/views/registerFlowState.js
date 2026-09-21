@@ -14,6 +14,10 @@ function getStorage() {
   return window.localStorage
 }
 
+/**
+ * @param {{ registrationToken?: unknown, emailCodeIssued?: unknown, maskedEmail?: unknown, debugEmailCode?: unknown } | null} [registerData]
+ *   待恢复的注册上下文（接口返回或 localStorage 反序列化产物），字段按宽容口径读取。
+ */
 export function buildRegisterFlowState(registerData = null) {
   const registrationToken = safeString(registerData?.registrationToken)
   const emailCodeIssued = registerData?.emailCodeIssued === true

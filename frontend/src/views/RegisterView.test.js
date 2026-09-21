@@ -38,6 +38,12 @@ import { ensureSessionReady } from '../auth/session'
 import { issueCaptcha, register, verifyRegisterCode } from '../api/services/authService'
 import { useAuthStore } from '../stores/auth'
 
+// 类型别名：vi.mock 替换后的服务/会话函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const issueCaptchaMock = /** @type {import('vitest').Mock} */ (issueCaptcha)
+const registerMock = /** @type {import('vitest').Mock} */ (register)
+const verifyRegisterCodeMock = /** @type {import('vitest').Mock} */ (verifyRegisterCode)
+const ensureSessionReadyMock = /** @type {import('vitest').Mock} */ (ensureSessionReady)
+
 function captchaResponse(captchaId, imageBase64, traceId) {
   return {
     data: {
@@ -81,17 +87,17 @@ describe('RegisterView', () => {
     routerState.route.query = {}
     routerState.replace.mockClear()
     window.localStorage.clear()
-    issueCaptcha.mockReset()
-    register.mockReset()
-    verifyRegisterCode.mockReset()
-    ensureSessionReady.mockReset()
+    issueCaptchaMock.mockReset()
+    registerMock.mockReset()
+    verifyRegisterCodeMock.mockReset()
+    ensureSessionReadyMock.mockReset()
   })
 
   it('refreshes the captcha after backend rejects registration with an expired captcha', async () => {
-    issueCaptcha
+    issueCaptchaMock
       .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))
       .mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-new'))
-    register.mockRejectedValueOnce(backendError(10006, '验证码不正确或已失效'))
+    registerMock.mockRejectedValueOnce(backendError(10006, '验证码不正确或已失效'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -119,10 +125,10 @@ describe('RegisterView', () => {
   })
 
   it('does not trim password before sending registration request', async () => {
-    issueCaptcha
+    issueCaptchaMock
       .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))
       .mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-new'))
-    register.mockResolvedValueOnce({
+    registerMock.mockResolvedValueOnce({
       data: {
         userId: '11111111-1111-7111-8111-111111111111',
         registrationToken: 'reg-token',
@@ -155,10 +161,10 @@ describe('RegisterView', () => {
   })
 
   it('keeps the email-code verification area separate from the resend captcha area after registration succeeds', async () => {
-    issueCaptcha
+    issueCaptchaMock
       .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))
       .mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-new'))
-    register.mockResolvedValueOnce({
+    registerMock.mockResolvedValueOnce({
       data: {
         userId: '11111111-1111-7111-8111-111111111111',
         registrationToken: 'reg-token',
@@ -196,8 +202,8 @@ describe('RegisterView', () => {
       emailCodeIssued: true,
       maskedEmail: 'b***b@example.com'
     }))
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
-    verifyRegisterCode.mockResolvedValueOnce({
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCodeMock.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
       traceId: 'trace-verify'
     })
@@ -209,8 +215,8 @@ describe('RegisterView', () => {
     auth.setMe({ userId: 7, username: 'alice' })
     const installSession = vi.spyOn(auth, 'installSession')
     let profileSeenByBootstrap = 'not-called'
-    ensureSessionReady.mockImplementationOnce(async ({ auth: currentAuth }) => {
-      profileSeenByBootstrap = currentAuth.me
+    ensureSessionReadyMock.mockImplementationOnce(async (options) => {
+      profileSeenByBootstrap = options?.auth?.me ?? null
       return { state: 'ready' }
     })
 
@@ -231,8 +237,8 @@ describe('RegisterView', () => {
       emailCodeIssued: true,
       maskedEmail: 'b***b@example.com'
     }))
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
-    verifyRegisterCode.mockRejectedValueOnce(backendError(10009, '注册验证码不正确'))
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCodeMock.mockRejectedValueOnce(backendError(10009, '注册验证码不正确'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -242,14 +248,14 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('注册验证码不正确')
-    expect(wrapper.get('.verify-main .auth-submit-btn').element.disabled).toBe(false)
-    expect(wrapper.get('.verify-resend button.btn').element.disabled).toBe(false)
+    expect(/** @type {HTMLButtonElement} */ (wrapper.get('.verify-main .auth-submit-btn').element).disabled).toBe(false)
+    expect(/** @type {HTMLButtonElement} */ (wrapper.get('.verify-resend button.btn').element).disabled).toBe(false)
 
-    verifyRegisterCode.mockResolvedValueOnce({
+    verifyRegisterCodeMock.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
       traceId: 'trace-verify'
     })
-    ensureSessionReady.mockResolvedValueOnce({ state: 'ready' })
+    ensureSessionReadyMock.mockResolvedValueOnce({ state: 'ready' })
 
     await wrapper.get('input[placeholder="请输入邮箱验证码"]').setValue('123456')
     await wrapper.get('.verify-main .auth-submit-btn').trigger('click')
@@ -265,8 +271,8 @@ describe('RegisterView', () => {
       emailCodeIssued: true,
       maskedEmail: 'b***b@example.com'
     }))
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
-    verifyRegisterCode.mockRejectedValueOnce(backendError(10013, '注册上下文已失效'))
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCodeMock.mockRejectedValueOnce(backendError(10013, '注册上下文已失效'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -277,7 +283,7 @@ describe('RegisterView', () => {
 
     expect(wrapper.text()).toContain('注册上下文已失效，请重新注册')
     expect(wrapper.find('.verify-main').exists()).toBe(false)
-    expect(wrapper.get('button.auth-submit-btn').element.disabled).toBe(false)
+    expect(/** @type {HTMLButtonElement} */ (wrapper.get('button.auth-submit-btn').element).disabled).toBe(false)
     expect(window.localStorage.getItem('community.register.pending')).toBeNull()
   })
 
@@ -287,12 +293,12 @@ describe('RegisterView', () => {
       emailCodeIssued: true,
       maskedEmail: 'b***b@example.com'
     }))
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
-    verifyRegisterCode.mockResolvedValueOnce({
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-id', 'image', 'trace-captcha'))
+    verifyRegisterCodeMock.mockResolvedValueOnce({
       data: { accessToken: 'new-token' },
       traceId: 'trace-verify'
     })
-    ensureSessionReady.mockResolvedValueOnce({ state: 'anonymous' })
+    ensureSessionReadyMock.mockResolvedValueOnce({ state: 'anonymous' })
 
     const wrapper = mountView()
     await flushPromises()
@@ -302,8 +308,8 @@ describe('RegisterView', () => {
     await flushPromises()
 
     expect(wrapper.text()).toContain('登录状态已失效，请重新登录')
-    expect(wrapper.get('.verify-main .auth-submit-btn').element.disabled).toBe(false)
-    expect(wrapper.get('.verify-resend button.btn').element.disabled).toBe(false)
+    expect(/** @type {HTMLButtonElement} */ (wrapper.get('.verify-main .auth-submit-btn').element).disabled).toBe(false)
+    expect(/** @type {HTMLButtonElement} */ (wrapper.get('.verify-resend button.btn').element).disabled).toBe(false)
     expect(useAuthStore().accessToken).toBe('')
     expect(routerState.replace).not.toHaveBeenCalled()
   })

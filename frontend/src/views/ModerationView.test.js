@@ -23,12 +23,15 @@ import { useAuthStore } from '../stores/auth'
 let auth
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred resolvers not captured')
   return { promise, resolve, reject }
 }
 
@@ -93,11 +96,11 @@ describe('ModerationView', () => {
     const wrapper = mountModerationView()
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === '处置').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '处置')?.trigger('click')
     expect(wrapper.text()).toContain('风险动作')
     expect(wrapper.get('[role="dialog"]').attributes('aria-modal')).toBe('true')
     await wrapper.find('textarea').setValue('confirmed spam')
-    await wrapper.findAll('button').find((button) => button.text() === '确认处置').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '确认处置')?.trigger('click')
     await flushPromises()
 
     expect(takeAction).toHaveBeenCalledWith({
@@ -112,7 +115,7 @@ describe('ModerationView', () => {
     const wrapper = mountModerationView()
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === '处置').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '处置')?.trigger('click')
     await wrapper.find('select[name="moderation-action-type"]').setValue('mute')
     await wrapper.find('select[name="moderation-duration-preset"]').setValue('custom')
     await wrapper.find('textarea').setValue('confirmed spam')
@@ -122,7 +125,7 @@ describe('ModerationView', () => {
 
     for (const invalid of ['', '0', '-5', 'abc', '1.5']) {
       await customDuration().setValue(invalid)
-      await submit().trigger('click')
+      await submit()?.trigger('click')
       await flushPromises()
 
       expect(takeAction).not.toHaveBeenCalled()
@@ -132,7 +135,7 @@ describe('ModerationView', () => {
     }
 
     await customDuration().setValue('600')
-    await submit().trigger('click')
+    await submit()?.trigger('click')
     await flushPromises()
 
     expect(takeAction).toHaveBeenCalledTimes(1)
@@ -174,7 +177,7 @@ describe('ModerationView', () => {
 
     const wrapper = mountModerationView()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text() === '加载更多').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '加载更多')?.trigger('click')
     await flushPromises()
 
     expect(wrapper.findAll('.moderation-report-card')).toHaveLength(21)
@@ -213,9 +216,9 @@ describe('ModerationView', () => {
 
     const wrapper = mountModerationView()
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text() === '处置审计').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '处置审计')?.trigger('click')
     await flushPromises()
-    await wrapper.findAll('button').find((button) => button.text() === '加载更多').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '加载更多')?.trigger('click')
     await flushPromises()
 
     expect(wrapper.findAll('.moderation-action-card')).toHaveLength(21)
@@ -246,12 +249,12 @@ describe('ModerationView', () => {
     await flushPromises()
     const loadMore = () => wrapper.findAll('button').find((button) => button.text() === '加载更多')
 
-    await loadMore().trigger('click')
+    await loadMore()?.trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('temporary moderation failure')
     expect(wrapper.text()).toContain('report-1')
 
-    await loadMore().trigger('click')
+    await loadMore()?.trigger('click')
     await flushPromises()
 
     expect(listReports.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])

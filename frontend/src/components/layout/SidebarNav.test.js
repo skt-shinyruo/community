@@ -27,6 +27,7 @@ import { useAuthStore } from '../../stores/auth'
 import { useUiStore } from '../../stores/ui'
 import { useInboxUnreadStore } from '../../stores/inboxUnread'
 
+/** @param {{ props?: Record<string, unknown>, routeName?: string, authed?: boolean, authorities?: string[], collapsed?: boolean, noticeUnread?: number, messageUnread?: number }} [options] */
 function mountSidebar({
   props = {},
   routeName,

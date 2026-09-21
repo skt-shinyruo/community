@@ -46,7 +46,7 @@ describe('UiModalConfirm', () => {
     })
 
     expect(wrapper.text()).toContain('复述金额与后果')
-    expect(wrapper.get('[data-test="extra-note"]').exists()).toBe(true)
+    expect(wrapper.get('[data-test="extra-note"]')).toBeTruthy()
   })
 
   it('emits cancel when Escape is pressed', async () => {

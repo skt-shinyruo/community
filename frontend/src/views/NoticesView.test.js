@@ -16,12 +16,15 @@ import NoticesView from './NoticesView.vue'
 import { useAuthStore } from '../stores/auth'
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred resolvers not captured')
   return { promise, resolve, reject }
 }
 
@@ -110,6 +113,7 @@ describe('NoticesView', () => {
 
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('重试按钮未找到')
     await retry.trigger('click')
     await flushPromises()
 
@@ -122,9 +126,9 @@ describe('NoticesView', () => {
     const wrapper = mountView()
     await flushPromises()
     expect(wrapper.text()).toContain('评论')
-
     topicSummary.mockRejectedValueOnce(new Error('refresh exploded'))
     const refresh = wrapper.findAll('button').find((button) => button.text() === '刷新')
+    if (!refresh) throw new Error('刷新按钮未找到')
     await refresh.trigger('click')
     await flushPromises()
 
@@ -144,7 +148,9 @@ describe('NoticesView', () => {
   })
 
   it('clears private rows and ignores the previous identity response after account switching', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveUserA
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveUserB
     topicSummary
       .mockImplementationOnce(() => new Promise((resolve) => { resolveUserA = resolve }))
@@ -161,11 +167,13 @@ describe('NoticesView', () => {
     expect(wrapper.findAll('a')).toHaveLength(0)
     expect(topicSummary).toHaveBeenCalledTimes(2)
 
+    if (!resolveUserB) throw new Error('user-B resolver not captured')
     resolveUserB({
       data: [{ topic: 'follow', noticeCount: 1, unreadCount: 1 }],
       traceId: 'trace-user-b'
     })
     await flushPromises()
+    if (!resolveUserA) throw new Error('user-A resolver not captured')
     resolveUserA({
       data: [{ topic: 'comment', noticeCount: 8, unreadCount: 8 }],
       traceId: 'trace-user-a'

@@ -20,7 +20,8 @@ describe('formatLocalDate', () => {
   })
 
   it('returns an empty string for invalid input', () => {
-    expect(formatLocalDate('not-a-date')).toBe('')
+    // 运行时容忍字符串输入（Invalid Date 兜底为空串）；类型层用断言表达该测试意图。
+    expect(formatLocalDate(/** @type {Date} */ (/** @type {unknown} */ ('not-a-date')))).toBe('')
     expect(formatLocalDate(new Date('not-a-date'))).toBe('')
   })
 })

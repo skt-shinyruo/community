@@ -18,14 +18,17 @@ import {
   useInboxUnreadStore
 } from './inboxUnread'
 
+/**
+ * @returns {{ promise: Promise<unknown>, resolve: (value: unknown) => void, reject: (reason?: unknown) => void }}
+ */
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handle = {}
   const promise = new Promise((res, rej) => {
-    resolve = res
-    reject = rej
+    handle.resolve = res
+    handle.reject = rej
   })
-  return { promise, resolve, reject }
+  return /** @type {{ promise: Promise<unknown>, resolve: (value: unknown) => void, reject: (reason?: unknown) => void }} */ ({ ...handle, promise })
 }
 
 function login(auth, { token = 'token-a', userId = 'user-a' } = {}) {

@@ -7,6 +7,7 @@ import UiField from './UiField.vue'
 import UiInput from './UiInput.vue'
 import UiTextarea from './UiTextarea.vue'
 
+/** @param {{ fieldProps?: { label?: string, help?: string, error?: string, invalid?: boolean, required?: boolean }, inner?: string }} [options] */
 function mountField({ fieldProps = { label: '用户名' }, inner = '<UiInput />' } = {}) {
   return mount({
     components: { UiField, UiInput, UiTextarea },

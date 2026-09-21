@@ -46,7 +46,7 @@ export function useFollowRelationListState({ relationKind, profileUserId }) {
   const loadingMore = ref(false)
   const error = ref('')
   const pageError = ref('')
-  const items = ref([])
+  const items = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const hasNext = ref(true)
   const mutatingTargetIds = ref(new Set())
   let mutationGeneration = 0

@@ -20,7 +20,8 @@ describe('applyDocumentTitle', () => {
   it('writes the resolved title onto the document', () => {
     const doc = { title: '' }
 
-    applyDocumentTitle({ meta: { title: '帖子详情' } }, doc)
+    // 测试环境无完整 DOM Document：以仅含 title 的最小对象驱动写入。
+    applyDocumentTitle({ meta: { title: '帖子详情' } }, /** @type {Document} */ (doc))
 
     expect(doc.title).toBe('帖子详情 - Community')
   })

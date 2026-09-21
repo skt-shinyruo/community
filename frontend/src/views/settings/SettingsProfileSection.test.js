@@ -49,11 +49,17 @@ function okResult(data, traceId = 'trace-ok') {
 }
 
 function deferred() {
-  let resolve
+  /** @type {{ resolve?: (value: unknown) => void }} */
+  const handles = {}
   const promise = new Promise((resolvePromise) => {
-    resolve = resolvePromise
+    handles.resolve = resolvePromise
   })
-  return { promise, resolve }
+  return {
+    promise,
+    // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+    /** 解析 promise */
+    resolve: (value) => handles.resolve?.(value)
+  }
 }
 
 async function selectFile(wrapper, file) {
@@ -117,17 +123,17 @@ describe('SettingsProfileSection', () => {
   }
 
   beforeEach(() => {
-    http.get.mockReset()
-    http.post.mockReset()
-    http.put.mockReset()
+    vi.mocked(http.get).mockReset()
+    vi.mocked(http.post).mockReset()
+    vi.mocked(http.put).mockReset()
     window.localStorage.clear()
-    apiMe.mockReset()
-    invalidateUserProfile.mockReset()
-    uploadTransport.upload.mockReset()
-    uploadTransport.upload.mockResolvedValue(okResult({
+    vi.mocked(apiMe).mockReset()
+    vi.mocked(invalidateUserProfile).mockReset()
+    vi.mocked(uploadTransport.upload).mockReset()
+    vi.mocked(uploadTransport.upload).mockResolvedValue(okResult({
       objectId: '00000000-0000-7000-8000-000000000050'
     }, 'trace-upload'))
-    apiMe.mockResolvedValue({
+    vi.mocked(apiMe).mockResolvedValue({
       data: {
         userId: 7,
         username: 'aaa',
@@ -137,7 +143,7 @@ describe('SettingsProfileSection', () => {
       traceId: 'trace-me'
     })
 
-    http.post.mockImplementation((url) => {
+    vi.mocked(http.post).mockImplementation((url) => {
       if (url === '/api/users/7/avatar/upload-sessions') {
         return Promise.resolve(okResult(uploadSession(), 'trace-session'))
       }
@@ -146,7 +152,7 @@ describe('SettingsProfileSection', () => {
       }
       return Promise.resolve(okResult({}, 'trace-post'))
     })
-    http.put.mockResolvedValue(okResult({}, 'trace-update'))
+    vi.mocked(http.put).mockResolvedValue(okResult({}, 'trace-update'))
   })
 
   it('keeps upload disabled until a file is selected', async () => {
@@ -157,7 +163,7 @@ describe('SettingsProfileSection', () => {
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
 
     expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
-    expect(fileInput.exists()).toBe(true)
+    expect(wrapper.find('input[type="file"]').exists()).toBe(true)
     expect(wrapper.text()).not.toContain('OSS 服务')
     expect(wrapper.text()).not.toContain('Cloudflare R2')
     expect(wrapper.text()).not.toContain('本地文件')
@@ -167,7 +173,7 @@ describe('SettingsProfileSection', () => {
     await nextTick()
 
     expect(uploadButton.get('button').attributes('disabled')).toBeUndefined()
-    expect(fileInput.element.files[0]).toBe(file)
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (fileInput).element.files?.[0]).toBe(file)
 
     await findUiButton(wrapper, '清除').trigger('click')
     expect(uploadButton.get('button').attributes('disabled')).toBeDefined()
@@ -194,7 +200,7 @@ describe('SettingsProfileSection', () => {
       data: expect.any(FormData),
       headers: {}
     }))
-    const form = uploadTransport.upload.mock.calls[0][0].data
+    const form = vi.mocked(uploadTransport.upload).mock.calls[0][0].data
     expect(form.get('file')).toBe(file)
     expect(form.get('sessionId')).toBe('session-1')
     expect(form.get('versionId')).toBe('00000000-0000-7000-8000-000000000051')
@@ -204,7 +210,7 @@ describe('SettingsProfileSection', () => {
 
   it('shows upload progress and aborts the active request when cancelled', async () => {
     const pendingUpload = deferred()
-    uploadTransport.upload.mockImplementation((config) => {
+    vi.mocked(uploadTransport.upload).mockImplementation((config) => {
       config.onProgress({ loaded: 42, total: 100, percent: 42 })
       return pendingUpload.promise
     })
@@ -215,7 +221,7 @@ describe('SettingsProfileSection', () => {
     await findUiButton(wrapper, '上传并保存').trigger('click')
     await vi.waitFor(() => expect(uploadTransport.upload).toHaveBeenCalledTimes(1))
 
-    const signal = uploadTransport.upload.mock.calls[0][0].signal
+    const signal = vi.mocked(uploadTransport.upload).mock.calls[0][0].signal
     expect(wrapper.text()).toContain('上传中 42%')
     await findUiButton(wrapper, '取消上传').trigger('click')
 
@@ -228,7 +234,7 @@ describe('SettingsProfileSection', () => {
 
   it('switches to a non-cancellable saving state after the file upload completes', async () => {
     const pendingUpdate = deferred()
-    http.put.mockReturnValue(pendingUpdate.promise)
+    vi.mocked(http.put).mockReturnValue(pendingUpdate.promise)
     const wrapper = mountSection()
     const file = new File(['avatar'], 'picked-avatar.png', { type: 'image/png' })
     await selectFile(wrapper, file)
@@ -252,7 +258,7 @@ describe('SettingsProfileSection', () => {
 
   it('stops an old upload session before uploading or updating the new identity', async () => {
     const pendingSession = deferred()
-    http.post.mockImplementation((url) => {
+    vi.mocked(http.post).mockImplementation((url) => {
       if (url === '/api/users/7/avatar/upload-sessions') return pendingSession.promise
       return Promise.resolve(okResult({}, 'unexpected-upload'))
     })
@@ -282,7 +288,7 @@ describe('SettingsProfileSection', () => {
 
   it('does not let an old me response overwrite the newly installed identity', async () => {
     const pendingMe = deferred()
-    apiMe.mockReturnValue(pendingMe.promise)
+    vi.mocked(apiMe).mockReturnValue(pendingMe.promise)
     const wrapper = mountSection()
     const file = new File(['avatar'], 'old-identity.png', { type: 'image/png' })
     await selectFile(wrapper, file)
@@ -304,6 +310,7 @@ describe('SettingsProfileSection', () => {
 
     expect(auth.userId).toBe(8)
     expect(auth.username).toBe('bbb')
+    if (!auth.me) throw new Error('auth.me not initialized')
     expect(auth.me.headerUrl).toBe('/files/new-user.png')
     expect(wrapper.text()).not.toContain('头像已更新。')
   })

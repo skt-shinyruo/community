@@ -46,8 +46,8 @@ describe('api/services/walletService', () => {
     )
 
     expect(resp.traceId).toBe('trace-create-transfer')
-    expect(resp.data.txnId).toBe('44444444-4444-7444-8444-444444444444')
-    expect(resp.data.status).toBe('SUCCEEDED')
+    expect(/** @type {{ txnId?: string }} */ (resp.data).txnId).toBe('44444444-4444-7444-8444-444444444444')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('SUCCEEDED')
     expect(mock.history.post).toHaveLength(1)
     expect(mock.history.post[0].url).toBe('/api/wallet/transfers')
     expect(mock.history.post[0].method).toBe('post')

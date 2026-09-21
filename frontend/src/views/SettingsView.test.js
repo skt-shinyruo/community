@@ -18,6 +18,9 @@ vi.mock('../api/services/marketService', () => ({
 import SettingsView from './SettingsView.vue'
 import { listMarketAddresses } from '../api/services/marketService'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const listMarketAddressesMock = /** @type {import('vitest').Mock} */ (listMarketAddresses)
+
 function createTestRouter() {
   return createRouter({
     history: createMemoryHistory(),
@@ -62,7 +65,7 @@ describe('SettingsView section contract', () => {
     })
     window.localStorage.clear()
     vi.clearAllMocks()
-    listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-list' })
+    listMarketAddressesMock.mockResolvedValue({ data: [], traceId: 'trace-list' })
     router = createTestRouter()
   })
 
@@ -82,7 +85,7 @@ describe('SettingsView section contract', () => {
       const panel = wrapper.get(`#${tab.attributes('aria-controls')}`)
       expect(panel.attributes('role')).toBe('tabpanel')
       expect(panel.attributes('aria-labelledby')).toBe(tab.attributes('id'))
-      expect(panel.element.style.display).toBe(isActive ? '' : 'none')
+      expect(/** @type {HTMLElement} */ (panel.element).style.display).toBe(isActive ? '' : 'none')
     }
   })
 
@@ -191,12 +194,12 @@ describe('SettingsView section contract', () => {
     await wrapper.get('input[name="settings-theme"][value="dark"]').setValue(true)
     expect(ui.theme).toBe('dark')
     expect(document.documentElement.dataset.theme).toBe('dark')
-    expect(JSON.parse(window.localStorage.getItem('community.ui')).theme).toBe('dark')
+    expect(JSON.parse(window.localStorage.getItem('community.ui') ?? '{}').theme).toBe('dark')
     expect(wrapper.text()).not.toContain('正在跟随系统')
 
     await wrapper.get('input[name="settings-theme"][value="system"]').setValue(true)
     expect(ui.theme).toBe('system')
-    expect(JSON.parse(window.localStorage.getItem('community.ui')).theme).toBe('system')
+    expect(JSON.parse(window.localStorage.getItem('community.ui') ?? '{}').theme).toBe('system')
   })
 
   it('reads and writes the density through the appearance section', async () => {
@@ -207,7 +210,7 @@ describe('SettingsView section contract', () => {
     await wrapper.get('input[name="settings-density"][value="comfortable"]').setValue(true)
     expect(ui.density).toBe('comfortable')
     expect(document.documentElement.dataset.density).toBe('comfortable')
-    expect(JSON.parse(window.localStorage.getItem('community.ui')).density).toBe('comfortable')
+    expect(JSON.parse(window.localStorage.getItem('community.ui') ?? '{}').density).toBe('comfortable')
 
     await wrapper.get('input[name="settings-density"][value="compact"]').setValue(true)
     expect(ui.density).toBe('compact')

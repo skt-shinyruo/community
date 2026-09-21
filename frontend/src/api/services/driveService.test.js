@@ -50,7 +50,7 @@ describe('driveService', () => {
   })
 
   it('listDriveEntries should normalize missing data to an array', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-1' } })
+    vi.mocked(http.get).mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-1' } })
 
     const result = await listDriveEntries({ parentId: 'folder-1' })
 
@@ -59,7 +59,7 @@ describe('driveService', () => {
   })
 
   it('listDriveTrash should normalize missing data to an array', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-trash' } })
+    vi.mocked(http.get).mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-trash' } })
 
     const result = await listDriveTrash()
 
@@ -68,7 +68,7 @@ describe('driveService', () => {
   })
 
   it('getDriveSpace should normalize missing data to an empty object', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-space' } })
+    vi.mocked(http.get).mockResolvedValue({ data: { code: 0, data: null, traceId: 'trace-space' } })
 
     const result = await getDriveSpace()
 
@@ -77,18 +77,18 @@ describe('driveService', () => {
   })
 
   it('createDriveFolder should post parent and folder name', async () => {
-    http.post.mockResolvedValue({ data: { code: 0, data: { entryId: 'folder-2', name: 'Docs' }, traceId: 'trace-folder' } })
+    vi.mocked(http.post).mockResolvedValue({ data: { code: 0, data: { entryId: 'folder-2', name: 'Docs' }, traceId: 'trace-folder' } })
 
     const result = await createDriveFolder({ parentId: 'root', name: 'Docs' })
 
     expect(http.post).toHaveBeenCalledWith('/api/drive/folders', { parentId: 'root', name: 'Docs' })
-    expect(result.data.entryId).toBe('folder-2')
+    expect(/** @type {{ entryId?: string }} */ (result.data).entryId).toBe('folder-2')
   })
 
   it('createDriveUploadSession should send file metadata and normalize upload instruction', async () => {
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
     const controller = new AbortController()
-    http.post.mockResolvedValue({
+    vi.mocked(http.post).mockResolvedValue({
       data: {
         code: 0,
         traceId: 'trace-2',
@@ -116,7 +116,7 @@ describe('driveService', () => {
 
   it('uploadDriveFile should delegate multipart execution to generic upload helper', async () => {
     const file = new File(['hello'], 'hello.txt', { type: 'text/plain' })
-    executeUploadSession.mockResolvedValue({ data: { entryId: 'entry-1' }, traceId: 'trace-upload' })
+    vi.mocked(executeUploadSession).mockResolvedValue({ data: { entryId: 'entry-1' }, traceId: 'trace-upload' })
 
     const result = await uploadDriveFile({ session: { upload: { url: '/u', method: 'POST' } }, file })
 
@@ -131,7 +131,7 @@ describe('driveService', () => {
   })
 
   it('searchDriveEntries should call the search endpoint with the query string', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: [{ entryId: '1' }], traceId: 'trace-search' } })
+    vi.mocked(http.get).mockResolvedValue({ data: { code: 0, data: [{ entryId: '1' }], traceId: 'trace-search' } })
 
     const result = await searchDriveEntries({ keyword: 'report' })
 
@@ -140,7 +140,7 @@ describe('driveService', () => {
   })
 
   it('getPublicDriveShare should load only the share gate before verification', async () => {
-    http.get.mockResolvedValue({
+    vi.mocked(http.get).mockResolvedValue({
       data: {
         code: 0,
         data: {
@@ -158,7 +158,7 @@ describe('driveService', () => {
   })
 
   it('listDriveShares should return the authenticated management page', async () => {
-    http.get.mockResolvedValue({
+    vi.mocked(http.get).mockResolvedValue({
       data: {
         code: 0,
         data: { items: [{ shareId: 'share-1' }], hasNext: true, page: 0, size: 20 },
@@ -173,16 +173,16 @@ describe('driveService', () => {
   })
 
   it('verifyDriveShare should post extraction code to public endpoint', async () => {
-    http.post.mockResolvedValue({ data: { code: 0, data: { ticket: 'ticket-a' }, traceId: 'trace-share' } })
+    vi.mocked(http.post).mockResolvedValue({ data: { code: 0, data: { ticket: 'ticket-a' }, traceId: 'trace-share' } })
 
     const result = await verifyDriveShare('token-a', '1234')
 
     expect(http.post).toHaveBeenCalledWith('/api/drive/shares/token-a/verify', { password: '1234' })
-    expect(result.data.ticket).toBe('ticket-a')
+    expect(/** @type {{ ticket?: string }} */ (result.data).ticket).toBe('ticket-a')
   })
 
   it('listDriveShareEntries should load public share children with ticket and parent', async () => {
-    http.get.mockResolvedValue({ data: { code: 0, data: [{ entryId: 'child-1' }], traceId: 'trace-share-entries' } })
+    vi.mocked(http.get).mockResolvedValue({ data: { code: 0, data: [{ entryId: 'child-1' }], traceId: 'trace-share-entries' } })
 
     const result = await listDriveShareEntries('token-a', 'ticket-a', 'folder-1')
 

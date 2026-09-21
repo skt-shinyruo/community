@@ -7,6 +7,22 @@ import { buildMarketState, mergeMarketPage } from '../marketState'
 // sessionScope，触发既有 reset + reload，并让在途响应按旧 scope 一并丢弃（buying/selling
 // 状态互不串扰）。listOrders 由调用方以闭包按当前 side 分派；initialError/moreError
 // 支持 ref/getter，错误文案跟随当前 side 的策略。
+/** @typedef {{ authed?: boolean, [key: string]: unknown }} MarketAuthLike */
+/** @typedef {{ page?: number, size?: number }} MarketOrderPageRequest */
+/** @typedef {{ data?: unknown[], page?: unknown, hasNext?: boolean }} MarketOrderPageResponse */
+/**
+ * @typedef {{
+ *   auth: MarketAuthLike,
+ *   listOrders: (request: MarketOrderPageRequest) => Promise<MarketOrderPageResponse>,
+ *   initialError?: string | import('vue').Ref<string> | (() => string),
+ *   moreError?: string | import('vue').Ref<string> | (() => string),
+ *   pageSize?: number,
+ *   side?: unknown
+ * }} MarketOrderListOptions
+ */
+/**
+ * @param {MarketOrderListOptions} [options]
+ */
 export function useMarketOrderList({
   auth,
   listOrders,
@@ -14,12 +30,12 @@ export function useMarketOrderList({
   moreError = '加载更多订单失败',
   pageSize = 20,
   side
-} = {}) {
+} = /** @type {MarketOrderListOptions} */ ({})) {
   const loading = ref(false)
   const loadingMore = ref(false)
   const error = ref('')
   const pageError = ref('')
-  const orders = ref([])
+  const orders = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const page = ref(0)
   const hasNext = ref(false)
 

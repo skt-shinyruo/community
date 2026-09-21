@@ -2,6 +2,11 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { writeAttemptConfig } from '../writeAttempt'
 
+/**
+ * 幂等写入尝试句柄：持有一个高危写请求的 Idempotency-Key。
+ * @typedef {ReturnType<typeof import('../writeAttempt').createWriteAttempt>} WriteAttempt
+ */
+
 function marketPage(data) {
   if (Array.isArray(data)) {
     return { data, hasNext: false, page: 0, size: data.length }
@@ -26,12 +31,20 @@ export async function getMarketListingDetail(listingId) {
   return { data: data || {}, traceId }
 }
 
+/**
+ * @param {Record<string, unknown>} payload
+ * @param {{ writeAttempt?: WriteAttempt }} [options]
+ */
 export async function createMarketListing(payload, { writeAttempt } = {}) {
   const resp = await http.post('/api/market/listings', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '创建市场商品')
   return { data: data || {}, traceId }
 }
 
+/**
+ * @param {Record<string, unknown>} payload
+ * @param {{ writeAttempt?: WriteAttempt }} [options]
+ */
 export async function createMarketOrder(payload, { writeAttempt } = {}) {
   const resp = await http.post('/api/market/orders', payload, writeAttemptConfig(writeAttempt))
   const { data, traceId } = unwrapResultBody(resp.data, '创建市场订单')
@@ -50,6 +63,11 @@ export async function listMarketInventory(listingId, params = {}) {
   return { ...marketPage(data), traceId }
 }
 
+/**
+ * @param {string} listingId
+ * @param {Record<string, unknown>} payload
+ * @param {{ writeAttempt?: WriteAttempt }} [options]
+ */
 export async function addMarketInventory(listingId, payload, { writeAttempt } = {}) {
   const resp = await http.post(
     `/api/market/listings/${encodeURIComponent(listingId)}/inventory`,

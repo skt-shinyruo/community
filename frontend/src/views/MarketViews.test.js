@@ -55,6 +55,15 @@ import {
   listMarketListings
 } from '../api/services/marketService'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const adminResolveMarketDisputeMock = /** @type {import('vitest').Mock} */ (adminResolveMarketDispute)
+const createMarketListingMock = /** @type {import('vitest').Mock} */ (createMarketListing)
+const createMarketOrderMock = /** @type {import('vitest').Mock} */ (createMarketOrder)
+const getMarketListingDetailMock = /** @type {import('vitest').Mock} */ (getMarketListingDetail)
+const listAdminMarketDisputesMock = /** @type {import('vitest').Mock} */ (listAdminMarketDisputes)
+const listMarketAddressesMock = /** @type {import('vitest').Mock} */ (listMarketAddresses)
+const listMarketListingsMock = /** @type {import('vitest').Mock} */ (listMarketListings)
+
 function mountOptions() {
   return {
     global: {
@@ -95,7 +104,7 @@ function mountView(component) {
 
 // UiSelect 浮层 teleport 到 body，选项查询走 document。
 function listboxOptions() {
-  return [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
+  return /** @type {HTMLElement[]} */ ([...document.body.querySelectorAll('[role="listbox"] [role="option"]')])
 }
 
 describe('Unified market views', () => {
@@ -104,13 +113,13 @@ describe('Unified market views', () => {
     setActivePinia(pinia)
     setRouteListing(LISTING_A)
     vi.clearAllMocks()
-    listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
-    getMarketListingDetail.mockResolvedValue({ data: {}, traceId: 'trace-market-detail' })
-    createMarketOrder.mockResolvedValue({ data: {}, traceId: 'trace-create-order' })
-    createMarketListing.mockResolvedValue({ data: {}, traceId: 'trace-create-listing' })
-    listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-addresses' })
-    listAdminMarketDisputes.mockResolvedValue({ data: [], traceId: 'trace-disputes' })
-    adminResolveMarketDispute.mockResolvedValue({ data: {}, traceId: 'trace-resolve' })
+    listMarketListingsMock.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
+    getMarketListingDetailMock.mockResolvedValue({ data: {}, traceId: 'trace-market-detail' })
+    createMarketOrderMock.mockResolvedValue({ data: {}, traceId: 'trace-create-order' })
+    createMarketListingMock.mockResolvedValue({ data: {}, traceId: 'trace-create-listing' })
+    listMarketAddressesMock.mockResolvedValue({ data: [], traceId: 'trace-addresses' })
+    listAdminMarketDisputesMock.mockResolvedValue({ data: [], traceId: 'trace-disputes' })
+    adminResolveMarketDisputeMock.mockResolvedValue({ data: {}, traceId: 'trace-resolve' })
   })
 
   afterEach(() => {
@@ -118,7 +127,7 @@ describe('Unified market views', () => {
   })
 
   it('loads unified listings and renders both goods type labels', async () => {
-    listMarketListings.mockResolvedValue({
+    listMarketListingsMock.mockResolvedValue({
       data: [
         {
           listingId: 11,
@@ -156,7 +165,7 @@ describe('Unified market views', () => {
   })
 
   it('appends listing pages and retries the same page after a failure', async () => {
-    listMarketListings
+    listMarketListingsMock
       .mockResolvedValueOnce({
         data: [{ listingId: 11, goodsType: 'VIRTUAL', title: '第一页', status: 'ACTIVE' }],
         hasNext: true,
@@ -196,7 +205,7 @@ describe('Unified market views', () => {
   })
 
   it('renders trust-oriented empty market copy', async () => {
-    listMarketListings.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
+    listMarketListingsMock.mockResolvedValue({ data: [], traceId: 'trace-market-list' })
 
     const wrapper = mountView(MarketListView)
     await flushPromises()
@@ -209,7 +218,7 @@ describe('Unified market views', () => {
 
   it('shows a skeleton during the first catalog load', async () => {
     const pending = deferred()
-    listMarketListings.mockReturnValueOnce(pending.promise)
+    listMarketListingsMock.mockReturnValueOnce(pending.promise)
 
     const wrapper = mountView(MarketListView)
     await nextTick()
@@ -223,7 +232,7 @@ describe('Unified market views', () => {
   })
 
   it('offers a retry when the catalog fails to load', async () => {
-    listMarketListings
+    listMarketListingsMock
       .mockRejectedValueOnce(new Error('市场服务暂不可用'))
       .mockResolvedValueOnce({
         data: [{ listingId: 11, goodsType: 'VIRTUAL', title: '重试后的商品', status: 'ACTIVE' }],
@@ -246,7 +255,7 @@ describe('Unified market views', () => {
   })
 
   it('filters the loaded catalog with the in-page search without new requests', async () => {
-    listMarketListings.mockResolvedValue({
+    listMarketListingsMock.mockResolvedValue({
       data: [
         { listingId: 11, goodsType: 'VIRTUAL', title: 'Steam Key', description: '自动交付', sellerUserId: 'seller-a', status: 'ACTIVE' },
         { listingId: 12, goodsType: 'PHYSICAL', title: '二手键盘', description: '顺手出', sellerUserId: 'seller-b', status: 'ACTIVE' }
@@ -279,7 +288,7 @@ describe('Unified market views', () => {
 
   it('shows a detail skeleton during the first load and a retryable error state on failure', async () => {
     const pending = deferred()
-    getMarketListingDetail.mockReturnValueOnce(pending.promise)
+    getMarketListingDetailMock.mockReturnValueOnce(pending.promise)
 
     const wrapper = mountView(MarketDetailView)
     await nextTick()
@@ -289,7 +298,7 @@ describe('Unified market views', () => {
     await flushPromises()
     expect(wrapper.get('[data-variant="error"]').text()).toContain('详情服务暂不可用')
 
-    getMarketListingDetail.mockResolvedValueOnce({
+    getMarketListingDetailMock.mockResolvedValueOnce({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Retry listing'),
       traceId: 'trace-market-detail'
     })
@@ -302,11 +311,11 @@ describe('Unified market views', () => {
 
   it('keeps the listing visible and reports order failures inline', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Inline failure listing'),
       traceId: 'trace-market-detail'
     })
-    createMarketOrder.mockRejectedValueOnce(new Error('库存不足'))
+    createMarketOrderMock.mockRejectedValueOnce(new Error('库存不足'))
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
@@ -319,7 +328,7 @@ describe('Unified market views', () => {
   })
 
   it('links back to the market catalog instead of a bare breadcrumb', async () => {
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Back link listing'),
       traceId: 'trace-market-detail'
     })
@@ -332,7 +341,7 @@ describe('Unified market views', () => {
 
   it('loads a physical listing detail and requires an address for order creation', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: {
         listingId: LISTING_A,
         goodsType: 'PHYSICAL',
@@ -344,7 +353,7 @@ describe('Unified market views', () => {
       },
       traceId: 'trace-market-detail'
     })
-    listMarketAddresses.mockResolvedValue({
+    listMarketAddressesMock.mockResolvedValue({
       data: [
         {
           addressId: ADDRESS_A,
@@ -380,7 +389,7 @@ describe('Unified market views', () => {
     await findOrderButton(wrapper).trigger('click')
     await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
 
-    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
+    expect(createMarketOrderMock.mock.calls[0][0]).toMatchObject({
       listingId: LISTING_A,
       quantity: 1,
       addressId: ADDRESS_A
@@ -388,7 +397,7 @@ describe('Unified market views', () => {
   })
 
   it.each(['PHYSICAL', 'VIRTUAL'])('keeps an anonymous %s listing public without loading addresses', async (goodsType) => {
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, goodsType, `${goodsType} listing`),
       traceId: 'trace-market-detail'
     })
@@ -406,11 +415,11 @@ describe('Unified market views', () => {
     ['503', Object.assign(new Error('地址服务暂不可用'), { response: { status: 503 } })]
   ])('keeps the authenticated physical listing visible when address loading returns %s', async (_status, failure) => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Public physical listing'),
       traceId: 'trace-market-detail'
     })
-    listMarketAddresses.mockRejectedValueOnce(failure)
+    listMarketAddressesMock.mockRejectedValueOnce(failure)
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
@@ -422,17 +431,17 @@ describe('Unified market views', () => {
 
   it('keeps an empty address state local and blocks a physical order', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Physical without address'),
       traceId: 'trace-market-detail'
     })
-    listMarketAddresses.mockResolvedValueOnce({ data: [], traceId: 'trace-addresses' })
+    listMarketAddressesMock.mockResolvedValueOnce({ data: [], traceId: 'trace-addresses' })
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
     expect(wrapper.text()).toContain('Physical without address')
-    expect(wrapper.get('[data-test="market-address-empty"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="market-address-empty"]').exists()).toBe(true)
 
     await findOrderButton(wrapper).trigger('click')
     await flushPromises()
@@ -444,11 +453,11 @@ describe('Unified market views', () => {
 
   it('offers a retry when address loading fails and never overwrites the load error on order attempts', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Retry address listing'),
       traceId: 'trace-market-detail'
     })
-    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务暂不可用'))
+    listMarketAddressesMock.mockRejectedValueOnce(new Error('地址服务暂不可用'))
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
@@ -465,7 +474,7 @@ describe('Unified market views', () => {
     expect(field.text()).not.toContain('请选择收货地址')
 
     // 重试成功后可正常选中默认地址下单。
-    listMarketAddresses.mockResolvedValueOnce({
+    listMarketAddressesMock.mockResolvedValueOnce({
       data: [marketAddress(ADDRESS_A, '张三')],
       traceId: 'trace-addresses-retry'
     })
@@ -479,7 +488,7 @@ describe('Unified market views', () => {
 
     await findOrderButton(wrapper).trigger('click')
     await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
-    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({
+    expect(createMarketOrderMock.mock.calls[0][0]).toMatchObject({
       listingId: LISTING_A,
       quantity: 1,
       addressId: ADDRESS_A
@@ -488,28 +497,28 @@ describe('Unified market views', () => {
 
   it('keeps the load failure visible when the retry fails again', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Retry failing listing'),
       traceId: 'trace-market-detail'
     })
-    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务暂不可用'))
+    listMarketAddressesMock.mockRejectedValueOnce(new Error('地址服务暂不可用'))
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
     expect(wrapper.get('[data-test="market-address-field"]').text()).toContain('地址服务暂不可用')
 
-    listMarketAddresses.mockRejectedValueOnce(new Error('地址服务仍不可用'))
+    listMarketAddressesMock.mockRejectedValueOnce(new Error('地址服务仍不可用'))
     await wrapper.get('[data-test="market-address-retry"]').trigger('click')
     await flushPromises()
 
     expect(listMarketAddresses).toHaveBeenCalledTimes(2)
     expect(wrapper.get('[data-test="market-address-field"]').text()).toContain('地址服务仍不可用')
-    expect(wrapper.get('[data-test="market-address-retry"]').exists()).toBe(true)
+    expect(wrapper.find('[data-test="market-address-retry"]').exists()).toBe(true)
   })
 
   it.each(['0', '-2', '1.5'])('rejects the invalid order quantity %s inline without creating an order', async (raw) => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Quantity guard listing'),
       traceId: 'trace-market-detail'
     })
@@ -528,11 +537,11 @@ describe('Unified market views', () => {
 
   it('clears the quantity error on input and submits the corrected quantity', async () => {
     authenticate()
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Quantity recover listing'),
       traceId: 'trace-market-detail'
     })
-    createMarketOrder.mockResolvedValueOnce({
+    createMarketOrderMock.mockResolvedValueOnce({
       data: { orderId: '99999999-9999-7999-8999-999999999999', status: 'ESCROWED' },
       traceId: 'trace-create-order'
     })
@@ -552,11 +561,11 @@ describe('Unified market views', () => {
 
     await findOrderButton(wrapper).trigger('click')
     await vi.waitFor(() => expect(createMarketOrder).toHaveBeenCalledTimes(1))
-    expect(createMarketOrder.mock.calls[0][0]).toMatchObject({ listingId: LISTING_A, quantity: 2 })
+    expect(createMarketOrderMock.mock.calls[0][0]).toMatchObject({ listingId: LISTING_A, quantity: 2 })
   })
 
   it('redirects an anonymous order attempt to login without creating an order', async () => {
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Anonymous virtual listing'),
       traceId: 'trace-market-detail'
     })
@@ -575,11 +584,11 @@ describe('Unified market views', () => {
 
   it('discards an old address response after navigating to another listing', async () => {
     authenticate()
-    getMarketListingDetail
+    getMarketListingDetailMock
       .mockResolvedValueOnce({ data: marketListing(LISTING_A, 'PHYSICAL', 'Listing A') })
       .mockResolvedValueOnce({ data: marketListing(LISTING_B, 'PHYSICAL', 'Listing B') })
     const oldAddresses = deferred()
-    listMarketAddresses
+    listMarketAddressesMock
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
@@ -603,11 +612,11 @@ describe('Unified market views', () => {
 
   it('discards an old address failure without clearing the new listing address state', async () => {
     authenticate()
-    getMarketListingDetail
+    getMarketListingDetailMock
       .mockResolvedValueOnce({ data: marketListing(LISTING_A, 'PHYSICAL', 'Listing A') })
       .mockResolvedValueOnce({ data: marketListing(LISTING_B, 'PHYSICAL', 'Listing B') })
     const oldAddresses = deferred()
-    listMarketAddresses
+    listMarketAddressesMock
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
@@ -629,11 +638,11 @@ describe('Unified market views', () => {
 
   it('reloads only private addresses on identity changes and discards the old response', async () => {
     authenticate('token-1')
-    getMarketListingDetail.mockResolvedValueOnce({
+    getMarketListingDetailMock.mockResolvedValueOnce({
       data: marketListing(LISTING_A, 'PHYSICAL', 'Generation listing')
     })
     const oldAddresses = deferred()
-    listMarketAddresses
+    listMarketAddressesMock
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({ data: [marketAddress(ADDRESS_B, 'Bob')], traceId: 'trace-b' })
 
@@ -656,7 +665,7 @@ describe('Unified market views', () => {
 
   it('discards a late public detail response after navigating to another listing', async () => {
     const oldDetail = deferred()
-    getMarketListingDetail
+    getMarketListingDetailMock
       .mockReturnValueOnce(oldDetail.promise)
       .mockResolvedValueOnce({ data: marketListing(LISTING_B, 'VIRTUAL', 'Listing B') })
 
@@ -678,7 +687,7 @@ describe('Unified market views', () => {
   it('uses the created order response to show the order id and enter order detail', async () => {
     authenticate()
     const orderId = '44444444-4444-7444-8444-444444444444'
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: {
         listingId: LISTING_A,
         goodsType: 'VIRTUAL',
@@ -690,7 +699,7 @@ describe('Unified market views', () => {
       },
       traceId: 'trace-market-detail'
     })
-    createMarketOrder.mockResolvedValue({
+    createMarketOrderMock.mockResolvedValue({
       data: {
         orderId,
         status: 'ESCROWED'
@@ -720,11 +729,11 @@ describe('Unified market views', () => {
 
   it('ignores an order creation response after the authenticated identity changes', async () => {
     authenticate('token-a')
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Shared public listing')
     })
     const oldOrder = deferred()
-    createMarketOrder.mockReturnValueOnce(oldOrder.promise)
+    createMarketOrderMock.mockReturnValueOnce(oldOrder.promise)
 
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
@@ -746,11 +755,11 @@ describe('Unified market views', () => {
 
   it('does not let an old order response commit after the quantity intent changes', async () => {
     authenticate('token-a')
-    getMarketListingDetail.mockResolvedValue({
+    getMarketListingDetailMock.mockResolvedValue({
       data: marketListing(LISTING_A, 'VIRTUAL', 'Intent guarded listing')
     })
     const pendingOrder = deferred()
-    createMarketOrder.mockReturnValueOnce(pendingOrder.promise)
+    createMarketOrderMock.mockReturnValueOnce(pendingOrder.promise)
     const wrapper = mountView(MarketDetailView)
     await flushPromises()
 
@@ -784,6 +793,7 @@ describe('Unified market views', () => {
     await wrapper.get('[role="combobox"]').trigger('click')
     await nextTick()
     const physicalOption = listboxOptions().find((option) => option.textContent === '实物商品')
+    if (!physicalOption) throw new Error('physical option not found')
     expect(physicalOption).toBeTruthy()
     physicalOption.click()
     await nextTick()
@@ -845,7 +855,7 @@ describe('Unified market views', () => {
 
   it('reports publish failures inline in the submit area', async () => {
     authenticate('token-a')
-    createMarketListing.mockRejectedValueOnce(new Error('发布服务不可用'))
+    createMarketListingMock.mockRejectedValueOnce(new Error('发布服务不可用'))
     const wrapper = mountView(MarketPublishView)
 
     await wrapper.findAll('input')[0].setValue('Steam 兑换码')
@@ -860,7 +870,7 @@ describe('Unified market views', () => {
   it('reuses the write-attempt key when a failed publish is manually retried and renews it after success', async () => {
     authenticate('token-a')
     const observedKeys = []
-    createMarketListing
+    createMarketListingMock
       .mockImplementationOnce((_payload, { writeAttempt }) => {
         observedKeys.push(writeAttempt.begin())
         return Promise.reject(new Error('网关超时'))
@@ -894,7 +904,7 @@ describe('Unified market views', () => {
   it('clears the publish draft and ignores an old submission after the authenticated identity changes', async () => {
     authenticate('token-a')
     const oldSubmission = deferred()
-    createMarketListing.mockReturnValueOnce(oldSubmission.promise)
+    createMarketListingMock.mockReturnValueOnce(oldSubmission.promise)
     const wrapper = mountView(MarketPublishView)
 
     await wrapper.findAll('input')[0].setValue('A 的私有草稿')
@@ -905,22 +915,26 @@ describe('Unified market views', () => {
     authenticate('token-b', '88888888-8888-7888-8888-888888888888')
     await nextTick()
 
-    expect(wrapper.vm.form.title).toBe('')
-    expect(wrapper.vm.inventoryText).toBe('')
-    expect(wrapper.vm.submitting).toBe(false)
+    const vm = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (wrapper.vm))
+    const form = /** @type {Record<string, unknown>} */ (vm.form)
+    expect(form.title).toBe('')
+    expect(vm.inventoryText).toBe('')
+    expect(vm.submitting).toBe(false)
     expect(wrapper.text()).toContain('发布后可从“我的出售”继续管理库存和订单。')
 
     oldSubmission.resolve({ data: { listingId: LISTING_A } })
     await flushPromises()
 
     expect(wrapper.text()).not.toContain('发布成功')
-    expect(wrapper.vm.form.title).toBe('')
-    expect(wrapper.vm.inventoryText).toBe('')
+    const vmAgain = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (wrapper.vm))
+    const formAgain = /** @type {Record<string, unknown>} */ (vmAgain.form)
+    expect(formAgain.title).toBe('')
+    expect(vmAgain.inventoryText).toBe('')
   })
 
   it('loads disputes and delegates admin resolution through the unified service', async () => {
     authenticateAdmin()
-    listAdminMarketDisputes.mockResolvedValue({
+    listAdminMarketDisputesMock.mockResolvedValue({
       data: [
         {
           disputeId: 1,
@@ -948,6 +962,7 @@ describe('Unified market views', () => {
     const dialog = wrapper.find('dialog')
     expect(dialog.text()).toContain('不可撤销')
     const confirm = dialog.findAll('button').find((item) => item.text() === '退回买家')
+    if (!confirm) throw new Error('confirm button not found')
     await confirm.trigger('click')
     await flushPromises()
 
@@ -1010,11 +1025,14 @@ function findOrderButton(wrapper) {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred controls not captured')
   return { promise, resolve, reject }
 }

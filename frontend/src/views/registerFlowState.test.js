@@ -52,10 +52,11 @@ describe('registerFlowState', () => {
   })
 
   it('does not enter verification from a userId without a registration token', () => {
-    const state = buildRegisterFlowState({
+    // 源 JSDoc 未声明 userId（实现按宽容口径丢弃）；类型层用断言表达“传了也被丢弃”的意图。
+    const state = buildRegisterFlowState(/** @type {Parameters<typeof buildRegisterFlowState>[0]} */ ({
       userId: '11111111-1111-7111-8111-111111111111',
       emailCodeIssued: true
-    })
+    }))
 
     expect(state.step).toBe('form')
     expect(state).not.toHaveProperty('userId')
@@ -82,7 +83,7 @@ describe('registerFlowState', () => {
       maskedEmail: 'a***e@example.com',
       debugEmailCode: ''
     })
-    const stored = JSON.parse(window.localStorage.getItem('community.register.pending'))
+    const stored = JSON.parse(window.localStorage.getItem('community.register.pending') ?? '')
     expect(stored).not.toHaveProperty('userId')
     expect(stored).not.toHaveProperty('debugEmailCode')
   })
@@ -116,7 +117,7 @@ describe('registerFlowState', () => {
       registrationToken,
       debugEmailCode: ''
     })
-    expect(JSON.parse(window.localStorage.getItem('community.register.pending')))
+    expect(JSON.parse(window.localStorage.getItem('community.register.pending') ?? ''))
       .not.toHaveProperty('debugEmailCode')
   })
 

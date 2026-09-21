@@ -41,19 +41,23 @@ function mountOptions() {
 }
 
 describe('SettingsAddressesSection', () => {
+  // listMarketAddresses 的模块 mock；分页载荷不含 traceId，用裸 Mock 形参类型承载。
+  /** @type {import('vitest').Mock} */
+  const mockedListMarketAddresses = vi.mocked(listMarketAddresses)
+
   beforeEach(() => {
     pinia = createPinia()
     setActivePinia(pinia)
     authenticate('buyer-a', 'token-a')
     vi.clearAllMocks()
-    listMarketAddresses.mockResolvedValue({ data: [], traceId: 'trace-list' })
-    createMarketAddress.mockResolvedValue({ data: {}, traceId: 'trace-create' })
-    updateMarketAddress.mockResolvedValue({ data: {}, traceId: 'trace-update' })
-    deleteMarketAddress.mockResolvedValue({ data: {}, traceId: 'trace-delete' })
+    vi.mocked(listMarketAddresses).mockResolvedValue({ data: [], traceId: 'trace-list' })
+    vi.mocked(createMarketAddress).mockResolvedValue({ data: {}, traceId: 'trace-create' })
+    vi.mocked(updateMarketAddress).mockResolvedValue({ data: {}, traceId: 'trace-update' })
+    vi.mocked(deleteMarketAddress).mockResolvedValue({ data: {}, traceId: 'trace-delete' })
   })
 
   it('loads addresses on mount and renders existing rows', async () => {
-    listMarketAddresses.mockResolvedValue({
+    vi.mocked(listMarketAddresses).mockResolvedValue({
       data: [
         {
           addressId: 41,
@@ -80,7 +84,7 @@ describe('SettingsAddressesSection', () => {
   })
 
   it('creates, updates, and deletes addresses through the unified service', async () => {
-    listMarketAddresses.mockResolvedValue({
+    vi.mocked(listMarketAddresses).mockResolvedValue({
       data: [
         {
           addressId: 41,
@@ -117,22 +121,24 @@ describe('SettingsAddressesSection', () => {
       city: '北京市',
       defaultAddress: true
     }))
-    expect(createMarketAddress.mock.calls[0][0]).not.toHaveProperty('isDefault')
+    expect(vi.mocked(createMarketAddress).mock.calls[0]?.[0]).not.toHaveProperty('isDefault')
 
     await wrapper.find('[data-test="address-edit"]').trigger('click')
     await flushPromises()
     await wrapper.find('[data-test="address-edit-form"]').trigger('submit.prevent')
     await flushPromises()
     expect(updateMarketAddress).toHaveBeenCalledWith(41, expect.objectContaining({ receiverName: '张三', defaultAddress: true }))
-    expect(updateMarketAddress.mock.calls[0][1]).not.toHaveProperty('isDefault')
+    expect(vi.mocked(updateMarketAddress).mock.calls[0]?.[1] || {}).not.toHaveProperty('isDefault')
 
-    await wrapper.findAll('button').find((button) => button.text() === '删除').trigger('click')
+    const deleteButton = wrapper.findAll('button').find((button) => button.text() === '删除')
+    if (!deleteButton) throw new Error('delete button missing')
+    await deleteButton.trigger('click')
     await flushPromises()
     expect(deleteMarketAddress).toHaveBeenCalledWith(41)
   })
 
   it('opens an editable form before updating an existing address', async () => {
-    listMarketAddresses.mockResolvedValue({
+    vi.mocked(listMarketAddresses).mockResolvedValue({
       data: [
         {
           addressId: 41,
@@ -159,7 +165,7 @@ describe('SettingsAddressesSection', () => {
     expect(wrapper.text()).toContain('编辑地址')
 
     const editInputs = wrapper.findAll('[data-test="address-edit-form"] input')
-    expect(editInputs[0].element.value).toBe('张三')
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (editInputs[0]).element.value).toBe('张三')
 
     await editInputs[0].setValue('李四')
     await editInputs[5].setValue('陆家嘴 200 号')
@@ -174,7 +180,7 @@ describe('SettingsAddressesSection', () => {
   })
 
   it('offers a retry when the address book fails to load', async () => {
-    listMarketAddresses.mockRejectedValueOnce(new Error('网络错误'))
+    vi.mocked(listMarketAddresses).mockRejectedValueOnce(new Error('网络错误'))
 
     const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
@@ -183,8 +189,9 @@ describe('SettingsAddressesSection', () => {
     expect(wrapper.find('[data-test="address-edit"]').exists()).toBe(false)
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('retry button missing')
 
-    listMarketAddresses.mockResolvedValueOnce({
+    vi.mocked(listMarketAddresses).mockResolvedValueOnce({
       data: [{ addressId: 41, receiverName: '张三', city: '上海市', detailAddress: '世纪大道 100 号' }],
       traceId: 'trace-retry'
     })
@@ -197,7 +204,7 @@ describe('SettingsAddressesSection', () => {
 
   it('discards address rows returned for a previous authenticated identity', async () => {
     const oldAddresses = deferred()
-    listMarketAddresses
+    mockedListMarketAddresses
       .mockReturnValueOnce(oldAddresses.promise)
       .mockResolvedValueOnce({
         data: [{ addressId: 52, receiverName: 'B 用户', city: '北京', detailAddress: 'B 地址' }]
@@ -220,7 +227,7 @@ describe('SettingsAddressesSection', () => {
 
   it('does not let an old create completion reset the new identity draft', async () => {
     const oldCreate = deferred()
-    createMarketAddress.mockReturnValueOnce(oldCreate.promise)
+    vi.mocked(createMarketAddress).mockReturnValueOnce(oldCreate.promise)
 
     const wrapper = mount(SettingsAddressesSection, mountOptions())
     await flushPromises()
@@ -247,11 +254,18 @@ function authenticate(userId, accessToken) {
 }
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handles = {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
+    handles.resolve = resolvePromise
+    handles.reject = rejectPromise
   })
-  return { promise, resolve, reject }
+  return {
+    promise,
+    // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+    /** 解析 promise */
+    resolve: (value) => handles.resolve?.(value),
+    /** 拒绝 promise */
+    reject: (reason) => handles.reject?.(reason)
+  }
 }

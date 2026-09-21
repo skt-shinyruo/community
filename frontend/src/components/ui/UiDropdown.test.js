@@ -29,8 +29,9 @@ function mountDropdown(props = {}, options = {}) {
   )
 }
 
+/** @returns {HTMLElement | null} */
 function menuEl() {
-  return document.body.querySelector('[role="menu"]')
+  return /** @type {HTMLElement | null} */ (document.body.querySelector('[role="menu"]'))
 }
 
 function menuItems() {
@@ -46,8 +47,9 @@ async function openByClick(wrapper) {
   await nextTick()
 }
 
+/** @param {{ trigger?: Partial<DOMRect>, menu?: Partial<DOMRect> }} [rects] */
 function mockRects({ trigger, menu } = {}) {
-  const zero = { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }
+  const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) }
   return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rects() {
     if (this.classList?.contains('ui-dropdown__trigger')) return { ...zero, ...trigger }
     if (this.classList?.contains('ui-dropdown__menu')) return { ...zero, ...menu }
@@ -75,6 +77,7 @@ describe('UiDropdown', () => {
 
     const menu = menuEl()
     expect(menu).toBeTruthy()
+    if (!menu) throw new Error('未打开菜单')
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(trigger.attributes('aria-controls')).toBe(menu.id)
     expect(menu.getAttribute('aria-labelledby')).toBe(trigger.attributes('id'))
@@ -225,7 +228,9 @@ describe('UiDropdown', () => {
     const wrapper = mountDropdown()
     await openByClick(wrapper)
 
-    menuEl().dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    const menu = menuEl()
+    if (!menu) throw new Error('未打开菜单')
+    menu.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     expect(menuEl()).toBeTruthy()
 
     wrapper.get('.ui-dropdown__trigger').element.dispatchEvent(new Event('pointerdown', { bubbles: true }))
@@ -274,7 +279,7 @@ describe('UiDropdown', () => {
   })
 
   it('positions below the trigger and flips above when there is no room below', async () => {
-    const zero = { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }
+    const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rects() {
       if (this.classList?.contains('ui-dropdown__trigger')) {
         return { ...zero, top: 100, left: 50, width: 80, height: 32, bottom: 132, right: 130 }
@@ -288,6 +293,7 @@ describe('UiDropdown', () => {
     await openByClick(wrapper)
 
     let menu = menuEl()
+    if (!menu) throw new Error('未打开菜单')
     expect(menu.classList.contains('ui-dropdown__menu--bottom')).toBe(true)
     // top = triggerRect.bottom + 间距 = 132 + 4
     expect(menu.style.top).toBe('136px')
@@ -308,6 +314,7 @@ describe('UiDropdown', () => {
     await openByClick(wrapper)
 
     menu = menuEl()
+    if (!menu) throw new Error('未重新打开菜单')
     expect(menu.classList.contains('ui-dropdown__menu--top')).toBe(true)
     // top = triggerRect.top - 菜单高度 - 间距 = 700 - 160 - 4
     expect(menu.style.top).toBe('536px')
@@ -322,6 +329,7 @@ describe('UiDropdown', () => {
     await openByClick(wrapper)
 
     const menu = menuEl()
+    if (!menu) throw new Error('未打开菜单')
     // jsdom innerWidth 默认 1024：960 + 160 溢出，夹取到 1024 - 160 - 8
     expect(menu.style.left).toBe('856px')
     expect(menu.style.top).toBe('136px')

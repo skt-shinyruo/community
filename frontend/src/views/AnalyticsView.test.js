@@ -21,10 +21,12 @@ import AnalyticsView from './AnalyticsView.vue'
 let auth
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((resolvePromise) => {
     resolve = resolvePromise
   })
+  if (!resolve) throw new Error('deferred resolve not captured')
   return { promise, resolve }
 }
 

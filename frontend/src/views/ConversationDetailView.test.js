@@ -197,6 +197,7 @@ describe('ConversationDetailView', () => {
 
   it('retains realtime messages that arrive while the latest history is loading', async () => {
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveHistory
     listImConversationHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveHistory = resolve }))
 
@@ -211,6 +212,7 @@ describe('ConversationDetailView', () => {
       clientMsgId: 'client-live',
       createdAtEpochMs: 1774060187920
     })
+    if (!resolveHistory) throw new Error('resolver not captured')
     resolveHistory({
       items: [{
         messageId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
@@ -251,6 +253,7 @@ describe('ConversationDetailView', () => {
 
   it('loads earlier history and preserves the current scroll anchor', async () => {
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveEarlier
     listImConversationHistory
       .mockResolvedValueOnce({
@@ -284,6 +287,7 @@ describe('ConversationDetailView', () => {
     expect(wrapper.get('[data-testid="load-earlier-messages"]').attributes('disabled')).toBeDefined()
 
     scrollHeight = 500
+    if (!resolveEarlier) throw new Error('resolver not captured')
     resolveEarlier({
       items: [
         {
@@ -1071,6 +1075,7 @@ describe('ConversationDetailView', () => {
     imRealtimeClient.state.connected = true
     imRealtimeClient.state.authed = false
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveFirstBackfill
     listImConversationMessages
       .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstBackfill = resolve }))
@@ -1099,6 +1104,7 @@ describe('ConversationDetailView', () => {
     await flushPromises()
     expect(listImConversationMessages).toHaveBeenCalledTimes(1)
 
+    if (!resolveFirstBackfill) throw new Error('resolver not captured')
     resolveFirstBackfill({ items: [] })
     await flushPromises()
 
@@ -1129,6 +1135,7 @@ describe('ConversationDetailView', () => {
     imRealtimeClient.state.connected = true
     imRealtimeClient.state.authed = false
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveInitialHistory
     listImConversationHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveInitialHistory = resolve }))
     mountView(conversationId)
@@ -1141,6 +1148,7 @@ describe('ConversationDetailView', () => {
     expect(listImConversationHistory).toHaveBeenCalledWith(conversationId, { limit: 50 })
     expect(listImConversationMessages).not.toHaveBeenCalled()
 
+    if (!resolveInitialHistory) throw new Error('resolver not captured')
     resolveInitialHistory({
       items: [{
         messageId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
@@ -1206,7 +1214,9 @@ describe('ConversationDetailView', () => {
   it('ignores an old history response after the route switches conversations', async () => {
     const conversationA = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
     const conversationB = '11111111-1111-7111-8111-111111111111_33333333-3333-7333-8333-333333333333'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveConversationA
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveConversationB
     listImConversationHistory
       .mockImplementationOnce(() => new Promise((resolve) => { resolveConversationA = resolve }))
@@ -1216,6 +1226,7 @@ describe('ConversationDetailView', () => {
     await wrapper.setProps({ conversationId: conversationB })
     await flushPromises()
 
+    if (!resolveConversationB) throw new Error('resolver not captured')
     resolveConversationB({
       items: [{
         messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -1230,6 +1241,7 @@ describe('ConversationDetailView', () => {
       hasMore: false
     })
     await flushPromises()
+    if (!resolveConversationA) throw new Error('resolver not captured')
     resolveConversationA({
       items: [{
         messageId: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
@@ -1283,6 +1295,7 @@ describe('ConversationDetailView', () => {
         nextBeforeSeq: null,
         hasMore: false
       })
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveConversationABackfill
     listImConversationMessages.mockImplementationOnce(
       () => new Promise((resolve) => { resolveConversationABackfill = resolve })
@@ -1302,6 +1315,7 @@ describe('ConversationDetailView', () => {
     const readCallCount = markImConversationRead.mock.calls.length
     const scrollTop = chatArea.scrollTop
 
+    if (!resolveConversationABackfill) throw new Error('resolver not captured')
     resolveConversationABackfill({
       items: [{
         messageId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -1322,6 +1336,7 @@ describe('ConversationDetailView', () => {
 
   it('clears messages and ignores stale HTTP and realtime data after account switching', async () => {
     const conversationId = '11111111-1111-7111-8111-111111111111_22222222-2222-7222-8222-222222222222'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveHistory
     listImConversationHistory.mockImplementationOnce(() => new Promise((resolve) => { resolveHistory = resolve }))
 
@@ -1347,6 +1362,7 @@ describe('ConversationDetailView', () => {
       clientMsgId: 'client-old-live',
       createdAtEpochMs: 1774060186920
     })
+    if (!resolveHistory) throw new Error('resolver not captured')
     resolveHistory({
       items: [{
         messageId: 'ffffffff-ffff-7fff-8fff-ffffffffffff',

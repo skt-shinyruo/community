@@ -100,7 +100,7 @@ export function useNoticeTopicFeedState({ topic }) {
   const markingRead = ref(false)
   const error = ref('')
   const pageError = ref('')
-  const items = ref([])
+  const items = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const topicUnread = ref(0)
 
   const loadRequestTracker = createLatestRequestTracker({
@@ -138,12 +138,16 @@ export function useNoticeTopicFeedState({ topic }) {
       error.value = ''
     }
     try {
+      /** @type {Array<Promise<{ data: unknown[], traceId: string }> | Promise<{ data: number, traceId: string } | null>>} */
       const requests = [listNotices(requestedTopic, { page: targetPage, size })]
       if (!append) requests.push(unreadCount(requestedTopic).catch(() => null))
-      const [listResult, unreadResult] = await Promise.all(requests)
+      const [listResult, unreadResult] = /** @type {[
+        { data: unknown[], traceId: string },
+        { data: number, traceId: string } | null
+      ]} */ (await Promise.all(requests))
       if (!loadRequestTracker.isCurrent(token)) return
       if (unreadResult) topicUnread.value = unreadResult.data
-      const nextItems = Array.isArray(listResult.data) ? listResult.data : []
+      const nextItems = /** @type {Array<Record<string, unknown>>} */ (Array.isArray(listResult.data) ? listResult.data : [])
       hasNext.value = nextItems.length >= size
       if (append && nextItems.length === 0) return
       page.value = targetPage

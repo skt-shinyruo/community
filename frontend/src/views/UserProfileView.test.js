@@ -24,14 +24,14 @@ const {
   unblockUser,
   unfollowUser
 } = vi.hoisted(() => ({
-  authData: {
+  authData: /** @type {{ accessToken: string, userId: string | number, authed: boolean, identityEpoch: number, identityUserId: string }} */ ({
     accessToken: '',
     userId: 0,
     authed: false,
     identityEpoch: 0,
     identityUserId: ''
-  },
-  authStoreHolder: { current: null },
+  }),
+  authStoreHolder: /** @type {{ current: object | null }} */ ({ current: null }),
   blockUser: vi.fn(),
   ensureUserSummaries: vi.fn(),
   followUser: vi.fn(),
@@ -106,13 +106,20 @@ function okResult(data, traceId = 'trace-user') {
 }
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handles = {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
+    handles.resolve = resolvePromise
+    handles.reject = rejectPromise
   })
-  return { promise, resolve, reject }
+  return {
+    promise,
+    // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+    /** 解析 promise */
+    resolve: (value) => handles.resolve?.(value),
+    /** 拒绝 promise */
+    reject: (reason) => handles.reject?.(reason)
+  }
 }
 
 function mountProfile(userId) {
@@ -135,16 +142,16 @@ describe('UserProfileView route contract', () => {
   const userId = '11111111-1111-7111-8111-111111111111'
 
   beforeEach(() => {
-    http.get.mockReset()
-    http.post.mockReset()
-    blockUser.mockReset()
-    ensureUserSummaries.mockReset()
-    followUser.mockReset()
-    getFollowStatus.mockReset()
-    showToast.mockReset()
-    unblockUser.mockReset()
-    unfollowUser.mockReset()
-    socialPrefsState.ensureBlocked.mockReset()
+    vi.mocked(http.get).mockReset()
+    vi.mocked(http.post).mockReset()
+    vi.mocked(blockUser).mockReset()
+    vi.mocked(ensureUserSummaries).mockReset()
+    vi.mocked(followUser).mockReset()
+    vi.mocked(getFollowStatus).mockReset()
+    vi.mocked(showToast).mockReset()
+    vi.mocked(unblockUser).mockReset()
+    vi.mocked(unfollowUser).mockReset()
+    vi.mocked(socialPrefsState.ensureBlocked).mockReset()
     socialPrefsState.clear.mockReset()
     authState.accessToken = ''
     authState.userId = 0
@@ -152,14 +159,14 @@ describe('UserProfileView route contract', () => {
     authState.identityEpoch = 0
     authState.identityUserId = ''
     socialPrefsState.blockedSet = new Set()
-    ensureUserSummaries.mockResolvedValue({})
-    getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
-    followUser.mockResolvedValue({ traceId: 'trace-follow' })
-    unfollowUser.mockResolvedValue({ traceId: 'trace-unfollow' })
-    blockUser.mockResolvedValue({ traceId: 'trace-block' })
-    unblockUser.mockResolvedValue({ traceId: 'trace-unblock' })
-    socialPrefsState.ensureBlocked.mockResolvedValue(undefined)
-    http.get.mockImplementation((url) => {
+    vi.mocked(ensureUserSummaries).mockResolvedValue({})
+    vi.mocked(getFollowStatus).mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
+    vi.mocked(followUser).mockResolvedValue({ traceId: 'trace-follow' })
+    vi.mocked(unfollowUser).mockResolvedValue({ traceId: 'trace-unfollow' })
+    vi.mocked(blockUser).mockResolvedValue({ traceId: 'trace-block' })
+    vi.mocked(unblockUser).mockResolvedValue({ traceId: 'trace-unblock' })
+    vi.mocked(socialPrefsState.ensureBlocked).mockResolvedValue(undefined)
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(
           okResult({
@@ -175,8 +182,8 @@ describe('UserProfileView route contract', () => {
   })
 
   it('declares userId as an explicit prop for route-prop pages', () => {
-    expect(UserProfileView.props).toBeTruthy()
-    expect(UserProfileView.props.userId).toBeTruthy()
+    expect(/** @type {{ props?: Record<string, unknown> }} */ (UserProfileView).props).toBeTruthy()
+    expect(/** @type {{ props?: Record<string, unknown> }} */ (UserProfileView).props?.userId).toBeTruthy()
   })
 
   it('publishes only the page model, intent actions and lifecycle', async () => {
@@ -197,7 +204,7 @@ describe('UserProfileView route contract', () => {
   })
 
   it('recovers from an initial load failure through the retry action', async () => {
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${userId}`) return Promise.reject(new Error('profile unavailable'))
       if (url === `/api/users/${userId}/recent-posts`) return Promise.resolve(okResult([]))
       if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
@@ -209,7 +216,7 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.vm.model.error).toBe('profile unavailable')
     expect(wrapper.text()).toContain('profile unavailable')
 
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(okResult({ id: userId, username: 'alice' }))
       }
@@ -220,6 +227,7 @@ describe('UserProfileView route contract', () => {
 
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('retry button missing')
     await retry.trigger('click')
     await flushPromises()
 
@@ -233,7 +241,7 @@ describe('UserProfileView route contract', () => {
     authState.userId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     authState.authed = true
     authState.identityUserId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(okResult({ id: userId, username: 'alice' }))
       }
@@ -241,7 +249,7 @@ describe('UserProfileView route contract', () => {
       if (url === `/api/users/${userId}/recent-comments`) return Promise.resolve(okResult([]))
       return Promise.resolve(okResult({}))
     })
-    getFollowStatus.mockRejectedValue(new Error('relationship unavailable'))
+    vi.mocked(getFollowStatus).mockRejectedValue(new Error('relationship unavailable'))
 
     const wrapper = mountProfile(userId)
     await flushPromises()
@@ -271,7 +279,7 @@ describe('UserProfileView route contract', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(http.get.mock.calls.map(([url]) => url)).toEqual([
+    expect(vi.mocked(http.get).mock.calls.map(([url]) => url)).toEqual([
       `/api/users/${userId}`,
       `/api/users/${userId}/recent-posts`,
       `/api/users/${userId}/recent-comments`
@@ -290,7 +298,7 @@ describe('UserProfileView route contract', () => {
 
   it('renders a compact identity header with bounded long profile text', async () => {
     const longUsername = '1654388696@qq.com'
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${userId}`) {
         return Promise.resolve(
           okResult({
@@ -384,7 +392,7 @@ describe('UserProfileView route contract', () => {
     authState.authed = true
     authState.identityUserId = viewerId
 
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${previousUserId}`) return previousProfileRequest.promise
       if (url === `/api/users/${previousUserId}/recent-posts`) {
         return Promise.resolve(okResult([{ id: 'aaaaaaaa-1111-7111-8111-111111111111', title: 'previous post' }], 'trace-previous-posts'))
@@ -403,14 +411,14 @@ describe('UserProfileView route contract', () => {
       }
       return Promise.resolve(okResult({}))
     })
-    getFollowStatus.mockImplementation((_entityType, targetId) => {
+    vi.mocked(getFollowStatus).mockImplementation((_entityType, targetId) => {
       if (targetId === previousUserId) return previousFollowRequest.promise
       return Promise.resolve({ data: true, traceId: 'trace-current-follow' })
     })
 
     const wrapper = mountProfile(previousUserId)
     await flushPromises()
-    const requestedBeforeRouteChange = http.get.mock.calls.map(([url]) => url)
+    const requestedBeforeRouteChange = vi.mocked(http.get).mock.calls.map(([url]) => url)
     expect(requestedBeforeRouteChange).toContain(`/api/users/${previousUserId}/recent-posts`)
     expect(requestedBeforeRouteChange).toContain(`/api/users/${previousUserId}/recent-comments`)
 
@@ -438,7 +446,7 @@ describe('UserProfileView route contract', () => {
     authState.userId = previousViewerId
     authState.authed = true
     authState.identityUserId = previousViewerId
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${profileUserId}`) {
         return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }, 'trace-profile'))
       }
@@ -474,7 +482,7 @@ describe('UserProfileView route contract', () => {
     authState.userId = viewerId
     authState.authed = true
     authState.identityUserId = viewerId
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${previousUserId}`) {
         return Promise.resolve(okResult({ id: previousUserId, username: 'previous profile' }, 'trace-previous-profile'))
       }
@@ -484,11 +492,11 @@ describe('UserProfileView route contract', () => {
       if (url.includes('/recent-posts') || url.includes('/recent-comments')) return Promise.resolve(okResult([]))
       return Promise.resolve(okResult({}))
     })
-    getFollowStatus.mockImplementation((_entityType, targetId) => Promise.resolve({
+    vi.mocked(getFollowStatus).mockImplementation((_entityType, targetId) => Promise.resolve({
       data: targetId === currentUserId,
       traceId: `trace-status-${targetId}`
     }))
-    followUser.mockImplementation(() => followRequest.promise)
+    vi.mocked(followUser).mockImplementation(() => followRequest.promise)
 
     const wrapper = mountProfile(previousUserId)
     await flushPromises()
@@ -506,7 +514,7 @@ describe('UserProfileView route contract', () => {
     expect(wrapper.vm.model.profile).toMatchObject({ id: currentUserId, username: 'current profile' })
     expect(wrapper.vm.model.followStatus).toBe(true)
     expect(wrapper.vm.model.actionLoading).toBe(false)
-    const profileRequests = http.get.mock.calls
+    const profileRequests = vi.mocked(http.get).mock.calls
       .map(([url]) => url)
       .filter((url) => url === `/api/users/${previousUserId}` || url === `/api/users/${currentUserId}`)
     expect(profileRequests).toEqual([`/api/users/${previousUserId}`, `/api/users/${currentUserId}`])
@@ -521,18 +529,18 @@ describe('UserProfileView route contract', () => {
     authState.userId = previousViewerId
     authState.authed = true
     authState.identityUserId = previousViewerId
-    http.get.mockImplementation((url) => {
+    vi.mocked(http.get).mockImplementation((url) => {
       if (url === `/api/users/${profileUserId}`) {
         return Promise.resolve(okResult({ id: profileUserId, username: 'profile' }))
       }
       if (url.includes('/recent-posts') || url.includes('/recent-comments')) return Promise.resolve(okResult([]))
       return Promise.resolve(okResult({}))
     })
-    blockUser.mockImplementation(() => blockRequest.promise)
+    vi.mocked(blockUser).mockImplementation(() => blockRequest.promise)
 
     const wrapper = mountProfile(profileUserId)
     await flushPromises()
-    const blockedLoadsBeforeSwitch = socialPrefsState.ensureBlocked.mock.calls.length
+    const blockedLoadsBeforeSwitch = vi.mocked(socialPrefsState.ensureBlocked).mock.calls.length
     const pendingBlock = wrapper.vm.actions.toggleBlocked()
     expect(blockUser).toHaveBeenCalledWith(profileUserId)
 
@@ -562,7 +570,7 @@ describe('UserProfileView route contract', () => {
     await flushPromises()
 
     // 写操作成功、读侧屏蔽列表重同步失败：只出现成功 toast，不再叠加错误反馈。
-    socialPrefsState.ensureBlocked.mockRejectedValueOnce(new Error('blocklist unavailable'))
+    vi.mocked(socialPrefsState.ensureBlocked).mockRejectedValueOnce(new Error('blocklist unavailable'))
     await wrapper.vm.actions.toggleBlocked()
     await flushPromises()
 

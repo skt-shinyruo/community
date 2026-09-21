@@ -27,7 +27,7 @@ export function useNoticesSummaryState() {
   const auth = useAuthStore()
   const loading = ref(false)
   const error = ref('')
-  const items = ref([])
+  const items = ref(/** @type {Array<{ unreadCount?: unknown }>} */ ([]))
   const loadRequestTracker = createLatestRequestTracker({ getScope: () => identityScope(auth) })
 
   const pendingTopicCount = computed(() => items.value.filter((it) => noticeUnreadCount(it) > 0).length)

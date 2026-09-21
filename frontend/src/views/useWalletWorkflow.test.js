@@ -47,7 +47,8 @@ function createSubject() {
 // 服务被 mock 时 key 尚未由真实 http 层物化，这里显式 begin() 读取。
 function observeKeys(mock) {
   const keys = []
-  mock.mockImplementation((payload, { writeAttempt } = {}) => {
+  mock.mockImplementation((payload, /** @type {{ writeAttempt?: { begin(): string } }} */ { writeAttempt } = {}) => {
+    if (!writeAttempt) throw new Error('writeAttempt missing in mock invocation')
     keys.push(writeAttempt.begin())
     return Promise.resolve({ data: {}, traceId: '' })
   })
@@ -65,8 +66,10 @@ function txnList(count) {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((resolvePromise) => { resolve = resolvePromise })
+  if (!resolve) throw new Error('deferred resolve not captured')
   return { promise, resolve }
 }
 
@@ -216,8 +219,10 @@ describe('useWalletWorkflow', () => {
   })
 
   it('discards stale write effects when the form intent changes mid-flight', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveTransfer
     const pending = new Promise((resolve) => { resolveTransfer = resolve })
+    if (!resolveTransfer) throw new Error('resolve not captured')
     createTransfer.mockReturnValueOnce(pending)
     const { workflow } = createSubject()
     const { transferForm } = workflow.model

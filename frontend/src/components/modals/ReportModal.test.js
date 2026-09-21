@@ -5,8 +5,8 @@ import { flushPromises, mount } from '@vue/test-utils'
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 
 const { createReport, showToast } = vi.hoisted(() => ({
-  createReport: vi.fn(),
-  showToast: vi.fn()
+  createReport: /** @type {import('vitest').Mock} */ (vi.fn()),
+  showToast: /** @type {import('vitest').Mock} */ (vi.fn())
 }))
 
 vi.mock('../../api/services/reportService', () => ({ createReport }))
@@ -16,8 +16,10 @@ import { useAuthStore } from '../../stores/auth'
 import ReportModal from './ReportModal.vue'
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((res) => { resolve = res })
+  if (!resolve) throw new Error('未捕获 deferred resolve')
   return { promise, resolve }
 }
 

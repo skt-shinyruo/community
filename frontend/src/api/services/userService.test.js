@@ -69,6 +69,7 @@ describe('api/services/userService', () => {
 
   it('does not let an invalidated in-flight request repopulate the cache', async () => {
     const userId = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveOld
     mock = new MockAdapter(http)
     mock.onGet(`/api/users/${userId}`).replyOnce(() => new Promise((resolve) => {
@@ -81,7 +82,7 @@ describe('api/services/userService', () => {
     await Promise.resolve()
     invalidateUserProfile(userId)
     expect((await getUserProfile(userId)).username).toBe('fresh')
-    resolveOld([200, { code: 0, data: { id: userId, username: 'stale' } }])
+    resolveOld?.([200, { code: 0, data: { id: userId, username: 'stale' } }])
     expect((await oldRequest).username).toBe('stale')
     expect((await getUserProfile(userId)).username).toBe('fresh')
   })
@@ -89,7 +90,8 @@ describe('api/services/userService', () => {
   it('evicts the least recently used profile when the cache reaches its bound', async () => {
     mock = new MockAdapter(http)
     mock.onGet().reply((config) => {
-      const id = config.url.split('/').pop()
+      const url = String(config.url || '')
+      const id = url.split('/').pop()
       return [200, { code: 0, data: { id, username: id } }]
     })
     const ids = Array.from({ length: 101 }, (_, index) =>

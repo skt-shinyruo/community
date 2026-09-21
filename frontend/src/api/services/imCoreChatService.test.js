@@ -25,7 +25,7 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('listImConversationMessages should unwrap Result body', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: {
         code: 0,
         message: '',
@@ -38,7 +38,7 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('listImConversationPage should unwrap Result body and send cursor pagination params', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: {
         code: 0,
         message: '',
@@ -58,7 +58,7 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('listImConversationHistory should encode the conversation id and unwrap Result body', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: {
         code: 0,
         message: '',
@@ -86,7 +86,7 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('listImConversationHistory should omit the initial boundary while keeping the default limit', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: {
         code: 0,
         message: '',
@@ -102,20 +102,20 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('new IM pagination clients should reject responses without a Result envelope', async () => {
-    imCoreHttp.get.mockResolvedValue({ data: { items: [] } })
+    vi.mocked(imCoreHttp.get).mockResolvedValue({ data: { items: [] } })
 
     await expect(listImConversationPage()).rejects.toBeInstanceOf(BusinessError)
     await expect(listImConversationHistory('c1', { beforeSeq: 2 })).rejects.toBeInstanceOf(BusinessError)
   })
 
   it('markImConversationRead should reject raw object responses', async () => {
-    imCoreHttp.post.mockResolvedValue({ data: {} })
+    vi.mocked(imCoreHttp.post).mockResolvedValue({ data: {} })
 
     await expect(markImConversationRead('c1', 8)).rejects.toBeInstanceOf(BusinessError)
   })
 
   it('getImUnreadSummary should request the unread summary silently and unwrap Result data', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: {
         code: 0,
         message: '',
@@ -135,7 +135,7 @@ describe('api/services/imCoreChatService', () => {
   })
 
   it('getImUnreadSummary should fall back to empty collections when data is missing', async () => {
-    imCoreHttp.get.mockResolvedValue({
+    vi.mocked(imCoreHttp.get).mockResolvedValue({
       data: { code: 0, message: '', data: null, traceId: 'trace-unread-empty' }
     })
 

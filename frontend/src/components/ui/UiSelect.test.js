@@ -41,8 +41,9 @@ function triggerOf(wrapper) {
   return wrapper.get('.ui-select__trigger')
 }
 
+/** @returns {HTMLElement | null} */
 function listboxEl() {
-  return document.body.querySelector('[role="listbox"]')
+  return /** @type {HTMLElement | null} */ (document.body.querySelector('[role="listbox"]'))
 }
 
 function optionEls() {
@@ -58,8 +59,9 @@ async function openByClick(wrapper) {
   await nextTick()
 }
 
+/** @param {{ trigger?: Partial<DOMRect>, listbox?: Partial<DOMRect> }} [rects] */
 function mockRects({ trigger, listbox } = {}) {
-  const zero = { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }
+  const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) }
   return vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rects() {
     if (this.classList?.contains('ui-select__trigger')) return { ...zero, ...trigger }
     if (this.classList?.contains('ui-select__listbox')) return { ...zero, ...listbox }
@@ -101,6 +103,7 @@ describe('UiSelect', () => {
 
     const listbox = listboxEl()
     expect(listbox).toBeTruthy()
+    if (!listbox) throw new Error('未打开 listbox')
     expect(trigger.attributes('aria-expanded')).toBe('true')
     expect(trigger.attributes('aria-controls')).toBe(listbox.id)
     expect(listbox.getAttribute('aria-labelledby')).toBe(wrapper.get('.sr-only').attributes('id'))
@@ -120,7 +123,9 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     const event = new MouseEvent('mousedown', { bubbles: true, cancelable: true })
-    listboxEl().dispatchEvent(event)
+    const listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
+    listbox.dispatchEvent(event)
     expect(event.defaultPrevented).toBe(true)
   })
 
@@ -331,7 +336,9 @@ describe('UiSelect', () => {
     const wrapper = mountSelect()
     await openByClick(wrapper)
 
-    listboxEl().dispatchEvent(new Event('pointerdown', { bubbles: true }))
+    const listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
+    listbox.dispatchEvent(new Event('pointerdown', { bubbles: true }))
     expect(listboxEl()).toBeTruthy()
 
     triggerOf(wrapper).element.dispatchEvent(new Event('pointerdown', { bubbles: true }))
@@ -434,9 +441,10 @@ describe('UiSelect', () => {
 
     const empty = document.body.querySelector('.ui-select__empty')
     expect(empty).toBeTruthy()
+    if (!empty) throw new Error('未渲染空态行')
     expect(empty.textContent).toBe('暂无可选项')
-    expect(empty.getAttribute('role')).toBe('option')
-    expect(empty.getAttribute('aria-disabled')).toBe('true')
+    expect(/** @type {Element} */ (empty).getAttribute('role')).toBe('option')
+    expect(/** @type {Element} */ (empty).getAttribute('aria-disabled')).toBe('true')
     expect(trigger.attributes('aria-activedescendant')).toBeUndefined()
 
     await trigger.trigger('keydown', { key: 'ArrowDown' })
@@ -456,8 +464,10 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     const listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
     expect(listbox.getAttribute('aria-busy')).toBe('true')
     const status = document.body.querySelector('.ui-select__status')
+    if (!status) throw new Error('未渲染加载状态')
     expect(status.getAttribute('role')).toBe('status')
     expect(status.textContent).toContain('正在加载选项')
     expect(optionEls()).toHaveLength(0)
@@ -478,7 +488,9 @@ describe('UiSelect', () => {
 
     await wrapper.setProps({ loading: false })
     await openByClick(wrapper)
-    expect(listboxEl().getAttribute('aria-busy')).toBeNull()
+    const openedListbox = listboxEl()
+    if (!openedListbox) throw new Error('未打开 listbox')
+    expect(openedListbox.getAttribute('aria-busy')).toBeNull()
     expect(optionEls()).toHaveLength(OPTIONS.length)
     expect(trigger.attributes('aria-activedescendant')).toBe(optionEls()[0].id)
   })
@@ -588,7 +600,7 @@ describe('UiSelect', () => {
   })
 
   it('positions below the trigger and flips above when there is no room below', async () => {
-    const zero = { top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0 }
+    const zero = { x: 0, y: 0, top: 0, left: 0, right: 0, bottom: 0, width: 0, height: 0, toJSON: () => ({}) }
     const spy = vi.spyOn(HTMLElement.prototype, 'getBoundingClientRect').mockImplementation(function rects() {
       if (this.classList?.contains('ui-select__trigger')) {
         return { ...zero, top: 100, left: 50, width: 200, height: 32, bottom: 132, right: 250 }
@@ -602,6 +614,7 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     let listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
     expect(listbox.classList.contains('ui-select__listbox--bottom')).toBe(true)
     // top = triggerRect.bottom + 间距 = 132 + 4，最小宽度跟随 trigger 宽度
     expect(listbox.style.top).toBe('136px')
@@ -623,6 +636,7 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     listbox = listboxEl()
+    if (!listbox) throw new Error('未重新打开 listbox')
     expect(listbox.classList.contains('ui-select__listbox--top')).toBe(true)
     // top = triggerRect.top - 浮层高度 - 间距 = 700 - 160 - 4
     expect(listbox.style.top).toBe('536px')
@@ -637,6 +651,7 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     const listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
     // 上方只有 30px 空间，翻到下方
     expect(listbox.classList.contains('ui-select__listbox--bottom')).toBe(true)
     expect(listbox.style.top).toBe('66px')
@@ -651,6 +666,7 @@ describe('UiSelect', () => {
     await openByClick(wrapper)
 
     const listbox = listboxEl()
+    if (!listbox) throw new Error('未打开 listbox')
     // jsdom innerWidth 默认 1024：960 + 160 溢出，夹取到 1024 - 160 - 8
     expect(listbox.style.left).toBe('856px')
     expect(listbox.style.top).toBe('136px')

@@ -73,15 +73,35 @@ import { getFollowStatus, setLike } from '../api/services/socialService'
 import { markPostRead } from '../utils/readTracker'
 import PostDetailView from './PostDetailView.vue'
 
+// vitest mock 别名：postService/socialService 均被 vi.mock 替换为 vi.fn()，
+// 断言为 Mock 后 mockResolvedValue / mock.calls 等 mock API 才能通过 checkJs。
+/** @type {import('vitest').Mock} */
+const getPostDetailMock = /** @type {import('vitest').Mock} */ (getPostDetail)
+/** @type {import('vitest').Mock} */
+const listCommentsMock = /** @type {import('vitest').Mock} */ (listComments)
+/** @type {import('vitest').Mock} */
+const listRepliesMock = /** @type {import('vitest').Mock} */ (listReplies)
+/** @type {import('vitest').Mock} */
+const addCommentMock = /** @type {import('vitest').Mock} */ (addComment)
+/** @type {import('vitest').Mock} */
+const getFollowStatusMock = /** @type {import('vitest').Mock} */ (getFollowStatus)
+const setLikeMock = /** @type {import('vitest').Mock} */ (setLike)
+/** @type {import('vitest').Mock} */
+const getUserProfileMock = /** @type {import('vitest').Mock} */ (getUserProfile)
+
 describe('PostDetailView', () => {
   function deferred() {
-    let resolve
-    let reject
+    /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+    const handles = {}
     const promise = new Promise((res, rej) => {
-      resolve = res
-      reject = rej
+      handles.resolve = res
+      handles.reject = rej
     })
-    return { promise, resolve, reject }
+    return {
+      promise,
+      resolve: (value) => handles.resolve?.(value),
+      reject: (reason) => handles.reject?.(reason)
+    }
   }
 
   function mountLoader(resolveIdentity = true) {
@@ -98,7 +118,7 @@ describe('PostDetailView', () => {
     taxonomy.ensureCategories = vi.fn()
 
     const socialPrefs = useSocialPrefsStore()
-    socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+    socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
     socialPrefs.clear = vi.fn()
 
     const postMetaCache = usePostMetaCacheStore()
@@ -112,8 +132,8 @@ describe('PostDetailView', () => {
     postMetaCache.ensureLikeStatuses = vi.fn().mockResolvedValue({})
 
     const harness = defineComponent({
-      setup(_, { emit }) {
-        return usePostDetailLoader(emit)
+      setup() {
+        return usePostDetailLoader()
       },
       render() {
         return null
@@ -137,7 +157,7 @@ describe('PostDetailView', () => {
     auth.installSession({ accessToken: 'token' })
     auth.setMe({ userId: 'user-me', username: 'me', headerUrl: '', authorities: [] })
     useTaxonomyStore().ensureCategories = vi.fn()
-    useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue()
+    useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue(undefined)
 
     const postMetaCache = usePostMetaCacheStore()
     postMetaCache.ensureUserSummaries = vi.fn().mockResolvedValue({})
@@ -167,7 +187,7 @@ describe('PostDetailView', () => {
     routeState.params.postId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     routeState.query = {}
     routeState.hash = ''
-    getPostDetail.mockResolvedValue({
+    getPostDetailMock.mockResolvedValue({
       data: {
         id: routeState.params.postId,
         userId: 'user-me',
@@ -179,28 +199,30 @@ describe('PostDetailView', () => {
       },
       traceId: 'trace-post-detail'
     })
-    listComments.mockResolvedValue({
+    listCommentsMock.mockResolvedValue({
       data: [],
       traceId: 'trace-comments'
     })
-    listReplies.mockResolvedValue({
+    listRepliesMock.mockResolvedValue({
       data: [],
       traceId: 'trace-replies'
     })
-    addComment.mockResolvedValue({
+    addCommentMock.mockResolvedValue({
       data: { commentId: 'ffffffff-ffff-7fff-8fff-ffffffffffff' },
       traceId: 'trace-add-comment'
     })
-    setLike.mockResolvedValue({ data: { liked: true, likeCount: 1 } })
-    getFollowStatus.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
+    setLikeMock.mockResolvedValue({ data: { liked: true, likeCount: 1 } })
+    getFollowStatusMock.mockResolvedValue({ data: false, traceId: 'trace-follow-status' })
   })
 
   it('exposes page, post actions, and discussion as the loader interface', async () => {
     const wrapper = mountLoader()
     await flushPromises()
-
-    expect(wrapper.vm.post).toBeUndefined()
-    expect(wrapper.vm.loadComments).toBeUndefined()
+    // setup 返回的 loader model 挂在 vm 上；post / loadComments 不是模型键，
+    // 断言它们未泄漏时把 vm 视作宽松索引访问。
+    const vm = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (wrapper.vm))
+    expect(vm.post).toBeUndefined()
+    expect(vm.loadComments).toBeUndefined()
     expect(wrapper.vm.page.post?.title).toBe('帖子标题')
     expect(wrapper.vm.discussion.composer.setDraft).toEqual(expect.any(Function))
     expect(wrapper.vm.postActions.toggleLike).toEqual(expect.any(Function))
@@ -226,7 +248,7 @@ describe('PostDetailView', () => {
 
   it('does not commit post state loaded for the previous account', async () => {
     const oldDetail = deferred()
-    getPostDetail
+    getPostDetailMock
       .mockReturnValueOnce(oldDetail.promise)
       .mockResolvedValueOnce({
         data: {
@@ -275,7 +297,7 @@ describe('PostDetailView', () => {
   it('keeps the current post author when the previous post author profile arrives late', async () => {
     const postB = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     const staleAuthor = deferred()
-    getPostDetail
+    getPostDetailMock
       .mockResolvedValueOnce({
         data: {
           id: routeState.params.postId,
@@ -296,7 +318,7 @@ describe('PostDetailView', () => {
         },
         traceId: 'trace-detail-b'
       })
-    getUserProfile
+    getUserProfileMock
       .mockReturnValueOnce(staleAuthor.promise)
       .mockResolvedValueOnce({ userId: 'author-b', username: 'author-b-name' })
 
@@ -339,7 +361,7 @@ describe('PostDetailView', () => {
 
   it('does not clear the new account draft when the previous account comment completes', async () => {
     const oldComment = deferred()
-    addComment.mockReturnValueOnce(oldComment.promise)
+    addCommentMock.mockReturnValueOnce(oldComment.promise)
     const wrapper = mountLoader()
     await flushPromises()
     wrapper.vm.discussion.composer.setDraft('comment from account A')
@@ -408,7 +430,7 @@ describe('PostDetailView', () => {
       userId: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
       content: 'hot first page'
     }
-    listComments
+    listCommentsMock
       .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
       .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
       .mockResolvedValue({ data: { items: [hotFirst], nextCursor: '' } })
@@ -457,7 +479,7 @@ describe('PostDetailView', () => {
       userId: 'eeeeeeee-eeee-7eee-8eee-eeeeeeeeeeee',
       content: 'second page comment'
     }
-    listComments
+    listCommentsMock
       .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
       .mockRejectedValueOnce(new Error('temporary comment failure'))
       .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
@@ -473,7 +495,7 @@ describe('PostDetailView', () => {
 
     await wrapper.vm.discussion.loadMore()
 
-    expect(listComments.mock.calls.map(([, request]) => request.cursor))
+    expect(listCommentsMock.mock.calls.map(([, request]) => request.cursor))
       .toEqual(['', 'cursor-page-2', 'cursor-page-2'])
     expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
       .toEqual(['first page comment', 'second page comment'])
@@ -495,7 +517,7 @@ describe('PostDetailView', () => {
       ...firstComment,
       content: 'refreshed first page comment'
     }
-    listComments
+    listCommentsMock
       .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
       .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
       .mockRejectedValueOnce(new Error('temporary refresh failure'))
@@ -512,7 +534,7 @@ describe('PostDetailView', () => {
     expect(wrapper.vm.discussion.error).toBe('temporary refresh failure')
 
     await wrapper.vm.discussion.reload()
-    expect(listComments.mock.calls.map(([, request]) => request.cursor)).toEqual([
+    expect(listCommentsMock.mock.calls.map(([, request]) => request.cursor)).toEqual([
       '',
       'cursor-page-2',
       '',
@@ -533,7 +555,7 @@ describe('PostDetailView', () => {
       userId: '44444444-4444-7444-8444-444444444444',
       content: 'second page reply'
     }
-    listReplies
+    listRepliesMock
       .mockResolvedValueOnce({ data: { items: [firstReply], nextCursor: 'reply-cursor-2' } })
       .mockResolvedValueOnce({ data: { items: [secondReply], nextCursor: '' } })
       .mockRejectedValueOnce(new Error('temporary reply refresh failure'))
@@ -555,7 +577,7 @@ describe('PostDetailView', () => {
     wrapper.vm.discussion.startReply(root)
     root.ui.replyEditor.draft = 'another reply'
     await wrapper.vm.discussion.submitReply(root)
-    expect(listReplies.mock.calls.map(([, , request]) => request.cursor)).toEqual([
+    expect(listRepliesMock.mock.calls.map(([, , request]) => request.cursor)).toEqual([
       '',
       'reply-cursor-2',
       '',
@@ -565,7 +587,7 @@ describe('PostDetailView', () => {
   })
 
   it('keeps the reply editor and reply page intact when submission fails', async () => {
-    addComment.mockRejectedValueOnce(new Error('reply rejected'))
+    addCommentMock.mockRejectedValueOnce(new Error('reply rejected'))
     const wrapper = mountLoader()
     await flushPromises()
     const root = replyableRootComment()
@@ -587,7 +609,7 @@ describe('PostDetailView', () => {
   })
 
   it('rolls comment and reply likes back inside their own state groups', async () => {
-    listComments.mockResolvedValueOnce({
+    listCommentsMock.mockResolvedValueOnce({
       data: {
         items: [{
           id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -597,7 +619,7 @@ describe('PostDetailView', () => {
         nextCursor: ''
       }
     })
-    listReplies.mockResolvedValueOnce({
+    listRepliesMock.mockResolvedValueOnce({
       data: {
         items: [{
           id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd',
@@ -617,7 +639,7 @@ describe('PostDetailView', () => {
     const replyList = root.ui.replyList
 
     const failedCommentLike = deferred()
-    setLike.mockReturnValueOnce(failedCommentLike.promise)
+    setLikeMock.mockReturnValueOnce(failedCommentLike.promise)
     const commentAction = wrapper.vm.discussion.toggleCommentLike(root)
     expect(root.ui.like).toMatchObject({ liked: true, count: 1, loading: true, error: '' })
     failedCommentLike.reject(new Error('comment like failed'))
@@ -629,7 +651,7 @@ describe('PostDetailView', () => {
     reply.ui.like.liked = true
     reply.ui.like.count = 3
     const failedReplyUnlike = deferred()
-    setLike.mockReturnValueOnce(failedReplyUnlike.promise)
+    setLikeMock.mockReturnValueOnce(failedReplyUnlike.promise)
     const replyAction = wrapper.vm.discussion.toggleReplyLike(root, reply)
     expect(reply.ui.like).toMatchObject({ liked: false, count: 2, loading: true, error: '' })
     failedReplyUnlike.reject(new Error('reply unlike failed'))
@@ -697,9 +719,9 @@ describe('PostDetailView', () => {
       userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb',
       content: 'root content'
     }
-    listComments.mockResolvedValue({ data: { items: [rootPayload], nextCursor: '' } })
+    listCommentsMock.mockResolvedValue({ data: { items: [rootPayload], nextCursor: '' } })
     const keys = []
-    addComment
+    addCommentMock
       .mockImplementationOnce((_postId, _payload, { writeAttempt }) => {
         keys.push(writeAttempt.begin())
         return Promise.reject(new Error('response lost'))
@@ -744,11 +766,11 @@ describe('PostDetailView', () => {
       userId: 'user-me',
       content: 'brand new comment'
     }
-    listComments
+    listCommentsMock
       .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
       .mockResolvedValueOnce({ data: { items: [secondComment], nextCursor: '' } })
       .mockResolvedValueOnce({ data: { items: [postedComment, firstComment], nextCursor: 'cursor-page-2' } })
-    addComment.mockResolvedValueOnce({ data: { commentId: postedComment.id }, traceId: 'trace-add' })
+    addCommentMock.mockResolvedValueOnce({ data: { commentId: postedComment.id }, traceId: 'trace-add' })
 
     const wrapper = mountLoader()
     await flushPromises()
@@ -776,7 +798,7 @@ describe('PostDetailView', () => {
       content: 'deep linked comment'
     }
     routeState.query = { commentId: deepComment.id }
-    listComments
+    listCommentsMock
       .mockResolvedValueOnce({ data: { items: [firstComment], nextCursor: 'cursor-page-2' } })
       .mockResolvedValueOnce({ data: { items: [deepComment], nextCursor: '' } })
 
@@ -784,7 +806,7 @@ describe('PostDetailView', () => {
     await flushPromises()
     await flushPromises()
 
-    expect(listComments.mock.calls.map(([, request]) => request.cursor)).toEqual(['', 'cursor-page-2'])
+    expect(listCommentsMock.mock.calls.map(([, request]) => request.cursor)).toEqual(['', 'cursor-page-2'])
     expect(wrapper.vm.discussion.comments.map((comment) => comment.content))
       .toEqual(['first page comment', 'deep linked comment'])
   })
@@ -801,7 +823,7 @@ describe('PostDetailView', () => {
       content: 'comment before edit',
       editCount: 0
     }
-    listComments.mockResolvedValue({ data: { items: [rootComment], nextCursor: '' } })
+    listCommentsMock.mockResolvedValue({ data: { items: [rootComment], nextCursor: '' } })
 
     const wrapper = mountLoader()
     await flushPromises()
@@ -818,6 +840,7 @@ describe('PostDetailView', () => {
     expect(wrapper.vm.discussion.applyCommentEdit('99999999-9999-7999-8999-999999999999', 'missing')).toBe(false)
   })
 
+  /** @typedef {{ id: string, content?: string, ui?: Record<string, unknown> }} ReplyItem */
   function replyableRootComment() {
     return {
       id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc',
@@ -835,6 +858,7 @@ describe('PostDetailView', () => {
         },
         replyList: {
           expanded: false,
+          /** @type {ReplyItem[]} */
           items: [],
           size: 5,
           nextCursor: '',

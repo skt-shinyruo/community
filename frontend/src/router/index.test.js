@@ -160,13 +160,15 @@ describe('router/index', () => {
     const { default: router } = await import('./index')
     const routes = new Map(router.getRoutes().map((route) => [route.name, route]))
 
-    expect(routes.get('marketBuyingOrders').props.default).toEqual({ side: 'buying' })
-    expect(routes.get('marketSellingOrders').props.default).toEqual({ side: 'selling' })
-    expect(routes.get('followees').props.default({ params: { userId: 'user-1' } })).toEqual({
+    // 路由表必含这四条：用类型断言收窄 Map 查找，避免逐条空检查。
+    const routeOf = (name) => /** @type {import('vue-router').RouteRecord} */ (routes.get(name))
+    expect(routeOf('marketBuyingOrders').props.default).toEqual({ side: 'buying' })
+    expect(routeOf('marketSellingOrders').props.default).toEqual({ side: 'selling' })
+    expect((/** @type {(args: { params: Record<string, string> }) => object} */ (routeOf('followees').props.default))({ params: { userId: 'user-1' } })).toEqual({
       relationKind: 'followees',
       userId: 'user-1'
     })
-    expect(routes.get('followers').props.default({ params: { userId: 'user-1' } })).toEqual({
+    expect((/** @type {(args: { params: Record<string, string> }) => object} */ (routeOf('followers').props.default))({ params: { userId: 'user-1' } })).toEqual({
       relationKind: 'followers',
       userId: 'user-1'
     })

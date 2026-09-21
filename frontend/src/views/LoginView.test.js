@@ -36,6 +36,11 @@ import { ensureSessionReady } from '../auth/session'
 import { issueCaptcha, login } from '../api/services/authService'
 import { useAuthStore } from '../stores/auth'
 
+// 类型别名：vi.mock 替换后的服务/会话函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const ensureSessionReadyMock = /** @type {import('vitest').Mock} */ (ensureSessionReady)
+const issueCaptchaMock = /** @type {import('vitest').Mock} */ (issueCaptcha)
+const loginMock = /** @type {import('vitest').Mock} */ (login)
+
 function captchaResponse(captchaId, imageBase64, traceId) {
   return {
     data: {
@@ -78,14 +83,14 @@ describe('LoginView', () => {
   beforeEach(() => {
     routerState.route.query = {}
     routerState.replace.mockClear()
-    ensureSessionReady.mockReset()
-    issueCaptcha.mockReset()
-    login.mockReset()
+    ensureSessionReadyMock.mockReset()
+    issueCaptchaMock.mockReset()
+    loginMock.mockReset()
   })
 
   it('does not trim password before sending login request', async () => {
-    ensureSessionReady.mockResolvedValueOnce({ state: 'authenticated' })
-    login.mockResolvedValueOnce({ data: { accessToken: 'access-token' }, traceId: 'trace-login' })
+    ensureSessionReadyMock.mockResolvedValueOnce({ state: 'authenticated' })
+    loginMock.mockResolvedValueOnce({ data: { accessToken: 'access-token' }, traceId: 'trace-login' })
 
     const wrapper = mountView()
     const inputs = wrapper.findAll('input')
@@ -100,7 +105,7 @@ describe('LoginView', () => {
   })
 
   it('atomically clears the previous account profile before loading the new session', async () => {
-    login.mockResolvedValueOnce({ data: { accessToken: 'new-token' }, traceId: 'trace-login' })
+    loginMock.mockResolvedValueOnce({ data: { accessToken: 'new-token' }, traceId: 'trace-login' })
 
     const wrapper = mountView()
     const auth = useAuthStore()
@@ -108,8 +113,8 @@ describe('LoginView', () => {
     auth.setMe({ userId: 7, username: 'alice' })
     const installSession = vi.spyOn(auth, 'installSession')
     let profileSeenByBootstrap = 'not-called'
-    ensureSessionReady.mockImplementationOnce(async ({ auth: currentAuth }) => {
-      profileSeenByBootstrap = currentAuth.me
+    ensureSessionReadyMock.mockImplementationOnce(async (options) => {
+      profileSeenByBootstrap = options?.auth?.me ?? null
       return { state: 'ready' }
     })
 
@@ -126,8 +131,8 @@ describe('LoginView', () => {
   })
 
   it('refreshes captcha when backend response body says captcha is required', async () => {
-    login.mockRejectedValueOnce(backendError(10005, '需要验证码'))
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-captcha'))
+    loginMock.mockRejectedValueOnce(backendError(10005, '需要验证码'))
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-captcha'))
 
     const wrapper = mountView()
     const inputs = wrapper.findAll('input')

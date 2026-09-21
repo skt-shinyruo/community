@@ -34,13 +34,20 @@ function bookmark(index) {
 }
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handles = {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
+    handles.resolve = resolvePromise
+    handles.reject = rejectPromise
   })
-  return { promise, resolve, reject }
+  return {
+    promise,
+    // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+    /** 解析 promise */
+    resolve: (value) => handles.resolve?.(value),
+    /** 拒绝 promise */
+    reject: (reason) => handles.reject?.(reason)
+  }
 }
 
 function mountView() {
@@ -50,8 +57,8 @@ function mountView() {
     accessToken: 'access-token',
     me: { userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
   })
-  useTaxonomyStore().ensureCategories = vi.fn().mockResolvedValue()
-  useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue()
+  useTaxonomyStore().ensureCategories = vi.fn().mockResolvedValue(undefined)
+  useSocialPrefsStore().ensureBlocked = vi.fn().mockResolvedValue(undefined)
 
   return mount(BookmarksView, {
     global: {
@@ -181,6 +188,7 @@ describe('BookmarksView result states', () => {
 
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('retry button missing')
     await retry.trigger('click')
     await flushPromises()
 

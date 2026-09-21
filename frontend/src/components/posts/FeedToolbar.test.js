@@ -39,7 +39,7 @@ describe('FeedToolbar', () => {
     await dropdown.get('button').trigger('click')
     await nextTick()
 
-    const menuItems = document.body.querySelectorAll('[role="menuitem"]')
+    const menuItems = /** @type {NodeListOf<HTMLElement>} */ (document.body.querySelectorAll('[role="menuitem"]'))
     expect(menuItems).toHaveLength(3)
     expect(menuItems[0].textContent).toBe('全部分类')
     menuItems[1].click()
@@ -59,7 +59,7 @@ describe('FeedToolbar', () => {
     const dropdown = wrapper.getComponent(UiDropdown)
     await dropdown.get('button').trigger('click')
     await nextTick()
-    document.body.querySelectorAll('[role="menuitem"]')[0].click()
+    ;(/** @type {NodeListOf<HTMLElement>} */ (document.body.querySelectorAll('[role="menuitem"]')))[0].click()
     await nextTick()
 
     expect(wrapper.emitted('update:categoryId')).toEqual([['']])
@@ -86,7 +86,7 @@ describe('FeedToolbar', () => {
     const disabledWrapper = mountToolbar({ showClear: true, tag: 'Java', disabled: true })
     expect(disabledWrapper.get('button[title="清空筛选与排序"]').attributes('disabled')).toBeDefined()
     expect(disabledWrapper.get('button[aria-label="清除标签 Java"]').attributes('disabled')).toBeDefined()
-    expect(disabledWrapper.getComponent(UiDropdown).props('disabled')).toBe(true)
+    expect(/** @type {(selector: string) => unknown} */ (disabledWrapper.getComponent(UiDropdown).props)('disabled')).toBe(true)
   })
 
   it('hides the category dropdown when no categories are loaded', () => {

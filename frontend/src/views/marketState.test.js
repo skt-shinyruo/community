@@ -253,6 +253,11 @@ describe('views/marketState', () => {
         { inventoryUnitId: 'u4', status: 'AVAILABLE', payloadType: 'CODE' }
       ]
     })
+    // buildMarketState 的库存投影在类型上只保留追加的标签字段；源对象字段运行时仍透传，
+    // 用断言恢复完整形状以继续断言 inventoryUnitId。
+    /** @param {unknown} source */
+    const inventoryWithUnitIds = (source) => /** @type {Array<{ inventoryUnitId: string }>} */ (source)
+
 
     expect(sortMarketInventory(state.inventory, { key: 'status', direction: 'asc' }).map((item) => item.inventoryUnitId))
       .toEqual(['u2', 'u4', 'u3', 'u1'])
@@ -262,7 +267,7 @@ describe('views/marketState', () => {
       .toEqual(['u1', 'u4', 'u2', 'u3'])
 
     // 未知排序键与空输入保持原顺序、返回新数组且不改动入参。
-    const untouched = state.inventory
+    const untouched = inventoryWithUnitIds(state.inventory)
     expect(sortMarketInventory(untouched, { key: 'payloadContent', direction: 'asc' })).toEqual(untouched)
     expect(sortMarketInventory(untouched, { key: 'payloadContent', direction: 'asc' })).not.toBe(untouched)
     expect(sortMarketInventory(null, { key: 'status', direction: 'asc' })).toEqual([])

@@ -85,12 +85,16 @@ describe('imRealtimeClient', () => {
   let realDocument
   let currentClient
 
+  /**
+   * @param {{ onListenerError?: (type: string, error: unknown) => void }} [options]
+   */
   async function loadClient({ onListenerError } = {}) {
     const [{ ImRealtimeClient }, { default: imCoreHttp }] = await Promise.all([
       import('./imRealtimeClient'),
       import('../api/imCoreHttp')
     ])
-    const webSocketFactory = (url) => new FakeWebSocket(url)
+    /** @type {(url: string) => WebSocket} */
+    const webSocketFactory = (url) => /** @type {WebSocket} */ (/** @type {unknown} */ (new FakeWebSocket(url)))
     const imRealtimeClient = new ImRealtimeClient(imCoreHttp, { webSocketFactory, onListenerError })
     currentClient = imRealtimeClient
     return { imRealtimeClient, imCoreHttp }
@@ -103,7 +107,7 @@ describe('imRealtimeClient', () => {
   }
 
   function mockSession(imCoreHttp, ticket = 'ticket-1') {
-    imCoreHttp.post.mockResolvedValue({
+    vi.mocked(imCoreHttp.post).mockResolvedValue({
       data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket } }
     })
   }
@@ -164,7 +168,7 @@ describe('imRealtimeClient', () => {
   describe('session bootstrap', () => {
     it('should open a server-issued IM session before connecting the websocket', async () => {
       const { imRealtimeClient, imCoreHttp } = await loadClient()
-      imCoreHttp.post.mockResolvedValue({
+      vi.mocked(imCoreHttp.post).mockResolvedValue({
         data: {
           data: {
             sessionId: 'sess-1',
@@ -192,7 +196,7 @@ describe('imRealtimeClient', () => {
 
     it('should use returned websocket URL directly and send connect ticket after open', async () => {
       const { imRealtimeClient, imCoreHttp } = await loadClient()
-      imCoreHttp.post.mockResolvedValue({
+      vi.mocked(imCoreHttp.post).mockResolvedValue({
         data: {
           data: {
             sessionId: 'sess-1',
@@ -697,7 +701,7 @@ describe('imRealtimeClient', () => {
 
     it('should ignore delayed events from a websocket replaced during token rotation', async () => {
       const { imRealtimeClient, imCoreHttp } = await loadClient()
-      imCoreHttp.post
+      vi.mocked(imCoreHttp.post)
         .mockResolvedValueOnce({
           data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-1' } }
         })
@@ -732,7 +736,7 @@ describe('imRealtimeClient', () => {
 
     it('should isolate every handler when a live websocket is overlapped by a replacement', async () => {
       const { imRealtimeClient, imCoreHttp } = await loadClient()
-      imCoreHttp.post
+      vi.mocked(imCoreHttp.post)
         .mockResolvedValueOnce({
           data: { data: { wsUrl: 'wss://edge.example.com/ws/im', ticket: 'ticket-1' } }
         })
@@ -776,7 +780,7 @@ describe('imRealtimeClient', () => {
 
     it('should reopen a fresh IM session when the browser comes back online or visible', async () => {
       const { imRealtimeClient, imCoreHttp } = await loadClient()
-      imCoreHttp.post
+      vi.mocked(imCoreHttp.post)
         .mockResolvedValueOnce({
           data: {
             data: {
@@ -820,7 +824,11 @@ describe('imRealtimeClient', () => {
       expect(FakeWebSocket.instances[1].sent[0]).toMatchObject({ type: 'connect', ticket: 'ticket-2' })
 
       FakeWebSocket.instances[1].drop()
-      globalThis.document.visibilityState = 'visible'
+      Object.defineProperty(globalThis.document, 'visibilityState', {
+      configurable: true,
+      writable: true,
+      value: 'visible'
+    })
 
       documentListeners.get('visibilitychange')?.()
       await flushMicrotasks()

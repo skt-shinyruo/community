@@ -26,6 +26,7 @@ function mountState({ authed = true } = {}) {
     })
   }
 
+  /** @type {ReturnType<typeof useNoticesSummaryState> | undefined} */
   let state
   const Harness = defineComponent({
     setup() {
@@ -34,6 +35,7 @@ function mountState({ authed = true } = {}) {
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!state) throw new Error('harness state not initialized')
   return state
 }
 
@@ -120,6 +122,7 @@ describe('useNoticesSummaryState loading', () => {
   })
 
   it('discards a stale response after the account switches and reloads for the new identity', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
     topicSummary
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
@@ -135,11 +138,11 @@ describe('useNoticesSummaryState loading', () => {
     await flushPromises()
     expect(topicSummary).toHaveBeenCalledTimes(2)
     expect(state.items.value).toHaveLength(1)
-
+    if (!resolvePrevious) throw new Error('previous resolver not captured')
     resolvePrevious({ data: [{ topic: 'like', unreadCount: 9 }] })
     await flushPromises()
     expect(state.items.value).toHaveLength(1)
-    expect(state.items.value[0].topic).toBe('comment')
+    expect(/** @type {{ topic?: string }} */ (state.items.value[0]).topic).toBe('comment')
   })
 
   it('clears private rows when the session ends', async () => {

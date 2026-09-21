@@ -70,7 +70,10 @@ describe('EditContentModal', () => {
     await wrapper.get('button.btn:not(.secondary)').trigger('click')
 
     expect(wrapper.emitted('submit')).toHaveLength(1)
-    expect(wrapper.emitted('submit')[0][0].blocks).toEqual([{ type: 'paragraph', text: 'body' }])
+    const submitEvents = wrapper.emitted('submit')
+    if (!submitEvents) throw new Error('未发出 submit')
+    const submitEvent = /** @type {Record<string, unknown>} */ (submitEvents[0][0])
+    expect(submitEvent.blocks).toEqual([{ type: 'paragraph', text: 'body' }])
   })
 
   it('blocks post save when media upload failed', async () => {
@@ -121,7 +124,9 @@ describe('EditContentModal', () => {
     await wrapper.get('button.btn:not(.secondary)').trigger('click')
 
     expect(wrapper.emitted('submit')).toHaveLength(1)
-    expect(wrapper.emitted('submit')[0][0]).toEqual({
+    const submitEvents = wrapper.emitted('submit')
+    if (!submitEvents) throw new Error('未发出 submit')
+    expect(/** @type {Record<string, unknown>} */ (submitEvents[0][0])).toEqual({
       title: 'title',
       content: '',
       blocks: [
@@ -143,7 +148,8 @@ describe('EditContentModal', () => {
     })
 
     await wrapper.get('button.btn:not(.secondary)').trigger('click')
-
-    expect(wrapper.emitted('submit')[0][0]).toMatchObject({ content: 'comment' })
+    const submitEvents = wrapper.emitted('submit')
+    if (!submitEvents) throw new Error('未发出 submit')
+    expect(/** @type {Record<string, unknown>} */ (submitEvents[0][0])).toMatchObject({ content: 'comment' })
   })
 })

@@ -48,10 +48,12 @@ function mountAdminView() {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((resolvePromise) => {
     resolve = resolvePromise
   })
+  if (!resolve) throw new Error('deferred resolve not captured')
   return { promise, resolve }
 }
 
@@ -136,6 +138,7 @@ describe('WalletAdminView', () => {
     await inputs[2].setValue('transfer:req-1')
     await inputs[3].setValue('fat-finger')
     const reverseButton = wrapper.findAll('button').find((button) => button.text().includes('执行回滚'))
+    if (!reverseButton) throw new Error('reverse button not found')
     await reverseButton.trigger('click')
     await flushPromises()
 

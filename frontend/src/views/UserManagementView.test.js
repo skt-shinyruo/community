@@ -22,10 +22,12 @@ let auth
 let showToast
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((resolvePromise) => {
     resolve = resolvePromise
   })
+  if (!resolve) throw new Error('deferred resolve not captured')
   return { promise, resolve }
 }
 
@@ -87,7 +89,7 @@ describe('UserManagementView', () => {
     const wrapper = mountView()
 
     await wrapper.get('input[name="user-search-id"]').setValue('11111111-1111-7111-8111-111111111111')
-    await wrapper.findAll('button').find((button) => button.text() === '搜索').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '搜索')?.trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('搜索用户')
@@ -104,10 +106,10 @@ describe('UserManagementView', () => {
 
     await wrapper.get('select[name="user-next-role"]').setValue('1')
     await wrapper.get('input[name="user-role-reason"]').setValue('权限升级')
-    await wrapper.findAll('button').find((button) => button.text() === '提交变更').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '提交变更')?.trigger('click')
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === '确认').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '确认')?.trigger('click')
     await flushPromises()
 
     expect(adminUpdateUserRole).toHaveBeenCalledWith({
@@ -164,12 +166,12 @@ describe('UserManagementView', () => {
     const wrapper = mountView()
 
     await wrapper.get('input[name="user-search-id"]').setValue('11111111-1111-7111-8111-111111111111')
-    await wrapper.findAll('button').find((button) => button.text() === '搜索').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '搜索')?.trigger('click')
     await flushPromises()
     await wrapper.get('select[name="user-next-role"]').setValue('1')
     await wrapper.get('input[name="user-role-reason"]').setValue('权限升级')
-    await wrapper.findAll('button').find((button) => button.text() === '提交变更').trigger('click')
-    await wrapper.findAll('button').find((button) => button.text() === '确认').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '提交变更')?.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '确认')?.trigger('click')
     await nextTick()
 
     auth.setMe({

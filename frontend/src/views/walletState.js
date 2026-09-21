@@ -62,6 +62,9 @@ export function nextWalletFeedLimit(currentLimit, pageSize = WALLET_FEED_PAGE_SI
   return Math.min(cap, current + step)
 }
 
+/**
+ * @param {{ count?: unknown, limit?: unknown, maxLimit?: number }} [feed]
+ */
 export function walletFeedHasMore({ count, limit, maxLimit = WALLET_FEED_MAX_LIMIT } = {}) {
   const size = normalizeLimit(count, 0)
   const current = normalizeLimit(limit, WALLET_FEED_PAGE_SIZE)
@@ -69,6 +72,9 @@ export function walletFeedHasMore({ count, limit, maxLimit = WALLET_FEED_MAX_LIM
   return size >= current && current < cap
 }
 
+/**
+ * @param {{ count?: unknown, limit?: unknown }} [feed]
+ */
 export function walletFeedExhausted({ count, limit } = {}) {
   const size = normalizeLimit(count, 0)
   const current = normalizeLimit(limit, WALLET_FEED_PAGE_SIZE)
@@ -77,6 +83,9 @@ export function walletFeedExhausted({ count, limit } = {}) {
 
 // 窗口到达后端上限且返回条数仍满：无法证明是否到底，但必须给出明示（只展示最近 N 条），
 // 不能既无「加载更多」也无结尾标记地无声截断。
+/**
+ * @param {{ count?: unknown, limit?: unknown, maxLimit?: number }} [feed]
+ */
 export function walletFeedCapped({ count, limit, maxLimit = WALLET_FEED_MAX_LIMIT } = {}) {
   const size = normalizeLimit(count, 0)
   const current = normalizeLimit(limit, WALLET_FEED_PAGE_SIZE)
@@ -86,6 +95,9 @@ export function walletFeedCapped({ count, limit, maxLimit = WALLET_FEED_MAX_LIMI
 
 // 资损动作（转账转出、销毁测试积分）的二次确认文案：金额与对方在确认弹窗中复述，
 // 确认后才进入对应 WriteAttempt 的提交流程。
+/**
+ * @param {{ toUserId?: unknown, amount?: unknown }} [info]
+ */
 export function walletTransferConfirmation({ toUserId, amount } = {}) {
   const target = String(toUserId || '').trim()
   const value = asNumber(amount)
@@ -96,7 +108,11 @@ export function walletTransferConfirmation({ toUserId, amount } = {}) {
   }
 }
 
+/**
+ * @param {{ amount?: unknown }} [info]
+ */
 export function walletDiscardConfirmation({ amount } = {}) {
+
   const value = asNumber(amount)
   return {
     title: '确认销毁测试积分',
@@ -107,6 +123,9 @@ export function walletDiscardConfirmation({ amount } = {}) {
 
 // 管理员冻结钱包 / 回滚交易同样直接动资金：先经 UiModalConfirm 复述对象与后果（danger 变体由视图传入），
 // 确认后才进入提交流程。
+/**
+ * @param {{ userId?: unknown }} [info]
+ */
 export function walletFreezeConfirmation({ userId } = {}) {
   const target = String(userId || '').trim()
   return {
@@ -116,6 +135,9 @@ export function walletFreezeConfirmation({ userId } = {}) {
   }
 }
 
+/**
+ * @param {{ txnRef?: unknown }} [info]
+ */
 export function walletReverseConfirmation({ txnRef } = {}) {
   const ref = String(txnRef || '').trim()
   return {
@@ -124,7 +146,9 @@ export function walletReverseConfirmation({ txnRef } = {}) {
     confirmText: '确认回滚'
   }
 }
-
+/**
+ * @param {{ summary?: { status?: unknown, balance?: unknown } | null, txns?: Array<{ txnRef?: unknown, txnId?: unknown, txnType?: unknown, amount?: unknown, status?: unknown }> | null }} [source]
+ */
 export function buildWalletState({ summary, txns } = {}) {
   const safeSummary = summary && typeof summary === 'object' ? summary : {}
   const safeTxns = Array.isArray(txns) ? txns : []

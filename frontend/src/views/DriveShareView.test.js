@@ -24,13 +24,22 @@ import {
 } from '../api/services/driveService'
 import DriveShareView from './DriveShareView.vue'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const getPublicDriveShareMock = /** @type {import('vitest').Mock} */ (getPublicDriveShare)
+const verifyDriveShareMock = /** @type {import('vitest').Mock} */ (verifyDriveShare)
+const listDriveShareEntriesMock = /** @type {import('vitest').Mock} */ (listDriveShareEntries)
+const getDriveShareDownloadUrlMock = /** @type {import('vitest').Mock} */ (getDriveShareDownloadUrl)
+
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred controls not captured')
   return { promise, resolve, reject }
 }
 
@@ -66,15 +75,15 @@ describe('DriveShareView', () => {
   })
 
   it('lists folder share children after verification and downloads child files', async () => {
-    getPublicDriveShare.mockResolvedValueOnce({
+    getPublicDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', requiresPassword: true },
       traceId: ''
     })
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
-    listDriveShareEntries
+    listDriveShareEntriesMock
       .mockResolvedValueOnce({
         data: [
           { entryId: 'child-folder', parentId: 'folder-root', type: 'FOLDER', name: 'Nested', status: 'ACTIVE' },
@@ -86,7 +95,7 @@ describe('DriveShareView', () => {
         data: [{ entryId: 'nested-file', parentId: 'child-folder', type: 'FILE', name: 'nested.txt', status: 'ACTIVE' }],
         traceId: ''
       })
-    getDriveShareDownloadUrl.mockResolvedValue({
+    getDriveShareDownloadUrlMock.mockResolvedValue({
       data: { entryId: 'child-file', url: 'https://cdn.example.test/file' },
       traceId: ''
     })
@@ -124,15 +133,15 @@ describe('DriveShareView', () => {
   })
 
   it('renders folder shares from the verified entryType field', async () => {
-    getPublicDriveShare.mockResolvedValueOnce({
+    getPublicDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', requiresPassword: true },
       traceId: ''
     })
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
-    listDriveShareEntries.mockResolvedValueOnce({
+    listDriveShareEntriesMock.mockResolvedValueOnce({
       data: [{ entryId: 'child-folder', parentId: 'folder-root', type: 'FOLDER', name: 'Nested', status: 'ACTIVE' }],
       traceId: ''
     })
@@ -164,10 +173,10 @@ describe('DriveShareView', () => {
 
   it('ignores verification from the previous share token', async () => {
     const previousVerification = deferred()
-    getPublicDriveShare
+    getPublicDriveShareMock
       .mockResolvedValueOnce({ data: { shareToken: 'token-a', requiresPassword: true }, traceId: '' })
       .mockResolvedValueOnce({ data: { shareToken: 'token-b', requiresPassword: true }, traceId: '' })
-    verifyDriveShare
+    verifyDriveShareMock
       .mockImplementationOnce(() => previousVerification.promise)
       .mockResolvedValueOnce({
         data: { shareToken: 'token-b', entryId: 'file-b', entryName: 'current-share.txt', entryType: 'FILE', ticket: 'ticket-b' },
@@ -209,12 +218,12 @@ describe('DriveShareView', () => {
   })
 
   it('keeps the latest folder navigation result when requests finish out of order', async () => {
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
     const previousFolderLoad = deferred()
-    listDriveShareEntries
+    listDriveShareEntriesMock
       .mockResolvedValueOnce({
         data: [{ entryId: 'child-folder', parentId: 'folder-root', type: 'FOLDER', name: 'Nested', status: 'ACTIVE' }],
         traceId: ''
@@ -258,15 +267,15 @@ describe('DriveShareView', () => {
   })
 
   it('does not open a download URL from the previous share token', async () => {
-    getPublicDriveShare
+    getPublicDriveShareMock
       .mockResolvedValueOnce({ data: { shareToken: 'token-a', requiresPassword: true }, traceId: '' })
       .mockResolvedValueOnce({ data: { shareToken: 'token-b', requiresPassword: true }, traceId: '' })
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'file-a', entryName: 'private-a.txt', entryType: 'FILE', ticket: 'ticket-a' },
       traceId: ''
     })
     const previousDownload = deferred()
-    getDriveShareDownloadUrl.mockImplementationOnce(() => previousDownload.promise)
+    getDriveShareDownloadUrlMock.mockImplementationOnce(() => previousDownload.promise)
 
     const wrapper = mount(DriveShareView, {
       props: { shareToken: 'token-a' },
@@ -283,7 +292,9 @@ describe('DriveShareView', () => {
     await wrapper.find('form').trigger('submit.prevent')
     await flushPromises()
 
-    await wrapper.findAll('button').find((button) => button.text() === '下载').trigger('click')
+    const downloadButton = wrapper.findAll('button').find((button) => button.text() === '下载')
+    if (!downloadButton) throw new Error('download button not found')
+    await downloadButton.trigger('click')
     await vi.waitFor(() => expect(getDriveShareDownloadUrl).toHaveBeenCalledTimes(1))
     await wrapper.setProps({ shareToken: 'token-b' })
     await flushPromises()
@@ -295,7 +306,7 @@ describe('DriveShareView', () => {
   })
 
   it('shows a retryable error state when the share gate fails to load', async () => {
-    getPublicDriveShare
+    getPublicDriveShareMock
       .mockRejectedValueOnce(new Error('分享不存在或已失效'))
       .mockResolvedValueOnce({ data: { shareToken: 'token-a', requiresPassword: true }, traceId: '' })
 
@@ -343,7 +354,7 @@ describe('DriveShareView', () => {
   })
 
   it('keeps a wrong extraction code as an inline field error distinct from the page error state', async () => {
-    verifyDriveShare.mockRejectedValueOnce(new Error('提取码错误'))
+    verifyDriveShareMock.mockRejectedValueOnce(new Error('提取码错误'))
 
     const wrapper = mount(DriveShareView, {
       props: { shareToken: 'token-a' },
@@ -369,11 +380,11 @@ describe('DriveShareView', () => {
   })
 
   it('shows a retryable error when folder entries fail and recovers on retry', async () => {
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
-    listDriveShareEntries
+    listDriveShareEntriesMock
       .mockRejectedValueOnce(new Error('网络错误'))
       .mockResolvedValueOnce({
         data: [{ entryId: 'child-file', parentId: 'folder-root', type: 'FILE', name: 'a.txt', status: 'ACTIVE' }],
@@ -408,11 +419,11 @@ describe('DriveShareView', () => {
   })
 
   it('shows an empty state for an empty verified folder share', async () => {
-    verifyDriveShare.mockResolvedValueOnce({
+    verifyDriveShareMock.mockResolvedValueOnce({
       data: { shareToken: 'token-a', entryId: 'folder-root', entryName: 'Folder', entryType: 'FOLDER', ticket: 'ticket-a' },
       traceId: ''
     })
-    listDriveShareEntries.mockResolvedValueOnce({ data: [], traceId: '' })
+    listDriveShareEntriesMock.mockResolvedValueOnce({ data: [], traceId: '' })
 
     const wrapper = mount(DriveShareView, {
       props: { shareToken: 'token-a' },

@@ -22,7 +22,7 @@ export async function hydrateFollowRelations(relations, { authed = false, viewer
   ])
   const usersById = new Map(
     (Array.isArray(usersResponse?.data) ? usersResponse.data : [])
-      .map((user) => [normalizeOpaqueId(user?.id), user])
+      .map((user) => /** @type {[string, unknown]} */ ([normalizeOpaqueId(user?.id), user]))
       .filter(([userId]) => Boolean(userId))
   )
   const statuses = statusesResponse?.data && typeof statusesResponse.data === 'object'

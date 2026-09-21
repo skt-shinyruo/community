@@ -43,12 +43,15 @@ import { useAuthStore } from '../stores/auth'
 import DriveView from './DriveView.vue'
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred controls not captured')
   return { promise, resolve, reject }
 }
 
@@ -83,6 +86,13 @@ function findButton(wrapper, text) {
   return wrapper.findAll('button').find((button) => button.text() === text)
 }
 
+// 标签页按钮按下标查找：所有 tab 均渲染，故缺位即测试装配出错，直接抛错收窄类型。
+function findTab(wrapper, text) {
+  const tab = wrapper.findAll('[role="tab"]').find((item) => item.text() === text)
+  if (!tab) throw new Error(`tab not found: ${text}`)
+  return tab
+}
+
 describe('DriveView', () => {
   let pinia
   let auth
@@ -92,11 +102,13 @@ describe('DriveView', () => {
     pinia = createPinia()
     setActivePinia(pinia)
     auth = useAuthStore()
-    auth.$patch({
+    // $patch 直写 store state（保持与既有基线一致的半初始化身份）；
+    // $patch 的 _DeepPartial 推断在 .js 里推不出 me 形状，这里按 unknown 中转。
+    auth.$patch(/** @type {Record<string, unknown>} */ (/** @type {unknown} */ ({
       accessToken: 'access-a',
       me: { userId: 'user-a' },
       tokenGeneration: 1
-    })
+    })))
     getDriveDownloadUrl.mockResolvedValue({ data: { url: 'https://cdn.example.test/file' }, traceId: '' })
     createDriveUploadSession.mockResolvedValue({ data: { upload: { url: '/u', method: 'POST', fileField: 'file', fields: {} } }, traceId: '' })
     uploadDriveFile.mockResolvedValue({ data: {}, traceId: '' })
@@ -176,7 +188,7 @@ describe('DriveView', () => {
     await vi.waitFor(() => expect(listDriveEntries).toHaveBeenCalledTimes(1))
     await flushPromises()
 
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await findTab(wrapper, '分享管理').trigger('click')
     await vi.waitFor(() => expect(listDriveShares).toHaveBeenCalledWith({ page: 0, size: 20 }))
     await vi.waitFor(() => expect(wrapper.text()).toContain('retained.txt'))
   })
@@ -203,12 +215,12 @@ describe('DriveView', () => {
     const wrapper = mountDrive(pinia)
     await flushPromises()
 
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await findTab(wrapper, '分享管理').trigger('click')
     await flushPromises()
 
     expect(wrapper.text()).toContain('部分网盘数据加载失败：shares unavailable')
 
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '我的文件').trigger('click')
+    await findTab(wrapper, '我的文件').trigger('click')
     await flushPromises()
     expect(wrapper.text()).toContain('available.txt')
   })
@@ -253,7 +265,7 @@ describe('DriveView', () => {
 
     const wrapper = mountDrive(pinia)
     await flushPromises()
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await findTab(wrapper, '分享管理').trigger('click')
     await flushPromises()
 
     const loadMore = () => findButton(wrapper, '加载更多')
@@ -299,7 +311,7 @@ describe('DriveView', () => {
 
     const wrapper = mountDrive(pinia)
     await flushPromises()
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await findTab(wrapper, '分享管理').trigger('click')
     await flushPromises()
 
     await findButton(wrapper, '加载更多').trigger('click')
@@ -316,7 +328,9 @@ describe('DriveView', () => {
     const wrapper = mountDrive(pinia)
     await flushPromises()
 
-    await wrapper.get('.drive-entry-section').findAll('button').find((button) => button.text() === '新建文件夹').trigger('click')
+    const newFolderButton = wrapper.get('.drive-entry-section').findAll('button').find((button) => button.text() === '新建文件夹')
+    if (!newFolderButton) throw new Error('new-folder button not found')
+    await newFolderButton.trigger('click')
     const folderInput = wrapper.get('input[placeholder="输入文件夹名称"]')
     await folderInput.setValue('   ')
     await findButton(wrapper, '确认').trigger('click')
@@ -370,14 +384,15 @@ describe('DriveView', () => {
 
   it('confirms permanent delete from the trash workspace', async () => {
     const { listDriveTrash, deleteDriveEntryPermanently } = await import('../api/services/driveService')
-    listDriveTrash.mockResolvedValue({
+    const listDriveTrashMock = /** @type {import('vitest').Mock} */ (listDriveTrash)
+    listDriveTrashMock.mockResolvedValue({
       data: [{ entryId: 'file-9', name: 'old.txt', type: 'FILE', status: 'TRASHED' }],
       traceId: ''
     })
     const wrapper = mountDrive(pinia)
     await flushPromises()
 
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '回收站').trigger('click')
+    await findTab(wrapper, '回收站').trigger('click')
     await flushPromises()
     await wrapper.get('.drive-entry-row').trigger('click')
 
@@ -413,7 +428,7 @@ describe('DriveView', () => {
     })
     const wrapper = mountDrive(pinia)
     await flushPromises()
-    await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+    await findTab(wrapper, '分享管理').trigger('click')
     await vi.waitFor(() => expect(wrapper.text()).toContain('shared.txt'))
     await vi.waitFor(() => expect(findButton(wrapper, '撤销').attributes('disabled')).toBeUndefined())
 
@@ -448,6 +463,7 @@ describe('DriveView', () => {
 
   it('elides the unknown prefix when entering a folder from global search results', async () => {
     const { searchDriveEntries } = await import('../api/services/driveService')
+    const searchDriveEntriesMock = /** @type {import('vitest').Mock} */ (searchDriveEntries)
     listDriveEntries.mockResolvedValue({
       data: [{ entryId: 'folder-a', name: 'Folder A', type: 'FOLDER', status: 'ACTIVE', parentId: '' }],
       traceId: ''
@@ -456,7 +472,7 @@ describe('DriveView', () => {
     await flushPromises()
 
     // 全局搜索命中了其他分支的文件夹（parentId 既不是当前目录也不是根目录）。
-    searchDriveEntries.mockResolvedValueOnce({
+    searchDriveEntriesMock.mockResolvedValueOnce({
       data: [{ entryId: 'folder-deep', name: '深层文件夹', type: 'FOLDER', status: 'ACTIVE', parentId: 'folder-other' }],
       traceId: ''
     })
@@ -482,6 +498,7 @@ describe('DriveView', () => {
 
   it('keeps the verified hierarchy when a search hit is a direct child of the current folder', async () => {
     const { searchDriveEntries } = await import('../api/services/driveService')
+    const searchDriveEntriesMock = /** @type {import('vitest').Mock} */ (searchDriveEntries)
     listDriveEntries.mockResolvedValue({
       data: [{ entryId: 'folder-a', name: 'Folder A', type: 'FOLDER', status: 'ACTIVE', parentId: '' }],
       traceId: ''
@@ -491,7 +508,7 @@ describe('DriveView', () => {
     await findButton(wrapper, '进入').trigger('click')
     await flushPromises()
 
-    searchDriveEntries.mockResolvedValueOnce({
+    searchDriveEntriesMock.mockResolvedValueOnce({
       data: [{ entryId: 'folder-inner', name: 'Inner', type: 'FOLDER', status: 'ACTIVE', parentId: 'folder-a' }],
       traceId: ''
     })
@@ -530,7 +547,7 @@ describe('DriveView', () => {
     try {
       const wrapper = mountDrive(pinia)
       await flushPromises()
-      await wrapper.findAll('[role="tab"]').find((tab) => tab.text() === '分享管理').trigger('click')
+      await findTab(wrapper, '分享管理').trigger('click')
       await vi.waitFor(() => expect(wrapper.text()).toContain('shared.txt'))
       await vi.waitFor(() => expect(findButton(wrapper, '复制链接').attributes('disabled')).toBeUndefined())
 

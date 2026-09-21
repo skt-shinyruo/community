@@ -14,6 +14,9 @@ import { settleNamedRequests } from '../utils/settledRequests'
 import { buildCanonicalConversationId } from './conversationDetailState'
 import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimeline'
 
+/**
+ * @param {{ profile?: unknown, authed?: unknown, isSelf?: unknown }} [info]
+ */
 export function buildProfileWalletAsset({ authed, isSelf } = {}) {
   if (authed && isSelf) {
     return {
@@ -30,6 +33,9 @@ export function buildProfileWalletAsset({ authed, isSelf } = {}) {
   }
 }
 
+/**
+ * @param {{ followStatus?: unknown, followStatusState?: string, authed?: unknown, isSelf?: unknown }} [info]
+ */
 export function describeFollowStatusText({ followStatus, followStatusState = 'idle', authed, isSelf } = {}) {
   if (isSelf) return '这是你的主页'
   if (followStatus === true) return '你已关注'
@@ -41,6 +47,9 @@ export function describeFollowStatusText({ followStatus, followStatusState = 'id
   return '公开可见'
 }
 
+/**
+ * @param {{ authed?: unknown, isSelf?: unknown, userId?: unknown }} [info]
+ */
 export function buildCommunityNextSteps({ authed, isSelf, userId } = {}) {
   if (authed && isSelf) {
     return [
@@ -63,14 +72,14 @@ export function useUserProfilePage({ userId: userIdSource }) {
   const prefs = useSocialPrefsStore()
   const taxonomy = useTaxonomyStore()
 
-  const profile = ref(null)
+  const profile = ref(/** @type {{ createTime?: string | number | Date, username?: unknown, id?: unknown, showUserLevel?: unknown, [key: string]: unknown } | null} */ (null))
   const recentPosts = ref([])
   const recentComments = ref([])
   const timelineUsers = ref({})
   const loading = ref(false)
   const error = ref('')
   const actionLoading = ref(false)
-  const followStatus = ref(null)
+  const followStatus = ref(/** @type {boolean | null} */ (null))
   const followStatusState = ref('idle')
   const reportOpen = ref(false)
   let mounted = false

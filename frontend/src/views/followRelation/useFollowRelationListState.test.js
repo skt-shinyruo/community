@@ -65,6 +65,7 @@ function mountState({ relationKind = 'followees', profileUserId = PROFILE_ID, au
     })
   }
 
+  /** @type {ReturnType<typeof useFollowRelationListState> | undefined} */
   let state
   const Harness = defineComponent({
     setup() {
@@ -76,22 +77,23 @@ function mountState({ relationKind = 'followees', profileUserId = PROFILE_ID, au
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!state) throw new Error('harness state not initialized')
   return { state, wrapper: null }
 }
 
 describe('useFollowRelationListState', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    batchUserSummary.mockImplementation(async (ids) => ({
+    vi.mocked(batchUserSummary).mockImplementation(async (ids) => ({
       data: ids.map((id) => ({ id, username: `user-${id.slice(-2)}` }))
     }))
-    getFollowStatuses.mockResolvedValue({ data: {} })
-    followUser.mockResolvedValue({ traceId: 'trace-follow' })
-    unfollowUser.mockResolvedValue({ traceId: 'trace-unfollow' })
+    vi.mocked(getFollowStatuses).mockResolvedValue({ data: {} })
+    vi.mocked(followUser).mockResolvedValue({ traceId: 'trace-follow' })
+    vi.mocked(unfollowUser).mockResolvedValue({ traceId: 'trace-unfollow' })
   })
 
   it('loads the followees policy page on mount and hydrates viewer follow status', async () => {
-    listFollowees.mockResolvedValueOnce(relationPage([relation(0), relation(1)], 'cursor-2'))
+    vi.mocked(listFollowees).mockResolvedValueOnce(relationPage([relation(0), relation(1)], 'cursor-2'))
 
     const { state } = mountState({ relationKind: 'followees' })
     await flushPromises()
@@ -107,8 +109,8 @@ describe('useFollowRelationListState', () => {
   })
 
   it('resets and refetches with the followers policy when relationKind switches', async () => {
-    listFollowees.mockResolvedValue(relationPage([relation(0)], ''))
-    listFollowers.mockResolvedValue(relationPage([relation(5)], ''))
+    vi.mocked(listFollowees).mockResolvedValue(relationPage([relation(0)], ''))
+    vi.mocked(listFollowers).mockResolvedValue(relationPage([relation(5)], ''))
 
     const pinia = createPinia()
     setActivePinia(pinia)
@@ -116,6 +118,7 @@ describe('useFollowRelationListState', () => {
 
     const relationKind = ref('followees')
     const profileUserId = ref(PROFILE_ID)
+    /** @type {ReturnType<typeof useFollowRelationListState> | undefined} */
     let state
     const Harness = defineComponent({
       setup() {
@@ -124,6 +127,7 @@ describe('useFollowRelationListState', () => {
       }
     })
     mount(Harness, { global: { plugins: [pinia] } })
+    if (!state) throw new Error('harness state not initialized')
     await flushPromises()
     expect(listFollowees).toHaveBeenCalledTimes(1)
 
@@ -141,7 +145,7 @@ describe('useFollowRelationListState', () => {
 
   it('appends pages with the returned cursor until exhausted and dedupes page-shifted entries', async () => {
     const firstPage = Array.from({ length: 10 }, (_, index) => relation(index))
-    listFollowees
+    vi.mocked(listFollowees)
       .mockResolvedValueOnce(relationPage(firstPage, 'cursor-2'))
       .mockResolvedValueOnce(relationPage([relation(9), relation(10)], ''))
 
@@ -151,7 +155,7 @@ describe('useFollowRelationListState', () => {
     await state.loadMore()
     await flushPromises()
 
-    expect(listFollowees.mock.calls.map(([, request]) => request.cursor)).toEqual(['', 'cursor-2'])
+    expect(vi.mocked(listFollowees).mock.calls.map(([, request]) => request?.cursor)).toEqual(['', 'cursor-2'])
     const ids = state.items.value.map((item) => item.targetId)
     expect(new Set(ids).size).toBe(ids.length)
     expect(state.items.value).toHaveLength(11)
@@ -159,7 +163,7 @@ describe('useFollowRelationListState', () => {
   })
 
   it('keeps loaded items and retries the same cursor after a load-more failure', async () => {
-    listFollowees
+    vi.mocked(listFollowees)
       .mockResolvedValueOnce(relationPage(Array.from({ length: 10 }, (_, index) => relation(index)), 'cursor-2'))
       .mockRejectedValueOnce(new Error('temporary relation failure'))
       .mockResolvedValueOnce(relationPage([relation(10)], ''))
@@ -175,13 +179,13 @@ describe('useFollowRelationListState', () => {
 
     await state.loadMore()
     await flushPromises()
-    expect(listFollowees.mock.calls.map(([, request]) => request.cursor)).toEqual(['', 'cursor-2', 'cursor-2'])
+    expect(vi.mocked(listFollowees).mock.calls.map(([, request]) => request?.cursor)).toEqual(['', 'cursor-2', 'cursor-2'])
     expect(state.items.value).toHaveLength(11)
     expect(state.pageError.value).toBe('')
   })
 
   it('refuses to load more while a request is running or no next page exists', async () => {
-    listFollowees.mockResolvedValue(relationPage([relation(0)], ''))
+    vi.mocked(listFollowees).mockResolvedValue(relationPage([relation(0)], ''))
 
     const { state } = mountState()
     await flushPromises()
@@ -192,7 +196,7 @@ describe('useFollowRelationListState', () => {
   })
 
   it('offers reload after the initial load fails', async () => {
-    listFollowees
+    vi.mocked(listFollowees)
       .mockRejectedValueOnce(new Error('relation service down'))
       .mockResolvedValueOnce(relationPage([relation(0)], ''))
 
@@ -208,8 +212,9 @@ describe('useFollowRelationListState', () => {
   })
 
   it('discards a stale response when the profile route changes', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
-    listFollowees
+    vi.mocked(listFollowees)
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
       .mockResolvedValueOnce(relationPage([relation(20)], ''))
 
@@ -219,6 +224,7 @@ describe('useFollowRelationListState', () => {
 
     const relationKind = ref('followees')
     const profileUserId = ref(PROFILE_ID)
+    /** @type {ReturnType<typeof useFollowRelationListState> | undefined} */
     let state
     const Harness = defineComponent({
       setup() {
@@ -227,18 +233,20 @@ describe('useFollowRelationListState', () => {
       }
     })
     mount(Harness, { global: { plugins: [pinia] } })
+    if (!state) throw new Error('harness state not initialized')
     await flushPromises()
 
     profileUserId.value = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
     await flushPromises()
 
+    if (!resolvePrevious) throw new Error('resolvePrevious not initialized')
     resolvePrevious(relationPage([relation(0)], ''))
     await flushPromises()
     expect(state.items.value.map((item) => item.targetId)).toEqual([relation(20).targetId])
   })
 
   it('applies follow and unfollow mutations in place and keeps the guard per target', async () => {
-    listFollowees.mockResolvedValueOnce(relationPage([relation(0), relation(1)], ''))
+    vi.mocked(listFollowees).mockResolvedValueOnce(relationPage([relation(0), relation(1)], ''))
 
     const { state } = mountState()
     await flushPromises()
@@ -260,9 +268,10 @@ describe('useFollowRelationListState', () => {
   })
 
   it('ignores duplicate mutations on the same target while one is in flight', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveFollow
-    followUser.mockImplementationOnce(() => new Promise((resolve) => { resolveFollow = resolve }))
-    listFollowees.mockResolvedValueOnce(relationPage([relation(0)], ''))
+    vi.mocked(followUser).mockImplementationOnce(() => new Promise((resolve) => { resolveFollow = resolve }))
+    vi.mocked(listFollowees).mockResolvedValueOnce(relationPage([relation(0)], ''))
 
     const { state } = mountState()
     await flushPromises()
@@ -272,14 +281,15 @@ describe('useFollowRelationListState', () => {
     await state.doFollow(first)
 
     expect(followUser).toHaveBeenCalledTimes(1)
+    if (!resolveFollow) throw new Error('resolveFollow not initialized')
     resolveFollow({ traceId: 'trace-follow' })
     await pending
     expect(state.isMutating(relation(0).targetId)).toBe(false)
   })
 
   it('surfaces the mutation failure message without flipping the relation', async () => {
-    followUser.mockRejectedValueOnce(new Error('关注服务不可用'))
-    listFollowees.mockResolvedValueOnce(relationPage([relation(0)], ''))
+    vi.mocked(followUser).mockRejectedValueOnce(new Error('关注服务不可用'))
+    vi.mocked(listFollowees).mockResolvedValueOnce(relationPage([relation(0)], ''))
 
     const { state } = mountState()
     await flushPromises()
@@ -291,9 +301,10 @@ describe('useFollowRelationListState', () => {
   })
 
   it('applies a pending mutation to the reloaded item for the same viewer', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveFollow
-    followUser.mockImplementation(() => new Promise((resolve) => { resolveFollow = resolve }))
-    listFollowees
+    vi.mocked(followUser).mockImplementation(() => new Promise((resolve) => { resolveFollow = resolve }))
+    vi.mocked(listFollowees)
       .mockResolvedValueOnce(relationPage([relation(0)], ''))
       .mockResolvedValueOnce(relationPage([relation(0)], ''))
 
@@ -306,6 +317,7 @@ describe('useFollowRelationListState', () => {
     expect(state.items.value[0]).not.toBe(previousItem)
     expect(state.isMutating(relation(0).targetId)).toBe(true)
 
+    if (!resolveFollow) throw new Error('resolveFollow not initialized')
     resolveFollow({ traceId: 'trace-follow-complete' })
     await pendingFollow
     await flushPromises()
@@ -314,9 +326,10 @@ describe('useFollowRelationListState', () => {
   })
 
   it('discards mutation results after the account switches', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveFollow
-    followUser.mockImplementation(() => new Promise((resolve) => { resolveFollow = resolve }))
-    listFollowees
+    vi.mocked(followUser).mockImplementation(() => new Promise((resolve) => { resolveFollow = resolve }))
+    vi.mocked(listFollowees)
       .mockResolvedValueOnce(relationPage([relation(0)], ''))
       .mockResolvedValueOnce(relationPage([relation(1)], ''))
 
@@ -331,6 +344,7 @@ describe('useFollowRelationListState', () => {
     })
     await flushPromises()
 
+    if (!resolveFollow) throw new Error('resolveFollow not initialized')
     resolveFollow({ traceId: 'trace-stale-follow' })
     await pendingFollow
     expect(state.items.value[0].hasFollowed).toBe(false)
@@ -338,7 +352,7 @@ describe('useFollowRelationListState', () => {
   })
 
   it('opens the target profile through the router', async () => {
-    listFollowees.mockResolvedValueOnce(relationPage([relation(0)], ''))
+    vi.mocked(listFollowees).mockResolvedValueOnce(relationPage([relation(0)], ''))
 
     const { state } = mountState()
     await flushPromises()

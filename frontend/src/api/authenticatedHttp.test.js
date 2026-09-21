@@ -19,7 +19,7 @@ describe('authenticatedHttp', () => {
     })
     mock.onGet('/protected').reply((config) => {
       if (config.headers?.Authorization === 'Bearer old-token') return [401]
-      return [200, { generation: config._authTokenGeneration }]
+      return [200, { generation: /** @type {{ _authTokenGeneration?: number }} */ (config)._authTokenGeneration }]
     })
 
     const response = await client.get('/protected')
@@ -27,7 +27,7 @@ describe('authenticatedHttp', () => {
     expect(response.data).toEqual({ generation: 7 })
     expect(unauthorizedRecovery).toHaveBeenCalledWith({ auth, requestGeneration: 7 })
     expect(mock.history.get).toHaveLength(2)
-    expect(mock.history.get[1].headers.Authorization).toBe('Bearer new-token')
+    expect(mock.history.get[1]?.headers?.Authorization).toBe('Bearer new-token')
   })
 
   it('leaves excluded 401 responses to the owning adapter policy', async () => {

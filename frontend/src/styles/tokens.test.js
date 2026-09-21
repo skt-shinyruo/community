@@ -148,6 +148,7 @@ describe('design tokens', () => {
   })
 
   it('meets WCAG contrast thresholds in both themes', () => {
+    /** @type {Array<[string, Map<string, string>]>} */
     const themes = [
       ['light', light],
       ['dark', dark]
@@ -333,6 +334,8 @@ describe('primitive class guardrails', () => {
     const sources = collectStyleSources()
     for (const path of ['src/components/ui/UiInput.vue', 'src/components/ui/UiTextarea.vue']) {
       const source = sources.find((item) => item.path === path)
+      // find 结果可能为 undefined：断言存在后继续，避免类型层面悬空。
+      if (!source) throw new Error(`未找到样式源 ${path}`)
       expect(source, path).toBeTruthy()
       expect(source.css, `${path} :focus-visible`).toContain(':focus-visible')
       expect(source.css, `${path} --focus-ring`).toContain('var(--focus-ring)')

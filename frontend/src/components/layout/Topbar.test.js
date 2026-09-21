@@ -58,10 +58,10 @@ describe('Topbar', () => {
       me: { userId: 'user-1', username: 'aaa', authorities: ['ROLE_USER'] }
     })
 
-    expect(wrapper.get('button[aria-label="折叠或展开侧边栏"]').exists()).toBe(true)
+    expect(wrapper.get('button[aria-label="折叠或展开侧边栏"]')).toBeTruthy()
     expect(wrapper.get('.topbar-eyebrow').text()).toBe('社区')
-    expect(wrapper.get('input[type="search"]').exists()).toBe(true)
-    expect(wrapper.get('button[aria-label="切换到深色主题"]').exists()).toBe(true)
+    expect(wrapper.get('input[type="search"]')).toBeTruthy()
+    expect(wrapper.get('button[aria-label="切换到深色主题"]')).toBeTruthy()
 
     // 不渲染账户块、溢出菜单、登出或通知铃铛。
     expect(wrapper.find('.topbar-overflow').exists()).toBe(false)
@@ -84,7 +84,7 @@ describe('Topbar', () => {
   it('hides the shell search in the admin workspace but keeps the theme shortcut', () => {
     const { wrapper } = mountTopbar({ mode: 'admin' })
     expect(wrapper.find('input[type="search"]').exists()).toBe(false)
-    expect(wrapper.get('button[aria-label="切换到深色主题"]').exists()).toBe(true)
+    expect(wrapper.get('button[aria-label="切换到深色主题"]')).toBeTruthy()
   })
 
   it('toggles the effective theme from the shortcut button', async () => {

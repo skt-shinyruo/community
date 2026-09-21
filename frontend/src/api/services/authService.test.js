@@ -81,8 +81,8 @@ describe('api/services/authService', () => {
     const resp = await resendRegisterCode('token', { captchaId: 'cid', captchaCode: 'abcd' })
 
     expect(resp.traceId).toBe('trace-resend')
-    expect(resp.data.issued).toBe(true)
-    expect(resp.data.debugEmailCode).toBe('654321')
+    expect(/** @type {{ issued?: boolean }} */ (resp.data).issued).toBe(true)
+    expect(/** @type {{ debugEmailCode?: string }} */ (resp.data).debugEmailCode).toBe('654321')
   })
 
   it('verifyRegisterCode should return the login response contract', async () => {

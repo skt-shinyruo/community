@@ -10,7 +10,7 @@ import { useSocialPrefsStore } from '../stores/socialPrefs'
 import { useTaxonomyStore } from '../stores/taxonomy'
 
 const routerState = vi.hoisted(() => ({
-  route: null,
+  route: /** @type {{ name: string, path: string, fullPath: string, query: Record<string, unknown> } | null} */ (null),
   replace: vi.fn(),
   push: vi.fn()
 }))
@@ -21,6 +21,12 @@ routerState.route = reactive({
   fullPath: '/posts',
   query: {}
 })
+
+/** 取已初始化的路由对象，供测试内统一访问 */
+function currentRoute() {
+  if (!routerState.route) throw new Error('routerState.route not initialized')
+  return routerState.route
+}
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
@@ -72,19 +78,27 @@ const ORDER_TABS = [
 
 describe('PostsView', () => {
   function deferred() {
-    let resolve
-    let reject
+    /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+    const handles = {}
     const promise = new Promise((res, rej) => {
-      resolve = res
-      reject = rej
+      handles.resolve = res
+      handles.reject = rej
     })
-    return { promise, resolve, reject }
+    return {
+      promise,
+      // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+      /** 解析 promise */
+      resolve: (value) => handles.resolve?.(value),
+      /** 拒绝 promise */
+      reject: (reason) => handles.reject?.(reason)
+    }
   }
 
   function mockFeedPages(pages) {
     for (const page of pages) {
-      listGlobalFeed.mockResolvedValueOnce({
-        data: { items: page.items, nextCursor: page.nextCursor || '' }
+      vi.mocked(listGlobalFeed).mockResolvedValueOnce({
+        data: { items: page.items, nextCursor: page.nextCursor || '', rankVersion: 'rank-v1' },
+        traceId: 'trace-page'
       })
     }
   }
@@ -104,7 +118,7 @@ describe('PostsView', () => {
     taxonomy.ensureHotTags = vi.fn()
 
     const socialPrefs = useSocialPrefsStore()
-    socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+    socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
     socialPrefs.clear = vi.fn()
 
     const postMetaCache = usePostMetaCacheStore()
@@ -137,20 +151,20 @@ describe('PostsView', () => {
   }
 
   beforeEach(() => {
-    routerState.route.query = {}
+    currentRoute().query = {}
     routerState.replace.mockClear()
     routerState.push.mockClear()
-    listGlobalFeed.mockClear()
-    listGlobalFeed.mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' })
-    listBoardFeed.mockClear()
-    listBoardFeed.mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' })
-    createPost.mockClear()
-    createPost.mockResolvedValue({ data: { postId: 1 }, traceId: 'trace-create-post' })
-    batchPostSummaries.mockClear()
-    batchPostSummaries.mockResolvedValue({ data: [], traceId: 'trace-batch-summary' })
-    searchPosts.mockClear()
-    searchPosts.mockResolvedValue({ data: [], traceId: 'trace-search-posts' })
-    setLike.mockReset()
+    vi.mocked(listGlobalFeed).mockClear()
+    vi.mocked(listGlobalFeed).mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' })
+    vi.mocked(listBoardFeed).mockClear()
+    vi.mocked(listBoardFeed).mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' })
+    vi.mocked(createPost).mockClear()
+    vi.mocked(createPost).mockResolvedValue({ data: { postId: 1 }, traceId: 'trace-create-post' })
+    vi.mocked(batchPostSummaries).mockClear()
+    vi.mocked(batchPostSummaries).mockResolvedValue({ data: [], traceId: 'trace-batch-summary' })
+    vi.mocked(searchPosts).mockClear()
+    vi.mocked(searchPosts).mockResolvedValue({ data: [], traceId: 'trace-search-posts' })
+    vi.mocked(setLike).mockReset()
     window.localStorage.clear()
   })
 
@@ -164,15 +178,18 @@ describe('PostsView', () => {
   })
 
   it('advances through consecutive cursors and stops at the final page', async () => {
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2' }
+        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2', rankVersion: 'rank-v1' },
+        traceId: 'trace-page'
       })
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-2', title: 'second batch' }], nextCursor: 'cursor-3' }
+        data: { items: [{ id: 'post-2', title: 'second batch' }], nextCursor: 'cursor-3', rankVersion: 'rank-v1' },
+        traceId: 'trace-page'
       })
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-3', title: 'final batch' }], nextCursor: '' }
+        data: { items: [{ id: 'post-3', title: 'final batch' }], nextCursor: '', rankVersion: 'rank-v1' },
+        traceId: 'trace-page'
       })
 
     const wrapper = mountView()
@@ -180,7 +197,7 @@ describe('PostsView', () => {
     await wrapper.vm.loadMore()
     await wrapper.vm.loadMore()
 
-    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual([
+    expect(vi.mocked(listGlobalFeed).mock.calls.map(([request]) => request?.cursor)).toEqual([
       '',
       'cursor-2',
       'cursor-3'
@@ -196,15 +213,17 @@ describe('PostsView', () => {
 
   it('exposes page intent groups without feed implementation details', async () => {
     const pinia = createPostsPinia()
+    /** @type {ReturnType<typeof usePostsFeed> | undefined} */
     let postsFeed
     const Harness = defineComponent({
       setup() {
-        postsFeed = usePostsFeed(vi.fn())
+        postsFeed = usePostsFeed()
         return () => h('div')
       }
     })
     const wrapper = mount(Harness, { global: { plugins: [pinia] } })
     await flushPromises()
+    if (!postsFeed) throw new Error('harness postsFeed not initialized')
 
     expect(Object.keys(postsFeed)).toEqual(['session', 'scope', 'feed', 'unread', 'composer'])
     expect(postsFeed.feed).toMatchObject({
@@ -222,14 +241,14 @@ describe('PostsView', () => {
   })
 
   it('keeps the current feed cursor when refresh fails and retries load-more from it', async () => {
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-1', title: 'current page' }], nextCursor: 'cursor-2' },
+        data: { items: [{ id: 'post-1', title: 'current page' }], nextCursor: 'cursor-2', rankVersion: 'rank-v1' },
         traceId: 'trace-page-1'
       })
       .mockRejectedValueOnce(new Error('temporary feed refresh failure'))
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-2', title: 'next page' }], nextCursor: '' },
+        data: { items: [{ id: 'post-2', title: 'next page' }], nextCursor: '', rankVersion: 'rank-v1' },
         traceId: 'trace-page-2'
       })
 
@@ -242,17 +261,18 @@ describe('PostsView', () => {
 
     await wrapper.vm.loadMore()
 
-    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual(['', '', 'cursor-2'])
+    expect(vi.mocked(listGlobalFeed).mock.calls.map(([request]) => request?.cursor)).toEqual(['', '', 'cursor-2'])
     expect(wrapper.text()).toContain('current page')
     expect(wrapper.text()).toContain('next page')
   })
 
   it('keeps latest-feed state after the first opaque cursor is issued', async () => {
     window.localStorage.setItem('community.read.posts.v1.7', JSON.stringify({ lastSeenAt: 1, items: {} }))
-    listGlobalFeed.mockResolvedValueOnce({
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({
       data: {
         items: [{ id: 'post-1', title: 'current page', createTime: new Date(2000).toISOString() }],
-        nextCursor: 'opaque-cursor'
+        nextCursor: 'opaque-cursor',
+        rankVersion: 'rank-v1'
       },
       traceId: 'trace-page-1'
     })
@@ -265,21 +285,22 @@ describe('PostsView', () => {
   })
 
   it('does not let a stale load-more completion restore an obsolete cursor', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveStalePage
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-old', title: 'old page' }], nextCursor: 'cursor-old' },
+        data: { items: [{ id: 'post-old', title: 'old page' }], nextCursor: 'cursor-old', rankVersion: 'rank-v1' },
         traceId: 'trace-old-page'
       })
       .mockImplementationOnce(() => new Promise((resolve) => {
         resolveStalePage = resolve
       }))
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-current', title: 'current page' }], nextCursor: 'cursor-current' },
+        data: { items: [{ id: 'post-current', title: 'current page' }], nextCursor: 'cursor-current', rankVersion: 'rank-v1' },
         traceId: 'trace-current-page'
       })
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-next', title: 'current next page' }], nextCursor: '' },
+        data: { items: [{ id: 'post-next', title: 'current next page' }], nextCursor: '', rankVersion: 'rank-v1' },
         traceId: 'trace-current-next-page'
       })
 
@@ -290,13 +311,13 @@ describe('PostsView', () => {
 
     await wrapper.vm.reload()
     resolveStalePage({
-      data: { items: [{ id: 'post-stale', title: 'stale page' }], nextCursor: 'cursor-stale' },
+      data: { items: [{ id: 'post-stale', title: 'stale page' }], nextCursor: 'cursor-stale', rankVersion: 'rank-v1' },
       traceId: 'trace-stale-page'
     })
     await staleLoad
     await wrapper.vm.loadMore()
 
-    expect(listGlobalFeed.mock.calls.map(([request]) => request.cursor)).toEqual([
+    expect(vi.mocked(listGlobalFeed).mock.calls.map(([request]) => request?.cursor)).toEqual([
       '',
       'cursor-old',
       '',
@@ -309,10 +330,10 @@ describe('PostsView', () => {
 
   it('does not commit the previous account feed after the session changes', async () => {
     const oldFeed = deferred()
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockReturnValueOnce(oldFeed.promise)
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-b', title: 'account B feed' }], nextCursor: '' },
+        data: { items: [{ id: 'post-b', title: 'account B feed' }], nextCursor: '', rankVersion: 'rank-v1' },
         traceId: 'trace-b'
       })
 
@@ -329,7 +350,7 @@ describe('PostsView', () => {
     expect(wrapper.text()).toContain('account B feed')
 
     oldFeed.resolve({
-      data: { items: [{ id: 'post-a', title: 'account A feed' }], nextCursor: '' },
+      data: { items: [{ id: 'post-a', title: 'account A feed' }], nextCursor: '', rankVersion: 'rank-v1' },
       traceId: 'trace-a'
     })
     await flushPromises()
@@ -353,8 +374,8 @@ describe('PostsView', () => {
     expect(wrapper.find('.posts-composer').exists()).toBe(false)
     await wrapper.get('.posts-feed-compose-strip').trigger('click')
     await nextTick()
-    expect(wrapper.get('input[name="post-title"]').element.value).toBe('')
-    expect(wrapper.get('[data-test="block-text-0"]').element.value).toBe('')
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (wrapper.get('input[name="post-title"]')).element.value).toBe('')
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (wrapper.get('[data-test="block-text-0"]')).element.value).toBe('')
   })
 
   it('passes the unified query contract to the toolbar and order tabs', async () => {
@@ -375,8 +396,8 @@ describe('PostsView', () => {
     expect(toolbar.props()).not.toHaveProperty('order')
 
     const tabs = wrapper.getComponent(UiTabs)
-    expect(tabs.props('modelValue')).toBe('latest')
-    expect(tabs.props('tabs')).toEqual(ORDER_TABS)
+    expect(tabs.props()).toMatchObject({ modelValue: 'latest' })
+    expect(tabs.props()).toMatchObject({ tabs: ORDER_TABS })
   })
 
   it('switches the order tab and writes order=hot into the route query', async () => {
@@ -393,8 +414,8 @@ describe('PostsView', () => {
     expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts', query: { order: 'hot' } })
 
     // 路由落地后按新查询重新加载，tabs 反映受控选中态
-    listGlobalFeed.mockClear()
-    routerState.route.query = { order: 'hot' }
+    vi.mocked(listGlobalFeed).mockClear()
+    currentRoute().query = { order: 'hot' }
     await flushPromises()
 
     expect(listGlobalFeed).toHaveBeenCalledTimes(1)
@@ -402,7 +423,7 @@ describe('PostsView', () => {
   })
 
   it('normalizes a legacy boardId link into the categoryId query contract', async () => {
-    routerState.route.query = { boardId: 'board-legacy-1' }
+    currentRoute().query = { boardId: 'board-legacy-1' }
 
     mountView()
     await flushPromises()
@@ -419,7 +440,7 @@ describe('PostsView', () => {
 
     expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts', query: { categoryId: '1' } })
 
-    routerState.route.query = { categoryId: '1' }
+    currentRoute().query = { categoryId: '1' }
     await flushPromises()
 
     expect(listBoardFeed).toHaveBeenCalledWith('1', { cursor: '', size: 10 })
@@ -427,17 +448,19 @@ describe('PostsView', () => {
   })
 
   it('filters by a clicked card tag through the search stack and clears it again', async () => {
-    listGlobalFeed.mockResolvedValueOnce({
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({
       data: {
         items: [{ id: 'post-1', title: 'tagged discussion', tags: ['Java'] }],
-        nextCursor: ''
-      }
+        nextCursor: '',
+        rankVersion: 'rank-v1'
+      },
+      traceId: 'trace-page'
     })
-    searchPosts.mockResolvedValue({
+    vi.mocked(searchPosts).mockResolvedValue({
       data: [{ postId: 'post-1', userId: 'user-1', title: 'tagged discussion', tags: ['Java'] }],
       traceId: 'trace-search-posts'
     })
-    batchPostSummaries.mockResolvedValue({
+    vi.mocked(batchPostSummaries).mockResolvedValue({
       data: [{ id: 'post-1', userId: 'user-1', title: 'tagged discussion', tags: ['Java'], commentCount: 4 }],
       traceId: 'trace-batch-summary'
     })
@@ -448,7 +471,7 @@ describe('PostsView', () => {
     await wrapper.get('.posts-card-tag').trigger('click')
     expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts', query: { tag: 'Java' } })
 
-    routerState.route.query = { tag: 'Java' }
+    currentRoute().query = { tag: 'Java' }
     await flushPromises()
 
     expect(searchPosts).toHaveBeenCalledWith(expect.objectContaining({ tag: 'Java', page: 0, size: 10 }))
@@ -462,20 +485,20 @@ describe('PostsView', () => {
     wrapper.getComponent(FeedToolbar).vm.$emit('clearTag')
     expect(routerState.replace).toHaveBeenCalledWith({ name: 'posts', query: {} })
 
-    routerState.route.query = {}
+    currentRoute().query = {}
     await flushPromises()
     expect(listGlobalFeed).toHaveBeenCalledTimes(2)
   })
 
   it('appends search pages through load-more on the tag view', async () => {
-    routerState.route.query = { tag: 'Java' }
+    currentRoute().query = { tag: 'Java' }
     const firstPage = Array.from({ length: 10 }, (_, index) => ({
       postId: `post-${index}`,
       userId: 'user-1',
       title: `hit ${index}`,
       tags: ['Java']
     }))
-    searchPosts
+    vi.mocked(searchPosts)
       .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
       .mockResolvedValueOnce({
         data: [{ postId: 'post-10', userId: 'user-1', title: 'hit 10', tags: ['Java'] }],
@@ -497,14 +520,14 @@ describe('PostsView', () => {
   })
 
   it('dedupes page-shifted hits when the search index updates between tag pages', async () => {
-    routerState.route.query = { tag: 'Java' }
+    currentRoute().query = { tag: 'Java' }
     const firstPage = Array.from({ length: 10 }, (_, index) => ({
       postId: `post-${index}`,
       userId: 'user-1',
       title: `hit ${index}`,
       tags: ['Java']
     }))
-    searchPosts
+    vi.mocked(searchPosts)
       .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
       .mockResolvedValueOnce({
         data: [
@@ -523,9 +546,10 @@ describe('PostsView', () => {
   })
 
   it('dedupes overlapping posts when a cursor page repeats a loaded post', async () => {
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2' }
+        data: { items: [{ id: 'post-1', title: 'first batch' }], nextCursor: 'cursor-2', rankVersion: 'rank-v1' },
+        traceId: 'trace-page'
       })
       .mockResolvedValueOnce({
         data: {
@@ -533,8 +557,10 @@ describe('PostsView', () => {
             { id: 'post-1', title: 'first batch' },
             { id: 'post-2', title: 'second batch' }
           ],
-          nextCursor: ''
-        }
+          nextCursor: '',
+          rankVersion: 'rank-v1'
+        },
+        traceId: 'trace-page'
       })
 
     const wrapper = mountView()
@@ -547,11 +573,12 @@ describe('PostsView', () => {
 
   it('keeps unread locating affordances off the filtered views', async () => {
     window.localStorage.setItem('community.read.posts.v1.7', JSON.stringify({ lastSeenAt: 1, items: {} }))
-    routerState.route.query = { order: 'hot' }
-    listGlobalFeed.mockResolvedValueOnce({
+    currentRoute().query = { order: 'hot' }
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({
       data: {
         items: [{ id: 'post-1', title: 'hot page', createTime: new Date(2000).toISOString() }],
-        nextCursor: ''
+        nextCursor: '',
+        rankVersion: 'rank-v1'
       },
       traceId: 'trace-page-1'
     })
@@ -567,7 +594,7 @@ describe('PostsView', () => {
 
   it('shows card skeletons during the first load', async () => {
     const pending = deferred()
-    listGlobalFeed.mockReturnValueOnce(pending.promise)
+    vi.mocked(listGlobalFeed).mockReturnValueOnce(pending.promise)
 
     const wrapper = mountView()
     await flushPromises()
@@ -575,7 +602,7 @@ describe('PostsView', () => {
     expect(wrapper.findAll('.ui-skeleton--card')).toHaveLength(3)
     expect(wrapper.text()).not.toContain('当前视图暂无讨论')
 
-    pending.resolve({ data: { items: [], nextCursor: '' }, traceId: 'trace-feed' })
+    pending.resolve({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' })
     await flushPromises()
 
     expect(wrapper.findAll('.ui-skeleton--card')).toHaveLength(0)
@@ -583,10 +610,10 @@ describe('PostsView', () => {
   })
 
   it('renders the error state with a retry action and recovers', async () => {
-    listGlobalFeed
+    vi.mocked(listGlobalFeed)
       .mockRejectedValueOnce(new Error('feed unavailable'))
       .mockResolvedValueOnce({
-        data: { items: [{ id: 'post-1', title: 'recovered page' }], nextCursor: '' },
+        data: { items: [{ id: 'post-1', title: 'recovered page' }], nextCursor: '', rankVersion: 'rank-v1' },
         traceId: 'trace-recovered'
       })
 
@@ -605,8 +632,9 @@ describe('PostsView', () => {
   })
 
   it('opens a post from card click and from Enter on the card itself', async () => {
-    listGlobalFeed.mockResolvedValueOnce({
-      data: { items: [{ id: 'post-1', title: 'keyboard open' }], nextCursor: '' }
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({
+      data: { items: [{ id: 'post-1', title: 'keyboard open' }], nextCursor: '', rankVersion: 'rank-v1' },
+      traceId: 'trace-page'
     })
 
     const wrapper = mountView()
@@ -700,7 +728,7 @@ describe('PostsView', () => {
 
   it('does not let an old publish response clear a newer composer intent', async () => {
     const pendingCreate = deferred()
-    createPost.mockReturnValueOnce(pendingCreate.promise)
+    vi.mocked(createPost).mockReturnValueOnce(pendingCreate.promise)
     const wrapper = mountView()
     await openComposer(wrapper)
     const titleInput = wrapper.get('input[name="post-title"]')
@@ -710,12 +738,13 @@ describe('PostsView', () => {
     await vi.waitFor(() => expect(createPost).toHaveBeenCalledTimes(1))
 
     expect(titleInput.attributes('disabled')).toBeDefined()
-    titleInput.element.disabled = false
+    const titleElement = /** @type {HTMLInputElement} */ (titleInput.element)
+    titleElement.disabled = false
     await titleInput.setValue('new draft title')
     pendingCreate.resolve({ data: { postId: 'old-post-id' }, traceId: 'trace-old-create' })
     await flushPromises()
 
-    expect(wrapper.get('input[name="post-title"]').element.value).toBe('new draft title')
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (wrapper.get('input[name="post-title"]')).element.value).toBe('new draft title')
     expect(wrapper.find('.posts-composer').exists()).toBe(true)
     expect(routerState.push).not.toHaveBeenCalled()
   })
@@ -756,9 +785,9 @@ describe('PostsView', () => {
     await wrapper.get('.posts-feed-compose-strip').trigger('click')
     await nextTick()
 
-    expect(wrapper.get('input[name="post-title"]').element.value).toBe('')
+    expect(/** @type {import('@vue/test-utils').DOMWrapper<HTMLInputElement>} */ (wrapper.get('input[name="post-title"]')).element.value).toBe('')
     expect(wrapper.find('.posts-composer-submit-error').text()).toBe('')
-    expect(wrapper.getComponent(PostBlockEditor).props('modelValue')).toEqual([{ type: 'paragraph', text: '' }])
+    expect(wrapper.getComponent(PostBlockEditor).props()).toMatchObject({ modelValue: [{ type: 'paragraph', text: '' }] })
 
     await wrapper.get('input[name="post-title"]').setValue('clean')
     await wrapper.get('[data-test="block-text-0"]').setValue('body')
@@ -810,7 +839,7 @@ describe('PostsView', () => {
   it('ignores rapid repeat likes while a like request is in flight', async () => {
     mockFeedPages([{ items: [{ id: 'post-1', title: 'first post', userId: 'user-1' }] }])
     const inFlight = deferred()
-    setLike.mockReturnValueOnce(inFlight.promise)
+    vi.mocked(setLike).mockReturnValueOnce(inFlight.promise)
 
     const wrapper = mountView()
     await flushPromises()
@@ -826,7 +855,7 @@ describe('PostsView', () => {
     await wrapper.vm.togglePostLike(wrapper.vm.items[0])
     expect(setLike).toHaveBeenCalledTimes(1)
 
-    inFlight.resolve({ data: { liked: true, likeCount: 4 } })
+    inFlight.resolve({ data: { liked: true, likeCount: 4 }, traceId: 'trace-like' })
     await flushPromises()
 
     expect(likeButton().attributes('disabled')).toBeUndefined()
@@ -836,7 +865,7 @@ describe('PostsView', () => {
     expect(postMetaCache.getLikeCount(1, 'post-1')).toBe(4)
 
     // 请求落地后可以再次点赞，终态以来最新一次响应
-    setLike.mockResolvedValueOnce({ data: { liked: false, likeCount: 3 } })
+    vi.mocked(setLike).mockResolvedValueOnce({ data: { liked: false, likeCount: 3 }, traceId: 'trace-like' })
     await likeButton().trigger('click')
     await flushPromises()
 
@@ -847,7 +876,7 @@ describe('PostsView', () => {
 
   it('releases the like guard after a failure so the user can retry', async () => {
     mockFeedPages([{ items: [{ id: 'post-1', title: 'first post', userId: 'user-1' }] }])
-    setLike.mockRejectedValueOnce(new Error('network down'))
+    vi.mocked(setLike).mockRejectedValueOnce(new Error('network down'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -860,7 +889,7 @@ describe('PostsView', () => {
     expect(likeButton().attributes('disabled')).toBeUndefined()
     expect(wrapper.text()).toContain('0 赞')
 
-    setLike.mockResolvedValueOnce({ data: { liked: true, likeCount: 1 } })
+    vi.mocked(setLike).mockResolvedValueOnce({ data: { liked: true, likeCount: 1 }, traceId: 'trace-like' })
     await likeButton().trigger('click')
     await flushPromises()
 

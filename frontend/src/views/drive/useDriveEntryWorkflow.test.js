@@ -30,8 +30,21 @@ import {
 import { useDriveEntryWorkflow } from './useDriveEntryWorkflow'
 import { useDriveWorkspaceState } from './useDriveWorkspaceState'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const createDriveFolderMock = /** @type {import('vitest').Mock} */ (createDriveFolder)
+const deleteDriveEntryPermanentlyMock = /** @type {import('vitest').Mock} */ (deleteDriveEntryPermanently)
+const getDriveDownloadUrlMock = /** @type {import('vitest').Mock} */ (getDriveDownloadUrl)
+const getDriveSpaceMock = /** @type {import('vitest').Mock} */ (getDriveSpace)
+const listDriveEntriesMock = /** @type {import('vitest').Mock} */ (listDriveEntries)
+const listDriveTrashMock = /** @type {import('vitest').Mock} */ (listDriveTrash)
+const moveDriveEntryMock = /** @type {import('vitest').Mock} */ (moveDriveEntry)
+const renameDriveEntryMock = /** @type {import('vitest').Mock} */ (renameDriveEntry)
+const restoreDriveEntryMock = /** @type {import('vitest').Mock} */ (restoreDriveEntry)
+const searchDriveEntriesMock = /** @type {import('vitest').Mock} */ (searchDriveEntries)
+const trashDriveEntryMock = /** @type {import('vitest').Mock} */ (trashDriveEntry)
+
 describe('useDriveEntryWorkflow', () => {
-  function createSubject({ current = true, confirm } = {}) {
+  function createSubject({ current = true, confirm } = /** @type {{ current?: boolean, confirm?: import('vitest').Mock }} */ ({})) {
     const workspace = useDriveWorkspaceState()
     const confirmSpy = confirm || vi.fn((options, action) => action())
     const reloadPage = vi.fn().mockResolvedValue(undefined)
@@ -59,24 +72,24 @@ describe('useDriveEntryWorkflow', () => {
 
   beforeEach(() => {
     vi.clearAllMocks()
-    getDriveSpace.mockResolvedValue({
+    getDriveSpaceMock.mockResolvedValue({
       data: { quotaBytes: 1000, usedBytes: 250, remainingBytes: 750 }
     })
-    listDriveEntries.mockResolvedValue({ data: [] })
-    listDriveTrash.mockResolvedValue({ data: [] })
-    searchDriveEntries.mockResolvedValue({ data: [] })
-    createDriveFolder.mockResolvedValue({ data: {} })
-    renameDriveEntry.mockResolvedValue({ data: {} })
-    moveDriveEntry.mockResolvedValue({ data: {} })
-    getDriveDownloadUrl.mockResolvedValue({ data: { url: 'https://files.example.test/download' } })
-    trashDriveEntry.mockResolvedValue({ data: {} })
-    restoreDriveEntry.mockResolvedValue({ data: {} })
-    deleteDriveEntryPermanently.mockResolvedValue({ data: {} })
+    listDriveEntriesMock.mockResolvedValue({ data: [] })
+    listDriveTrashMock.mockResolvedValue({ data: [] })
+    searchDriveEntriesMock.mockResolvedValue({ data: [] })
+    createDriveFolderMock.mockResolvedValue({ data: {} })
+    renameDriveEntryMock.mockResolvedValue({ data: {} })
+    moveDriveEntryMock.mockResolvedValue({ data: {} })
+    getDriveDownloadUrlMock.mockResolvedValue({ data: { url: 'https://files.example.test/download' } })
+    trashDriveEntryMock.mockResolvedValue({ data: {} })
+    restoreDriveEntryMock.mockResolvedValue({ data: {} })
+    deleteDriveEntryPermanentlyMock.mockResolvedValue({ data: {} })
   })
 
   it('loads files, search results, and trash into their owning workspace collections', async () => {
     const { workspace, workflow } = createSubject()
-    listDriveEntries.mockResolvedValueOnce({
+    listDriveEntriesMock.mockResolvedValueOnce({
       data: [{ entryId: 'file-1', name: 'guide.pdf', type: 'FILE', status: 'ACTIVE' }]
     })
 
@@ -86,7 +99,7 @@ describe('useDriveEntryWorkflow', () => {
     expect(workflow.model.quota).toMatchObject({ quotaBytes: 1000, usedBytes: 250 })
 
     workspace.searchKeyword.value = ' report '
-    searchDriveEntries.mockResolvedValueOnce({
+    searchDriveEntriesMock.mockResolvedValueOnce({
       data: [{ entryId: 'file-2', name: 'report.csv', type: 'FILE', status: 'ACTIVE' }]
     })
     await workflow.refresh()
@@ -95,7 +108,7 @@ describe('useDriveEntryWorkflow', () => {
 
     workspace.mode.value = 'trash'
     workspace.searchKeyword.value = ''
-    listDriveTrash.mockResolvedValueOnce({
+    listDriveTrashMock.mockResolvedValueOnce({
       data: [{ entryId: 'file-3', name: 'old.txt', type: 'FILE', status: 'TRASHED' }]
     })
     await workflow.refresh()
@@ -105,8 +118,8 @@ describe('useDriveEntryWorkflow', () => {
 
   it('reports partial failures and discards a refresh from an expired session', async () => {
     const current = createSubject()
-    getDriveSpace.mockRejectedValueOnce(new Error('quota unavailable'))
-    listDriveEntries.mockResolvedValueOnce({ data: [{ entryId: 'file-1', name: 'kept.txt' }] })
+    getDriveSpaceMock.mockRejectedValueOnce(new Error('quota unavailable'))
+    listDriveEntriesMock.mockResolvedValueOnce({ data: [{ entryId: 'file-1', name: 'kept.txt' }] })
 
     await expect(current.workflow.refresh()).resolves.toMatchObject({
       stale: false,
@@ -116,7 +129,7 @@ describe('useDriveEntryWorkflow', () => {
     expect(current.workspace.entries.value[0].name).toBe('kept.txt')
 
     const stale = createSubject({ current: false })
-    listDriveEntries.mockResolvedValueOnce({ data: [{ entryId: 'stale', name: 'stale.txt' }] })
+    listDriveEntriesMock.mockResolvedValueOnce({ data: [{ entryId: 'stale', name: 'stale.txt' }] })
     await expect(stale.workflow.refresh()).resolves.toEqual({ stale: true })
     expect(stale.workspace.entries.value).toEqual([])
   })
@@ -158,14 +171,14 @@ describe('useDriveEntryWorkflow', () => {
     const { workspace, workflow } = createSubject()
     workflow.model.toggleFolderComposer()
     workflow.model.folderNameDraft = '资料'
-    createDriveFolder.mockRejectedValueOnce(new Error('名称已存在'))
+    createDriveFolderMock.mockRejectedValueOnce(new Error('名称已存在'))
     await workflow.model.createFolder()
     expect(workflow.model.folderError).toBe('名称已存在')
     expect(workflow.model.creatingFolder).toBe(true)
 
     workspace.commitEntries(workspace.entries, [{ entryId: 'file-1', name: 'old.txt' }])
     workspace.renameDraft.value = 'new.txt'
-    renameDriveEntry.mockRejectedValueOnce(new Error('目标目录不可用'))
+    renameDriveEntryMock.mockRejectedValueOnce(new Error('目标目录不可用'))
     await workflow.model.renameSelected()
     expect(workflow.model.renameError).toBe('目标目录不可用')
   })

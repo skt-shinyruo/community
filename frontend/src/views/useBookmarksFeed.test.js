@@ -34,6 +34,10 @@ import { useBookmarksFeed } from './useBookmarksFeed'
 const VIEWER_ID = '11111111-1111-7111-8111-111111111111'
 const OTHER_USER_ID = '22222222-2222-7222-8222-222222222222'
 
+/**
+ * @param {number} index
+ * @param {{ userId?: string, title?: string }} [options]
+ */
 function bookmark(index, { userId = VIEWER_ID, title } = {}) {
   return {
     id: `00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`,
@@ -59,8 +63,9 @@ function mountFeed({ authed = true } = {}) {
   taxonomy.ensureCategories = vi.fn()
 
   const socialPrefs = useSocialPrefsStore()
-  socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+  socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
 
+  /** @type {ReturnType<typeof useBookmarksFeed> | undefined} */
   let feed
   const Harness = defineComponent({
     setup() {
@@ -69,6 +74,7 @@ function mountFeed({ authed = true } = {}) {
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!feed) throw new Error('harness feed not initialized')
   return { feed, socialPrefs }
 }
 
@@ -79,7 +85,7 @@ describe('useBookmarksFeed', () => {
   })
 
   it('loads the first page on mount with categories and blocklist ensured', async () => {
-    listBookmarks.mockResolvedValueOnce({ data: [bookmark(0), bookmark(1)] })
+    vi.mocked(listBookmarks).mockResolvedValueOnce({ data: [bookmark(0), bookmark(1)] })
 
     const { feed, socialPrefs } = mountFeed()
     await flushPromises()
@@ -94,7 +100,7 @@ describe('useBookmarksFeed', () => {
   })
 
   it('appends the next page until a short page ends the feed', async () => {
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockResolvedValueOnce({ data: Array.from({ length: 10 }, (_, index) => bookmark(index)) })
       .mockResolvedValueOnce({ data: [bookmark(10)] })
 
@@ -104,13 +110,13 @@ describe('useBookmarksFeed', () => {
     await feed.loadMore()
     await flushPromises()
 
-    expect(listBookmarks.mock.calls.map(([request]) => request.page)).toEqual([0, 1])
+    expect(vi.mocked(listBookmarks).mock.calls.map(([request]) => request?.page)).toEqual([0, 1])
     expect(feed.items.value).toHaveLength(11)
     expect(feed.hasNext.value).toBe(false)
   })
 
   it('keeps the loaded page and retries the same page number after a load-more failure', async () => {
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockResolvedValueOnce({ data: Array.from({ length: 10 }, (_, index) => bookmark(index)) })
       .mockRejectedValueOnce(new Error('temporary bookmark failure'))
       .mockResolvedValueOnce({ data: [bookmark(10)] })
@@ -126,13 +132,13 @@ describe('useBookmarksFeed', () => {
 
     await feed.loadMore()
     await flushPromises()
-    expect(listBookmarks.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])
+    expect(vi.mocked(listBookmarks).mock.calls.map(([request]) => request?.page)).toEqual([0, 1, 1])
     expect(feed.items.value).toHaveLength(11)
     expect(feed.pageError.value).toBe('')
   })
 
   it('dedupes page-shifted bookmarks by id when appending the next page', async () => {
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockResolvedValueOnce({ data: Array.from({ length: 10 }, (_, index) => bookmark(index)) })
       .mockResolvedValueOnce({ data: [{ ...bookmark(9), title: 'shifted-copy' }, bookmark(10)] })
 
@@ -147,7 +153,7 @@ describe('useBookmarksFeed', () => {
   })
 
   it('does not commit a new page when append returns empty rows and ends the feed', async () => {
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockResolvedValueOnce({ data: Array.from({ length: 10 }, (_, index) => bookmark(index)) })
       .mockResolvedValueOnce({ data: [] })
     const { feed } = mountFeed()
@@ -166,7 +172,7 @@ describe('useBookmarksFeed', () => {
     const { feed, socialPrefs } = mountFeed()
     socialPrefs.blockedUserIds = [OTHER_USER_ID]
 
-    listBookmarks.mockResolvedValueOnce({
+    vi.mocked(listBookmarks).mockResolvedValueOnce({
       data: [bookmark(0, { userId: OTHER_USER_ID }), bookmark(1)]
     })
     await feed.reload()
@@ -186,7 +192,7 @@ describe('useBookmarksFeed', () => {
   })
 
   it('opens the post through the router', async () => {
-    listBookmarks.mockResolvedValueOnce({ data: [bookmark(0)] })
+    vi.mocked(listBookmarks).mockResolvedValueOnce({ data: [bookmark(0)] })
     const { feed } = mountFeed()
     await flushPromises()
 
@@ -198,7 +204,7 @@ describe('useBookmarksFeed', () => {
   })
 
   it('offers reload after the initial load fails and clears the error on success', async () => {
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockRejectedValueOnce(new Error('bookmark service down'))
       .mockResolvedValueOnce({ data: [bookmark(0)] })
 
@@ -214,8 +220,9 @@ describe('useBookmarksFeed', () => {
   })
 
   it('discards a stale response after the account switches and reloads for the new identity', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
-    listBookmarks
+    vi.mocked(listBookmarks)
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
       .mockResolvedValueOnce({ data: [{ ...bookmark(0), title: 'current account' }] })
 
@@ -230,6 +237,7 @@ describe('useBookmarksFeed', () => {
     expect(listBookmarks).toHaveBeenCalledTimes(2)
     expect(feed.items.value[0].title).toBe('current account')
 
+    if (!resolvePrevious) throw new Error('resolvePrevious not initialized')
     resolvePrevious({ data: [{ ...bookmark(0), title: 'previous account' }] })
     await flushPromises()
     expect(feed.items.value[0].title).toBe('current account')

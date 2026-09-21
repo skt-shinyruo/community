@@ -74,12 +74,15 @@ function mountWalletView() {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred controls not captured')
   return { promise, resolve, reject }
 }
 
@@ -94,7 +97,7 @@ function txnItems(count, prefix = 'txn') {
 }
 
 function findButton(wrapper, text) {
-  return wrapper.findAll('button').find((button) => button.text() === text)
+  return wrapper.findAll('button').find((item) => item.text() === text)
 }
 
 async function confirmWalletAction(wrapper) {
@@ -173,7 +176,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await confirmWalletAction(wrapper)
     await flushPromises()
 
@@ -190,7 +193,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await confirmWalletAction(wrapper)
     await flushPromises()
 
@@ -208,7 +211,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('not-a-uuid')
     await inputs[3].setValue('25')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await flushPromises()
 
     expect(createTransfer).not.toHaveBeenCalled()
@@ -223,7 +226,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await flushPromises()
 
     expect(createTransfer).not.toHaveBeenCalled()
@@ -237,7 +240,7 @@ describe('WalletView', () => {
     expect(wrapper.find('[data-test="wallet-confirm"]').exists()).toBe(false)
     expect(createTransfer).not.toHaveBeenCalled()
 
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await confirmWalletAction(wrapper)
     await flushPromises()
     expect(createTransfer).toHaveBeenCalledTimes(1)
@@ -250,7 +253,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await flushPromises()
 
     const dialog = wrapper.find('[data-test="wallet-confirm"]')
@@ -272,7 +275,7 @@ describe('WalletView', () => {
 
     const inputs = wrapper.findAll('input')
     await inputs[1].setValue('3')
-    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await findButton(wrapper, '销毁测试积分').trigger('click')
     await flushPromises()
 
     expect(createWithdrawal).not.toHaveBeenCalled()
@@ -292,7 +295,7 @@ describe('WalletView', () => {
 
     const inputs = wrapper.findAll('input')
     await inputs[1].setValue('-2')
-    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await findButton(wrapper, '销毁测试积分').trigger('click')
     await flushPromises()
 
     expect(createWithdrawal).not.toHaveBeenCalled()
@@ -306,7 +309,7 @@ describe('WalletView', () => {
 
     const inputs = wrapper.findAll('input')
     await inputs[0].setValue('1.5')
-    await wrapper.findAll('button').find((button) => button.text() === '领取测试积分').trigger('click')
+    await findButton(wrapper, '领取测试积分').trigger('click')
     await flushPromises()
 
     expect(createRecharge).not.toHaveBeenCalled()
@@ -319,7 +322,7 @@ describe('WalletView', () => {
 
     const inputs = wrapper.findAll('input')
     await inputs[1].setValue('1.5')
-    await wrapper.findAll('button').find((button) => button.text() === '销毁测试积分').trigger('click')
+    await findButton(wrapper, '销毁测试积分').trigger('click')
     await flushPromises()
 
     expect(createWithdrawal).not.toHaveBeenCalled()
@@ -334,7 +337,7 @@ describe('WalletView', () => {
     const inputs = wrapper.findAll('input')
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('1.5')
-    await wrapper.findAll('button').find((button) => button.text() === '发起转账').trigger('click')
+    await findButton(wrapper, '发起转账').trigger('click')
     await flushPromises()
 
     expect(createTransfer).not.toHaveBeenCalled()
@@ -394,10 +397,15 @@ describe('WalletView', () => {
         observedKeys.push(writeAttempt.begin())
         return Promise.resolve({ data: { status: 'SUCCEEDED' }, traceId: '' })
       })
+
     const wrapper = mountWalletView()
     await flushPromises()
     const inputs = wrapper.findAll('input')
-    const submit = () => wrapper.findAll('button').find((button) => button.text() === '发起转账')
+    const submit = () => {
+      const button = wrapper.findAll('button').find((item) => item.text() === '发起转账')
+      if (!button) throw new Error('transfer submit button not found')
+      return button
+    }
     const submitConfirmed = async () => {
       await submit().trigger('click')
       await confirmWalletAction(wrapper)
@@ -426,6 +434,7 @@ describe('WalletView', () => {
     await flushPromises()
     const inputs = wrapper.findAll('input')
     const submit = wrapper.findAll('button').find((button) => button.text() === '发起转账')
+    if (!submit) throw new Error('transfer submit button not found')
 
     await inputs[2].setValue('11111111-1111-7111-8111-111111111111')
     await inputs[3].setValue('25')

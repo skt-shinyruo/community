@@ -65,13 +65,20 @@ function relationPage(items, nextCursor = '', traceId = '') {
 }
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handles = {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
-    resolve = resolvePromise
-    reject = rejectPromise
+    handles.resolve = resolvePromise
+    handles.reject = rejectPromise
   })
-  return { promise, resolve, reject }
+  return {
+    promise,
+    // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+    /** 解析 promise */
+    resolve: (value) => handles.resolve?.(value),
+    /** 拒绝 promise */
+    reject: (reason) => handles.reject?.(reason)
+  }
 }
 
 function mountView(relationKind) {
@@ -106,19 +113,19 @@ function mountView(relationKind) {
 
 describe('follow relation load-more feed', () => {
   beforeEach(() => {
-    batchUserSummary.mockReset()
-    followUser.mockReset()
-    getFollowStatuses.mockReset()
-    listFollowees.mockReset()
-    listFollowers.mockReset()
-    routerPush.mockReset()
-    unfollowUser.mockReset()
-    batchUserSummary.mockImplementation(async (ids) => ({
+    vi.mocked(batchUserSummary).mockReset()
+    vi.mocked(followUser).mockReset()
+    vi.mocked(getFollowStatuses).mockReset()
+    vi.mocked(listFollowees).mockReset()
+    vi.mocked(listFollowers).mockReset()
+    vi.mocked(routerPush).mockReset()
+    vi.mocked(unfollowUser).mockReset()
+    vi.mocked(batchUserSummary).mockImplementation(async (ids) => ({
       data: ids.map((id) => ({ id, username: `user-${id.slice(-2)}` }))
     }))
-    getFollowStatuses.mockResolvedValue({ data: {} })
-    followUser.mockResolvedValue({ traceId: 'trace-follow' })
-    unfollowUser.mockResolvedValue({ traceId: 'trace-unfollow' })
+    vi.mocked(getFollowStatuses).mockResolvedValue({ data: {} })
+    vi.mocked(followUser).mockResolvedValue({ traceId: 'trace-follow' })
+    vi.mocked(unfollowUser).mockResolvedValue({ traceId: 'trace-unfollow' })
   })
 
   it.each([
@@ -220,6 +227,7 @@ describe('follow relation load-more feed', () => {
 
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('retry button missing')
     await retry.trigger('click')
     await flushPromises()
 
@@ -247,11 +255,11 @@ describe('follow relation load-more feed', () => {
       params: { userId: relation(0).targetId }
     })
 
-    routerPush.mockClear()
+    vi.mocked(routerPush).mockClear()
     await card.trigger('keydown.enter')
     expect(routerPush).toHaveBeenCalledTimes(1)
 
-    routerPush.mockClear()
+    vi.mocked(routerPush).mockClear()
     await wrapper.find('.relation-name').trigger('keydown.enter')
     expect(routerPush).not.toHaveBeenCalled()
 
@@ -271,6 +279,7 @@ describe('follow relation load-more feed', () => {
     const followButton = wrapper.findAll('.relation-actions button')
       .find((button) => button.text() === '关注')
     expect(followButton).toBeTruthy()
+    if (!followButton) throw new Error('follow button missing')
     await followButton.trigger('click')
     await flushPromises()
 
@@ -345,14 +354,14 @@ describe('follow relation load-more feed', () => {
   ])('discards stale %s hydration and mutation results after an account switch', async (relationKind, listRelations) => {
     const previousHydration = deferred()
     const followRequest = deferred()
-    batchUserSummary
+    vi.mocked(batchUserSummary)
       .mockImplementationOnce(() => previousHydration.promise)
       .mockImplementation(async (ids) => ({ data: ids.map((id) => ({ id, username: 'current viewer' })) }))
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-previous-viewer'))
       .mockResolvedValueOnce(relationPage([relation(1)], '', 'trace-current-viewer'))
       .mockResolvedValueOnce(relationPage([relation(1)], '', 'trace-third-viewer'))
-    followUser.mockImplementation(() => followRequest.promise)
+    vi.mocked(followUser).mockImplementation(() => followRequest.promise)
 
     const wrapper = mountView(relationKind)
     await flushPromises()
@@ -386,8 +395,8 @@ describe('follow relation load-more feed', () => {
   })
 
   it('reloads with the new policy when relationKind switches on the same component instance', async () => {
-    listFollowees.mockResolvedValue(relationPage([relation(0)], '', 'trace-followees'))
-    listFollowers.mockResolvedValue(relationPage([relation(5)], '', 'trace-followers'))
+    vi.mocked(listFollowees).mockResolvedValue(relationPage([relation(0)], '', 'trace-followees'))
+    vi.mocked(listFollowers).mockResolvedValue(relationPage([relation(5)], '', 'trace-followers'))
 
     const wrapper = mountView('followees')
     await flushPromises()
@@ -415,7 +424,7 @@ describe('follow relation load-more feed', () => {
     listRelations
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-initial'))
       .mockResolvedValueOnce(relationPage([relation(0)], '', 'trace-reload'))
-    followUser.mockImplementation(() => followRequest.promise)
+    vi.mocked(followUser).mockImplementation(() => followRequest.promise)
 
     const wrapper = mountView(relationKind)
     await flushPromises()

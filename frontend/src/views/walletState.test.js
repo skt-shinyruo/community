@@ -17,7 +17,7 @@ describe('walletState', () => {
   it('maps summary and txn items into one-wallet surface', () => {
     const state = buildWalletState({
       summary: { balance: 1200, status: 'ACTIVE' },
-      txns: [{ txnType: 'TRANSFER', amount: -300, counterpartLabel: '用户 202' }]
+      txns: [/** @type {Record<string, unknown>} */ ({ txnType: 'TRANSFER', amount: -300, counterpartLabel: '用户 202' })]
     })
 
     expect(state.hero.balance).toBe(1200)
@@ -49,7 +49,7 @@ describe('walletState', () => {
     const state = buildWalletState({
       summary: { balance: 975, status: 'ACTIVE' },
       txns: [
-        {
+        /** @type {Record<string, unknown>} */ ({
           txnId: '0198f4b6-9ad4-7a22-8df4-3c680e0d0d01',
           txnRef: 'wallet:transfer:history',
           txnType: 'TRANSFER',
@@ -57,7 +57,7 @@ describe('walletState', () => {
           balanceAfter: 975,
           counterpartLabel: '用户 202',
           status: 'SUCCEEDED'
-        }
+        })
       ]
     })
 
@@ -70,7 +70,7 @@ describe('walletState', () => {
   it('does not use requestId as a transaction key', () => {
     const state = buildWalletState({
       summary: { balance: 10, status: 'ACTIVE' },
-      txns: [{ txnId: '11111111-1111-7111-8111-111111111111', requestId: 'legacy-request', txnType: 'RECHARGE', amount: 10 }]
+      txns: [/** @type {Record<string, unknown>} */ ({ txnId: '11111111-1111-7111-8111-111111111111', requestId: 'legacy-request', txnType: 'RECHARGE', amount: 10 })]
     })
 
     expect(state.feed[0].key).toBe('11111111-1111-7111-8111-111111111111')

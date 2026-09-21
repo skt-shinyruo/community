@@ -71,11 +71,11 @@ describe('api/services/postService', () => {
       return [200, { code: 0, message: '', data: { id: 'reply-1' }, traceId: 'trace-add-comment' }]
     })
 
-    const resp = await addComment(postId, {
+    const resp = await addComment(postId, /** @type {{ content?: unknown, parentCommentId?: unknown, replyToUserId?: string }} */ ({
       content: '回复内容',
       parentCommentId,
       replyToUserId
-    }, { writeAttempt: createWriteAttempt() })
+    }), { writeAttempt: createWriteAttempt() })
 
     expect(resp.traceId).toBe('trace-add-comment')
     expect(resp.data).toEqual({ id: 'reply-1' })

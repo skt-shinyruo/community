@@ -4,6 +4,9 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId } from '../../utils/opaqueId'
 
+/**
+ * @param {{ keyword?: string, categoryId?: unknown, tag?: unknown, page?: number, size?: number }} [filters]
+ */
 export async function searchPosts({ keyword = '', categoryId, tag, page = 0, size = 10 } = {}) {
   const params = { keyword, page, size }
   {

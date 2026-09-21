@@ -47,10 +47,12 @@ const SESSION = () => ({
 })
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
   const promise = new Promise((resolvePromise) => {
     resolve = resolvePromise
   })
+  if (!resolve) throw new Error('deferred resolve not captured')
   return { promise, resolve }
 }
 
@@ -96,7 +98,7 @@ describe('useAvatarUploadWorkflow', () => {
     }))
     expect(updateAvatar).toHaveBeenCalledWith('00000000-0000-7000-8000-000000000050', '7')
     expect(invalidateUserProfile).toHaveBeenCalledWith('7')
-    expect(auth.me.headerUrl).toBe('/files/avatar-updated.png')
+    expect(auth.me?.headerUrl).toBe('/files/avatar-updated.png')
     expect(workflow.model.successMsg).toBe('头像已更新。')
     expect(workflow.model.error).toBe('')
     expect(workflow.model.session.objectId).toBe('00000000-0000-7000-8000-000000000050')

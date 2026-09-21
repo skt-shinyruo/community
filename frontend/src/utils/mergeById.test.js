@@ -50,8 +50,9 @@ describe('mergeAppendedById', () => {
   })
 
   it('tolerates non-array inputs as empty lists', () => {
-    expect(mergeAppendedById(null, [{ id: 'a' }])).toEqual([{ id: 'a' }])
-    expect(mergeAppendedById([{ id: 'a' }], undefined)).toEqual([{ id: 'a' }])
+    // 运行时容忍非数组入参（源实现按空列表处理）；类型层用断言表达该测试意图。
+    expect(mergeAppendedById(/** @type {{ id: string }[]} */ (/** @type {unknown} */ (null)), [{ id: 'a' }])).toEqual([{ id: 'a' }])
+    expect(mergeAppendedById([{ id: 'a' }], /** @type {{ id: string }[]} */ (/** @type {unknown} */ (undefined)))).toEqual([{ id: 'a' }])
   })
 })
 

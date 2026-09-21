@@ -13,7 +13,7 @@ export function useConversationsFeed() {
   const auth = useAuthStore()
   const inboxUnread = useInboxUnreadStore()
 
-  const items = ref([])
+  const items = ref(/** @type {Array<{ conversationId?: unknown, unreadCount?: unknown }>} */ ([]))
   const loading = ref(false)
   const loadingMore = ref(false)
   const error = ref('')

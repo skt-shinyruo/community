@@ -106,6 +106,7 @@ describe('ConversationsView', () => {
       nextCursor: null,
       hasMore: false
     }
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePageTwo
     listImConversationPage
       .mockResolvedValueOnce(pageOne)
@@ -131,6 +132,7 @@ describe('ConversationsView', () => {
     expect(wrapper.find('[data-testid="load-more-conversations"]').exists()).toBe(false)
     expect(wrapper.text()).toContain('正在加载…')
 
+    if (!resolvePageTwo) throw new Error('resolver not captured')
     resolvePageTwo(pageTwo)
     await flushPromises()
 
@@ -174,6 +176,7 @@ describe('ConversationsView', () => {
   })
 
   it('shows a skeleton during the first load instead of the empty state', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveFirst
     listImConversationPage.mockImplementationOnce(() => new Promise((resolve) => { resolveFirst = resolve }))
 
@@ -184,6 +187,7 @@ describe('ConversationsView', () => {
     expect(wrapper.text()).not.toContain('暂无会话')
     expect(wrapper.text()).not.toContain('正在整理')
 
+    if (!resolveFirst) throw new Error('resolver not captured')
     resolveFirst({ items: [], nextCursor: null, hasMore: false })
     await flushPromises()
 
@@ -219,6 +223,7 @@ describe('ConversationsView', () => {
     expect(wrapper.text()).not.toContain('暂无会话')
     const retry = wrapper.findAll('button').find((b) => b.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('重试按钮未找到')
     await retry.trigger('click')
     await flushPromises()
 
@@ -296,7 +301,9 @@ describe('ConversationsView', () => {
       nextCursor: 'cursor-2',
       hasMore: true
     }
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveStale
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveRefresh
     listImConversationPage
       .mockResolvedValueOnce(firstPage)
@@ -309,12 +316,14 @@ describe('ConversationsView', () => {
     await wrapper.find('button').trigger('click')
 
     expect(listImConversationPage).toHaveBeenNthCalledWith(3, { cursor: '', size: 20 })
+    if (!resolveRefresh) throw new Error('resolver not captured')
     resolveRefresh({
       items: [{ conversationId: 'conv-new', otherUserId: '44444444-4444-7444-8444-444444444444', unreadCount: 0, lastMessage: null }],
       nextCursor: null,
       hasMore: false
     })
     await flushPromises()
+    if (!resolveStale) throw new Error('resolver not captured')
     resolveStale({
       items: [{ conversationId: 'conv-stale', otherUserId: '55555555-5555-7555-8555-555555555555', unreadCount: 0, lastMessage: null }],
       nextCursor: null,
@@ -347,6 +356,7 @@ describe('ConversationsView', () => {
   })
 
   it('ignores a stale load-more rejection after a successful refresh', async () => {
+    /** @type {((reason?: unknown) => void) | undefined} */
     let rejectStale
     listImConversationPage
       .mockResolvedValueOnce({
@@ -366,6 +376,7 @@ describe('ConversationsView', () => {
     await wrapper.find('[data-testid="load-more-conversations"]').trigger('click')
     await wrapper.find('button').trigger('click')
     await flushPromises()
+    if (!rejectStale) throw new Error('resolver not captured')
     rejectStale(new Error('旧请求失败'))
     await flushPromises()
 
@@ -411,7 +422,9 @@ describe('ConversationsView', () => {
   })
 
   it('clears rows and ignores the previous identity response after account switching', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveUserA
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveUserB
     listImConversationPage
       .mockImplementationOnce(() => new Promise((resolve) => { resolveUserA = resolve }))
@@ -428,12 +441,14 @@ describe('ConversationsView', () => {
     expect(wrapper.findAll('a')).toHaveLength(0)
     expect(listImConversationPage).toHaveBeenCalledTimes(2)
 
+    if (!resolveUserB) throw new Error('resolver not captured')
     resolveUserB({
       items: [{ conversationId: 'conv-user-b', otherUserId: '33333333-3333-7333-8333-333333333333', unreadCount: 0, lastMessage: null }],
       nextCursor: null,
       hasMore: false
     })
     await flushPromises()
+    if (!resolveUserA) throw new Error('resolver not captured')
     resolveUserA({
       items: [{ conversationId: 'conv-user-a', otherUserId: '44444444-4444-7444-8444-444444444444', unreadCount: 0, lastMessage: null }],
       nextCursor: null,

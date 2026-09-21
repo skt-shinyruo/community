@@ -17,7 +17,7 @@ function pageResponse(data, { hasNext = false, page = 0 } = {}) {
   return { data, hasNext, page, size: 20 }
 }
 
-function createSubject({ side = 'buying', auth, pages } = {}) {
+function createSubject({ side = 'buying', auth, pages } = /** @type {{ side?: string, auth?: Record<string, unknown>, pages?: Array<unknown> }} */ ({})) {
   const listOrders = vi.fn()
   if (pages) {
     for (const page of pages) {
@@ -33,6 +33,7 @@ function createSubject({ side = 'buying', auth, pages } = {}) {
     identityUserId: USER_ID
   }
 
+  /** @type {ReturnType<typeof useMarketOrderList> | undefined} */
   let subject
   const Harness = defineComponent({
     setup() {
@@ -47,6 +48,7 @@ function createSubject({ side = 'buying', auth, pages } = {}) {
     }
   })
   mount(Harness)
+  if (!subject) throw new Error('harness subject not initialized')
   return { subject, listOrders, sideRef }
 }
 
@@ -104,11 +106,13 @@ describe('useMarketOrderList', () => {
     await subject.loadMore()
     await flushPromises()
 
-    const ids = subject.state.value.orders.map((item) => item.orderId)
+    // 视图投影展开原始字段，类型上用宽Record承载读取。
+    const projectedOrders = /** @type {Array<Record<string, unknown>>} */ (subject.state.value.orders)
+    const ids = projectedOrders.map((item) => item.orderId)
     expect(new Set(ids).size).toBe(ids.length)
     expect(subject.state.value.orders).toHaveLength(3)
     // orderId 相同的移位条目按后到覆盖：B 移位替换第一页的 B。
-    expect(subject.state.value.orders.find((item) => item.orderId === 32).listingTitleSnapshot).toBe('B 移位')
+    expect(projectedOrders.find((item) => item.orderId === 32)?.listingTitleSnapshot).toBe('B 移位')
   })
 
 
@@ -135,9 +139,9 @@ describe('useMarketOrderList', () => {
     expect(subject.state.value.orders).toHaveLength(2)
     expect(subject.pageError.value).toBe('')
   })
-
   it('refuses load-more while a first load is in flight', async () => {
     const listOrders = vi.fn().mockImplementation(() => new Promise(() => {}))
+    /** @type {ReturnType<typeof useMarketOrderList> | undefined} */
     let subject
     const Harness = defineComponent({
       setup() {
@@ -150,6 +154,7 @@ describe('useMarketOrderList', () => {
       }
     })
     mount(Harness)
+    if (!subject) throw new Error('harness subject not initialized')
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(1))
     expect(subject.loading.value).toBe(true)
 
@@ -166,21 +171,21 @@ describe('useMarketOrderList', () => {
       ]
     })
     await flushPromises()
+    expect(/** @type {Array<Record<string, unknown>>} */ (subject.state.value.orders).map((item) => item.orderId)).toEqual([31])
     expect(listOrders).toHaveBeenCalledTimes(1)
-    expect(subject.state.value.orders.map((item) => item.orderId)).toEqual([31])
 
     sideRef.value = 'selling'
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(2))
     await flushPromises()
-
+    expect(/** @type {Array<Record<string, unknown>>} */ (subject.state.value.orders).map((item) => item.orderId)).toEqual([41])
     expect(listOrders).toHaveBeenLastCalledWith({ page: 0, size: 20 })
-    expect(subject.state.value.orders.map((item) => item.orderId)).toEqual([41])
     expect(subject.error.value).toBe('')
     expect(subject.pageError.value).toBe('')
   })
 
 
   it('discards in-flight responses after the identity changes', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
     const listOrders = vi.fn()
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
@@ -190,6 +195,7 @@ describe('useMarketOrderList', () => {
       identityEpoch: 1,
       identityUserId: USER_ID
     })
+    /** @type {ReturnType<typeof useMarketOrderList> | undefined} */
     let subject
     const Harness = defineComponent({
       setup() {
@@ -198,18 +204,22 @@ describe('useMarketOrderList', () => {
       }
     })
     mount(Harness)
+    if (!subject) throw new Error('harness subject not initialized')
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(1))
+
 
     // 换账号：identityEpoch 推进，watch 触发 reset + reload。
     auth.identityEpoch = 2
     auth.identityUserId = OTHER_USER_ID
     await vi.waitFor(() => expect(listOrders).toHaveBeenCalledTimes(2))
     await flushPromises()
-    expect(subject.state.value.orders.map((item) => item.listingTitleSnapshot)).toEqual(['当前身份订单'])
-
+    expect(/** @type {Array<Record<string, unknown>>} */ (subject.state.value.orders).map((item) => item.listingTitleSnapshot)).toEqual(['当前身份订单'])
+    await flushPromises()
+    if (!resolvePrevious) throw new Error('previous identity resolve not captured')
     resolvePrevious(pageResponse([order(31, '旧身份订单')], { hasNext: false, page: 0 }))
     await flushPromises()
-    expect(subject.state.value.orders.map((item) => item.listingTitleSnapshot)).toEqual(['当前身份订单'])
+    expect(/** @type {Array<Record<string, unknown>>} */ (subject.state.value.orders).map((item) => item.listingTitleSnapshot)).toEqual(['当前身份订单'])
+    await flushPromises()
   })
 
   it('does not request anything when the viewer is anonymous', async () => {

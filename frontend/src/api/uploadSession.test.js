@@ -44,7 +44,7 @@ describe('uploadSession', () => {
       }
     })
 
-    const result = await executeUploadSession({ transport, session, file })
+    const result = await executeUploadSession({ transport, session, file, signal: undefined, onProgress: undefined })
 
     expect(result.traceId).toBe('trace-upload')
     expect(transport.upload).toHaveBeenCalledWith(expect.objectContaining({
@@ -73,7 +73,7 @@ describe('uploadSession', () => {
       }
     })
 
-    await expect(executeUploadSession({ transport, session, file })).resolves.toEqual({
+    await expect(executeUploadSession({ transport, session, file, signal: undefined, onProgress: undefined })).resolves.toEqual({
       data: { etag: 'etag-1' },
       traceId: ''
     })
@@ -95,7 +95,7 @@ describe('uploadSession', () => {
       upload: { url: '/api/oss/objects/object-1', method: 'DELETE' }
     })
 
-    await expect(executeUploadSession({ transport, session, file })).rejects.toThrow('暂不支持的上传方法')
+    await expect(executeUploadSession({ transport, session, file, signal: undefined, onProgress: undefined })).rejects.toThrow('暂不支持的上传方法')
     expect(transport.upload).not.toHaveBeenCalled()
   })
 
@@ -108,8 +108,8 @@ describe('uploadSession', () => {
       constraints: { maxBytes: 4, mimeTypes: ['image/png'] }
     })
 
-    await expect(executeUploadSession({ transport, session, file: oversized })).rejects.toThrow('文件大小超过上传限制')
-    await expect(executeUploadSession({ transport, session, file: wrongType })).rejects.toThrow('文件类型不符合上传限制')
+    await expect(executeUploadSession({ transport, session, file: oversized, signal: undefined, onProgress: undefined })).rejects.toThrow('文件大小超过上传限制')
+    await expect(executeUploadSession({ transport, session, file: wrongType, signal: undefined, onProgress: undefined })).rejects.toThrow('文件类型不符合上传限制')
     expect(transport.upload).not.toHaveBeenCalled()
   })
 
@@ -122,7 +122,9 @@ describe('uploadSession', () => {
     await expect(executeUploadSession({
       transport,
       session,
-      file: new File(['file'], 'file.txt', { type: 'text/plain' })
+      file: new File(['file'], 'file.txt', { type: 'text/plain' }),
+      signal: undefined,
+      onProgress: undefined
     })).resolves.toEqual({ data: { etag: 'etag-1' }, traceId: '' })
   })
 })

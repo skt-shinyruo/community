@@ -83,8 +83,10 @@ describe('UiUserCard', () => {
   })
 
   it('does not apply a late profile response to a replaced user card', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveOld
     getUserProfile.mockReturnValueOnce(new Promise((resolve) => { resolveOld = resolve }))
+    if (!resolveOld) throw new Error('未捕获 deferred resolve')
     const wrapper = mountCard({ id: 'user-a', username: 'A' })
 
     await wrapper.get('.user-card-wrapper').trigger('mouseenter')
@@ -104,6 +106,7 @@ describe('UiUserCard', () => {
     // 写操作成功、读侧屏蔽列表重同步失败：只出现成功 toast，不再叠加「操作失败」。
     listBlockedUsers.mockRejectedValueOnce(new Error('blocklist unavailable'))
     const blockButton = wrapper.findAll('button').find((button) => button.text() === '屏蔽')
+    if (!blockButton) throw new Error('未找到屏蔽按钮')
     await blockButton.trigger('click')
     await flushPromises()
 
@@ -123,6 +126,7 @@ describe('UiUserCard', () => {
 
     blockUser.mockRejectedValueOnce(new Error('server rejected'))
     const blockButton = wrapper.findAll('button').find((button) => button.text() === '屏蔽')
+    if (!blockButton) throw new Error('未找到屏蔽按钮')
     await blockButton.trigger('click')
     await flushPromises()
 

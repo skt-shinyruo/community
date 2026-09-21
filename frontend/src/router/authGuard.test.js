@@ -14,13 +14,13 @@ describe('authGuard', () => {
   beforeEach(() => {
     setActivePinia(createPinia())
     vi.clearAllMocks()
-    shouldBootstrapSession.mockReturnValue(false)
+    vi.mocked(shouldBootstrapSession).mockReturnValue(false)
   })
 
   it('should attempt silent restore for protected routes even when there is no token or session hint', async () => {
     const auth = useAuthStore()
     auth.clear()
-    ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'anonymous' })
 
     const to = { name: 'settings', fullPath: '/settings', meta: { requiresAuth: true } }
     const result = await authGuard(to)
@@ -31,7 +31,7 @@ describe('authGuard', () => {
   it('keeps the settings section deep link in the login redirect for anonymous visits', async () => {
     const auth = useAuthStore()
     auth.clear()
-    ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'anonymous' })
 
     const to = { name: 'settings', fullPath: '/settings?section=addresses', meta: { requiresAuth: true } }
     const result = await authGuard(to)
@@ -41,8 +41,8 @@ describe('authGuard', () => {
   it('should attempt session restore for protected routes when a previous session hint exists', async () => {
     const auth = useAuthStore()
     auth.clear()
-    shouldBootstrapSession.mockReturnValue(true)
-    ensureSessionReady.mockResolvedValue({ state: 'anonymous' })
+    vi.mocked(shouldBootstrapSession).mockReturnValue(true)
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'anonymous' })
 
     const to = { name: 'notices', fullPath: '/notices', meta: { requiresAuth: true } }
     const result = await authGuard(to)
@@ -53,7 +53,7 @@ describe('authGuard', () => {
   it('should allow when route requires auth and token exists', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 't1' })
-    ensureSessionReady.mockResolvedValue({ state: 'ready' })
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'ready' })
 
     const to = { name: 'settings', fullPath: '/settings', meta: { requiresAuth: true } }
     const result = await authGuard(to)
@@ -63,8 +63,8 @@ describe('authGuard', () => {
   it('should redirect away from login when already logged in', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 't1' })
-    shouldBootstrapSession.mockReturnValue(true)
-    ensureSessionReady.mockResolvedValue({ state: 'ready' })
+    vi.mocked(shouldBootstrapSession).mockReturnValue(true)
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'ready' })
 
     const to = { name: 'login', meta: {} }
     const result = await authGuard(to)
@@ -84,7 +84,7 @@ describe('authGuard', () => {
   it('should not redirect to forbidden when loading authorities fails', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 't1' })
-    ensureSessionReady.mockResolvedValue({ state: 'error' })
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'error' })
 
     const to = {
       name: 'walletAdmin',
@@ -98,7 +98,7 @@ describe('authGuard', () => {
   it('should allow auth-only route when profile loading is temporarily unavailable', async () => {
     const auth = useAuthStore()
     auth.installSession({ accessToken: 't1' })
-    ensureSessionReady.mockResolvedValue({ state: 'error' })
+    vi.mocked(ensureSessionReady).mockResolvedValue({ state: 'error' })
 
     const to = {
       name: 'settings',

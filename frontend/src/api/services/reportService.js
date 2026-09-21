@@ -4,6 +4,9 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { requireOpaqueId } from '../../utils/opaqueId'
 
+/**
+ * @param {{ targetType?: unknown, targetId?: unknown, reason?: unknown, detail?: unknown }} [payload]
+ */
 export async function createReport({ targetType, targetId, reason, detail } = {}) {
   const payload = {
     targetType: String(targetType || '').trim(),

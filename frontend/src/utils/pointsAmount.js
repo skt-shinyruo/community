@@ -1,5 +1,9 @@
 // 积分金额的统一入口校验：充值 / 转账 / 销毁 / 商品定价只接受正整数积分。
 // 后端按长整型入账，小数会被截断；必须在提交前拒绝，保证确认弹窗复述的金额与实际入账一致。
+/**
+ * @param {string | number | null | undefined} raw 输入框原文、测试直写数字或空值
+ * @returns {{ valid: boolean, amount: number, message: string }}
+ */
 export function parsePointsAmount(raw) {
   const value = typeof raw === 'number' ? raw : Number(String(raw ?? '').trim())
   if (!Number.isFinite(value) || value <= 0) {

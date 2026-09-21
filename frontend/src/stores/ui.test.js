@@ -3,6 +3,11 @@ import { createPinia, setActivePinia } from 'pinia'
 
 import { useUiStore } from './ui'
 
+/**
+ * @param {number} [width]
+ * @param {{ sidebarCollapsed?: boolean, theme?: string, density?: string } | null} [stored]
+ * @param {{ systemDark?: boolean }} [options]
+ */
 function installWindow(width = 1200, stored = null, { systemDark = false } = {}) {
   const storage = new Map()
   if (stored) storage.set('community.ui', JSON.stringify(stored))

@@ -39,12 +39,15 @@ function notice(index, { status = 0, type = 'CommentCreated', payload = {} } = {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred resolvers not captured')
   return { promise, resolve, reject }
 }
 
@@ -297,7 +300,9 @@ describe('NoticeDetailView', () => {
   })
 
   it('ignores the previous topic response after the route reuses the component', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveComment
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveLike
     listNotices
       .mockImplementationOnce(() => new Promise((resolve) => { resolveComment = resolve }))
@@ -310,6 +315,7 @@ describe('NoticeDetailView', () => {
     expect(listNotices).toHaveBeenNthCalledWith(1, 'comment', { page: 0, size: 10 })
     expect(listNotices).toHaveBeenNthCalledWith(2, 'like', { page: 0, size: 10 })
 
+    if (!resolveLike || !resolveComment) throw new Error('topic resolvers not captured')
     resolveLike({
       data: [notice(2, { type: 'LikeCreated' })],
       traceId: 'trace-like'
@@ -326,6 +332,7 @@ describe('NoticeDetailView', () => {
   })
 
   it('does not apply the old identity mark-read result after account switching', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveOldMarkRead
     listNotices
       .mockResolvedValueOnce({ data: [notice(0)], traceId: 'trace-user-a' })
@@ -345,8 +352,8 @@ describe('NoticeDetailView', () => {
       me: { userId: '22222222-2222-7222-8222-222222222222', username: 'user-b', authorities: [] }
     })
     await flushPromises()
+    if (!resolveOldMarkRead) throw new Error('mark-read resolver not captured')
     resolveOldMarkRead({ traceId: 'trace-stale-mark-read' })
-    await flushPromises()
 
     expect(listNotices).toHaveBeenCalledTimes(2)
     expect(wrapper.text()).toContain('你收到了新的关注')

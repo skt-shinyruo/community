@@ -162,9 +162,9 @@ describe('refreshCoordinator', () => {
     ])
 
     expect(settled.every((result) => result.status === 'rejected')).toBe(true)
-    expect(settled[0].reason).toBe(settled[1].reason)
-    expect(settled[1].reason).toBe(settled[2].reason)
-    expect(settled[0].reason).toMatchObject({ sessionRefreshState: 'retryable' })
+    expect(/** @type {{ reason?: unknown }} */ (settled[0]).reason).toBe(/** @type {{ reason?: unknown }} */ (settled[1]).reason)
+    expect(/** @type {{ reason?: unknown }} */ (settled[1]).reason).toBe(/** @type {{ reason?: unknown }} */ (settled[2]).reason)
+    expect(/** @type {{ reason?: unknown }} */ (settled[0]).reason).toMatchObject({ sessionRefreshState: 'retryable' })
     expect(clear).not.toHaveBeenCalled()
     expect(auth.accessToken).toBe('old-token')
   })
@@ -245,8 +245,10 @@ describe('refreshCoordinator', () => {
 })
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {(value: unknown) => void} */
+  let resolve = () => {}
+  /** @type {(reason?: unknown) => void} */
+  let reject = () => {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise

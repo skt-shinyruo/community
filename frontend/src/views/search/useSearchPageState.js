@@ -31,6 +31,11 @@ export function parseSearchRouteQuery(query = {}) {
   }
 }
 
+/**
+ * @param {Record<string, unknown>} [currentQuery]
+ * @param {{ keyword?: unknown, categoryId?: unknown, tag?: unknown }} [changes]
+ * @returns {import('vue-router').LocationQueryRaw} 路由 query 序列化产物，与 postsViewState.serializePostsRouteQuery 同口径。
+ */
 export function serializeSearchRouteQuery(currentQuery = {}, changes = {}) {
   const next = { ...currentQuery }
 
@@ -50,7 +55,8 @@ export function serializeSearchRouteQuery(currentQuery = {}, changes = {}) {
     else delete next.tag
   }
 
-  return next
+  // 序列化只写入 string 值（q / categoryId / tag），其余键原样透传给 router.replace。
+  return /** @type {import('vue-router').LocationQueryRaw} */ (/** @type {unknown} */ (next))
 }
 
 export function useSearchPageState() {
@@ -77,7 +83,7 @@ export function useSearchPageState() {
   const loadingMore = ref(false)
   const error = ref('')
   const pageError = ref('')
-  const items = ref([])
+  const items = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const hasNext = ref(false)
 
   const { suggestions: suggestedTags } = useTagSuggestions({

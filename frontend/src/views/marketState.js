@@ -327,6 +327,15 @@ export function mergeMarketPage(currentItems, nextItems, idField) {
   return merged
 }
 
+/**
+ * @param {{
+ *   listings?: Array<Record<string, unknown>> | null,
+ *   orders?: Array<Record<string, unknown>> | null,
+ *   disputes?: Array<Record<string, unknown>> | null,
+ *   addresses?: Array<Record<string, unknown>> | null,
+ *   inventory?: Array<Record<string, unknown>> | null
+ * }} [source]
+ */
 export function buildMarketState({ listings, orders, disputes, addresses, inventory } = {}) {
   const safeListings = Array.isArray(listings) ? listings : []
   const safeOrders = Array.isArray(orders) ? orders : []
@@ -393,6 +402,9 @@ export function buildMarketState({ listings, orders, disputes, addresses, invent
 // 确认完成 / 收货是放款给卖家的资损动作，取消订单会中止卖家履约并触发退款流程：
 // 两者都先经 UiModalConfirm 复述金额与不可撤销后果（延续 WalletView 的确认写法），
 // 再进入原提交流程；确认弹窗只做复述，不改变 allowedActions 权限语义。
+/**
+ * @param {{ totalAmountText?: unknown, confirmButtonText?: unknown }} [order]
+ */
 export function marketOrderConfirmConfirmation({ totalAmountText, confirmButtonText } = {}) {
   const amount = String(totalAmountText || '').trim() || '托管资金'
   const action = String(confirmButtonText || '').trim() || '确认完成'
@@ -404,6 +416,9 @@ export function marketOrderConfirmConfirmation({ totalAmountText, confirmButtonT
   }
 }
 
+/**
+ * @param {{ totalAmountText?: unknown }} [order]
+ */
 export function marketOrderCancelConfirmation({ totalAmountText } = {}) {
   const amount = String(totalAmountText || '').trim() || '托管资金'
   return {
@@ -423,6 +438,9 @@ export function marketOrderQuantityError(raw) {
 
 // 管理员裁定（退回买家 / 放款卖家）直接动托管资金：先经确认弹窗复述订单金额与不可撤销后果
 // （延续订单确认 / 取消的确认写法），裁定理由由管理员在弹窗中显式填写，留空不覆盖卖家说明。
+/**
+ * @param {{ action?: unknown, totalAmountText?: unknown }} [dispute]
+ */
 export function marketDisputeResolutionConfirmation({ action, totalAmountText } = {}) {
   const amount = String(totalAmountText || '').trim() || '托管资金'
   const normalized = String(action || '').trim().toLowerCase()

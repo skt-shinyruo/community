@@ -24,7 +24,8 @@ function message(seq, { fromId = 'other' } = {}) {
 describe('createConversationReadMarker', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    markImConversationRead.mockResolvedValue({})
+    // 源函数返回 Promise<void>：测试只需一个已完成的值，运行时占位与 {} 等价。
+    vi.mocked(markImConversationRead).mockResolvedValue(/** @type {void} */ (/** @type {unknown} */ ({})))
     setActivePinia(createPinia())
   })
 
@@ -76,7 +77,7 @@ describe('createConversationReadMarker', () => {
     await marker.advanceAndReport('conv-1', [message(1), message(2), message(3)])
     expect(markImConversationRead).toHaveBeenCalledTimes(1)
     expect(markImConversationRead).toHaveBeenCalledWith('conv-1', 3)
-    markImConversationRead.mockClear()
+    vi.mocked(markImConversationRead).mockClear()
 
     // 乱序帧：先到 seq 5（缺 4），水位不推进。
     await marker.advanceAndReport('conv-1', [message(1), message(2), message(3), message(5)])
@@ -92,7 +93,7 @@ describe('createConversationReadMarker', () => {
     const marker = createConversationReadMarker()
 
     await marker.advanceAndReport('conv-1', [message(1), message(2), message(3)])
-    markImConversationRead.mockClear()
+    vi.mocked(markImConversationRead).mockClear()
 
     // 迟到的低水位 HTTP 页不回退基线。
     await marker.anchorAndReport('conv-1', 1, [message(1)])
@@ -135,7 +136,7 @@ describe('createConversationReadMarker', () => {
   })
 
   it('keeps the conversation flow unaffected when the read report fails', async () => {
-    markImConversationRead.mockRejectedValueOnce(new Error('标记已读失败'))
+    vi.mocked(markImConversationRead).mockRejectedValueOnce(new Error('标记已读失败'))
     const marker = createConversationReadMarker()
 
     await expect(marker.advanceAndReport('conv-1', [message(1)])).resolves.toBeUndefined()

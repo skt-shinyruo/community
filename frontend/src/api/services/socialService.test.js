@@ -143,6 +143,7 @@ describe('api/services/socialService', () => {
     const entityA = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
     const entityB = 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb'
     mock = new MockAdapter(http)
+    /** @type {(() => void) | undefined} */
     let resolveStaleStatuses
     mock.onGet('/api/follows/statuses').replyOnce(() => new Promise((resolve) => {
       resolveStaleStatuses = () => resolve([200, {
@@ -163,7 +164,7 @@ describe('api/services/socialService', () => {
     while (!resolveStaleStatuses) await Promise.resolve()
 
     await followUser(3, entityA)
-    resolveStaleStatuses()
+    resolveStaleStatuses?.()
 
     await expect(pending).resolves.toEqual({
       data: { [entityA]: true, [entityB]: true },
@@ -178,6 +179,7 @@ describe('api/services/socialService', () => {
   it('does not let an in-flight single status response overwrite a completed unfollow mutation', async () => {
     const entityId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
     mock = new MockAdapter(http)
+    /** @type {(() => void) | undefined} */
     let resolveStaleStatus
     mock.onGet('/api/follows/status').replyOnce(() => new Promise((resolve) => {
       resolveStaleStatus = () => resolve([200, {
@@ -198,7 +200,7 @@ describe('api/services/socialService', () => {
     while (!resolveStaleStatus) await Promise.resolve()
 
     await unfollowUser(3, entityId)
-    resolveStaleStatus()
+    resolveStaleStatus?.()
 
     await expect(pending).resolves.toEqual({ data: false, traceId: 'trace-stale-status' })
 
@@ -340,6 +342,7 @@ describe('api/services/socialService', () => {
       me: { userId: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa' }
     })
 
+    /** @type {(() => void) | undefined} */
     let resolveOldIdentity
     mock = new MockAdapter(http)
     mock.onGet('/api/follows/statuses').replyOnce(() => new Promise((resolve) => {
@@ -364,7 +367,7 @@ describe('api/services/socialService', () => {
       data: { [entityId]: false },
       traceId: 'trace-user-b'
     })
-    resolveOldIdentity()
+    resolveOldIdentity?.()
 
     await expect(pending).resolves.toEqual({
       data: { [entityId]: false },

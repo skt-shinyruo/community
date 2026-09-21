@@ -39,6 +39,12 @@ import {
   listMyMarketListings
 } from '../api/services/marketService'
 
+
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const listMyMarketListingsMock = /** @type {import('vitest').Mock} */ (listMyMarketListings)
+const listMarketInventoryMock = /** @type {import('vitest').Mock} */ (listMarketInventory)
+const addMarketInventoryMock = /** @type {import('vitest').Mock} */ (addMarketInventory)
+const invalidateMarketInventoryMock = /** @type {import('vitest').Mock} */ (invalidateMarketInventory)
 function mountOptions() {
   return {
     global: {
@@ -63,15 +69,16 @@ function mountOptions() {
   }
 }
 
+
 function mountView(component) {
   const wrapper = mount(component, mountOptions())
   mountedWrappers.push(wrapper)
   return wrapper
 }
-
 function listboxOptions() {
-  return [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
+  return /** @type {HTMLElement[]} */ ([...document.body.querySelectorAll('[role="listbox"] [role="option"]')])
 }
+
 
 describe('Unified market seller views', () => {
   beforeEach(() => {
@@ -82,10 +89,10 @@ describe('Unified market seller views', () => {
     routeState.path = '/market/my-listings/21/inventory'
     routeState.fullPath = '/market/my-listings/21/inventory'
     vi.clearAllMocks()
-    listMyMarketListings.mockResolvedValue({ data: [], traceId: 'trace-my-listings' })
-    listMarketInventory.mockResolvedValue({ data: [], traceId: 'trace-inventory' })
-    addMarketInventory.mockResolvedValue({ data: {}, traceId: 'trace-add' })
-    invalidateMarketInventory.mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
+    listMyMarketListingsMock.mockResolvedValue({ data: [], traceId: 'trace-my-listings' })
+    listMarketInventoryMock.mockResolvedValue({ data: [], traceId: 'trace-inventory' })
+    addMarketInventoryMock.mockResolvedValue({ data: {}, traceId: 'trace-add' })
+    invalidateMarketInventoryMock.mockResolvedValue({ data: {}, traceId: 'trace-invalidate' })
   })
 
   afterEach(() => {
@@ -93,7 +100,7 @@ describe('Unified market seller views', () => {
   })
 
   it('loads seller listings on mount and renders goods type labels with inventory links', async () => {
-    listMyMarketListings.mockResolvedValue({
+    listMyMarketListingsMock.mockResolvedValue({
       data: [
         {
           listingId: 21,
@@ -128,8 +135,11 @@ describe('Unified market seller views', () => {
     expect(wrapper.text()).toContain('钱包托管')
     expect(wrapper.text()).toContain('自动交付')
     const inventoryLink = wrapper.findAll('a').find((link) => link.text().includes('库存管理'))
+    if (!inventoryLink) throw new Error('inventory link not found')
     expect(inventoryLink).toBeTruthy()
-    expect(JSON.parse(inventoryLink.attributes('data-to'))).toEqual({
+    const inventoryRoute = inventoryLink.attributes('data-to')
+    if (!inventoryRoute) throw new Error('inventory route attribute missing')
+    expect(JSON.parse(inventoryRoute)).toEqual({
       name: 'marketInventory',
       params: { listingId: 21 }
     })
@@ -137,7 +147,7 @@ describe('Unified market seller views', () => {
 
   it('shows a skeleton during the first seller listings load and a retryable error state on failure', async () => {
     const pending = deferred()
-    listMyMarketListings.mockReturnValueOnce(pending.promise)
+    listMyMarketListingsMock.mockReturnValueOnce(pending.promise)
     const wrapper = mountView(MarketMyListingsView)
     await nextTick()
 
@@ -160,7 +170,7 @@ describe('Unified market seller views', () => {
 
   it('discards seller listings returned for a previous authenticated identity', async () => {
     const oldListings = deferred()
-    listMyMarketListings
+    listMyMarketListingsMock
       .mockReturnValueOnce(oldListings.promise)
       .mockResolvedValueOnce({
         data: [{ listingId: 22, goodsType: 'PHYSICAL', title: 'B 的商品', status: 'ACTIVE' }],
@@ -188,7 +198,7 @@ describe('Unified market seller views', () => {
   })
 
   it('loads inventory on mount and renders the payload table with status badges', async () => {
-    listMarketInventory.mockResolvedValue({
+    listMarketInventoryMock.mockResolvedValue({
       data: [
         {
           inventoryUnitId: 301,
@@ -214,7 +224,7 @@ describe('Unified market seller views', () => {
   })
 
   it('sorts inventory rows through the table sort hooks', async () => {
-    listMarketInventory.mockResolvedValue({
+    listMarketInventoryMock.mockResolvedValue({
       data: [
         { inventoryUnitId: 301, listingId: 21, payloadType: 'CODE', payloadContent: 'SOLD-1', status: 'SOLD' },
         { inventoryUnitId: 302, listingId: 21, payloadType: 'CODE', payloadContent: 'FREE-1', status: 'AVAILABLE' },
@@ -240,8 +250,9 @@ describe('Unified market seller views', () => {
   })
 
   it('does not let an old listing response replace inventory after navigation', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveOldRequest
-    listMarketInventory
+    listMarketInventoryMock
       .mockImplementationOnce(() => new Promise((resolve) => {
         resolveOldRequest = resolve
       }))
@@ -257,6 +268,7 @@ describe('Unified market seller views', () => {
     routeState.params = { listingId: '22' }
     await flushPromises()
 
+    if (!resolveOldRequest) throw new Error('old inventory resolve not captured')
     resolveOldRequest({
       data: [{ inventoryUnitId: 301, payloadContent: 'OLD-LISTING', status: 'AVAILABLE' }],
       hasNext: false,
@@ -272,7 +284,7 @@ describe('Unified market seller views', () => {
 
   it('discards inventory returned for a previous authenticated identity', async () => {
     const oldInventory = deferred()
-    listMarketInventory
+    listMarketInventoryMock
       .mockReturnValueOnce(oldInventory.promise)
       .mockResolvedValueOnce({
         data: [{ inventoryUnitId: 302, payloadContent: 'B-SECRET', status: 'AVAILABLE' }],
@@ -318,6 +330,7 @@ describe('Unified market seller views', () => {
     await wrapper.get('[role="combobox"]').trigger('click')
     await nextTick()
     const linkOption = listboxOptions().find((option) => option.textContent === '链接')
+    if (!linkOption) throw new Error('link option not found')
     expect(linkOption).toBeTruthy()
     linkOption.click()
     await nextTick()
@@ -332,7 +345,7 @@ describe('Unified market seller views', () => {
     }, expect.objectContaining({ writeAttempt: expect.any(Object) }))
     expect(wrapper.text()).toContain('库存已追加。')
 
-    addMarketInventory.mockRejectedValueOnce(new Error('库存服务不可用'))
+    addMarketInventoryMock.mockRejectedValueOnce(new Error('库存服务不可用'))
     await wrapper.get('textarea').setValue('https://example.com/key-3')
     await wrapper.get('[data-test="inventory-add-submit"]').trigger('click')
     await flushPromises()
@@ -342,7 +355,7 @@ describe('Unified market seller views', () => {
 
   it('reuses the write-attempt key when a failed inventory append is manually retried and renews it after success', async () => {
     const observedKeys = []
-    addMarketInventory
+    addMarketInventoryMock
       .mockImplementationOnce((_listingId, _payload, { writeAttempt }) => {
         observedKeys.push(writeAttempt.begin())
         return Promise.reject(new Error('网关超时'))
@@ -373,7 +386,7 @@ describe('Unified market seller views', () => {
   })
 
   it('requires a confirmation before invalidating an available unit', async () => {
-    listMarketInventory.mockResolvedValue({
+    listMarketInventoryMock.mockResolvedValue({
       data: [
         {
           inventoryUnitId: 301,
@@ -390,16 +403,21 @@ describe('Unified market seller views', () => {
     await flushPromises()
 
     // 先取消：高风险动作不进入服务调用。
-    const invalidateTrigger = () => wrapper
-      .get('[data-test="inventory-table"]')
-      .findAll('button')
-      .find((button) => button.text() === '失效')
+    const invalidateTrigger = () => {
+      const button = wrapper
+        .get('[data-test="inventory-table"]')
+        .findAll('button')
+        .find((item) => item.text() === '失效')
+      if (!button) throw new Error('invalidate button not found')
+      return button
+    }
     await invalidateTrigger().trigger('click')
     await nextTick()
     const dialog = wrapper.get('[role="dialog"]')
     expect(dialog.text()).toContain('CODE-001')
     expect(dialog.text()).toContain('不再可售')
     const cancelButton = dialog.findAll('button').find((button) => button.text() === '取消')
+    if (!cancelButton) throw new Error('cancel button not found')
     await cancelButton.trigger('click')
     await nextTick()
     expect(invalidateMarketInventory).not.toHaveBeenCalled()
@@ -412,6 +430,7 @@ describe('Unified market seller views', () => {
       .get('[role="dialog"]')
       .findAll('button')
       .find((button) => button.text() === '确认失效')
+    if (!confirmButton) throw new Error('confirm button not found')
     await confirmButton.trigger('click')
     await flushPromises()
 
@@ -429,11 +448,14 @@ function authenticate(userId, accessToken) {
 }
 
 function deferred() {
+  /** @type {((value: unknown) => void) | undefined} */
   let resolve
+  /** @type {((reason?: unknown) => void) | undefined} */
   let reject
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise
   })
+  if (!resolve || !reject) throw new Error('deferred controls not captured')
   return { promise, resolve, reject }
 }

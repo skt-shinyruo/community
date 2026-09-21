@@ -244,14 +244,14 @@ describe('http', () => {
   it('should suppress global error toast when request opts out', async () => {
     mock.onPost('/api/auth/refresh').replyOnce(401, { code: 10004, message: '刷新令牌无效', traceId: 'trace-1' })
 
-    await expect(http.post('/api/auth/refresh', null, { skipGlobalErrorToast: true })).rejects.toBeTruthy()
+    await expect(http.post('/api/auth/refresh', null, /** @type {import('axios').AxiosRequestConfig} */ ({ skipGlobalErrorToast: true }))).rejects.toBeTruthy()
     expect(toast).not.toHaveBeenCalled()
   })
 
   it('should suppress the IM client global error toast when request opts out', async () => {
     imMock.onGet('/api/im/unread/summary').replyOnce(500, { code: 500, message: 'IM 服务异常', traceId: 'trace-im-1' })
 
-    await expect(imCoreHttp.get('/api/im/unread/summary', { skipGlobalErrorToast: true })).rejects.toBeTruthy()
+    await expect(imCoreHttp.get('/api/im/unread/summary', /** @type {import('axios').AxiosRequestConfig} */ ({ skipGlobalErrorToast: true }))).rejects.toBeTruthy()
     expect(toast).not.toHaveBeenCalled()
   })
 
@@ -270,7 +270,7 @@ describe('http', () => {
   it('should suppress the timeout toast when the request opts out', async () => {
     mock.onGet('/api/slow').timeoutOnce()
 
-    await expect(http.get('/api/slow', { skipGlobalErrorToast: true })).rejects.toMatchObject({ code: 'ECONNABORTED' })
+    await expect(http.get('/api/slow', /** @type {import('axios').AxiosRequestConfig} */ ({ skipGlobalErrorToast: true }))).rejects.toMatchObject({ code: 'ECONNABORTED' })
     expect(toast).not.toHaveBeenCalled()
   })
 
@@ -435,8 +435,10 @@ describe('http', () => {
 })
 
 function deferred() {
-  let resolve
-  let reject
+  /** @type {(value: unknown) => void} */
+  let resolve = () => {}
+  /** @type {(reason?: unknown) => void} */
+  let reject = () => {}
   const promise = new Promise((resolvePromise, rejectPromise) => {
     resolve = resolvePromise
     reject = rejectPromise

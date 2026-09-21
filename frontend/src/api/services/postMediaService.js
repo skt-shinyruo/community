@@ -2,6 +2,9 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { executeUploadSession } from '../uploadSession'
 
+/**
+ * @param {{ file?: File, mediaKind?: unknown, checksumSha256?: string, signal?: AbortSignal }} [options]
+ */
 export async function preparePostMediaUpload({ file, mediaKind, checksumSha256 = '', signal } = {}) {
   const payload = {
     fileName: String(file?.name || ''),
@@ -12,9 +15,12 @@ export async function preparePostMediaUpload({ file, mediaKind, checksumSha256 =
   }
   const resp = await http.post('/api/posts/media/upload-sessions', payload, { signal })
   const { data, traceId } = unwrapResultBody(resp.data, '创建帖子媒体上传会话')
-  return { data: normalizePostMediaSession(data), traceId }
+  return { data: normalizePostMediaSession(/** @type {Record<string, unknown>} */ (data)), traceId }
 }
 
+/**
+ * @param {{ session?: object, file?: File, signal?: AbortSignal, onProgress?: (progress: { percent?: number }) => void }} [options]
+ */
 export async function uploadPostMediaFile({ session, file, signal, onProgress } = {}) {
   const { data, traceId } = await executeUploadSession({ session, file, signal, onProgress, operation: '上传帖子媒体' })
   return { data, traceId }
@@ -27,6 +33,7 @@ export function inferMediaKind(file) {
   return 'FILE'
 }
 
+/** @param {Record<string, unknown>} [raw] */
 function normalizePostMediaSession(raw = {}) {
   return {
     ...raw,

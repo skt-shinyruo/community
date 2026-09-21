@@ -15,7 +15,7 @@ export function useBookmarksFeed() {
   const prefs = useSocialPrefsStore()
   const auth = useAuthStore()
 
-  const items = ref([])
+  const items = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const loading = ref(false)
   const loadingMore = ref(false)
   const error = ref('')

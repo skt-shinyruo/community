@@ -32,6 +32,10 @@ function conversation(conversationId, { unreadCount = 0 } = {}) {
   return { conversationId, otherUserId: OTHER_USER_ID, unreadCount, lastMessage: null }
 }
 
+/**
+ * @param {Array<Record<string, unknown>>} items
+ * @param {{ nextCursor?: string | null, hasMore?: boolean }} [options]
+ */
 function page(items, { nextCursor = null, hasMore = false } = {}) {
   return { items, nextCursor, hasMore }
 }
@@ -46,6 +50,7 @@ function mountFeed({ authed = true } = {}) {
     })
   }
 
+  /** @type {ReturnType<typeof useConversationsFeed> | undefined} */
   let feed
   const Harness = defineComponent({
     setup() {
@@ -54,18 +59,19 @@ function mountFeed({ authed = true } = {}) {
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!feed) throw new Error('harness feed not initialized')
   return feed
 }
 
 describe('useConversationsFeed', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    topicSummary.mockResolvedValue({ data: [] })
-    getImUnreadSummary.mockResolvedValue({ conversations: [] })
+    vi.mocked(topicSummary).mockResolvedValue({ data: [] })
+    vi.mocked(getImUnreadSummary).mockResolvedValue({ conversations: [] })
   })
 
   it('loads the first page on mount and counts unread conversations', async () => {
-    listImConversationPage.mockResolvedValueOnce(page([
+    vi.mocked(listImConversationPage).mockResolvedValueOnce(page([
       conversation('conv-a', { unreadCount: 2 }),
       conversation('conv-b'),
       conversation('conv-c', { unreadCount: 1 })
@@ -82,7 +88,7 @@ describe('useConversationsFeed', () => {
   })
 
   it('appends cursor pages, dedupes by conversationId, and stops at the end', async () => {
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockResolvedValueOnce(page([conversation('conv-a'), conversation('conv-b')], { nextCursor: 'cursor-2', hasMore: true }))
       .mockResolvedValueOnce(page([conversation('conv-b'), conversation('conv-c')], { nextCursor: null, hasMore: false }))
 
@@ -92,7 +98,7 @@ describe('useConversationsFeed', () => {
     await feed.loadMore()
     await flushPromises()
 
-    expect(listImConversationPage.mock.calls.map(([request]) => request.cursor)).toEqual(['', 'cursor-2'])
+    expect(vi.mocked(listImConversationPage).mock.calls.map(([request]) => request?.cursor)).toEqual(['', 'cursor-2'])
     const ids = feed.items.value.map((item) => item.conversationId)
     expect(new Set(ids).size).toBe(ids.length)
     expect(feed.items.value).toHaveLength(3)
@@ -100,7 +106,7 @@ describe('useConversationsFeed', () => {
   })
 
   it('keeps loaded rows and reports append failures in pageError with the same retry cursor', async () => {
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockResolvedValueOnce(page([conversation('conv-a')], { nextCursor: 'cursor-2', hasMore: true }))
       .mockRejectedValueOnce(new Error('追加失败'))
       .mockResolvedValueOnce(page([conversation('conv-b')], { nextCursor: null, hasMore: false }))
@@ -116,13 +122,13 @@ describe('useConversationsFeed', () => {
 
     await feed.loadMore()
     await flushPromises()
-    expect(listImConversationPage.mock.calls.map(([request]) => request.cursor)).toEqual(['', 'cursor-2', 'cursor-2'])
+    expect(vi.mocked(listImConversationPage).mock.calls.map(([request]) => request?.cursor)).toEqual(['', 'cursor-2', 'cursor-2'])
     expect(feed.items.value).toHaveLength(2)
     expect(feed.pageError.value).toBe('')
   })
 
   it('refuses load-more while a request is running or no cursor remains', async () => {
-    listImConversationPage.mockResolvedValue(page([conversation('conv-a')], { nextCursor: null, hasMore: false }))
+    vi.mocked(listImConversationPage).mockResolvedValue(page([conversation('conv-a')], { nextCursor: null, hasMore: false }))
 
     const feed = mountFeed()
     await flushPromises()
@@ -133,7 +139,7 @@ describe('useConversationsFeed', () => {
   })
 
   it('refreshes the shell unread badge after a successful first load, not after append pages', async () => {
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockResolvedValueOnce(page([conversation('conv-a')], { nextCursor: 'cursor-2', hasMore: true }))
       .mockResolvedValueOnce(page([conversation('conv-b')], { nextCursor: null, hasMore: false }))
 
@@ -148,7 +154,7 @@ describe('useConversationsFeed', () => {
   })
 
   it('offers reload after the initial load fails and recovers', async () => {
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockRejectedValueOnce(new Error('会话服务不可用'))
       .mockResolvedValueOnce(page([conversation('conv-a')]))
 
@@ -164,8 +170,9 @@ describe('useConversationsFeed', () => {
   })
 
   it('ignores a stale load-more response after a refresh from the empty cursor', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveStaleAppend
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockResolvedValueOnce(page([conversation('conv-a')], { nextCursor: 'cursor-2', hasMore: true }))
       .mockImplementationOnce(() => new Promise((resolve) => { resolveStaleAppend = resolve }))
       .mockResolvedValueOnce(page([conversation('conv-refreshed')], { nextCursor: null, hasMore: false }))
@@ -177,6 +184,7 @@ describe('useConversationsFeed', () => {
     await feed.reload()
     await flushPromises()
 
+    if (!resolveStaleAppend) throw new Error('resolveStaleAppend not initialized')
     resolveStaleAppend(page([conversation('conv-stale')], { nextCursor: null, hasMore: false }))
     await pendingMore
     await flushPromises()
@@ -187,8 +195,9 @@ describe('useConversationsFeed', () => {
   })
 
   it('clears rows and ignores the previous identity response after the account switches', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolvePrevious
-    listImConversationPage
+    vi.mocked(listImConversationPage)
       .mockImplementationOnce(() => new Promise((resolve) => { resolvePrevious = resolve }))
       .mockResolvedValueOnce(page([conversation('conv-current')]))
 
@@ -203,13 +212,14 @@ describe('useConversationsFeed', () => {
     expect(listImConversationPage).toHaveBeenCalledTimes(2)
     expect(feed.items.value.map((item) => item.conversationId)).toEqual(['conv-current'])
 
+    if (!resolvePrevious) throw new Error('resolvePrevious not initialized')
     resolvePrevious(page([conversation('conv-previous')]))
     await flushPromises()
     expect(feed.items.value.map((item) => item.conversationId)).toEqual(['conv-current'])
   })
 
   it('keeps loaded rows and pagination across access token rotation', async () => {
-    listImConversationPage.mockResolvedValue(page([conversation('conv-a')], { nextCursor: 'cursor-2', hasMore: true }))
+    vi.mocked(listImConversationPage).mockResolvedValue(page([conversation('conv-a')], { nextCursor: 'cursor-2', hasMore: true }))
 
     const feed = mountFeed()
     await flushPromises()

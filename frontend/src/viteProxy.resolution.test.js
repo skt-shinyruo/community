@@ -34,7 +34,7 @@ describe('vite proxy resolution', () => {
   })
 
   it('should default local frontend proxy traffic to same gateway target for api, files, and websocket', () => {
-    const config = configFactory({ mode: 'development' })
+    const config = configFactory(/** @type {import('vite').ConfigEnv} */ ({ mode: 'development' }))
 
     expect(getApiProxyTarget(config)).toBe('http://localhost:12880')
     expect(getPreviewApiProxyTarget(config)).toBe('http://localhost:12880')
@@ -47,7 +47,7 @@ describe('vite proxy resolution', () => {
   it('should allow preview proxy target override for containerized frontend runtime', () => {
     vi.stubEnv('VITE_PREVIEW_PROXY_TARGET', 'http://community-gateway:8080')
 
-    const config = configFactory({ mode: 'development' })
+    const config = configFactory(/** @type {import('vite').ConfigEnv} */ ({ mode: 'development' }))
 
     expect(getPreviewApiProxyTarget(config)).toBe('http://community-gateway:8080')
     expect(getPreviewFilesProxyTarget(config)).toBe('http://community-gateway:8080')

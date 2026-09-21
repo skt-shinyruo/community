@@ -41,6 +41,9 @@ function mappedMessages(raw) {
   )
 }
 
+/**
+ * @param {{ canLoad?: boolean, latestLoadBuffer?: { token: unknown, context: object, messages: Array<import('./conversationDetailHistoryFlow').ConversationMessage> } | null, isCurrentRequest?: () => boolean, items?: import('vue').Ref<import('./conversationDetailHistoryFlow').ConversationMessage[]>, baselineWaterline?: number | null }} [overrides]
+ */
 function createDeps({
   canLoad = true,
   latestLoadBuffer = null,
@@ -111,11 +114,12 @@ describe('createHistoryFlowState', () => {
 describe('createConversationHistoryBackfill', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    markImConversationRead.mockResolvedValue({})
+    // 源函数返回 Promise<void>：测试只需一个已完成的值，运行时占位与 {} 等价。
+    vi.mocked(markImConversationRead).mockResolvedValue(/** @type {void} */ (/** @type {unknown} */ ({})))
   })
 
   it('backfills messages after the requested seq and marks the new waterline read', async () => {
-    listImConversationMessages.mockResolvedValueOnce({ items: [rawMessage(1), rawMessage(2)] })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: [rawMessage(1), rawMessage(2)] })
     const { flow, historyFlow, items, scrollToBottom } = createDeps()
 
     await flow.backfillAfterReconnect()
@@ -131,20 +135,19 @@ describe('createConversationHistoryBackfill', () => {
   it('keeps paging while full pages come back and the seq advances without internal gaps', async () => {
     const fullPage = Array.from({ length: 100 }, (_, index) => rawMessage(index + 1))
     const tailPage = [rawMessage(101)]
-    listImConversationMessages
-      .mockResolvedValueOnce({ items: fullPage })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: fullPage })
       .mockResolvedValueOnce({ items: tailPage })
     const { flow, historyFlow, items } = createDeps()
 
     await flow.backfillAfterReconnect()
 
-    expect(listImConversationMessages.mock.calls.map(([, request]) => request.afterSeq)).toEqual([0, 100])
+    expect(vi.mocked(listImConversationMessages).mock.calls.map(([, request]) => request?.afterSeq)).toEqual([0, 100])
     expect(items.value).toHaveLength(101)
     expect(historyFlow.waterline).toBe(101)
   })
 
   it('stops at an internal gap and resumes from the new waterline on the next reconnect', async () => {
-    listImConversationMessages.mockResolvedValueOnce({ items: [rawMessage(3), rawMessage(5)] })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: [rawMessage(3), rawMessage(5)] })
     const { flow, historyFlow, items } = createDeps({ baselineWaterline: 2 })
 
     await flow.backfillAfterReconnect()
@@ -154,15 +157,15 @@ describe('createConversationHistoryBackfill', () => {
     expect(historyFlow.waterline).toBe(3)
     expect(markImConversationRead).toHaveBeenCalledWith(CONVERSATION_ID, 3)
 
-    listImConversationMessages.mockResolvedValueOnce({ items: [rawMessage(4), rawMessage(5)] })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: [rawMessage(4), rawMessage(5)] })
     await flow.backfillAfterReconnect()
-    expect(listImConversationMessages.mock.calls.map(([, request]) => request.afterSeq)).toEqual([2, 3])
+    expect(vi.mocked(listImConversationMessages).mock.calls.map(([, request]) => request?.afterSeq)).toEqual([2, 3])
     expect(markImConversationRead).toHaveBeenLastCalledWith(CONVERSATION_ID, 5)
   })
 
   it('removes own pending sends from the pending set when backfill proves them persisted', async () => {
     const messages = [rawMessage(4, { fromUserId: ME_ID, clientMsgId: 'client-echo' })]
-    listImConversationMessages.mockResolvedValueOnce({ items: messages })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: messages })
     const { flow, pendingClientMsgIds } = createDeps()
     pendingClientMsgIds.add('client-echo')
 
@@ -173,7 +176,7 @@ describe('createConversationHistoryBackfill', () => {
 
   it('leaves peer pending clientMsgIds alone even if the id collides', async () => {
     const messages = [rawMessage(4, { fromUserId: TARGET_ID, clientMsgId: 'client-echo' })]
-    listImConversationMessages.mockResolvedValueOnce({ items: messages })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: messages })
     const { flow, pendingClientMsgIds } = createDeps()
     pendingClientMsgIds.add('client-echo')
 
@@ -184,25 +187,28 @@ describe('createConversationHistoryBackfill', () => {
   })
 
   it('feeds realtime messages arriving during an in-flight latest load through the load buffer', async () => {
-    let resolveBackfillPage
-    listImConversationMessages.mockImplementationOnce(() => new Promise((resolve) => {
-      resolveBackfillPage = resolve
+    // 执行器同步赋值；对象包装让类型系统看到确定赋值（waitFor 内的 typeof 检查无法收窄闭包外的绑定）。
+    /** @type {{ resolve?: (page: import('../api/services/imCoreChatService').ImConversationMessagePage) => void }} */
+    const backfillPage = {}
+    vi.mocked(listImConversationMessages).mockImplementationOnce(() => new Promise((resolve) => {
+      backfillPage.resolve = resolve
     }))
     const buffer = { token: 'load-token', context: context(), messages: [] }
     const { flow } = createDeps({ latestLoadBuffer: buffer, isCurrentRequest: () => true })
 
     const pending = flow.backfillAfterReconnect()
-    await vi.waitFor(() => expect(typeof resolveBackfillPage).toBe('function'))
-    resolveBackfillPage({ items: [rawMessage(1)] })
+    await vi.waitFor(() => expect(typeof backfillPage.resolve).toBe('function'))
+    backfillPage.resolve?.({ items: [rawMessage(1)] })
     await pending
 
     expect(buffer.messages).toHaveLength(1)
   })
 
   it('queues one more pass when a reconnect lands while a pass is in flight', async () => {
-    let resolveFirstPage
-    listImConversationMessages
-      .mockImplementationOnce(() => new Promise((resolve) => { resolveFirstPage = resolve }))
+    // 同上：包装 resolveFirstPage。
+    /** @type {{ resolve?: (page: import('../api/services/imCoreChatService').ImConversationMessagePage) => void }} */
+    const firstPage = {}
+    vi.mocked(listImConversationMessages).mockImplementationOnce(() => new Promise((resolve) => { firstPage.resolve = resolve }))
       .mockResolvedValueOnce({ items: [rawMessage(5)] })
     const { flow } = createDeps()
 
@@ -210,24 +216,26 @@ describe('createConversationHistoryBackfill', () => {
     const secondRun = flow.backfillAfterReconnect()
     expect(secondRun).toBe(firstRun)
 
-    await vi.waitFor(() => expect(typeof resolveFirstPage).toBe('function'))
+    await vi.waitFor(() => expect(typeof firstPage.resolve).toBe('function'))
     // 第一轮连续推进到 4；第二轮从新水位 4 起补，把水位推进到 5。
-    resolveFirstPage({ items: [rawMessage(1), rawMessage(2), rawMessage(3), rawMessage(4)] })
+    firstPage.resolve?.({ items: [rawMessage(1), rawMessage(2), rawMessage(3), rawMessage(4)] })
     await firstRun
 
-    expect(listImConversationMessages.mock.calls.map(([, request]) => request.afterSeq)).toEqual([0, 4])
+    expect(vi.mocked(listImConversationMessages).mock.calls.map(([, request]) => request?.afterSeq)).toEqual([0, 4])
   })
 
   it('discards the run when the view scope switches conversations mid-flight', async () => {
-    let resolveStale
-    listImConversationMessages.mockImplementationOnce(() => new Promise((resolve) => { resolveStale = resolve }))
+    // 同上：包装 resolveStale。
+    /** @type {{ resolve?: (page: import('../api/services/imCoreChatService').ImConversationMessagePage) => void }} */
+    const stale = {}
+    vi.mocked(listImConversationMessages).mockImplementationOnce(() => new Promise((resolve) => { stale.resolve = resolve }))
     const { flow, items, mutableScope } = createDeps()
 
     const pending = flow.backfillAfterReconnect()
-    await vi.waitFor(() => expect(typeof resolveStale).toBe('function'))
+    await vi.waitFor(() => expect(typeof stale.resolve).toBe('function'))
     // 路由切换会话：scope 变化使在途回填失效，迟到的页面不得写回列表。
     mutableScope.value = `1:${ME_ID}:other-conversation`
-    resolveStale({ items: [rawMessage(1)] })
+    stale.resolve?.({ items: [rawMessage(1)] })
     await pending
 
     expect(items.value).toHaveLength(0)
@@ -267,7 +275,7 @@ describe('createConversationHistoryBackfill', () => {
 
   it('surfaces a backfill failure in error without corrupting committed items', async () => {
     const initial = await mappedMessages([rawMessage(1), rawMessage(2)])
-    listImConversationMessages.mockRejectedValueOnce(new Error('补同步失败'))
+    vi.mocked(listImConversationMessages).mockRejectedValueOnce(new Error('补同步失败'))
     const items = ref(initial)
     const { flow, error } = createDeps({ items })
 
@@ -278,8 +286,10 @@ describe('createConversationHistoryBackfill', () => {
   })
 
   it('waits for the initial latest-history baseline before the first pass', async () => {
-    let resolveBaseline
-    const baselinePromise = new Promise((resolve) => { resolveBaseline = resolve })
+    // 同上：对象包装确定赋值。
+    /** @type {{ resolve?: (value: unknown) => void }} */
+    const baseline = {}
+    const baselinePromise = new Promise((resolve) => { baseline.resolve = resolve })
     const historyFlow = createHistoryFlowState()
     resetHistoryFlowState(historyFlow, SCOPE)
     // workflow 的 refresh() 建立 baseline.run，promise 完成后 waterline 仍是 null 会阻断。
@@ -313,14 +323,14 @@ describe('createConversationHistoryBackfill', () => {
     expect(listImConversationMessages).not.toHaveBeenCalled()
 
     historyFlow.waterline = 3
-    resolveBaseline()
+    baseline.resolve?.(undefined)
     await pending
     expect(listImConversationMessages).toHaveBeenCalledWith(CONVERSATION_ID, { afterSeq: 3, limit: 100 })
   })
 
   it('only scrolls when the backfill grew the visible tail', async () => {
     const initial = await mappedMessages([rawMessage(1), rawMessage(2)])
-    listImConversationMessages.mockResolvedValueOnce({ items: [rawMessage(2), rawMessage(3)] })
+    vi.mocked(listImConversationMessages).mockResolvedValueOnce({ items: [rawMessage(2), rawMessage(3)] })
     const items = ref(initial)
     const { flow, scrollToBottom } = createDeps({ items })
 

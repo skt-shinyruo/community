@@ -45,11 +45,23 @@ export function findLastSeenDividerIndex(items, baselineAt, getActivityAt = (ite
   return -1
 }
 
+/**
+ * @param {{ isLatestFeedView?: unknown, dividerIndex?: unknown, itemsLength?: unknown }} [feed]
+ */
 export function hasLastSeenDivider({ isLatestFeedView, dividerIndex, itemsLength } = {}) {
   const count = Number(itemsLength || 0)
   return !!isLatestFeedView && Number(dividerIndex) > 0 && Number(dividerIndex) < count
 }
 
+/**
+ * @param {{
+ *   isLatestFeedView?: unknown,
+ *   newSinceLastSeenCount?: unknown,
+ *   newHintDismissed?: unknown,
+ *   dividerIndex?: unknown,
+ *   itemsLength?: unknown
+ * }} [feed]
+ */
 export function canJumpToLastSeenDivider({
   isLatestFeedView,
   newSinceLastSeenCount,
@@ -131,7 +143,7 @@ export function usePostsFeed() {
   const nextCursor = ref('')
   const searchPage = ref(0)
   const pageSize = 10
-  const items = ref([])
+  const items = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const hasNext = ref(true)
   const loading = ref(false)
   const error = ref('')
@@ -139,10 +151,10 @@ export function usePostsFeed() {
   // Publish interaction
   const isPublishFocused = ref(false)
   const newTitle = ref('')
-  const newBlocks = ref([{ type: 'paragraph', text: '' }])
+  const newBlocks = ref(/** @type {Array<{ type?: string, text?: string, [key: string]: unknown }>} */ ([{ type: 'paragraph', text: '' }]))
   const newCategoryId = ref('')
   const newTagDraft = ref('')
-  const newTags = ref([])
+  const newTags = ref(/** @type {string[]} */ ([]))
   const newTagError = ref('')
 
   const { suggestions: composerTagSuggest } = useTagSuggestions({
@@ -294,7 +306,7 @@ export function usePostsFeed() {
     }
   })
 
-  const lastSeenDividerRef = ref(null)
+  const lastSeenDividerRef = ref(/** @type {unknown} */ (null))
   const newHintDismissed = ref(false)
 
   const isDefaultLatestFeed = computed(() => order.value === 'latest' && !categoryId.value && !tag.value)
@@ -611,7 +623,7 @@ export function usePostsFeed() {
   function isLikePending(p) {
     return likePendingIds.has(normalizeOpaqueId(p?.id))
   }
-
+  /** @param {{ id?: unknown, likeCount?: number, liked?: boolean, [key: string]: unknown }} [p] */
   async function togglePostLike(p) {
     if (!authed.value || !p) return showToast({ type: 'warning', text: '请先登录' })
     const postId = normalizeOpaqueId(p.id)
@@ -619,11 +631,11 @@ export function usePostsFeed() {
     likePendingIds.add(postId)
     const authScope = identityScope(auth)
     try {
-       const resp = await setLike({
+       const resp = /** @type {{ data?: { likeCount?: unknown, liked?: unknown } }} */ (await setLike({
         entityType: 1,
         entityId: p.id,
         liked: null
-      })
+      }))
        if (identityScope(auth) !== authScope) return
        if (typeof resp?.data?.likeCount === 'number') {
          p.likeCount = resp.data.likeCount
@@ -662,10 +674,10 @@ export function usePostsFeed() {
     const authScope = identityScope(auth)
     const requestedIntent = createIntent(command)
     try {
-      const resp = await apiCreatePost(command, { writeAttempt: createAttempt })
+      const resp = /** @type {{ data?: { postId?: unknown } }} */ (await apiCreatePost(command, { writeAttempt: createAttempt }))
       if (identityScope(auth) !== authScope || requestedIntent !== createIntent()) return
-      const createdPostId = normalizeOpaqueId(resp?.data?.postId)
       createAttempt.succeed()
+      const createdPostId = normalizeOpaqueId(resp?.data?.postId)
       const hasPostId = !!createdPostId
       showToast({
         type: 'success',

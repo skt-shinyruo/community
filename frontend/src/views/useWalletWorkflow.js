@@ -67,12 +67,13 @@ export function useWalletWorkflow() {
   const error = ref('')
   const submittingKey = ref('')
   const summary = ref({ balance: 0 })
-  const txns = ref([])
+  const txns = ref(/** @type {Array<Record<string, unknown>>} */ ([]))
   const capabilities = ref({})
 
-  const rechargeForm = ref({ amount: '' })
-  const withdrawForm = ref({ amount: '' })
-  const transferForm = ref({ toUserId: '', amount: '' })
+  // 金额字段接受输入框原文与测试直写数字（parsePointsAmount 统一处理两种口径）。
+  const rechargeForm = ref(/** @type {{ amount: string | number }} */ ({ amount: '' }))
+  const withdrawForm = ref(/** @type {{ amount: string | number }} */ ({ amount: '' }))
+  const transferForm = ref(/** @type {{ toUserId: string, amount: string | number }} */ ({ toUserId: '', amount: '' }))
 
   // 字段校验错误内联在对应 UiField，写失败内联在对应操作卡，页面级 error 只承担加载失败。
   const formErrors = ref({ recharge: '', withdraw: '', transferToUserId: '', transferAmount: '' })

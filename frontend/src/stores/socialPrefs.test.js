@@ -8,14 +8,17 @@ vi.mock('../api/services/blockService', () => ({ listBlockedUsers }))
 import { useAuthStore } from './auth'
 import { useSocialPrefsStore } from './socialPrefs'
 
+/**
+ * @returns {{ promise: Promise<unknown>, resolve: (value: unknown) => void, reject: (reason?: unknown) => void }}
+ */
 function deferred() {
-  let resolve
-  let reject
+  /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+  const handle = {}
   const promise = new Promise((res, rej) => {
-    resolve = res
-    reject = rej
+    handle.resolve = res
+    handle.reject = rej
   })
-  return { promise, resolve, reject }
+  return /** @type {{ promise: Promise<unknown>, resolve: (value: unknown) => void, reject: (reason?: unknown) => void }} */ ({ ...handle, promise })
 }
 
 describe('socialPrefs identity scope', () => {

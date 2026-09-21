@@ -4,6 +4,9 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, requireOpaqueId } from '../../utils/opaqueId'
 
+/**
+ * @param {{ status?: unknown, targetType?: unknown, reporterId?: unknown, page?: number, size?: number }} [filters]
+ */
 export async function listReports({ status, targetType, reporterId, page = 0, size = 20 } = {}) {
   const params = { page, size }
   if (status != null && String(status).trim()) params.status = Number(status)
@@ -15,6 +18,9 @@ export async function listReports({ status, targetType, reporterId, page = 0, si
   return { data: Array.isArray(data) ? data : [], traceId }
 }
 
+/**
+ * @param {{ reportId?: unknown, action?: unknown, reason?: unknown, durationSeconds?: unknown }} [payload]
+ */
 export async function takeAction({ reportId, action, reason, durationSeconds } = {}) {
   const payload = {
     reportId: requireOpaqueId(reportId, 'reportId'),
@@ -27,6 +33,9 @@ export async function takeAction({ reportId, action, reason, durationSeconds } =
   return unwrapResultBody(resp.data, '执行处置动作')
 }
 
+/**
+ * @param {{ actorId?: unknown, page?: number, size?: number }} [filters]
+ */
 export async function listActions({ actorId, page = 0, size = 20 } = {}) {
   const params = { page, size }
   const aid = normalizeOpaqueId(actorId)

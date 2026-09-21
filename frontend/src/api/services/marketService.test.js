@@ -86,8 +86,8 @@ describe('api/services/marketService', () => {
     }, { writeAttempt: createWriteAttempt() })
 
     expect(resp.traceId).toBe('trace-create-order')
-    expect(resp.data.orderId).toBe(31)
-    expect(resp.data.goodsType).toBe('PHYSICAL')
+    expect(/** @type {{ orderId?: number }} */ (resp.data).orderId).toBe(31)
+    expect(/** @type {{ goodsType?: string }} */ (resp.data).goodsType).toBe('PHYSICAL')
   })
 
   it('createMarketListing should send the WriteAttempt Idempotency-Key header', async () => {
@@ -120,7 +120,7 @@ describe('api/services/marketService', () => {
     }, { writeAttempt })
 
     expect(resp.traceId).toBe('trace-create-listing')
-    expect(resp.data.listingId).toBe('11111111-1111-7111-8111-111111111111')
+    expect(/** @type {{ listingId?: string }} */ (resp.data).listingId).toBe('11111111-1111-7111-8111-111111111111')
   })
 
   it('addMarketInventory should send the WriteAttempt Idempotency-Key header', async () => {
@@ -143,13 +143,13 @@ describe('api/services/marketService', () => {
     })
 
     const resp = await marketService.addMarketInventory(
-      21,
+      '21',
       { payloadType: 'CODE', payloads: ['CODE-1', 'CODE-2'] },
       { writeAttempt }
     )
 
     expect(resp.traceId).toBe('trace-add-inventory')
-    expect(resp.data.appended).toBe(2)
+    expect(/** @type {{ appended?: number }} */ (resp.data).appended).toBe(2)
   })
 
   it('deliverMarketOrder should post manual virtual delivery content', async () => {
@@ -177,7 +177,7 @@ describe('api/services/marketService', () => {
     })
 
     expect(resp.traceId).toBe('trace-deliver-order')
-    expect(resp.data.status).toBe('DELIVERED')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('DELIVERED')
   })
 
   it('shipMarketOrder should post physical shipment information', async () => {
@@ -209,7 +209,7 @@ describe('api/services/marketService', () => {
     })
 
     expect(resp.traceId).toBe('trace-ship-order')
-    expect(resp.data.status).toBe('SHIPPED')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('SHIPPED')
   })
 
   it('confirmMarketOrder should post buyer confirmation without payload', async () => {
@@ -232,7 +232,7 @@ describe('api/services/marketService', () => {
     const resp = await marketService.confirmMarketOrder(33)
 
     expect(resp.traceId).toBe('trace-confirm-order')
-    expect(resp.data.status).toBe('RELEASE_PENDING')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('RELEASE_PENDING')
   })
 
   it('cancelMarketOrder should post buyer cancellation without payload', async () => {
@@ -255,7 +255,7 @@ describe('api/services/marketService', () => {
     const resp = await marketService.cancelMarketOrder(34)
 
     expect(resp.traceId).toBe('trace-cancel-order')
-    expect(resp.data.status).toBe('REFUND_PENDING')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('REFUND_PENDING')
   })
 
   it('openMarketOrderDispute should post buyer dispute details', async () => {
@@ -285,7 +285,7 @@ describe('api/services/marketService', () => {
     })
 
     expect(resp.traceId).toBe('trace-open-dispute')
-    expect(resp.data.status).toBe('OPEN')
+    expect(/** @type {{ status?: string }} */ (resp.data).status).toBe('OPEN')
   })
 
   it('listMarketAddresses should read the unified address endpoint', async () => {

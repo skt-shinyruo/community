@@ -60,9 +60,10 @@ describe('useSearchPageState', () => {
     if (authed) {
       const auth = useAuthStore()
       auth.installSession({ accessToken: 'token' })
-      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
     }
 
+    /** @type {ReturnType<typeof useSearchPageState> | undefined} */
     let state
     const Harness = defineComponent({
       setup() {
@@ -71,8 +72,13 @@ describe('useSearchPageState', () => {
       }
     })
     const wrapper = mount(Harness, { global: { plugins: [pinia] } })
+    if (!state) throw new Error('harness state not initialized')
     return { state, wrapper, socialPrefs }
   }
+
+  // searchPosts 的模块 mock；测试载荷不含 traceId，用裸 Mock 形参类型承载。
+  /** @type {import('vitest').Mock} */
+  const mockedSearchPosts = vi.mocked(searchPosts)
 
   function searchItem(id, title, userId = '11111111-1111-7111-8111-111111111111') {
     return {
@@ -85,8 +91,8 @@ describe('useSearchPageState', () => {
   beforeEach(() => {
     routerState.route.query = {}
     routerState.replace.mockClear()
-    searchPosts.mockReset()
-    searchPosts.mockResolvedValue({ data: [] })
+    vi.mocked(searchPosts).mockReset()
+    mockedSearchPosts.mockResolvedValue({ data: [] })
   })
 
   it('parses and serializes the public search query fields without private delimiters', () => {
@@ -135,7 +141,7 @@ describe('useSearchPageState', () => {
     const secondPage = Array.from({ length: 10 }, (_, index) =>
       searchItem(`10000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `second-${index}`)
     )
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({ data: firstPage })
       .mockResolvedValueOnce({ data: secondPage })
       .mockResolvedValueOnce({ data: [] })
@@ -149,7 +155,7 @@ describe('useSearchPageState', () => {
     expect(state.items.value[10].title).toBe('second-0')
 
     await state.loadMore()
-    expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 2])
+    expect(mockedSearchPosts.mock.calls.map(([request]) => request?.page)).toEqual([0, 1, 2])
     expect(state.page.value).toBe(1)
     expect(state.items.value).toHaveLength(20)
     expect(state.hasNext.value).toBe(false)
@@ -160,7 +166,7 @@ describe('useSearchPageState', () => {
     const firstPage = Array.from({ length: 10 }, (_, index) =>
       searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `first-${index}`)
     )
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({ data: firstPage })
       .mockResolvedValueOnce({
         data: [
@@ -185,7 +191,7 @@ describe('useSearchPageState', () => {
     const firstPage = Array.from({ length: 10 }, (_, index) =>
       searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `first-${index}`)
     )
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({ data: firstPage })
       .mockRejectedValueOnce(new Error('temporary search failure'))
       .mockResolvedValueOnce({ data: [searchItem('22222222-2222-7222-8222-222222222222', 'second-0')] })
@@ -199,7 +205,7 @@ describe('useSearchPageState', () => {
     expect(state.error.value).toBe('')
 
     await state.loadMore()
-    expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])
+    expect(mockedSearchPosts.mock.calls.map(([request]) => request?.page)).toEqual([0, 1, 1])
     expect(state.pageError.value).toBe('')
     expect(state.page.value).toBe(1)
     expect(state.items.value).toHaveLength(11)
@@ -208,7 +214,7 @@ describe('useSearchPageState', () => {
 
   it('refuses to load more while a request is running or no next page exists', async () => {
     routerState.route.query = { q: 'guarded' }
-    searchPosts.mockResolvedValue({ data: [] })
+    mockedSearchPosts.mockResolvedValue({ data: [] })
     const { state } = mountState()
     await flushPromises()
 
@@ -224,12 +230,12 @@ describe('useSearchPageState', () => {
 
   it('keeps committed results and page state when a new request fails', async () => {
     routerState.route.query = { q: 'stable' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [searchItem('bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', 'stable result')]
     })
     const { state } = mountState()
     await flushPromises()
-    searchPosts.mockRejectedValueOnce(new Error('search unavailable'))
+    mockedSearchPosts.mockRejectedValueOnce(new Error('search unavailable'))
     state.keyword.value = 'retry'
 
     await state.submitSearch()
@@ -241,7 +247,7 @@ describe('useSearchPageState', () => {
 
   it('hides hits authored by blocked users', async () => {
     routerState.route.query = { q: 'blocked' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [
         searchItem('33333333-3333-7333-8333-333333333333', 'visible result'),
         searchItem('44444444-4444-7444-8444-444444444444', 'blocked author result', 'blocked-user')
@@ -261,7 +267,7 @@ describe('useSearchPageState', () => {
       Array.from({ length: count }, (_, index) =>
         searchItem(`${prefix}-0000-7000-8000-${String(index).padStart(12, '0')}`, `visible-${prefix}-${index}`)
       )
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({
         data: [
           searchItem('00000000-0000-7000-8000-0000000000b1', 'hidden one', 'blocked-user'),
@@ -291,7 +297,7 @@ describe('useSearchPageState', () => {
 
   it('resets the hidden blocked count on a fresh reload', async () => {
     routerState.route.query = { q: 'reload' }
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({
         data: [searchItem('55555555-5555-7555-8555-555555555555', 'hidden', 'blocked-user')]
       })
@@ -310,7 +316,7 @@ describe('useSearchPageState', () => {
 
   it('does not filter hits for anonymous viewers', async () => {
     routerState.route.query = { q: 'anon' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [searchItem('77777777-7777-7777-8777-777777777777', 'anonymous visible', 'blocked-user')]
     })
     const { state } = mountState()
@@ -322,11 +328,11 @@ describe('useSearchPageState', () => {
 
   it('still shows search results when loading the blocklist fails', async () => {
     routerState.route.query = { q: 'resilient' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [searchItem('88888888-8888-7888-8888-888888888888', 'still visible')]
     })
     const { state, socialPrefs } = mountState({ authed: true })
-    socialPrefs.ensureBlocked.mockRejectedValueOnce(new Error('blocklist unavailable'))
+    vi.mocked(socialPrefs.ensureBlocked).mockRejectedValueOnce(new Error('blocklist unavailable'))
     await flushPromises()
 
     expect(state.items.value).toHaveLength(1)
@@ -335,7 +341,7 @@ describe('useSearchPageState', () => {
 
   it('clears the hidden blocked count when the search state resets', async () => {
     routerState.route.query = { q: 'blocked' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [searchItem('99999999-9999-7999-8999-999999999999', 'hidden', 'blocked-user')]
     })
     const { state } = mountState({ authed: true })
@@ -348,7 +354,7 @@ describe('useSearchPageState', () => {
     expect(state.blockedHiddenCount.value).toBe(0)
 
     routerState.route.query = { q: 'again' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [searchItem('99999999-9999-7999-8999-999999999999', 'hidden again', 'blocked-user')]
     })
     state.applyRouteSearch()

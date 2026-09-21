@@ -90,7 +90,9 @@ describe('PostDetailComments', () => {
     const wrapper = mountComments(discussion)
     expect(wrapper.text()).toContain('暂无评论')
 
-    await wrapper.findAll('.post-comments-head button').find((button) => button.text() === '刷新').trigger('click')
+    const refreshButton = wrapper.findAll('.post-comments-head button').find((button) => button.text() === '刷新')
+    if (!refreshButton) throw new Error('refresh button missing')
+    await refreshButton.trigger('click')
     expect(discussion.reload).toHaveBeenCalledTimes(1)
 
     await wrapper.setProps({ discussion: createDiscussion({ loading: true, comments: [] }) })
@@ -100,13 +102,16 @@ describe('PostDetailComments', () => {
     await wrapper.setProps({ discussion: failed })
     expect(wrapper.text()).toContain('comments unavailable')
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
+    if (!retry) throw new Error('retry button missing')
     await retry.trigger('click')
+
     expect(failed.reload).toHaveBeenCalledTimes(1)
 
     const withItems = createDiscussion({ comments: [rootComment()] })
     await wrapper.setProps({ discussion: withItems })
     const loadMore = wrapper.findAll('button').find((button) => button.text() === '加载更多评论')
     expect(loadMore).toBeTruthy()
+    if (!loadMore) throw new Error('load more button missing')
     await loadMore.trigger('click')
     expect(withItems.loadMore).toHaveBeenCalledTimes(1)
 
@@ -128,6 +133,7 @@ describe('PostDetailComments', () => {
     const option = [...document.body.querySelectorAll('[role="listbox"] [role="option"]')]
       .find((el) => el.textContent === '最早')
     expect(option).toBeTruthy()
+    if (!option) throw new Error('sort option missing')
     option.dispatchEvent(new MouseEvent('click', { bubbles: true }))
     await nextTick()
     await flushPromises()
@@ -184,12 +190,12 @@ describe('PostDetailComments', () => {
     await wrapper.find('[aria-label="收起回复"]').trigger('click')
     await wrapper.find('[aria-label="取消引用"]').trigger('click')
     await wrapper.find('textarea').setValue('changed draft')
-    await wrapper.findAll('button').find((button) => button.text() === '收起').trigger('click')
-    await wrapper.findAll('button').find((button) => button.text() === '提交').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '收起')?.trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '提交')?.trigger('click')
     await wrapper.find('[aria-label="取消点赞回复"]').trigger('click')
     await wrapper.find('[aria-label="回复该回复"]').trigger('click')
     await wrapper.findAll('[aria-label="编辑回复"]')[0].trigger('click')
-    await wrapper.findAll('button').find((button) => button.text() === '加载更多回复').trigger('click')
+    await wrapper.findAll('button').find((button) => button.text() === '加载更多回复')?.trigger('click')
 
     expect(discussion.toggleCommentLike).toHaveBeenCalledWith(comment)
     expect(discussion.startReply).toHaveBeenNthCalledWith(1, comment)
@@ -274,7 +280,7 @@ describe('PostDetailComments', () => {
 
     expect(wrapper.text()).toContain('replies unavailable')
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
-    await retry.trigger('click')
+    await retry?.trigger('click')
     expect(failed.reloadReplies).toHaveBeenCalledWith(failedComment)
   })
 

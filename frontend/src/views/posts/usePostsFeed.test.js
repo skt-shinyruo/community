@@ -10,7 +10,7 @@ import { useSocialPrefsStore } from '../../stores/socialPrefs'
 import { useTaxonomyStore } from '../../stores/taxonomy'
 
 const routerState = vi.hoisted(() => ({
-  route: null,
+  route: /** @type {{ name: string, path: string, fullPath: string, query: Record<string, unknown> } | null} */ (null),
   replace: vi.fn(),
   push: vi.fn()
 }))
@@ -21,6 +21,12 @@ routerState.route = reactive({
   fullPath: '/posts',
   query: {}
 })
+
+/** 取已初始化的路由对象，供测试内统一访问 */
+function currentRoute() {
+  if (!routerState.route) throw new Error('routerState.route not initialized')
+  return routerState.route
+}
 
 vi.mock('vue-router', async () => {
   const actual = await vi.importActual('vue-router')
@@ -103,7 +109,7 @@ function mountFeed({ query = {} } = {}) {
   taxonomy.ensureHotTags = vi.fn()
 
   const socialPrefs = useSocialPrefsStore()
-  socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+  socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
 
   const postMetaCache = usePostMetaCacheStore()
   postMetaCache.ensureUserSummaries = vi.fn().mockResolvedValue({})
@@ -111,8 +117,9 @@ function mountFeed({ query = {} } = {}) {
   postMetaCache.ensureLikeStatuses = vi.fn().mockResolvedValue({})
   postMetaCache.clearLikeStatuses = vi.fn()
 
-  routerState.route.query = query
+  currentRoute().query = query
 
+  /** @type {ReturnType<typeof usePostsFeed> | undefined} */
   let feed
   const Harness = defineComponent({
     setup() {
@@ -121,6 +128,7 @@ function mountFeed({ query = {} } = {}) {
     }
   })
   mount(Harness, { global: { plugins: [pinia] } })
+  if (!feed) throw new Error('harness feed not initialized')
   return feed
 }
 
@@ -182,23 +190,25 @@ describe('usePostsFeed last-seen divider', () => {
 describe('usePostsFeed feed state', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    routerState.route.query = {}
+    currentRoute().query = {}
     window.localStorage.clear()
-    listGlobalFeed.mockResolvedValue({ data: { items: [], nextCursor: '' } })
-    listBoardFeed.mockResolvedValue({ data: { items: [], nextCursor: '' } })
-    searchPosts.mockResolvedValue({ data: [] })
-    showToast.mockClear()
+    vi.mocked(listGlobalFeed).mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-feed' })
+    vi.mocked(listBoardFeed).mockResolvedValue({ data: { items: [], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-feed' })
+    vi.mocked(searchPosts).mockResolvedValue({ data: [], traceId: 'trace-search' })
+    vi.mocked(showToast).mockClear()
   })
 
   it('loads the global feed by default and exposes the activity projections', async () => {
-    listGlobalFeed.mockResolvedValueOnce({
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({
       data: {
         items: [
           post('post-1', { activityAt: 3_000 }),
           post('post-2', { userId: OTHER_USER_ID, activityAt: 1_000 })
         ],
-        nextCursor: ''
-      }
+        nextCursor: '',
+        rankVersion: 'rank-v1'
+      },
+      traceId: 'trace-page'
     })
 
     const feed = mountFeed()
@@ -230,7 +240,7 @@ describe('usePostsFeed feed state', () => {
       createTime: new Date(500).toISOString(),
       author: { username: 'author' }
     }
-    listGlobalFeed.mockResolvedValueOnce({ data: { items: [withReply, onlyCreate], nextCursor: '' } })
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({ data: { items: [withReply, onlyCreate], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-page' })
 
     const feed = mountFeed()
     // 补水前的原始投影断言：activityTime / activityUser 的字段优先级。
@@ -244,8 +254,8 @@ describe('usePostsFeed feed state', () => {
   })
 
   it('routes the board feed for a category filter and the search stack for a tag filter', async () => {
-    listBoardFeed.mockResolvedValueOnce({ data: { items: [post('board-1')], nextCursor: '' } })
-    searchPosts.mockResolvedValueOnce({ data: [] })
+    vi.mocked(listBoardFeed).mockResolvedValueOnce({ data: { items: [post('board-1')], nextCursor: '', rankVersion: 'rank-board-v1' }, traceId: 'trace-board-page' })
+    vi.mocked(searchPosts).mockResolvedValueOnce({ data: [], traceId: 'trace-search-page' })
 
     const categoryFeed = mountFeed({ query: { categoryId: '7' } })
     await flushPromises()
@@ -258,9 +268,10 @@ describe('usePostsFeed feed state', () => {
   })
 
   it('blocks repeat likes on the same post while a request is in flight and releases after', async () => {
+    /** @type {((value: unknown) => void) | undefined} */
     let resolveLike
-    setLike.mockImplementationOnce(() => new Promise((resolve) => { resolveLike = resolve }))
-    listGlobalFeed.mockResolvedValueOnce({ data: { items: [post('post-1')], nextCursor: '' } })
+    vi.mocked(setLike).mockImplementationOnce(() => new Promise((resolve) => { resolveLike = resolve }))
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({ data: { items: [post('post-1')], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-page' })
 
     const feed = mountFeed()
     await flushPromises()
@@ -275,6 +286,7 @@ describe('usePostsFeed feed state', () => {
     await feed.feed.togglePostLike(target)
     expect(setLike).toHaveBeenCalledTimes(1)
 
+    if (!resolveLike) throw new Error('resolveLike not initialized')
     resolveLike({ data: { likeCount: 5, liked: true } })
     await pending
     expect(feed.feed.isLikePending(target)).toBe(false)
@@ -283,7 +295,7 @@ describe('usePostsFeed feed state', () => {
   })
 
   it('blocks an anonymous like with a warning toast instead of a request', async () => {
-    listGlobalFeed.mockResolvedValueOnce({ data: { items: [post('post-1')], nextCursor: '' } })
+    vi.mocked(listGlobalFeed).mockResolvedValueOnce({ data: { items: [post('post-1')], nextCursor: '', rankVersion: 'rank-v1' }, traceId: 'trace-page' })
     const feed = mountFeed()
     await flushPromises()
 

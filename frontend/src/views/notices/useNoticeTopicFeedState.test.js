@@ -16,6 +16,9 @@ import { listNotices } from '../../api/services/noticeService'
 import { useAuthStore } from '../../stores/auth'
 import { describeNoticeContent, noticePostId, useNoticeTopicFeedState } from './useNoticeTopicFeedState'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const listNoticesMock = /** @type {import('vitest').Mock} */ (listNotices)
+
 function noticeWith(content) {
   return { content: JSON.stringify(content) }
 }
@@ -58,6 +61,7 @@ describe('useNoticeTopicFeedState paging', () => {
     setActivePinia(pinia)
     useAuthStore().installSession({ accessToken: 'notice-token' })
 
+    /** @type {ReturnType<typeof useNoticeTopicFeedState> | undefined} */
     let feed
     const Harness = defineComponent({
       setup() {
@@ -66,6 +70,7 @@ describe('useNoticeTopicFeedState paging', () => {
       }
     })
     mount(Harness, { global: { plugins: [pinia] } })
+    if (!feed) throw new Error('harness feed not initialized')
     return feed
   }
 
@@ -74,15 +79,15 @@ describe('useNoticeTopicFeedState paging', () => {
   }
 
   beforeEach(() => {
-    listNotices.mockReset()
-    listNotices.mockResolvedValue({ data: [] })
+    listNoticesMock.mockReset()
+    listNoticesMock.mockResolvedValue({ data: [] })
   })
 
   it('dedupes page-shifted notices by id when a new notice arrives between pages', async () => {
     const firstPage = Array.from({ length: 10 }, (_, index) =>
       notice(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`)
     )
-    listNotices
+    listNoticesMock
       .mockResolvedValueOnce({ data: firstPage })
       .mockResolvedValueOnce({
         data: [
@@ -90,6 +95,7 @@ describe('useNoticeTopicFeedState paging', () => {
           notice('10000000-0000-7000-8000-000000000001')
         ]
       })
+
     const feed = mountFeed()
     await flushPromises()
 
@@ -98,6 +104,6 @@ describe('useNoticeTopicFeedState paging', () => {
     const ids = feed.cards.value.map((card) => card.id)
     expect(new Set(ids).size).toBe(ids.length)
     expect(feed.cards.value).toHaveLength(11)
-    expect(listNotices.mock.calls.map(([, request]) => request.page)).toEqual([0, 1])
+    expect(vi.mocked(listNotices).mock.calls.map(([, request]) => request?.page)).toEqual([0, 1])
   })
 })

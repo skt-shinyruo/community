@@ -30,6 +30,11 @@ vi.mock('../api/services/authService', () => ({
 import PasswordResetView from './PasswordResetView.vue'
 import { confirmPasswordReset, issueCaptcha, requestPasswordReset } from '../api/services/authService'
 
+// 类型别名：vi.mock 替换后的服务函数在本测试里只按 Mock 使用（宽松 payload 不再受真实签名约束）。
+const issueCaptchaMock = /** @type {import('vitest').Mock} */ (issueCaptcha)
+const requestPasswordResetMock = /** @type {import('vitest').Mock} */ (requestPasswordReset)
+const confirmPasswordResetMock = /** @type {import('vitest').Mock} */ (confirmPasswordReset)
+
 function captchaResponse(captchaId, imageBase64, traceId) {
   return {
     data: {
@@ -68,15 +73,15 @@ describe('PasswordResetView', () => {
   beforeEach(() => {
     routerState.route.query = {}
     routerState.push.mockClear()
-    issueCaptcha.mockReset()
-    requestPasswordReset.mockReset()
-    confirmPasswordReset.mockReset()
+    issueCaptchaMock.mockReset()
+    requestPasswordResetMock.mockReset()
+    confirmPasswordResetMock.mockReset()
   })
 
   it('does not trim new password before sending confirmation request', async () => {
     routerState.route.query = { token: 'reset-token' }
-    issueCaptcha.mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-captcha'))
-    confirmPasswordReset.mockResolvedValueOnce({ data: true, traceId: 'trace-confirm' })
+    issueCaptchaMock.mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-captcha'))
+    confirmPasswordResetMock.mockResolvedValueOnce({ data: true, traceId: 'trace-confirm' })
 
     const wrapper = mountView()
     await flushPromises()
@@ -85,7 +90,9 @@ describe('PasswordResetView', () => {
     await inputs[0].setValue(' secret12 ')
     await inputs[1].setValue('abcd')
 
-    await wrapper.findAll('button').find((button) => button.text().includes('重置密码')).trigger('click')
+    const resetButton = wrapper.findAll('button').find((button) => button.text().includes('重置密码'))
+    if (!resetButton) throw new Error('重置密码按钮未找到')
+    await resetButton.trigger('click')
     await flushPromises()
 
     expect(confirmPasswordReset).toHaveBeenCalledWith('reset-token', ' secret12 ', {
@@ -95,10 +102,10 @@ describe('PasswordResetView', () => {
   })
 
   it('refreshes captcha when password reset request receives backend captcha error', async () => {
-    issueCaptcha
+    issueCaptchaMock
       .mockResolvedValueOnce(captchaResponse('captcha-old', 'old-image', 'trace-old'))
       .mockResolvedValueOnce(captchaResponse('captcha-new', 'new-image', 'trace-new'))
-    requestPasswordReset.mockRejectedValueOnce(backendError(10006, '验证码不正确或已失效'))
+    requestPasswordResetMock.mockRejectedValueOnce(backendError(10006, '验证码不正确或已失效'))
 
     const wrapper = mountView()
     await flushPromises()
@@ -107,7 +114,9 @@ describe('PasswordResetView', () => {
     await inputs[0].setValue('alice@example.com')
     await inputs[1].setValue('abcd')
 
-    await wrapper.findAll('button').find((button) => button.text().includes('发送重置链接')).trigger('click')
+    const sendButton = wrapper.findAll('button').find((button) => button.text().includes('发送重置链接'))
+    if (!sendButton) throw new Error('发送重置链接按钮未找到')
+    await sendButton.trigger('click')
     await flushPromises()
 
     expect(issueCaptcha).toHaveBeenCalledTimes(2)

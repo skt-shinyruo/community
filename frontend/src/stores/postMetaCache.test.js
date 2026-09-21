@@ -103,10 +103,12 @@ describe('stores/postMetaCache', () => {
 
   it('should discard an old identity response and reload statuses for the current user', async () => {
     const entityId = 'cccccccc-cccc-7ccc-8ccc-cccccccccccc'
-    let resolveOldRequest
+    // 执行器同步完成赋值；用对象包装让类型系统看到确定赋值。
+    /** @type {{ resolve?: (page: { data: Record<string, boolean>, traceId: string }) => void }} */
+    const oldRequest = {}
     getLikeStatuses
       .mockImplementationOnce(() => new Promise((resolve) => {
-        resolveOldRequest = resolve
+        oldRequest.resolve = resolve
       }))
       .mockResolvedValueOnce({ data: { [entityId]: false }, traceId: 'user-b' })
 
@@ -122,7 +124,7 @@ describe('stores/postMetaCache', () => {
       accessToken: 'token-b',
       me: { userId: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb' }
     })
-    resolveOldRequest({ data: { [entityId]: true }, traceId: 'user-a' })
+    oldRequest.resolve?.({ data: { [entityId]: true }, traceId: 'user-a' })
 
     await expect(pending).resolves.toEqual({ [entityId]: false })
     expect(getLikeStatuses).toHaveBeenCalledTimes(2)

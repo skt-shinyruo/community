@@ -47,17 +47,28 @@ import UiSkeleton from '../components/ui/UiSkeleton.vue'
 import { searchPosts } from '../api/services/searchService'
 
 describe('SearchView', () => {
+  // searchPosts 的模块 mock；部分分页载荷不含 traceId，用裸 Mock 形参类型承载。
+  /** @type {import('vitest').Mock} */
+  const mockedSearchPosts = vi.mocked(searchPosts)
+
   const categoryId = 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa'
   const wrappers = []
 
   function createDeferred() {
-    let resolve
-    let reject
+    /** @type {{ resolve?: (value: unknown) => void, reject?: (reason?: unknown) => void }} */
+    const handles = {}
     const promise = new Promise((res, rej) => {
-      resolve = res
-      reject = rej
+      handles.resolve = res
+      handles.reject = rej
     })
-    return { promise, resolve, reject }
+    return {
+      promise,
+      // 构造器同步执行，句柄必已就绪；可选调用保持原语义。
+      /** 解析 promise */
+      resolve: (value) => handles.resolve?.(value),
+      /** 拒绝 promise */
+      reject: (reason) => handles.reject?.(reason)
+    }
   }
 
   function mountView({ admin = false, authed = false } = {}) {
@@ -77,7 +88,7 @@ describe('SearchView', () => {
     const socialPrefs = useSocialPrefsStore()
     if (authed) {
       auth.installSession({ accessToken: 'token' })
-      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue()
+      socialPrefs.ensureBlocked = vi.fn().mockResolvedValue(undefined)
     }
 
     const taxonomy = useTaxonomyStore()
@@ -123,8 +134,8 @@ describe('SearchView', () => {
     routerState.route.query = {}
     routerState.replace.mockClear()
     routerState.push.mockClear()
-    searchPosts.mockClear()
-    searchPosts.mockResolvedValue({ data: [], traceId: 'trace-search' })
+    vi.mocked(searchPosts).mockClear()
+    vi.mocked(searchPosts).mockResolvedValue({ data: [], traceId: 'trace-search' })
   })
 
   afterEach(() => {
@@ -164,10 +175,10 @@ describe('SearchView', () => {
     const wrapper = mountView()
 
     const select = wrapper.getComponent(UiSelect)
-    expect(select.props('options')).toEqual([
+    expect(select.props()).toMatchObject({ options: [
       { label: '全部分类', value: '' },
       { label: '公告', value: categoryId }
-    ])
+    ] })
   })
 
   it('selects a category with the keyboard and sends the UUID id to search', async () => {
@@ -241,6 +252,7 @@ describe('SearchView', () => {
 
     const clear = wrapper.findAll('button').find((button) => button.text() === '清空筛选')
     expect(clear).toBeTruthy()
+    if (!clear) throw new Error('clear button missing')
     await clear.trigger('click')
     await flushPromises()
 
@@ -259,7 +271,7 @@ describe('SearchView', () => {
     const second = createDeferred()
     let callCount = 0
 
-    searchPosts.mockImplementation(({ keyword }) => {
+    mockedSearchPosts.mockImplementation(({ keyword }) => {
       callCount += 1
       if (keyword === 'first' && callCount === 1) return first.promise
       if (keyword === 'second' && callCount === 2) return second.promise
@@ -319,7 +331,7 @@ describe('SearchView', () => {
       searchItem(`00000000-0000-7000-8000-${String(index + 1).padStart(12, '0')}`, `First page ${index + 1}`)
     )
     const secondPage = [searchItem('22222222-2222-7222-8222-222222222222', 'Second page result')]
-    searchPosts
+    mockedSearchPosts
       .mockResolvedValueOnce({ data: firstPage, traceId: 'trace-page-0' })
       .mockRejectedValueOnce(new Error('temporary search failure'))
       .mockResolvedValueOnce({ data: secondPage, traceId: 'trace-page-1' })
@@ -330,17 +342,17 @@ describe('SearchView', () => {
     const loadMore = () => wrapper.findAll('button').find((button) => button.text() === '加载更多')
 
     expect(loadMore()).toBeTruthy()
-    await loadMore().trigger('click')
+    await loadMore()?.trigger('click')
     await flushPromises()
     await flushPromises()
     expect(wrapper.text()).toContain('First page 1')
     expect(wrapper.text()).toContain('temporary search failure')
 
-    await loadMore().trigger('click')
+    await loadMore()?.trigger('click')
     await flushPromises()
     await flushPromises()
 
-    expect(searchPosts.mock.calls.map(([request]) => request.page)).toEqual([0, 1, 1])
+    expect(vi.mocked(searchPosts).mock.calls.map(([request]) => request?.page)).toEqual([0, 1, 1])
     expect(wrapper.text()).toContain('First page 1')
     expect(wrapper.text()).toContain('Second page result')
     expect(wrapper.text()).not.toContain('temporary search failure')
@@ -348,7 +360,7 @@ describe('SearchView', () => {
 
   it('shows a retryable error state when the first search load fails', async () => {
     routerState.route.query = { q: 'unstable' }
-    searchPosts
+    mockedSearchPosts
       .mockRejectedValueOnce(new Error('search unavailable'))
       .mockResolvedValueOnce({
         data: [searchItem('bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', 'Recovered result')],
@@ -362,6 +374,7 @@ describe('SearchView', () => {
     expect(wrapper.text()).toContain('search unavailable')
     const retry = wrapper.findAll('button').find((button) => button.text() === '重试')
     expect(retry).toBeTruthy()
+    if (!retry) throw new Error('retry button missing')
 
     await retry.trigger('click')
     await flushPromises()
@@ -375,7 +388,7 @@ describe('SearchView', () => {
   it('renders skeleton placeholders instead of a bare loading text on first load', async () => {
     routerState.route.query = { q: 'slow' }
     const pending = createDeferred()
-    searchPosts.mockReturnValueOnce(pending.promise)
+    mockedSearchPosts.mockReturnValueOnce(pending.promise)
 
     const wrapper = mountView()
     await nextTick()
@@ -399,7 +412,7 @@ describe('SearchView', () => {
 
   it('hides results from blocked users and shows the hidden-count note', async () => {
     routerState.route.query = { q: 'blocked' }
-    searchPosts.mockResolvedValueOnce({
+    mockedSearchPosts.mockResolvedValueOnce({
       data: [
         searchItem('33333333-3333-7333-8333-333333333333', 'Visible result'),
         searchItem('44444444-4444-7444-8444-444444444444', 'Blocked author result', 'blocked-user')

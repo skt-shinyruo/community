@@ -4,6 +4,9 @@ import http from '../http'
 import { unwrapResultBody } from '../result'
 import { normalizeOpaqueId, requireOpaqueId } from '../../utils/opaqueId'
 
+/**
+ * @param {{ userId?: unknown, username?: unknown, email?: unknown }} [criteria]
+ */
 export async function adminSearchUser({ userId, username, email } = {}) {
   const params = {}
   const uid = normalizeOpaqueId(userId)
@@ -16,6 +19,9 @@ export async function adminSearchUser({ userId, username, email } = {}) {
   return { data: data || null, traceId }
 }
 
+/**
+ * @param {{ targetUserId?: unknown, type?: unknown, reason?: unknown, confirm?: unknown }} [payload]
+ */
 export async function adminUpdateUserRole({ targetUserId, type, reason, confirm } = {}) {
   const payload = {
     targetUserId: requireOpaqueId(targetUserId, 'targetUserId'),

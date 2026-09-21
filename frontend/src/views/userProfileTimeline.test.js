@@ -3,7 +3,7 @@ import { buildProfileTimeline, collectTimelineUserIds } from './userProfileTimel
 
 describe('userProfileTimeline', () => {
   it('merges recent posts and comments into one descending timeline', () => {
-    const items = buildProfileTimeline({
+    const items = buildProfileTimeline(/** @type {Parameters<typeof buildProfileTimeline>[0]} */ ({
       posts: [
         {
           id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
@@ -23,7 +23,7 @@ describe('userProfileTimeline', () => {
           createTime: '2026-03-22T09:00:00Z'
         }
       ]
-    })
+    }))
 
     expect(items).toHaveLength(2)
     expect(items[0]).toMatchObject({
@@ -42,7 +42,7 @@ describe('userProfileTimeline', () => {
   })
 
   it('maps reply comments to the parent comment anchor', () => {
-    const items = buildProfileTimeline({
+    const items = buildProfileTimeline(/** @type {Parameters<typeof buildProfileTimeline>[0]} */ ({
       posts: [],
       comments: [
         {
@@ -55,7 +55,7 @@ describe('userProfileTimeline', () => {
           createTime: '2026-03-22T10:00:00Z'
         }
       ]
-    })
+    }))
 
     expect(items[0]).toMatchObject({
       kind: 'comment',
@@ -71,7 +71,7 @@ describe('userProfileTimeline', () => {
   })
 
   it('collects related user ids for recent replies and target users', () => {
-    const ids = collectTimelineUserIds({
+    const ids = collectTimelineUserIds(/** @type {Parameters<typeof collectTimelineUserIds>[0]} */ ({
       posts: [
         { id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa', lastReplyUserId: '77777777-7777-7777-8777-777777777777' },
         { id: 'bbbbbbbb-bbbb-7bbb-8bbb-bbbbbbbbbbbb', lastReplyUserId: '77777777-7777-7777-8777-777777777777' }
@@ -80,7 +80,7 @@ describe('userProfileTimeline', () => {
         { id: 'cccccccc-cccc-7ccc-8ccc-cccccccccccc', targetId: '99999999-9999-7999-8999-999999999999' },
         { id: 'dddddddd-dddd-7ddd-8ddd-dddddddddddd', targetId: '' }
       ]
-    })
+    }))
 
     expect(ids).toEqual([
       '77777777-7777-7777-8777-777777777777',
@@ -89,7 +89,7 @@ describe('userProfileTimeline', () => {
   })
 
   it('adds reply-user and target-user language when user summaries are available', () => {
-    const items = buildProfileTimeline({
+    const payload = /** @type {Parameters<typeof buildProfileTimeline>[0]} */ (/** @type {unknown} */ ({
       posts: [
         {
           id: 'aaaaaaaa-aaaa-7aaa-8aaa-aaaaaaaaaaaa',
@@ -124,7 +124,8 @@ describe('userProfileTimeline', () => {
           headerUrl: '/a.png'
         }
       }
-    })
+    }))
+    const items = buildProfileTimeline(payload)
 
     expect(items[0]).toMatchObject({
       kind: 'comment',
@@ -145,6 +146,6 @@ describe('userProfileTimeline', () => {
         headerUrl: '/m.png'
       }
     })
-    expect(items[1].body).toContain('这条回复')
+    expect(items[1]?.body).toContain('这条回复')
   })
 })

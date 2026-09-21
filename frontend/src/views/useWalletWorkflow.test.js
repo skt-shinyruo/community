@@ -192,7 +192,7 @@ describe('useWalletWorkflow', () => {
 
   it('validates amounts and UUID targets inline before any request or confirmation', async () => {
     const { workflow } = createSubject()
-    const { transferForm, rechargeForm, withdrawForm } = workflow.model
+    const { transferForm } = workflow.model
 
     transferForm.value.toUserId = 'not-a-uuid'
     transferForm.value.amount = 25

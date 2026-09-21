@@ -169,7 +169,6 @@ const {
   transferForm,
   formErrors,
   actionErrors,
-  feedLimit,
   loadingMore,
   feedError,
   txnsLoaded,

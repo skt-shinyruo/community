@@ -56,6 +56,7 @@
 - API / WebSocket 地址走运行时 config 与 endpoint helper；IM WebSocket 的 `wsUrl` 与 ticket 从 `POST /api/im/sessions` 获取，不写死 IM worker 地址。
 - 复杂页面状态收拢到 `frontend/src/views/*State.js` 模块并配同目录测试；组件只负责渲染与交互。
 - 同一笔高风险写入的重试必须复用原 `Idempotency-Key`；换新 key 就是新的业务尝试。
+- UI 设计与原型资产关联 Stitch 项目：Project ID `16793998838235868398`（项目名：`Developer Community Dashboard`，设计系统：`Developer Community Engine`），页面与组件设计以此为参考基准。
 
 ## 数据与部署红线
 

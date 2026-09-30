@@ -220,12 +220,14 @@ onBeforeUnmount(() => {
   background: var(--surface);
   text-decoration: none;
   color: inherit;
-  transition: background-color 160ms ease, border-color 160ms ease;
+  box-shadow: var(--shadow-sm);
+  transition: background-color var(--duration-fast) var(--ease-standard), border-color var(--duration-fast) var(--ease-standard), box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .market-admin-row:hover {
   background: color-mix(in srgb, var(--surface) 88%, var(--surface-2) 12%);
   border-color: var(--border-strong);
+  box-shadow: var(--shadow-md);
 }
 
 .market-admin-row strong {

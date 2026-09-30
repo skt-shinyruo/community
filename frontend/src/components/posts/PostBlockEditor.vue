@@ -11,17 +11,31 @@
           class="post-block-editor-textarea"
           @update:model-value="updateBlock(index, { text: $event })"
         />
-        <UiInput
-          v-if="block.type === 'code'"
-          :model-value="block.language"
+        <div v-if="block.type === 'code'" class="post-block-code-header">
+          <span class="post-block-code-tag">代码块</span>
+          <UiInput
+            :model-value="block.language"
+            :disabled="disabled"
+            size="sm"
+            placeholder="语言（如 ts / py / java）"
+            class="post-block-editor-language"
+            @update:model-value="updateBlock(index, { language: $event })"
+          />
+        </div>
+        <UiTextarea
+          :model-value="block.text"
+          :data-test="`block-text-${index}`"
           :disabled="disabled"
-          placeholder="语言"
-          class="post-block-editor-language"
-          @update:model-value="updateBlock(index, { language: $event })"
+          :placeholder="block.type === 'code' ? '代码' : '正文内容...'"
+          :rows="block.type === 'code' ? 5 : 4"
+          class="post-block-editor-textarea"
+          :class="{ 'post-block-editor-textarea--code': block.type === 'code' }"
+          @update:model-value="updateBlock(index, { text: $event })"
         />
         <div class="post-block-editor-actions">
           <UiButton
             variant="ghost"
+            size="sm"
             :disabled="disabled"
             :aria-label="removeLabel(block, index)"
             @click="removeBlock(index)"
@@ -42,20 +56,25 @@
     </div>
 
     <div class="post-block-editor-toolbar">
-      <UiButton variant="secondary" data-test="add-paragraph-block" :disabled="disabled" @click="addBlock('paragraph')">
-        段落
+      <UiButton variant="secondary" size="sm" data-test="add-paragraph-block" :disabled="disabled" @click="addBlock('paragraph')">
+        <Pilcrow :size="13" aria-hidden="true" />
+        <span>段落</span>
       </UiButton>
-      <UiButton variant="secondary" data-test="add-image-block" :disabled="disabled" @click="addBlock('image')">
-        图片
+      <UiButton variant="secondary" size="sm" data-test="add-image-block" :disabled="disabled" @click="addBlock('image')">
+        <ImageIcon :size="13" aria-hidden="true" />
+        <span>图片</span>
       </UiButton>
-      <UiButton variant="secondary" data-test="add-video-block" :disabled="disabled" @click="addBlock('video')">
-        视频
+      <UiButton variant="secondary" size="sm" data-test="add-video-block" :disabled="disabled" @click="addBlock('video')">
+        <Video :size="13" aria-hidden="true" />
+        <span>视频</span>
       </UiButton>
-      <UiButton variant="secondary" data-test="add-file-block" :disabled="disabled" @click="addBlock('file')">
-        文件
+      <UiButton variant="secondary" size="sm" data-test="add-file-block" :disabled="disabled" @click="addBlock('file')">
+        <FileText :size="13" aria-hidden="true" />
+        <span>文件</span>
       </UiButton>
-      <UiButton variant="secondary" data-test="add-code-block" :disabled="disabled" @click="addBlock('code')">
-        代码
+      <UiButton variant="secondary" size="sm" data-test="add-code-block" :disabled="disabled" @click="addBlock('code')">
+        <Code :size="13" aria-hidden="true" />
+        <span>代码</span>
       </UiButton>
     </div>
   </div>
@@ -63,6 +82,7 @@
 
 <script setup>
 import { ref, watch } from 'vue'
+import { Code, FileText, Image as ImageIcon, Pilcrow, Video } from 'lucide-vue-next'
 import UiButton from '../ui/UiButton.vue'
 import UiInput from '../ui/UiInput.vue'
 import UiTextarea from '../ui/UiTextarea.vue'
@@ -204,3 +224,69 @@ watch(
   { deep: true }
 )
 </script>
+
+<style scoped>
+.post-block-editor {
+  display: grid;
+  gap: var(--space-3);
+}
+
+.post-block {
+  display: grid;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.post-block:hover {
+  border-color: var(--border-strong);
+}
+
+.post-block-code-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.post-block-code-tag {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  font-weight: 600;
+  color: var(--accent-text);
+  background: var(--accent-weak);
+  padding: 2px 6px;
+  border-radius: var(--radius-sm);
+}
+
+.post-block-editor-language {
+  max-width: 220px;
+}
+
+:deep(.post-block-editor-textarea--code) {
+  font-family: var(--font-mono);
+  font-size: var(--text-xs);
+  tab-size: 2;
+  line-height: var(--line-normal);
+  background: var(--bg);
+}
+
+.post-block-editor-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.post-block-editor-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  background: var(--surface-2);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+</style>
+

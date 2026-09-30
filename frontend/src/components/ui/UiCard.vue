@@ -19,8 +19,11 @@ defineProps({
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   padding: var(--card-padding);
-  box-shadow: none;
-  transition: border-color 0.2s ease, background-color 0.2s ease;
+  box-shadow: var(--shadow-sm);
+  transition:
+    border-color var(--duration-fast) var(--ease-standard),
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 :where(.card:hover) {

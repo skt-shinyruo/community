@@ -144,10 +144,11 @@ const {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
 }
 
 .notice-card.unread {
-  box-shadow: inset 3px 0 0 0 var(--accent);
+  box-shadow: inset 3px 0 0 0 var(--accent), var(--shadow-sm);
 }
 
 .notice-card-head {

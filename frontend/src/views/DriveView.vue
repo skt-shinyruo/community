@@ -338,6 +338,12 @@ function openFilePicker() {
   flex-direction: column;
   gap: var(--space-2);
   min-width: 0;
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.drive-stat:hover {
+  border-color: var(--border-strong);
 }
 
 .drive-stat span {
@@ -447,6 +453,12 @@ function openFilePicker() {
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.drive-share-item:hover {
+  border-color: var(--border-strong);
 }
 
 .drive-share-item-main {

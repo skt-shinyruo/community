@@ -387,6 +387,7 @@ onBeforeUnmount(lifecycle.unmount)
   gap: var(--space-2);
   min-width: 0;
   align-content: start;
+  box-shadow: var(--shadow-sm);
 }
 
 .profile-summary-label {
@@ -423,15 +424,18 @@ onBeforeUnmount(lifecycle.unmount)
   background: var(--surface);
   color: inherit;
   text-decoration: none;
+  box-shadow: var(--shadow-sm);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .profile-post-card:hover {
   text-decoration: none;
   border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
+  background: color-mix(in srgb, var(--surface) 80%, var(--surface-2) 20%);
+  box-shadow: var(--shadow-md);
 }
 
 .profile-post-card:focus-visible {

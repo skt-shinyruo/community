@@ -585,6 +585,12 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.market-order-panel:hover {
+  border-color: var(--border-strong);
 }
 
 .market-order-heading {

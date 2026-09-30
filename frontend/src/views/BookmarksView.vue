@@ -164,14 +164,17 @@ function onCardEnter(event, post) {
   border-radius: var(--radius-md);
   background: var(--surface);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .bookmark-card:hover {
   border-color: var(--border-strong);
   background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
+  box-shadow: var(--shadow-md);
 }
 
 .bookmark-card:focus-visible {

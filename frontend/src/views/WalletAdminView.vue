@@ -250,6 +250,12 @@ onBeforeUnmount(() => {
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 92%, var(--bg) 8%);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.wallet-admin-card:hover {
+  border-color: var(--border-strong);
 }
 
 .wallet-admin-card h2,

@@ -359,14 +359,17 @@ function onCardEnter(event, item) {
   border-radius: var(--radius-md);
   background: var(--surface);
   cursor: pointer;
+  box-shadow: var(--shadow-sm);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .search-card:hover {
   border-color: var(--border-strong);
   background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
+  box-shadow: var(--shadow-md);
 }
 
 .search-card:focus-visible {

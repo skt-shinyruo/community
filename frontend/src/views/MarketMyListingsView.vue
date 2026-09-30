@@ -233,14 +233,17 @@ onBeforeUnmount(() => {
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   background: var(--surface);
+  box-shadow: var(--shadow-sm);
   transition:
     border-color var(--duration-fast) var(--ease-standard),
-    background-color var(--duration-fast) var(--ease-standard);
+    background-color var(--duration-fast) var(--ease-standard),
+    box-shadow var(--duration-fast) var(--ease-standard);
 }
 
 .listing-row:hover {
   border-color: var(--border-strong);
-  background: color-mix(in srgb, var(--surface) 55%, var(--surface-2));
+  background: color-mix(in srgb, var(--surface) 80%, var(--surface-2) 20%);
+  box-shadow: var(--shadow-md);
 }
 
 .listing-row-main {

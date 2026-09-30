@@ -1,8 +1,8 @@
 /* Global Design Tokens */
 :root {
-  --font-sans: "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
+  --font-sans: "Inter", "IBM Plex Sans", "Noto Sans SC", "PingFang SC", "Microsoft YaHei", ui-sans-serif, system-ui, -apple-system, Segoe UI, Helvetica, Arial, sans-serif;
   --font-display: "Source Han Serif SC", "Noto Serif SC", "Songti SC", "STSong", Georgia, serif; /* Reserved for long-form reading content. */
-  --font-mono: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
+  --font-mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace;
 
   /* spacing - Base 4px scale */
   --space-1: 4px;

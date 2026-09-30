@@ -466,6 +466,12 @@ onBeforeUnmount(() => {
   padding: var(--space-3);
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
+  background: var(--surface);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.drive-share-entry:hover {
+  border-color: var(--border-strong);
 }
 
 .drive-share-entry-name {

@@ -270,6 +270,12 @@ const state = computed(() =>
   border-radius: var(--radius-md);
   border: 1px solid var(--border);
   background: color-mix(in srgb, var(--surface) 90%, var(--bg) 10%);
+  box-shadow: var(--shadow-sm);
+  transition: border-color var(--duration-fast) var(--ease-standard);
+}
+
+.wallet-action-card:hover {
+  border-color: var(--border-strong);
 }
 
 .wallet-action-card h2 {
@@ -285,14 +291,20 @@ const state = computed(() =>
 
 .wallet-feed {
   display: grid;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .wallet-feed-item {
   grid-template-columns: minmax(0, 1fr) auto;
   align-items: center;
-  padding: var(--space-3) 0;
+  padding: var(--space-3) var(--space-2);
   border-bottom: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  transition: background-color var(--duration-fast) var(--ease-standard);
+}
+
+.wallet-feed-item:hover {
+  background: var(--hover-bg);
 }
 
 .wallet-feed-item:first-child {

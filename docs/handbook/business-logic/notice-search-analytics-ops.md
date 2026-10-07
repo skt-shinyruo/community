@@ -85,8 +85,8 @@ HTTP：
 1. `PostSearchDomainService.normalizeSearchQuery(...)` 规范化 keyword、categoryId、tag、page、size。
 2. page/size 有上限，避免深分页风险。
 3. repository 查询 ES。
-4. 支持关键词、分类和标签组合过滤。
-5. keyword 为空时可退化为 match-all。
+4. 有关键词时，对 title / content 做分析后的 match，标题或正文任一命中即可；删除状态排除与分类、标签过滤叠在该条件之外。
+5. keyword 为空时可退化为 match-all，仍可叠加分类、标签过滤，并排除删除状态。
 6. 命中结果带关键词高亮。
 
 关键词高亮使用 Elasticsearch 原生 highlight：

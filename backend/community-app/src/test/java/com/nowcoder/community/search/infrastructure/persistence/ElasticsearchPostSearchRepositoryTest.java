@@ -9,12 +9,11 @@ import org.mockito.ArgumentCaptor;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.context.annotation.Import;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
-import org.springframework.data.elasticsearch.core.query.Criteria;
-import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.data.redis.core.StringRedisTemplate;
@@ -176,16 +175,13 @@ class ElasticsearchPostSearchRepositoryTest {
 
         ArgumentCaptor<Query> queryCaptor = ArgumentCaptor.forClass(Query.class);
         verify(operations).search(queryCaptor.capture(), eq(EsPostDocument.class));
-        Criteria statusCriteria = ((CriteriaQuery) queryCaptor.getValue()).getCriteria().getCriteriaChain().stream()
-                .filter(criteria -> criteria.getField() != null && "status".equals(criteria.getField().getName()))
-                .findFirst()
-                .orElseThrow();
-        assertThat(statusCriteria.isNegating()).isTrue();
-        assertThat(statusCriteria.getQueryCriteriaEntries())
+        NativeQuery nativeQuery = (NativeQuery) queryCaptor.getValue();
+        assertThat(nativeQuery.getQuery().isMatchAll()).isTrue();
+        assertThat(nativeQuery.getFilter().bool().mustNot())
                 .singleElement()
-                .satisfies(entry -> {
-                    assertThat(entry.getKey()).isEqualTo(Criteria.OperationKey.EQUALS);
-                    assertThat(entry.getValue()).isEqualTo(2);
+                .satisfies(clause -> {
+                    assertThat(clause.term().field()).isEqualTo("status");
+                    assertThat(clause.term().value().longValue()).isEqualTo(2L);
                 });
     }
 

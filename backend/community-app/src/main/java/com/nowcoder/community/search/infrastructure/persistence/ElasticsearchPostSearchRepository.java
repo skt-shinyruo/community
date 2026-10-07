@@ -1,6 +1,8 @@
 package com.nowcoder.community.search.infrastructure.persistence;
 
 // ES 实现：基于 alias 写入/查询，并支持指定索引写入。
+import co.elastic.clients.elasticsearch._types.query_dsl.Query;
+import co.elastic.clients.elasticsearch._types.query_dsl.TextQueryType;
 import com.nowcoder.community.search.domain.model.PostSearchDocument;
 import com.nowcoder.community.search.domain.model.PostSearchHit;
 import com.nowcoder.community.search.domain.model.PostSearchQuery;
@@ -9,15 +11,13 @@ import com.nowcoder.community.search.infrastructure.persistence.dataobject.EsPos
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Sort;
+import org.springframework.data.elasticsearch.client.elc.NativeQuery;
 import org.springframework.data.elasticsearch.core.ElasticsearchOperations;
 import org.springframework.data.elasticsearch.core.SearchHit;
 import org.springframework.data.elasticsearch.core.SearchHits;
 import org.springframework.data.elasticsearch.core.document.Document;
 import org.springframework.data.elasticsearch.core.mapping.IndexCoordinates;
-import org.springframework.data.elasticsearch.core.query.Criteria;
-import org.springframework.data.elasticsearch.core.query.CriteriaQuery;
 import org.springframework.data.elasticsearch.core.query.HighlightQuery;
-import org.springframework.data.elasticsearch.core.query.Query;
 import org.springframework.data.elasticsearch.core.query.UpdateQuery;
 import org.springframework.data.elasticsearch.core.query.highlight.Highlight;
 import org.springframework.data.elasticsearch.core.query.highlight.HighlightField;
@@ -114,48 +114,67 @@ public class ElasticsearchPostSearchRepository implements PostSearchRepository {
         int s = Math.min(50, Math.max(1, query.size()));
 
         String k = StringUtils.hasText(query.keyword()) ? query.keyword().trim() : "";
+        String safeTag = normalizeTag(query.tag());
 
-        Criteria criteria;
+        var builder = NativeQuery.builder()
+                .withQuery(keywordQuery(k))
+                .withFilter(searchFilter(query.categoryId(), safeTag))
+                .withPageable(PageRequest.of(p, s))
+                .withSort(Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createTime")));
         if (StringUtils.hasText(k)) {
-            criteria = new Criteria("title").contains(k).or(new Criteria("content").contains(k));
-        } else {
-            // match-all baseline：便于叠加 taxonomy 过滤
-            criteria = new Criteria("postId").exists();
+            builder.withHighlightQuery(keywordHighlight());
         }
 
-        if (query.categoryId() != null) {
-            criteria = criteria.and(new Criteria("categoryId").is(query.categoryId().toString()));
+        SearchHits<EsPostDocument> hits = operations.search(builder.build(), EsPostDocument.class);
+        return hits.getSearchHits().stream().map(hit -> toItem(hit, k)).toList();
+    }
+
+    private static Query keywordQuery(String keyword) {
+        if (!StringUtils.hasText(keyword)) {
+            return Query.of(q -> q.matchAll(matchAll -> matchAll));
         }
-        String safeTag = StringUtils.hasText(query.tag()) ? query.tag().trim() : "";
+        return Query.of(q -> q.multiMatch(match -> match
+                .query(keyword)
+                .fields("title", "content")
+                .type(TextQueryType.BestFields)
+        ));
+    }
+
+    private static Query searchFilter(UUID categoryId, String tag) {
+        return Query.of(q -> q.bool(bool -> {
+            bool.mustNot(mustNot -> mustNot.term(term -> term.field("status").value(DELETED_STATUS)));
+            if (categoryId != null) {
+                String category = categoryId.toString();
+                bool.filter(filter -> filter.term(term -> term.field("categoryId").value(category)));
+            }
+            if (StringUtils.hasText(tag)) {
+                bool.filter(filter -> filter.term(term -> term.field("tags").value(tag)));
+            }
+            return bool;
+        }));
+    }
+
+    private static String normalizeTag(String tag) {
+        String safeTag = StringUtils.hasText(tag) ? tag.trim() : "";
         if (safeTag.startsWith("#")) {
             safeTag = safeTag.substring(1).trim();
         }
-        if (StringUtils.hasText(safeTag)) {
-            criteria = criteria.and(new Criteria("tags").is(safeTag));
-        }
-        criteria = criteria.and(new Criteria("status").not().is(DELETED_STATUS));
+        return safeTag;
+    }
 
-        Query criteriaQuery = new CriteriaQuery(criteria);
-
-        criteriaQuery.setPageable(PageRequest.of(p, s));
-        criteriaQuery.addSort(Sort.by(Sort.Order.desc("score"), Sort.Order.desc("createTime")));
-        if (StringUtils.hasText(k)) {
-            HighlightFieldParameters highlightParameters = HighlightFieldParameters.builder()
-                    .withPreTags("<em>")
-                    .withPostTags("</em>")
-                    .withNumberOfFragments(0)
-                    .build();
-            criteriaQuery.setHighlightQuery(new HighlightQuery(
-                    new Highlight(List.of(
-                            new HighlightField("title", highlightParameters),
-                            new HighlightField("content", highlightParameters)
-                    )),
-                    EsPostDocument.class
-            ));
-        }
-
-        SearchHits<EsPostDocument> hits = operations.search(criteriaQuery, EsPostDocument.class);
-        return hits.getSearchHits().stream().map(hit -> toItem(hit, k)).toList();
+    private static HighlightQuery keywordHighlight() {
+        HighlightFieldParameters highlightParameters = HighlightFieldParameters.builder()
+                .withPreTags("<em>")
+                .withPostTags("</em>")
+                .withNumberOfFragments(0)
+                .build();
+        return new HighlightQuery(
+                new Highlight(List.of(
+                        new HighlightField("title", highlightParameters),
+                        new HighlightField("content", highlightParameters)
+                )),
+                EsPostDocument.class
+        );
     }
 
     private PostSearchHit toItem(SearchHit<EsPostDocument> hit, String keyword) {

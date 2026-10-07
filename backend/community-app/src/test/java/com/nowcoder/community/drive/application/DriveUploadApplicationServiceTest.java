@@ -955,7 +955,7 @@ class DriveUploadApplicationServiceTest {
     ) {
         return new DriveUploadApplicationService(
                 spaces,
-                new DriveSpaceApplicationService(spaces, clock, new UuidV7Generator(clock)),
+                new DriveSpaceApplicationService(spaces, clock, new UuidV7Generator(clock), new DriveTransactionOperations()),
                 entries,
                 uploads,
                 storage,

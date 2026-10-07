@@ -59,7 +59,7 @@ final class TestDriveFixture {
     }
 
     DriveSpaceApplicationService spaceService() {
-        return new DriveSpaceApplicationService(spaces, CLOCK, idGenerator);
+        return new DriveSpaceApplicationService(spaces, CLOCK, idGenerator, new DriveTransactionOperations());
     }
 
     DriveEntryApplicationService entryService() {

@@ -249,7 +249,8 @@ class DriveTrashApplicationServiceTest {
                 new DriveSpaceApplicationService(
                         spaceRepository,
                         Clock.fixed(now, ZoneOffset.UTC),
-                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC)),
+                        new DriveTransactionOperations()
                 ),
                 entryRepository,
                 storagePort,
@@ -299,7 +300,8 @@ class DriveTrashApplicationServiceTest {
                 new DriveSpaceApplicationService(
                         spaceRepository,
                         Clock.fixed(now, ZoneOffset.UTC),
-                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC)),
+                        new DriveTransactionOperations()
                 ),
                 entryRepository,
                 storagePort,
@@ -357,7 +359,8 @@ class DriveTrashApplicationServiceTest {
                 new DriveSpaceApplicationService(
                         spaceRepository,
                         Clock.fixed(now, ZoneOffset.UTC),
-                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC))
+                        new UuidV7Generator(Clock.fixed(now, ZoneOffset.UTC)),
+                        new DriveTransactionOperations()
                 ),
                 entryRepository,
                 storagePort,

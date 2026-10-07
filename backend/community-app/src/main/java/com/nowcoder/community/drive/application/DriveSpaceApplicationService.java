@@ -21,15 +21,21 @@ public class DriveSpaceApplicationService {
     private final DriveSpaceRepository spaceRepository;
     private final Clock clock;
     private final UuidV7Generator idGenerator;
+    private final DriveTransactionOperations transactionOperations;
 
     public DriveSpaceApplicationService(
             DriveSpaceRepository spaceRepository,
             Clock clock,
-            UuidV7Generator idGenerator
+            UuidV7Generator idGenerator,
+            DriveTransactionOperations transactionOperations
     ) {
         this.spaceRepository = Objects.requireNonNull(spaceRepository, "spaceRepository must not be null");
         this.clock = Objects.requireNonNull(clock, "clock must not be null");
         this.idGenerator = Objects.requireNonNull(idGenerator, "idGenerator must not be null");
+        this.transactionOperations = Objects.requireNonNull(
+                transactionOperations,
+                "transactionOperations must not be null"
+        );
     }
 
     @Transactional
@@ -54,7 +60,8 @@ public class DriveSpaceApplicationService {
                 && result.space() != null) {
             return result.space();
         }
-        throw new BusinessException(INTERNAL_ERROR, "网盘空间创建失败");
+        return transactionOperations.requiresNew(() -> spaceRepository.findByUserId(userId))
+                .orElseThrow(() -> new BusinessException(INTERNAL_ERROR, "网盘空间创建失败"));
     }
 
     private static DriveSpaceResult toResult(DriveSpace space) {

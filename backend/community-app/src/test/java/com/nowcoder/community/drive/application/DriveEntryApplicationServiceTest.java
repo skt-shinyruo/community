@@ -107,7 +107,7 @@ class DriveEntryApplicationServiceTest {
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(
                 spaceRepository,
-                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock)),
+                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock), new DriveTransactionOperations()),
                 entryRepository,
                 storagePort,
                 clock,
@@ -302,7 +302,7 @@ class DriveEntryApplicationServiceTest {
 
         DriveEntryApplicationService service = new DriveEntryApplicationService(
                 spaceRepository,
-                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock)),
+                new DriveSpaceApplicationService(spaceRepository, clock, new UuidV7Generator(clock), new DriveTransactionOperations()),
                 entryRepository,
                 storagePort,
                 clock,

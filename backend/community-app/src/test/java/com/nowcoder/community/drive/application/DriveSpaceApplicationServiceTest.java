@@ -39,7 +39,8 @@ class DriveSpaceApplicationServiceTest {
         DriveSpaceApplicationService service = new DriveSpaceApplicationService(
                 spaceRepository,
                 clock,
-                new UuidV7Generator(clock)
+                new UuidV7Generator(clock),
+                new DriveTransactionOperations()
         );
         DriveSpaceResult result = service.getSpace(userId);
 
